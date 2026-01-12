@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Glow esterno -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#40FF00FF"/>
+            <size
+                android:width="108dp"
+                android:height="108dp"/>
+        </shape>
+    </item>
+    <!-- Cerchio interno -->
+    <item
+        android:top="4dp"
+        android:bottom="4dp"
+        android:left="4dp"
+        android:right="4dp">
+        <shape android:shape="oval">
+            <solid android:color="#1E1B2E"/>
+        </shape>
+    </item>
+
+</layer-list>

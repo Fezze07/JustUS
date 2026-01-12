@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="32dp"
+    android:gravity="center"
+    android:background="@drawable/bg_gradient">
+    <!-- Titolo della pagina -->
+    <TextView
+        android:id="@+id/titleLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/bucket_list_title"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:paddingBottom="16dp"/>
+    <!-- input + pulsante add -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <EditText
+            android:id="@+id/inputText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:autofillHints=""
+            android:hint="@string/bucket_list_add"
+            android:inputType="text"
+            android:minHeight="48dp"
+            android:padding="12dp"
+            android:background="@drawable/edittext_bg"
+            android:textColor="#FFFFFF"
+            tools:ignore="VisualLintTextFieldSize" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAdd"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:text="@string/add_symbol"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:stateListAnimator="@null"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/btn_gradient"/>
+    </LinearLayout>
+    <!-- messaggio vuoto -->
+    <TextView
+        android:id="@+id/emptyGroup"
+        android:text="@string/bucket_list_counter"
+        android:gravity="center"
+        android:padding="40dp"
+        android:textColor="#FFFFFF"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+    <!-- lista -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerBucket"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+</LinearLayout>

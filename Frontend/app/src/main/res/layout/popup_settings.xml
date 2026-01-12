@@ -1,0 +1,27 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_solid_dark">
+
+    <TextView
+        android:id="@+id/optionProfile"
+        style="@style/SettingsItemText"
+        android:text="@string/profile"
+        app:drawableStartCompat="@drawable/ic_profile" />
+
+    <TextView
+        android:id="@+id/optionPartner"
+        style="@style/SettingsItemText"
+        android:text="@string/txt_search_partner"
+        app:drawableStartCompat="@drawable/ic_search" />
+
+    <TextView
+        android:id="@+id/optionFavorites"
+        android:text="@string/txt_favorite_items"
+        style="@style/SettingsItemText"
+        app:drawableStartCompat="@drawable/ic_favorite" />
+
+</LinearLayout>
