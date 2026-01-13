@@ -14,6 +14,7 @@ const driveRoutes = require("./routes/drive");
 const uploadRoutes = require("./routes/upload");
 const notifyRoutes = require("./routes/notify");
 const versionRoutes = require('./routes/version');
+const deployRoutes = require('./routes/deploy');
 const partnershipRoutes = require('./routes/partnerships');
 const profileRoutes = require('./routes/profile');
 
@@ -29,6 +30,7 @@ app.use("/versions", express.static(path.join(__dirname, 'versions')));
 app.use("/", pingRoutes);
 app.use("/auth", authRoutes);
 app.use('/app-version', versionRoutes);
+app.use('/deploy', deployRoutes);
 
 // Rotte con autenticazione
 app.use("/missyou", authenticateToken, missyouRoutes);
@@ -41,12 +43,4 @@ app.use("/notify", authenticateToken, notifyRoutes);
 app.use("/partnerships", authenticateToken, partnershipRoutes);
 app.use("/profile", authenticateToken, profileRoutes);
 
-(async () => {
-    try {
-        await db.query('SELECT 1');
-        console.log('DB connesso 🔥');
-    } catch (err) {
-        console.error('DB KO 💀', err);
-    }
-})();
 app.listen(5000, () => console.log("Server attivo su 5000"));
