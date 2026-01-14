@@ -4,6 +4,8 @@ Backend/uploads/
 Backend/config/.env
 Backend/config/fcm-key.json
 Backend/ecosystem.config.js
+Backend/uploads/
+Backend/versions/
 
 #Frontend
 Frontend/.idea/
