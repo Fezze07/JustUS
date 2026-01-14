@@ -43,4 +43,5 @@ app.use("/notify", authenticateToken, notifyRoutes);
 app.use("/partnerships", authenticateToken, partnershipRoutes);
 app.use("/profile", authenticateToken, profileRoutes);
 
-app.listen(5000, () => console.log("Server attivo su 5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server attivo su ${PORT}`));
