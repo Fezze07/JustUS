@@ -32,8 +32,8 @@ android {
         applicationId = "com.fezze.justus"
         minSdk = 33
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.3.3"
+        versionCode = 16
+        versionName = "1.3.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
