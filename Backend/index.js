@@ -43,5 +43,6 @@ app.use("/notify", authenticateToken, notifyRoutes);
 app.use("/partnerships", authenticateToken, partnershipRoutes);
 app.use("/profile", authenticateToken, profileRoutes);
 
+// Backend/index.js
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server attivo su ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server debug attivo su ${PORT}`));

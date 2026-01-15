@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -35,16 +36,17 @@ android {
         versionCode = 15
         versionName = "1.3.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "BASE_URL", "\"https://justus.serverfede.eu/\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"https://justus.serverfede.eu/\"")
+            manifestPlaceholders["networkSecurity"] = "network_security_config_debug"
+            buildConfigField("String", "BASE_URL", "\"http://192.168.1.100:5001/\"")
             isMinifyEnabled = false
             isShrinkResources = false
         }
         release {
+            manifestPlaceholders["networkSecurity"] = "network_security_config_release"
             buildConfigField("String", "BASE_URL", "\"https://justus.serverfede.eu/\"")
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
@@ -63,7 +65,7 @@ android {
 
     kotlin {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+            jvmTarget.set(JvmTarget.JVM_21)
         }
     }
 
