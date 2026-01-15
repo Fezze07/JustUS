@@ -27,3 +27,10 @@
 # VIEW BINDING
 ####################################
 -keep class **Binding { *; }
+
+# WORKMANAGER & ROOM
+####################################
+-keep class androidx.work.impl.** { *; }
+-keep class * extends androidx.work.Worker
+-keep class * extends androidx.work.ListenableWorker
+-dontwarn androidx.room.paging.**

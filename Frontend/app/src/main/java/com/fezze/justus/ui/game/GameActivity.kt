@@ -45,6 +45,8 @@ class GameActivity : BaseActivity() {
         lifecycleScope.launch {
             viewModel.currentQuestion.collectLatest { q ->
                 q?.let { question ->
+                    binding.btnOptionA.text = question.optionA
+                    binding.btnOptionB.text = question.optionB
                     if (question.status == "waiting") {
                         binding.tvQuestion.text =
                             question.message ?: "Aspetta che il partner risponda"
@@ -52,8 +54,6 @@ class GameActivity : BaseActivity() {
                         binding.btnOptionB.isEnabled = false
                     } else {
                         binding.tvQuestion.text = question.question
-                        binding.btnOptionA.text = question.optionA
-                        binding.btnOptionB.text = question.optionB
                         binding.btnOptionA.isEnabled = true
                         binding.btnOptionB.isEnabled = true
                     }

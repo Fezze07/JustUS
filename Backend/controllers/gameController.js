@@ -15,7 +15,7 @@ async function generateQuestion(req, res) {
     const userUsername = userRow.username;
     const partnerUsername = partnerRow.username;
     const [pending] = await pool.query(`
-    SELECT q.id, q.text
+    SELECT q.id, q.text, q.user_id
     FROM game_questions q
     WHERE ((q.user_id=? AND q.partner_id=?) OR (q.user_id=? AND q.partner_id=?))
       AND (SELECT COUNT(*) FROM game_answers a WHERE a.game_id = q.id) < 2
@@ -25,12 +25,15 @@ async function generateQuestion(req, res) {
     if (pending.length > 0) {
       const q = pending[0];
       const [mine] = await pool.query(`SELECT id FROM game_answers WHERE game_id=? AND user_id=?`, [q.id, userId]);
+      const isCreatedByCurrentUser = q.user_id === userId;
+      const optionA = isCreatedByCurrentUser ? userUsername : partnerUsername;
+      const optionB = isCreatedByCurrentUser ? partnerUsername : userUsername;
       return res.json({
         success: true,
         id: q.id,
         question: q.text,
-        optionA: userUsername,
-        optionB: partnerUsername,
+        optionA: optionA,
+        optionB: optionB,
         status: mine.length > 0 ? "waiting" : "pending",
         message: mine.length > 0 ? "Aspetta che l'altro risponda" : undefined
       });

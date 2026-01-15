@@ -26,7 +26,9 @@ object VersionUtils {
     fun handleVersioning(context: Context) {
         val currentVersion = BuildConfig.VERSION_NAME
         val savedVersion = SharedPrefsManager.getLastInstalledVersion(context)
+        Log.d("VersionUtils", "handleVersioning: current=$currentVersion, saved=$savedVersion")
         if (savedVersion != currentVersion) {
+            Log.d("VersionUtils", "Versione cambiata: $savedVersion -> $currentVersion, pulendo cache")
             SharedPrefsManager.clearAppCache(context)
             SharedPrefsManager.saveLastInstalledVersion(context, currentVersion)
         }

@@ -30,12 +30,13 @@ open class BaseActivity : AppCompatActivity() {
                 is ResultWrapper.Success -> {
                     val versionInfo = result.value
                     val currentVersion = BuildConfig.VERSION_NAME
-                    val lastInstalled = SharedPrefsManager.getLastInstalledVersion(this@BaseActivity)
-                    if (currentVersion == versionInfo.version || !VersionUtils.isUpdateAvailable(lastInstalled, versionInfo.version)) {
+                    // Confronta la versione installata (BuildConfig.VERSION_NAME) con quella del server
+                    if (currentVersion == versionInfo.version || !VersionUtils.isUpdateAvailable(currentVersion, versionInfo.version)) {
                         startPartnerCheck()
                         return@launch
                     }
-                    if (VersionUtils.isUpdateAvailable(lastInstalled, versionInfo.version)) {
+                    // Se c'è un aggiornamento disponibile, mostra il dialog
+                    if (VersionUtils.isUpdateAvailable(currentVersion, versionInfo.version)) {
                         if (!VersionUtils.canInstallUnknownApps(this@BaseActivity)) {
                             VersionUtils.requestInstallPermission(this@BaseActivity, 12345)
                         } else {
