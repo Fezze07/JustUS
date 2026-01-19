@@ -169,13 +169,20 @@ class DriveViewModel : ViewModel() {
     fun onToggleFavorite(itemId: Int, context: Context) = viewModelScope.launch {
         val currentList = _driveItems.value.toMutableList()
         val idx = currentList.indexOfFirst { it.id == itemId }
-        if (idx == -1) return@launch
-        val item = currentList[idx]
+        val item = if (idx != -1) currentList[idx] else _singleItem.value?.takeIf { it.id == itemId }
+        if (item == null) return@launch
+
         val isCurrentlyFavorite = item.is_favorite == 1
         val updatedItem = item.copy(is_favorite = if (isCurrentlyFavorite) 0 else 1)
-        currentList[idx] = updatedItem
-        _driveItems.value = currentList
-        DriveLocalCache.saveCachedDriveItems(context, currentList)
+
+        if (idx != -1) {
+            currentList[idx] = updatedItem
+            _driveItems.value = currentList
+            DriveLocalCache.saveCachedDriveItems(context, currentList)
+        }
+        if (_singleItem.value?.id == itemId) {
+            _singleItem.value = updatedItem
+        }
         val result = if (!isCurrentlyFavorite) {
             repository.addFavorite(itemId)
         } else {

@@ -112,8 +112,6 @@ abstract class DriveBaseViewHolder(
     }
     private fun updateFavoriteUI(isFavorite: Int) {
         val starIcon = if (isFavorite == 1) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-        (btnFavorite as? com.google.android.material.button.MaterialButton)?.apply {
-            icon = AppCompatResources.getDrawable(context, starIcon)
-        }
+        (btnFavorite as? android.widget.ImageView)?.setImageResource(starIcon)
     }
 }

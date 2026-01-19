@@ -79,15 +79,14 @@ class DriveActivity : AppCompatActivity() {
         })
     }
     private fun setupRecyclerView() {
-        adapter = DriveAdapterGrid { item -> DriveActivityItem.start(this, item.id) }
+        adapter = DriveAdapterGrid { item ->
+            DriveActivityItem.start(this, item.id)
+        }
         gridLayoutManager = GridLayoutManager(this, spanCount)
         gridLayoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
             override fun getSpanSize(position: Int): Int {
                 return if (adapter.isHeader(position)) spanCount else 1
             }
-        }
-        adapter = DriveAdapterGrid { item ->
-            DriveActivityItem.start(this, item.id)
         }
         binding.recyclerViewDrive.apply {
             adapter = this@DriveActivity.adapter

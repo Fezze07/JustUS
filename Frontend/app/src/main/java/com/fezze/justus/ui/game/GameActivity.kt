@@ -52,13 +52,18 @@ class GameActivity : BaseActivity() {
                             question.message ?: "Aspetta che il partner risponda"
                         binding.btnOptionA.isEnabled = false
                         binding.btnOptionB.isEnabled = false
+                        binding.btnRemindPartner.visibility = android.view.View.VISIBLE
                     } else {
                         binding.tvQuestion.text = question.question
                         binding.btnOptionA.isEnabled = true
                         binding.btnOptionB.isEnabled = true
+                        binding.btnRemindPartner.visibility = android.view.View.GONE
                     }
                 }
             }
+        }
+        binding.btnRemindPartner.setOnClickListener {
+            partnerId?.let { viewModel.sendReminderNotification(currentUser, it) }
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

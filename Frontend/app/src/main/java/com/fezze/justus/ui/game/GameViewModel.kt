@@ -83,4 +83,15 @@ class GameViewModel(private val repo: ApiRepository, private val notificationVm:
             is ResultWrapper.NetworkError -> _uiEvents.emit(UiEvent.ShowMessage("Problema di rete", true))
         }
     }
+    fun sendReminderNotification(currentUser: String, partnerId: Int) {
+        viewModelScope.launch {
+            notificationVm.sendNotification(
+                type = "game_reminder",
+                receiverId = partnerId,
+                title = "Promemoria Gioco 🔔",
+                body = "Ricordati di rispondere alla domanda!"
+            )
+            _uiEvents.emit(UiEvent.ShowMessage("Promemoria inviato! 🔔"))
+        }
+    }
 }

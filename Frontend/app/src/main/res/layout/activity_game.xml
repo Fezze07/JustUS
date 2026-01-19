@@ -25,6 +25,21 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Statistiche del gioco" />
+
+    <!-- Reminder button -->
+    <ImageButton
+        android:id="@+id/btnRemindPartner"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Remind Partner"
+        android:src="@drawable/ic_bell"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/game_stats_title"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/game_stats_title"
+        tools:visibility="visible" />
     <!-- Stats -->
     <TextView
         android:id="@+id/tvStats"

@@ -72,15 +72,16 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp" />
         <!-- Favorite button -->
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
             android:id="@+id/btnFavorite"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            app:icon="@drawable/ic_star_outline"
-            app:iconTint="@null"
-            android:background="@android:color/transparent"
-            app:cornerRadius="24dp"
-            android:layout_marginStart="8dp"/>
+            android:src="@drawable/ic_star_outline"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="fitCenter"
+            android:padding="8dp"
+            android:layout_marginStart="8dp"
+            android:contentDescription="Favorite"/>
 
     </LinearLayout>
     <!-- 🔹 Tasto Pausa/Riprendi Video -->
