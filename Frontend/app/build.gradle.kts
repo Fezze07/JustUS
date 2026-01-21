@@ -4,7 +4,7 @@ import java.io.FileInputStream
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 if (!keystorePropertiesFile.exists()) {
-    throw GradleException("keystore.properties non trovato! Crealo nella root del progetto.")
+    throw GradleException("keystore.properties non trovato!")
 }
 val keystoreProperties: Properties = Properties()
 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
@@ -32,8 +32,8 @@ android {
         applicationId = "com.fezze.justus"
         minSdk = 33
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.3.5"
+        versionCode = 18
+        versionName = "1.3.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

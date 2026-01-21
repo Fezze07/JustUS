@@ -25,7 +25,6 @@ object SharedPrefsManager {
     private const val BUCKET_LIST_KEY = "bucket_list"
     private const val GAME_MATCHES_KEY = "game_matches"
     private const val GAME_QUESTION_KEY = "game_question"
-    private const val KEY_LAST_INSTALLED_VERSION = "last_installed_version"
     fun saveUsername(context: Context, username: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit { putString(KEY_USERNAME, username) }
@@ -120,11 +119,4 @@ object SharedPrefsManager {
             remove(KEY_DRIVE_THUMB_CACHE)
         }
     }
-    fun saveLastInstalledVersion(context: Context, version: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit { putString(KEY_LAST_INSTALLED_VERSION, version) }
-    }
-    fun getLastInstalledVersion(context: Context): String =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_LAST_INSTALLED_VERSION, BuildConfig.VERSION_NAME) ?: BuildConfig.VERSION_NAME
 }

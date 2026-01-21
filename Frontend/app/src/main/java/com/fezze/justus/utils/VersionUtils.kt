@@ -12,9 +12,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
-import com.fezze.justus.BuildConfig
 import com.fezze.justus.R
-import com.fezze.justus.data.local.SharedPrefsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -23,16 +21,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 object VersionUtils {
-    fun handleVersioning(context: Context) {
-        val currentVersion = BuildConfig.VERSION_NAME
-        val savedVersion = SharedPrefsManager.getLastInstalledVersion(context)
-        Log.d("VersionUtils", "handleVersioning: current=$currentVersion, saved=$savedVersion")
-        if (savedVersion != currentVersion) {
-            Log.d("VersionUtils", "Versione cambiata: $savedVersion -> $currentVersion, pulendo cache")
-            SharedPrefsManager.clearAppCache(context)
-            SharedPrefsManager.saveLastInstalledVersion(context, currentVersion)
-        }
-    }
+    var isUpdateDialogShowing = false
     fun isUpdateAvailable(localVersion: String, serverVersion: String): Boolean {
         val localParts = localVersion.split(".").map { it.toIntOrNull() ?: 0 }
         val serverParts = serverVersion.split(".").map { it.toIntOrNull() ?: 0 }
@@ -46,6 +35,8 @@ object VersionUtils {
         return false
     }
     fun showUpdateDialog(activity: Activity, apkUrl: String, changelog: String) {
+        if (isUpdateDialogShowing) return
+        isUpdateDialogShowing = true
         val dialogView = activity.layoutInflater.inflate(R.layout.version_update, null)
         val progressBar = dialogView.findViewById<ProgressBar>(R.id.progressBar)
         val progressText = dialogView.findViewById<TextView>(R.id.progressText)
@@ -62,10 +53,19 @@ object VersionUtils {
                 startDownload(activity, apkUrl, progressBar, progressText)
             }
         }
+        dialog.setOnDismissListener {
+            isUpdateDialogShowing = false
+        }
         dialog.show()
     }
     fun startDownload(activity: Activity, url: String, progressBar: ProgressBar, progressText: TextView) {
         val fileName = "app-update.apk"
+        val downloadDir = activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadDir, fileName)
+        if (file.exists()) {
+            val deleted = file.delete()
+            Log.d("VersionUtils", "Vecchio file esistente cancellato: $deleted")
+        }
         val request = DownloadManager.Request(url.toUri())
             .setTitle("Scaricando aggiornamento")
             .setDestinationInExternalFilesDir(activity, Environment.DIRECTORY_DOWNLOADS, fileName)
@@ -74,6 +74,7 @@ object VersionUtils {
         val downloadId = manager.enqueue(request)
         CoroutineScope(Dispatchers.IO).launch {
             var downloading = true
+            var finalUriString: String? = null
             while (downloading) {
                 val cursor = manager.query(DownloadManager.Query().setFilterById(downloadId))
                 if (cursor.moveToFirst()) {
@@ -83,6 +84,7 @@ object VersionUtils {
                         cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                     val status =
                         cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+
                     if (bytesTotal > 0) {
                         val progress = ((bytesDownloaded * 100) / bytesTotal).toInt()
                         withContext(Dispatchers.Main) {
@@ -92,16 +94,21 @@ object VersionUtils {
                         }
                     }
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        finalUriString = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
                         downloading = false
+                    } else if (status == DownloadManager.STATUS_FAILED) {
+                        downloading = false
+                        withContext(Dispatchers.Main) {
+                            progressText.text = "Errore durante il download"
+                        }
                     }
                 }
                 cursor.close()
                 delay(300)
             }
-            // Percorsi del file scaricato
-            val file = File(activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "app-update.apk")
-            val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
-            // Intent di installazione
+            if (finalUriString == null) return@launch
+            val downloadedFile = File(finalUriString.toUri().path!!)
+            val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", downloadedFile)
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

@@ -30,22 +30,18 @@ open class BaseActivity : AppCompatActivity() {
                 is ResultWrapper.Success -> {
                     val versionInfo = result.value
                     val currentVersion = BuildConfig.VERSION_NAME
-                    // Confronta la versione installata (BuildConfig.VERSION_NAME) con quella del server
                     if (currentVersion == versionInfo.version || !VersionUtils.isUpdateAvailable(currentVersion, versionInfo.version)) {
                         startPartnerCheck()
                         return@launch
                     }
-                    // Se c'è un aggiornamento disponibile, mostra il dialog
-                    if (VersionUtils.isUpdateAvailable(currentVersion, versionInfo.version)) {
+                    // Se c'è un aggiornamento disponibile e non lo stiamo già mostrando, mostra il dialog
+                    if (!VersionUtils.isUpdateDialogShowing) {
                         if (!VersionUtils.canInstallUnknownApps(this@BaseActivity)) {
                             VersionUtils.requestInstallPermission(this@BaseActivity, 12345)
                         } else {
                             VersionUtils.showUpdateDialog(this@BaseActivity, versionInfo.apk_url, versionInfo.changelog)
                         }
-                    } else {
-                        startPartnerCheck()
                     }
-
                 }
                 is ResultWrapper.GenericError -> _uiEvents.emit(UiEvent.ShowMessage("Errore server versione app", true))
                 is ResultWrapper.NetworkError -> _uiEvents.emit(UiEvent.ShowMessage("Problema di rete", true))
