@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:name=".JustusApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.JustUS"
+        android:networkSecurityConfig="@xml/${networkSecurity}">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
+        <activity
+            android:name=".ui.auth.login.LoginActivity"
+            android:exported="true"
+            android:theme="@style/Theme.JustUS">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.auth.register.RegisterActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.mood.MoodActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.homepage.HomepageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.bucket.BucketListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.game.GameActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.drive.DriveActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.drive.DriveActivityItem"
+            android:exported="false" />
+        <activity
+            android:name=".ui.profile.ProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.profile.change_password.ChangePasswordActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.partner.PartnerActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.profile.CropImageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.favorites.FavoritesActivity"
+            android:exported="false" />
+        <!-- Firebase Messaging Service -->
+        <service
+            android:name=".data.notification.MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+        <!-- File Download Service -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

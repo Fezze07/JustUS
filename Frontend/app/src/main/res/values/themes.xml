@@ -1,0 +1,57 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base application theme -->
+    <style name="Theme.JustUS" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="android:fontFamily">@font/acme_regular</item>
+        <item name="materialButtonStyle">@style/AppMaterialButton</item>
+        <item name="textInputStyle">@style/AppEditText</item>
+    </style>
+
+    <style name="AppMaterialButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:fontFamily">@font/dynapuff_semibold</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="AppEditText" parent="Widget.MaterialComponents.TextInputEditText.OutlinedBox">
+        <item name="android:fontFamily">@font/dynapuff_semibold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/black</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="BottomSheetDialogTheme" parent="Theme.Design.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/ShapeAppearanceOverlay.BottomSheet.Small</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.BottomSheet.Small" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.BottomSheet.Rounded</item>
+    </style>
+
+    <style name="ShapeAppearance.BottomSheet.Rounded" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <style name="SettingsItemText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+
+    <style name="CircleImage" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+</resources>

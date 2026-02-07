@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_gradient"
+    android:padding="16dp">
+    <!-- Titolo -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/change_mood"
+        android:textColor="#FFFFFF"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    <!-- Emoji buttons -->
+    <TextView
+        android:id="@+id/tvUserMood"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:gravity="center"
+        android:text="@string/emoji_quiet"
+        android:textSize="80sp"
+        app:layout_constraintBottom_toTopOf="@id/emojiButtons"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintVertical_bias="0.537" />
+
+    <LinearLayout
+        android:id="@+id/emojiButtons"
+        style="?android:attr/buttonBarStyle"
+        android:layout_width="327dp"
+        android:layout_height="89dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toTopOf="@+id/btnAddEmoji"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <Button
+            android:id="@+id/btnCool"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_margin="8dp"
+            android:background="@drawable/btn_gradient"
+            android:onClick="onEmojiClick"
+            android:text="@string/emoji_cool"
+            android:textSize="24sp" />
+
+        <Button
+            android:id="@+id/btnLaugh"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_margin="8dp"
+            android:background="@drawable/btn_gradient"
+            android:onClick="onEmojiClick"
+            android:text="@string/emoji_happy"
+            android:textSize="24sp" />
+
+        <Button
+            android:id="@+id/btnLove"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_margin="8dp"
+            android:background="@drawable/btn_gradient"
+            android:onClick="onEmojiClick"
+            android:text="@string/emoji_love"
+            android:textColor="#FFEB3B"
+            android:textSize="24sp" />
+
+        <Button
+            android:id="@+id/btnSad"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_margin="8dp"
+            android:background="@drawable/btn_gradient"
+            android:onClick="onEmojiClick"
+            android:text="@string/emoji_sad"
+            android:textSize="24sp" />
+    </LinearLayout>
+    <!-- Add Custom Emoji -->
+    <Button
+        android:id="@+id/btnAddEmoji"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/custom_emoji"
+        android:textSize="16sp"
+        android:background="@drawable/btn_gradient"
+        app:backgroundTint="@null"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp"
+        android:textColor="#FFEEFF"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:onClick="onAddCustomEmojiClick"
+        android:layout_marginTop="16dp"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

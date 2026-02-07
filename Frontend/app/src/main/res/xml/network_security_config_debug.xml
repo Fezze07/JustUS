@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Permetti traffico HTTP solo verso il server locale -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.1.100</domain>
+    </domain-config>
+
+    <!-- Tutti gli altri domini solo HTTPS -->
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
