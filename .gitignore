@@ -11,7 +11,6 @@ Backend/versions/
 Frontend/.idea/
 Frontend/.gradle/
 Frontend/.kotlin/
-Frontend/gradle/wrapper/gradle-wrapper.jar
 Frontend/build/
 Frontend/app/.idea/
 Frontend/app/*.iml
