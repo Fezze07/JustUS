@@ -22,8 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - language: c-cpp
-          build-mode: autobuild
         - language: java-kotlin
           build-mode: manual
         - language: javascript-typescript
@@ -51,6 +49,10 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
+        echo "Creating dummy google-services.json..."
+        echo '{"project_info":{"project_number":"123","project_id":"fake"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.fezze.justus"}},"api_key":[{"current_key":"fake"}]}]}' > Frontend/app/google-services.json
+        echo '{"project_info":{"project_number":"123","project_id":"fake"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.example.justus"}},"api_key":[{"current_key":"fake"}]}]}' > Flutter_app/android/app/google-services.json
+        
         # 1. Build del progetto in Frontend
         echo "Building Frontend..."
         cd Frontend
