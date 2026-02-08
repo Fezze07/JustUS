@@ -51,13 +51,19 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        if [ -f "./gradlew" ]; then
-          chmod +x gradlew
-          ./gradlew build -x test
-        else
-          echo "Gradlew non trovato! Controlla i path."
-          exit 1
-        fi
+        # 1. Build del progetto in Frontend
+        echo "Building Frontend..."
+        cd Frontend
+        chmod +x gradlew
+        ./gradlew assemble -x test
+        cd ..
+
+        # 2. Build del progetto in Flutter_app/android
+        echo "Building Flutter App..."
+        cd Flutter_app/android
+        chmod +x gradlew
+        ./gradlew assembleDebug -x test
+        cd ../..
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
