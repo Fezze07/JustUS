@@ -51,6 +51,10 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
+        echo "Creating dummy keystore.properties..."
+        touch Frontend/keystore.properties 
+        touch Flutter_app/android/keystore.properties
+        
         # 1. Build del progetto in Frontend
         echo "Building Frontend..."
         cd Frontend
