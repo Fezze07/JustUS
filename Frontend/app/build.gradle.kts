@@ -3,11 +3,13 @@ import java.util.Properties
 import java.io.FileInputStream
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
-if (!keystorePropertiesFile.exists()) {
-    throw GradleException("keystore.properties non trovato!")
+val hasKeystore = keystorePropertiesFile.exists()
+val keystoreProperties = Properties()
+if (hasKeystore) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+} else {
+    println("WARNING: keystore.properties non trovato.")
 }
-val keystoreProperties: Properties = Properties()
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 
 plugins {
     alias(libs.plugins.android.application)
@@ -20,11 +22,13 @@ android {
     compileSdk = 36
 
     signingConfigs {
-        create("release") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
         }
     }
 
@@ -47,7 +51,7 @@ android {
         release {
             manifestPlaceholders["networkSecurity"] = "network_security_config_release"
             buildConfigField("String", "BASE_URL", "\"https://justus.serverfede.eu/\"")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasKeystore) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
