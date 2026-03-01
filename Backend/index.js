@@ -20,7 +20,7 @@ const profileRoutes = require('./routes/profile');
 // Token per autenticazione
 const authenticateToken = require("./middleware/authMiddleware");
 
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use("/versions", express.static(path.join(__dirname, 'versions')));
