@@ -177,9 +177,9 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF12091D),
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF12091D),
         foregroundColor: Colors.white,
         actions: [
           Consumer<DriveState>(

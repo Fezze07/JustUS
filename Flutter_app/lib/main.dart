@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'state/auth_state.dart';
 import 'state/login_state.dart';
@@ -17,6 +18,7 @@ import 'state/drive_state.dart';
 import 'state/partner_state.dart';
 import 'state/profile_state.dart';
 import 'services/notification_service.dart';
+import 'constants/app_colors.dart';
 
 import 'screens/splash_screen.dart';
 
@@ -72,17 +74,29 @@ class JustUsApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.pink,
+            seedColor: AppColors.primary,
             brightness: Brightness.light,
+            primary: AppColors.primary,
           ),
-          appBarTheme: const AppBarTheme(
+          textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+          scaffoldBackgroundColor: AppColors.backgroundLight,
+          appBarTheme: AppBarTheme(
             centerTitle: true,
+            backgroundColor: AppColors.backgroundLight,
+            elevation: 0,
+            titleTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textLight,
+            ),
           ),
           cardTheme: CardThemeData(
-            elevation: 2,
+            elevation: 0,
+            color: AppColors.cardLight,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            margin: EdgeInsets.zero,
           ),
           inputDecorationTheme: InputDecorationTheme(
             border: OutlineInputBorder(
@@ -95,6 +109,7 @@ class JustUsApp extends StatelessWidget {
           ),
           filledButtonTheme: FilledButtonThemeData(
             style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(
                 horizontal: 24,
                 vertical: 12,
@@ -108,17 +123,34 @@ class JustUsApp extends StatelessWidget {
         darkTheme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.pink,
+            seedColor: AppColors.primary,
             brightness: Brightness.dark,
+            primary: AppColors.primary,
+            surface: AppColors.backgroundDark,
           ),
-          appBarTheme: const AppBarTheme(
+          textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
+          scaffoldBackgroundColor: AppColors.backgroundDark,
+          appBarTheme: AppBarTheme(
             centerTitle: true,
+            backgroundColor: AppColors.backgroundDark,
+            elevation: 0,
+            titleTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
           ),
           cardTheme: CardThemeData(
-            elevation: 2,
+            elevation: 0,
+            color: AppColors.cardDark,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: AppColors.borderDark,
+                width: 1,
+              ),
             ),
+            margin: EdgeInsets.zero,
           ),
           inputDecorationTheme: InputDecorationTheme(
             border: OutlineInputBorder(
@@ -131,6 +163,7 @@ class JustUsApp extends StatelessWidget {
           ),
           filledButtonTheme: FilledButtonThemeData(
             style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(
                 horizontal: 24,
                 vertical: 12,

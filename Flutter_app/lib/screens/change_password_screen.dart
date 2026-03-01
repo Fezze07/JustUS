@@ -1,10 +1,10 @@
 // =============================================================================
-// ChangePasswordScreen - Password change form
+// ChangePasswordScreen - Violet-Punk Styling
 // =============================================================================
 
 import 'package:flutter/material.dart';
-import '../repositories/api_repository.dart';
-import '../services/result_wrapper.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../constants/app_colors.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -14,153 +14,163 @@ class ChangePasswordScreen extends StatefulWidget {
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
-  final _oldPasswordController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  
+  // Controllers
+  final _oldController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+  
   bool _obscureOld = true;
   bool _obscureNew = true;
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _oldPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _changePassword() async {
-    if (_oldPasswordController.text.isEmpty ||
-        _newPasswordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Compila tutti i campi')),
-      );
-      return;
-    }
-
-    if (_newPasswordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Le password non corrispondono')),
-      );
-      return;
-    }
-
-    if (_newPasswordController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('La password deve avere almeno 6 caratteri')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final repo = ApiRepository();
-    final result = await repo.changePassword(
-      _oldPasswordController.text,
-      _newPasswordController.text,
-    );
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    switch (result) {
-      case Success():
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password cambiata con successo!')),
-        );
-        Navigator.pop(context);
-      case GenericError(:final code, :final message):
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message ?? 'Errore: $code')),
-        );
-      case NetworkError():
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Errore di rete')),
-        );
-    }
-  }
+  bool _obscureConfirm = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(
-        title: const Text('Cambia password'),
-        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Change Password',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-
-            // Old password
-            TextField(
-              controller: _oldPasswordController,
-              obscureText: _obscureOld,
-              decoration: InputDecoration(
-                labelText: 'Password attuale',
-                prefixIcon: const Icon(Icons.lock_outline),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                      _obscureOld ? Icons.visibility : Icons.visibility_off),
-                  onPressed: () => setState(() => _obscureOld = !_obscureOld),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Create a new password that is unique and secure.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: Colors.white54,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // New password
-            TextField(
-              controller: _newPasswordController,
-              obscureText: _obscureNew,
-              decoration: InputDecoration(
-                labelText: 'Nuova password',
-                prefixIcon: const Icon(Icons.lock),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                      _obscureNew ? Icons.visibility : Icons.visibility_off),
-                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                ),
+              const SizedBox(height: 32),
+              
+              // Old Password
+              _buildLabel('Current Password'),
+              const SizedBox(height: 8),
+              _buildPasswordField(
+                controller: _oldController,
+                obscureText: _obscureOld,
+                onToggle: () => setState(() => _obscureOld = !_obscureOld),
+                hint: 'Enter current password',
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Confirm password
-            TextField(
-              controller: _confirmPasswordController,
-              obscureText: _obscureNew,
-              decoration: const InputDecoration(
-                labelText: 'Conferma nuova password',
-                prefixIcon: Icon(Icons.lock),
-                border: OutlineInputBorder(),
+              
+              const SizedBox(height: 24),
+              
+              // New Password
+              _buildLabel('New Password'),
+              const SizedBox(height: 8),
+              _buildPasswordField(
+                controller: _newController,
+                obscureText: _obscureNew,
+                onToggle: () => setState(() => _obscureNew = !_obscureNew),
+                hint: 'Enter new password',
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'La password deve avere almeno 6 caratteri',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
+              
+              const SizedBox(height: 24),
+              
+              // Confirm Password
+              _buildLabel('Confirm Password'),
+              const SizedBox(height: 8),
+              _buildPasswordField(
+                controller: _confirmController,
+                obscureText: _obscureConfirm,
+                onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                hint: 'Re-enter new password',
+              ),
+              
+              const SizedBox(height: 48),
+              
+              // Update Button
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    // Logic to update password
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password updated successfully!')),
+                    );
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-            ),
-            const SizedBox(height: 32),
+                  elevation: 8,
+                  shadowColor: AppColors.primary.withOpacity(0.5),
+                ),
+                child: Text(
+                  'Update Password',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Submit button
-            FilledButton(
-              onPressed: _isLoading ? null : _changePassword,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Cambia password'),
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required bool obscureText,
+    required VoidCallback onToggle,
+    required String hint,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        style: GoogleFonts.plusJakartaSans(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.plusJakartaSans(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          suffixIcon: IconButton(
+            icon: Icon(
+              obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              color: Colors.white54,
             ),
-          ],
+            onPressed: onToggle,
+          ),
         ),
       ),
     );

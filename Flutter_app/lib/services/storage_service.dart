@@ -10,7 +10,8 @@ import '../models/models.dart';
 class StorageService {
   static const String _keyUsername = 'username';
   static const String _keyUserCode = 'user_code';
-  static const String _keyToken = 'token';
+  static const String _keyAccessToken = 'access_token';
+  static const String _keyRefreshToken = 'refresh_token';
   static const String _keyPartnerId = 'partner_id';
   static const String _keyPartnerUsername = 'partner_username';
   static const String _keyMissYouTotal = 'miss_you';
@@ -58,16 +59,37 @@ class StorageService {
     return p.getString(_keyUserCode);
   }
 
-  // -------------------- Token --------------------
+  // -------------------- Access Token --------------------
 
-  static Future<void> saveToken(String token) async {
+  static Future<void> saveAccessToken(String token) async {
     final p = await prefs;
-    await p.setString(_keyToken, token);
+    await p.setString(_keyAccessToken, token);
+  }
+
+  static Future<String?> getAccessToken() async {
+    final p = await prefs;
+    return p.getString(_keyAccessToken);
+  }
+
+  // -------------------- Refresh Token --------------------
+
+  static Future<void> saveRefreshToken(String token) async {
+    final p = await prefs;
+    await p.setString(_keyRefreshToken, token);
+  }
+
+  static Future<String?> getRefreshToken() async {
+    final p = await prefs;
+    return p.getString(_keyRefreshToken);
+  }
+
+  // Backward compatibility - deprecated, use saveAccessToken
+  static Future<void> saveToken(String token) async {
+    await saveAccessToken(token);
   }
 
   static Future<String?> getToken() async {
-    final p = await prefs;
-    return p.getString(_keyToken);
+    return getAccessToken();
   }
 
   // -------------------- Partner --------------------

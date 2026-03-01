@@ -24,25 +24,46 @@ class GenericResponse {
 class LoginResponse {
   final bool success;
   final String? message;
-  final String? token;
+  final String? accessToken;
+  final String? refreshToken;
   final User? user;
   final String? error;
 
   LoginResponse({
     required this.success,
     this.message,
-    this.token,
+    this.accessToken,
+    this.refreshToken,
     this.user,
     this.error,
   });
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
     return LoginResponse(
-      success: json['success'] ?? false,
-      message: json['message'],
-      token: json['token'],
+      success: json['ok'] ?? json['success'] ?? false,
+      message: json['message'] ?? json['msg'],
+      accessToken: json['accessToken'],
+      refreshToken: json['refreshToken'],
       user: json['user'] != null ? User.fromJson(json['user']) : null,
-      error: json['error'],
+      error: json['error'] ?? json['msg'],
+    );
+  }
+}
+
+class RefreshTokenResponse {
+  final bool success;
+  final String? accessToken;
+  final String? refreshToken;
+  final String? error;
+
+  RefreshTokenResponse({required this.success, this.accessToken, this.refreshToken, this.error});
+
+  factory RefreshTokenResponse.fromJson(Map<String, dynamic> json) {
+    return RefreshTokenResponse(
+      success: json['success'] ?? json['ok'] ?? false,
+      accessToken: json['accessToken'],
+      refreshToken: json['refreshToken'],
+      error: json['error'] ?? json['msg'],
     );
   }
 }

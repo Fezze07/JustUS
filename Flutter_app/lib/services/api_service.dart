@@ -23,6 +23,9 @@ class ApiService {
 
   // HTTP client
   final http.Client _client = http.Client();
+  
+  // Flag to prevent concurrent refresh attempts
+  bool _isRefreshing = false;
 
   // -------------------- Helper Methods --------------------
 
@@ -45,13 +48,23 @@ class ApiService {
 
   Future<ResultWrapper<T>> _safeCall<T>(
     Future<http.Response> Function() call,
-    T Function(Map<String, dynamic>) fromJson,
-  ) async {
+    T Function(Map<String, dynamic>) fromJson, {
+    bool isRetry = false,
+  }) async {
     try {
       final response = await call();
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = jsonDecode(response.body);
         return Success(fromJson(body));
+      } else if (response.statusCode == 401 && !isRetry && !_isRefreshing) {
+        // Token expired - try to refresh
+        final refreshResult = await _tryRefreshToken();
+        if (refreshResult) {
+          // Retry the original call
+          return _safeCall(call, fromJson, isRetry: true);
+        }
+        // Refresh failed
+        return const GenericError(code: 401, message: 'Session expired. Please login again.');
       } else {
         String? errorMessage;
         try {
@@ -66,6 +79,43 @@ class ApiService {
       return const NetworkError();
     } catch (e) {
       return GenericError(message: e.toString());
+    }
+  }
+
+  Future<bool> _tryRefreshToken() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+    
+    try {
+      final refreshToken = await StorageService.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) {
+        return false;
+      }
+      
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final body = jsonDecode(response.body);
+        final newAccessToken = body['accessToken'];
+        if (newAccessToken != null) {
+          await StorageService.saveAccessToken(newAccessToken);
+          // Also save new refresh token if provided
+          final newRefreshToken = body['refreshToken'];
+          if (newRefreshToken != null) {
+            await StorageService.saveRefreshToken(newRefreshToken);
+          }
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      return false;
+    } finally {
+      _isRefreshing = false;
     }
   }
 

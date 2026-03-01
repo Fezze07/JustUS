@@ -100,15 +100,18 @@ class LoginState extends ChangeNotifier {
   }
 
   Future<void> _handleLoginSuccess(LoginResponse body) async {
-    if (body.token != null) {
-      await StorageService.saveToken(body.token!);
+    if (body.accessToken != null) {
+      await StorageService.saveAccessToken(body.accessToken!);
+    }
+    if (body.refreshToken != null) {
+      await StorageService.saveRefreshToken(body.refreshToken!);
     }
     if (body.user != null) {
       await StorageService.saveUsername(body.user!.username);
       await StorageService.saveUserCode(body.user!.code);
     }
 
-    if (body.token != null && body.user?.code.isNotEmpty == true) {
+    if (body.accessToken != null && body.user?.code.isNotEmpty == true) {
       _status = LoginStatus.success;
       _lastEvent = SuccessLogin(body.user!.username);
       notifyListeners();
