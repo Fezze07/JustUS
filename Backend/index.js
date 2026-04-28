@@ -13,7 +13,6 @@ const driveRoutes = require("./routes/drive");
 const uploadRoutes = require("./routes/upload");
 const notifyRoutes = require("./routes/notify");
 const versionRoutes = require('./routes/version');
-const deployRoutes = require('./routes/deploy');
 const partnershipRoutes = require('./routes/partnerships');
 const profileRoutes = require('./routes/profile');
 
@@ -29,7 +28,6 @@ app.use("/versions", express.static(path.join(__dirname, 'versions')));
 app.use("/", pingRoutes);
 app.use("/auth", authRoutes);
 app.use('/app-version', versionRoutes);
-app.use('/deploy', deployRoutes);
 
 // Rotte con autenticazione
 app.use("/missyou", authenticateToken, missyouRoutes);
