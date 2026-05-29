@@ -1,0 +1,379 @@
+// =============================================================================
+// AuthState - Global authentication state
+// Manages token, current user, and partner info
+// =============================================================================
+
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+
+import 'package:justus/all_imports.dart';
+
+class AuthState extends BaseState {
+  final AuthRepository _authRepo;
+  final PartnershipRepository _partnershipRepo;
+  final UserRepository _userRepo;
+
+  AuthState({
+    AuthRepository? authRepo,
+    PartnershipRepository? partnershipRepo,
+    UserRepository? userRepo,
+  })  : _authRepo = authRepo ?? AuthRepository(),
+        _partnershipRepo = partnershipRepo ?? PartnershipRepository(),
+        _userRepo = userRepo ?? UserRepository();
+
+  String?
+      _error; // Kept for custom error logic if needed, but BaseState has _message
+
+  String? _accessToken;
+  String? _refreshToken;
+  String? _username;
+  int? _userId;
+  int? _partnerId;
+  String? _partnerDisplayName;
+  List<PartnershipInvitation> _sentInvitations = [];
+  List<PartnershipInvitation> _receivedInvitations = [];
+
+  User? user;
+
+  String? get accessToken => _accessToken;
+  String? get refreshToken => _refreshToken;
+  String? get username => _username;
+  int? get userId => _userId;
+  int? get partnerId => _partnerId;
+  String? get partnerDisplayName => _partnerDisplayName;
+  List<PartnershipInvitation> get sentInvitations => _sentInvitations;
+  List<PartnershipInvitation> get receivedInvitations => _receivedInvitations;
+
+  String? get error => _error;
+
+  bool get isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty;
+  bool get hasPartner => _partnerId != null;
+
+  /// Determines the correct redirect URL based on the platform.
+  /// - Mobile apps use deep links (justus://)
+  /// - Web and Desktop use the server-side callback URL
+  String get _emailRedirectTo {
+    if (kIsWeb) return ApiConfig.appUrl(ApiRoutes.authCallbackPath);
+
+    // Check for native mobile platforms
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'justus://auth/callback';
+    }
+
+    // Fallback for Windows, macOS, and Linux desktop apps
+    return ApiConfig.appUrl(ApiRoutes.authCallbackPath);
+  }
+
+  Future<void> init() async {
+    ApiService.onSessionExpired = () async {
+      if (kDebugMode) {
+        print(
+            '[AuthState] Session expired signal received from ApiService. Forcing logout.');
+      }
+      await logout();
+    };
+    // 1. Get local data
+    _accessToken = await StorageService.getAccessToken();
+    _refreshToken = await StorageService.getRefreshToken();
+    _username = await StorageService.getUsername();
+    _userId = await StorageService.getUserId();
+    _partnerId = await StorageService.getPartnerId();
+    _partnerDisplayName = await StorageService.getPartnerDisplayName();
+
+    // 2. Check Supabase session
+    final session = _authRepo.currentSession;
+    if (session == null) {
+      if (_accessToken != null) await logout();
+    } else {
+      if (_username == null || _username!.isEmpty) {
+        final profileResult =
+            await _userRepo.fetchProfileByAuthId(session.user.id);
+
+        if (profileResult is Success<User>) {
+          await setLoginData(
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken ?? '',
+            user: profileResult.value,
+          );
+        }
+      }
+      await _syncBackendSession();
+    }
+
+    // Sincronizza lo StorageService quando Supabase refresha il token in background
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      final evt = data.event;
+      final currentSession = data.session;
+      if (evt == AuthChangeEvent.tokenRefreshed && currentSession != null) {
+        await StorageService.saveAccessToken(currentSession.accessToken);
+        if (currentSession.refreshToken != null) {
+          await StorageService.saveRefreshToken(currentSession.refreshToken!);
+        }
+        _accessToken = currentSession.accessToken;
+        _refreshToken = currentSession.refreshToken;
+      }
+    });
+
+    notifyListeners();
+  }
+
+  Future<bool> login(String email, String password) async {
+    return runSafe(() async {
+      await _checkLoginRisk(email);
+
+      // Step 0: CAPTCHA Verification
+      final captchaToken = await _getCaptchaToken();
+
+      if (captchaToken == null) {
+        throw const AppError(
+            code: ErrorCodes.localUnknown, message: 'Captcha failed');
+      }
+
+      // Step 1: Login to Supabase Auth
+      final AuthResponse res = await _authRepo.signInWithPassword(
+        email: email,
+        password: password,
+        captchaToken: captchaToken,
+      );
+
+      if (res.user == null || res.session == null) {
+        throw const AppError(
+            code: ErrorCodes.authFail001,
+            message: 'Login failed: no user data');
+      }
+
+      // Step 2: Fetch public.users + user_profiles by auth_id (UUID)
+      final profileResult = await _userRepo.fetchProfileByAuthId(res.user!.id);
+
+      if (profileResult is! Success<User>) {
+        throw const AppError(
+            code: ErrorCodes.dbNotFound001,
+            message: 'Profilo utente non trovato nel database');
+      }
+
+      // Step 3: Set local data
+      final user = profileResult.value;
+      await setLoginData(
+        accessToken: res.session!.accessToken,
+        refreshToken: res.session!.refreshToken ?? '',
+        user: user,
+      );
+
+      // Step 4: Sync session and register the device token through the backend
+      await _syncBackendSession();
+      final fcmToken = await DeviceTokenService.getDeviceToken();
+      try {
+        await _authRepo.updateDeviceToken(fcmToken);
+      } catch (_) {}
+
+      // Step 5: Fetch partner info via v_active_partnership (single source of truth)
+      try {
+        final partnershipResult = await _partnershipRepo.getPartnership();
+
+        if (partnershipResult is Success<PartnershipResponse> &&
+            partnershipResult.value.partner != null) {
+          await setPartner(
+            partnerId: partnershipResult.value.partner!.id,
+            displayName: partnershipResult.value.partner!.username,
+          );
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<bool> register(String email, String password, String name) async {
+    return runSafe(() async {
+      // Step 0: CAPTCHA Verification
+      final captchaToken = await _getCaptchaToken();
+
+      if (captchaToken == null) {
+        throw const AppError(
+            code: ErrorCodes.localUnknown, message: 'Captcha failed');
+      }
+
+      // 1. Supabase Auth Registration
+      final AuthResponse res = await _authRepo.signUp(
+        email: email,
+        password: password,
+        data: {
+          'username': name,
+        },
+        emailRedirectTo: _emailRedirectTo,
+        captchaToken: captchaToken,
+      );
+
+      if (res.user == null) {
+        throw const AppError(
+            code: ErrorCodes.authFail001,
+            message: 'Registrazione fallita: utente non creato');
+      }
+
+      if (kDebugMode) {
+        print('[Register] Auth user creato: ${res.user!.id}');
+        print('[Register] Email di conferma inviata a $email');
+      }
+    });
+  }
+
+  Future<bool> invitePartner(String email, String partnershipCode) async {
+    return runSafe(() async {
+      final res = await _partnershipRepo.inviteUser(email, partnershipCode);
+
+      if (res is Success) {
+        await fetchSentInvitations();
+      } else {
+        throw res;
+      }
+    });
+  }
+
+  /// Fetches pending outgoing (sent) partnership requests from Supabase.
+  Future<void> fetchSentInvitations() async {
+    await _fetchInvitations();
+  }
+
+  /// Fetches pending incoming (received) partnership requests from Supabase.
+  Future<void> fetchReceivedInvitations() async {
+    await _fetchInvitations();
+  }
+
+  Future<void> _fetchInvitations() async {
+    try {
+      if (_userId == null) return;
+
+      final result = await _partnershipRepo.getPendingInvitations();
+      if (result is Success<List<PartnershipInvitation>>) {
+        _sentInvitations = result.value.where((i) => !i.isReceived).toList();
+        _receivedInvitations = result.value.where((i) => i.isReceived).toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      if (kDebugMode) print('[AuthState] _fetchInvitations error: $e');
+    }
+  }
+
+  Future<bool> acceptInvitation(int invitationId) async {
+    return runSafe(() async {
+      await _partnershipRepo.acceptPartnerRequest(invitationId);
+      if (kDebugMode) print('[AuthState] RPC accept_partnership success');
+      await fetchSentInvitations();
+      await fetchReceivedInvitations();
+
+      if (kDebugMode) print('[AuthState] Fetching active partnership info...');
+      final partnershipResult = await _partnershipRepo.getPartnership();
+
+      if (kDebugMode) print('[AuthState] Partnership data: $partnershipResult');
+
+      if (partnershipResult is Success<PartnershipResponse> &&
+          partnershipResult.value.partner != null) {
+        await setPartner(
+          partnerId: partnershipResult.value.partner!.id,
+          displayName: partnershipResult.value.partner!.username,
+        );
+        if (kDebugMode) print('[AuthState] Partner set successfully');
+      }
+    });
+  }
+
+  Future<bool> rejectInvitation(int invitationId) async {
+    return runSafe(() async {
+      await _partnershipRepo.rejectPartnerRequest(invitationId);
+      await fetchSentInvitations();
+      await fetchReceivedInvitations();
+    });
+  }
+
+  Future<void> setLoginData({
+    required String accessToken,
+    required String refreshToken,
+    required User user,
+  }) async {
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    _username = user.username;
+    _userId = user.id;
+
+    await StorageService.saveAccessToken(accessToken);
+    await StorageService.saveRefreshToken(refreshToken);
+    await StorageService.saveUsername(user.username);
+    await StorageService.saveUserId(user.id);
+
+    notifyListeners();
+  }
+
+  Future<void> setPartner({
+    required int partnerId,
+    required String displayName,
+  }) async {
+    _partnerId = partnerId;
+    _partnerDisplayName = displayName;
+
+    await StorageService.savePartner(partnerId, displayName);
+    notifyListeners();
+  }
+
+  Future<void> _checkLoginRisk(String email) async {
+    try {
+      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final result = await _authRepo.checkLoginRisk(email, deviceFingerprint);
+
+      if (result is GenericError<Map<String, dynamic>> && result.code == 429) {
+        throw const AppError(
+          code: ErrorCodes.secBlock002,
+          message: 'Troppi tentativi di login. Riprova tra poco.',
+        );
+      }
+    } catch (e) {
+      if (e is AppError) rethrow;
+      // Other errors (network, etc) are ignored here to allow login attempt
+      // but if it's a specific block, we want to stop.
+    }
+  }
+
+  Future<void> _syncBackendSession() async {
+    if (_authRepo.currentSession == null) {
+      return;
+    }
+
+    try {
+      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final result = await _authRepo.syncSession(
+          deviceFingerprint, '${defaultTargetPlatform.name}-client');
+
+      if (result case Success<Map<String, dynamic>>(:final value)) {
+        final bindingSecret = value['bindingSecret'];
+        if (bindingSecret is String && bindingSecret.isNotEmpty) {
+          await StorageService.saveRequestBindingSecret(bindingSecret);
+          if (kDebugMode) {
+            print('[AuthState] Session synced, binding secret saved.');
+          }
+        }
+      } else if (result is NetworkError<Map<String, dynamic>>) {
+        if (kDebugMode) {
+          print('[AuthState] Session sync network error: ${result.message}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('[AuthState] _syncBackendSession exception: $e');
+    }
+  }
+
+  Future<String?> _getCaptchaToken() => CaptchaService.getCaptchaToken();
+
+  Future<void> logout() async {
+    await _authRepo.signOut();
+    await StorageService.clearAll();
+    _accessToken = null;
+    _refreshToken = null;
+    _username = null;
+    _userId = null;
+    _partnerId = null;
+    _partnerDisplayName = null;
+    _sentInvitations = [];
+    user = null;
+    notifyListeners();
+  }
+}

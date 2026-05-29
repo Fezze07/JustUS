@@ -1,0 +1,336 @@
+// =============================================================================
+// GameScreen - Daily Couple Game with Violet-Punk Design
+// =============================================================================
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import 'package:justus/all_imports.dart';
+
+class GameScreen extends StatefulWidget {
+  const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(context.read<GameState>().init());
+      unawaited(context.read<ProfileState>().loadProfile());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return VPScaffold(
+      showAppBar: false,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            VPHeader(
+              title: 'JustUS',
+              showBackButton: false,
+              leading: const Icon(Icons.favorite, color: AppColors.neonPurple, size: 28),
+              trailing: [_buildNotificationButton()],
+            ),
+
+            // Content
+            Expanded(
+              child: Consumer<GameState>(
+                builder: (context, state, _) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 16),
+                        
+                        // Daily Game Card
+                        _buildDailyGameCard(state),
+                        
+                        const SizedBox(height: 32),
+                        
+                        // Status Section (You vs Partner)
+                        Consumer<ProfileState>(
+                          builder: (context, profile, _) => _buildStatusSection(profile, state),
+                        ),
+                        
+                        const SizedBox(height: 48),
+                        
+                        // History Section
+                        VPSectionHeader(
+                          title: 'HISTORY',
+                          actionLabel: 'View All',
+                          onActionTap: () {},
+                          padding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: 16),
+                        if (state.history.isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32.0),
+                              child: Text(
+                                'No matches yet. Answer the daily question!',
+                                style: VpWidgets.googleFont(
+                                  color: Colors.white38,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Builder(
+                            builder: (context) {
+                              final profile = context.read<ProfileState>();
+
+                              return Column(
+                                children: state.history.take(5).map((item) {
+                                  String status;
+                                  Color badgeColor;
+                                  IconData icon;
+
+                                  if (item.isMatched) {
+                                    status = 'You both agreed!';
+                                    badgeColor = AppColors.neonGreen;
+                                    icon = Icons.check_circle;
+                                  } else if (item.isDisagreed) {
+                                    status = 'A playful disagreement';
+                                    badgeColor = AppColors.neonPink;
+                                    icon = Icons.cancel;
+                                  } else {
+                                    status = 'Waiting for partner';
+                                    badgeColor = AppColors.neonBlue;
+                                    icon = Icons.access_time;
+                                  }
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: GameHistoryCard(
+                                      question: item.question,
+                                      status: status,
+                                      badgeColor: badgeColor,
+                                      icon: icon,
+                                      userImageUrl: profile.userProfile?.profilePicUrl,
+                                      partnerImageUrl: profile.partnerProfile?.profilePicUrl,
+                                    ),
+                                  );
+                                }).toList(),
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationButton() {
+    return Stack(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.cardDark,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: const Icon(Icons.notifications, color: Colors.white, size: 24),
+        ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: AppColors.neonBlue,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.backgroundDark, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDailyGameCard(GameState state) {
+    return VPCard(
+      padding: EdgeInsets.zero,
+      borderColor: AppColors.neonPurple.withValues(alpha: 0.3),
+      shadowColor: AppColors.neonPurple.withValues(alpha: 0.2),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -20,
+            right: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.neonPurple.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                boxShadow: const [BoxShadow(color: AppColors.neonPurple, blurRadius: 50, spreadRadius: 10)],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.neonPurple.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    'DAILY GAME',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      color: AppColors.neonPurple,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (state.isFetchingQuestion) ...[
+                  const CircularProgressIndicator(color: AppColors.neonPurple),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Generando la domanda...",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "L'IA sta creando qualcosa di speciale per voi ✨",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: Colors.white54,
+                    ),
+                  ),
+                ] else if (state.currentQuestion != null) ...[
+                  Text(
+                    'Question of the Day',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white54,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    state.currentQuestion!.question,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  _buildOptionButton(context, state, 'A', state.currentQuestion!.optionA, Colors.blue),
+                  const SizedBox(height: 16),
+                  _buildOptionButton(context, state, 'B', state.currentQuestion!.optionB, Colors.purple),
+                ] else ...[
+                  const Icon(Icons.check_circle, size: 64, color: AppColors.neonGreen),
+                  const SizedBox(height: 16),
+                  Text(
+                    "You're all caught up!",
+                    style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => state.fetchNewQuestion(),
+                    child: const Text('Try Fetching Again', style: TextStyle(color: AppColors.neonBlue)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionButton(BuildContext context, GameState state, String answerCode, String text, Color color) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: state.isLoading ? null : () => state.submitAnswer(answerCode),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color.withValues(alpha: 0.2),
+          foregroundColor: color.withValues(alpha: 0.8),
+          disabledBackgroundColor: Colors.white10,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: color.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusSection(ProfileState profile, GameState game) {
+    // Determine if partner has answered
+    // (This logic might need refinement based on how 'waiting' is handled)
+    bool partnerDone = game.currentQuestion?.status == 'both_answered'; 
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        VPUserAvatar(
+          name: profile.userProfile?.username ?? 'You',
+          imageUrl: profile.userProfile?.profilePicUrl,
+          indicator: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(color: AppColors.backgroundDark, shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle, color: AppColors.neonPurple, size: 24),
+          ),
+        ),
+        VPUserAvatar(
+          name: profile.partnerProfile?.username ?? 'Partner',
+          imageUrl: profile.partnerProfile?.profilePicUrl,
+          indicator: partnerDone ? Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(color: AppColors.backgroundDark, shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle, color: AppColors.neonPurple, size: 24),
+          ) : null,
+        ),
+      ],
+    );
+  }
+}

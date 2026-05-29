@@ -1,0 +1,35 @@
+{
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "check": "node --check index.js",
+    "test": "npm run lint && jest ../test/backend --runInBand",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "scan:duplicates": "jscpd ../ --config ../.jscpd.json",
+    "madge": "madge .",
+    "madge:circular": "madge --circular --exclude \"all_imports\" .",
+    "madge:image": "madge --image madge-graph.svg ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.821.0",
+    "@aws-sdk/s3-request-presigner": "^3.821.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.8.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "jest": "^30.3.0",
+    "jscpd": "^4.0.9",
+    "madge": "^8.0.0",
+    "supertest": "^7.2.2"
+  }
+}

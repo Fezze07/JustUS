@@ -1,0 +1,69 @@
+const express = require("express");
+const router = express.Router();
+const {
+  createCompositeRateLimit,
+  ipKey,
+  userKey,
+  DEFAULT_WINDOW_MS,
+  presignUploadController,
+  completeUploadController,
+  redirectToSignedDownloadController,
+} = require("../../all_imports");
+const {
+  chain,
+  authenticated,
+  capability,
+  signed,
+  validated,
+  limited,
+} = require("../../routes/routeHelpers");
+const {
+  presignSchema,
+  completeSchema,
+  fileQuerySchema,
+} = require("./media.schemas");
+
+const mediaRateLimit = createCompositeRateLimit({
+  name: "media",
+  message: "Too many media requests",
+  rules: [
+    { name: "ip", windowMs: DEFAULT_WINDOW_MS, max: 60, key: ipKey },
+    { name: "user", windowMs: DEFAULT_WINDOW_MS, max: 40, key: userKey },
+  ],
+});
+
+router.post(
+  "/upload-url",
+  ...chain(
+    authenticated(),
+    capability("can_media_upload"),
+    limited(mediaRateLimit),
+    signed("media-upload-url"),
+    validated({ body: presignSchema })
+  ),
+  presignUploadController
+);
+
+router.post(
+  "/complete",
+  ...chain(
+    authenticated(),
+    capability("can_media_upload"),
+    limited(mediaRateLimit),
+    signed("media-complete"),
+    validated({ body: completeSchema })
+  ),
+  completeUploadController
+);
+
+router.get(
+  "/file",
+  ...chain(
+    authenticated(),
+    limited(mediaRateLimit),
+    validated({ query: fileQuerySchema })
+  ),
+  redirectToSignedDownloadController
+);
+
+module.exports = router;

@@ -1,0 +1,34 @@
+{
+  "name": "justus",
+  "version": "1.0.0",
+  "description": "![JustUs](JustUs.png)",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "scan:duplicates": "npm run scan:duplicates:global && npm run scan:duplicates:backend && npm run scan:duplicates:flutter",
+    "scan:duplicates:global": "echo '--- Token Duplication Check (Global) ---' && jscpd . --config .jscpd.json",
+    "scan:duplicates:backend": "echo '--- Structural Duplication Check (Backend) ---' && jsinspect -L -I -t 50 Backend",
+    "scan:duplicates:flutter": "echo '--- Structural Duplication Check (Flutter) ---' && dcm check-code-duplication Flutter/lib",
+    "validate": "bash ./scripts/test-all.sh",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fezze07/JustUS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Fezze07/JustUS/issues"
+  },
+  "homepage": "https://github.com/Fezze07/JustUS#readme",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "jscpd": "^4.0.9",
+    "jsinspect": "^0.12.7"
+  }
+}

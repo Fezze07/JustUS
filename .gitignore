@@ -1,0 +1,43 @@
+#Backend
+Backend/node_modules/
+Backend/secrets/
+Backend/ecosystem.config.js
+Backend/versions/
+
+#Test
+/test
+/scripts
+
+#Documentation
+/graphify-out/
+.graphifyignore
+/docs
+
+#ENV files
+.env
+.env.*
+!.env.example
+
+# Secrets and Credentials
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+*.pfx
+*.crt
+*.cert
+secrets.json
+service-account.json
+firebase-key.json
+local.properties
+key.properties
+
+#JSCPD
+jscpd-report/
+node_modules/
+
+#File vari
+release/
+/.agents/
+.idea/

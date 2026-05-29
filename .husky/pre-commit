@@ -1,0 +1,1 @@
+npm run validate && git add Flutter/lib/all_imports.dart Backend/all_imports.js

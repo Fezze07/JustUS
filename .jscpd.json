@@ -1,0 +1,34 @@
+{
+  "threshold": 6,
+  "minLines": 3,
+  "minTokens": 20,
+  "mode": "weak",
+  "reporters": [
+    "html",
+    "console",
+    "json"
+  ],
+  "ignore": [
+    "node_modules/**",
+    "**/node_modules/**",
+    "jscpd-report/**",
+    "**/jscpd-report/**",
+    "**/.git/**",
+    "**/build/**",
+    "**/.dart_tool/**",
+    "**/ios/**",
+    "**/android/**",
+    "**/macos/**",
+    "**/windows/**",
+    "**/linux/**",
+    "**/web/**",
+    "**/graphify-out/**",
+    "**/.agents/**",
+    "**/*.g.dart",
+    "**/*.freezed.dart",
+    "**/*.part.dart",
+    "**/test/**",
+    "**/coverage/**"
+  ],
+  "output": "./jscpd-report"
+}

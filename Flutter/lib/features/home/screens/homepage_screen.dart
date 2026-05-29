@@ -1,0 +1,475 @@
+// =============================================================================
+// HomepageScreen - Main screen with Stitch Design
+// =============================================================================
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:justus/all_imports.dart';
+
+class HomepageScreen extends StatefulWidget {
+  const HomepageScreen({super.key});
+
+  @override
+  State<HomepageScreen> createState() => _HomepageScreenState();
+}
+
+class _HomepageScreenState extends State<HomepageScreen> {
+  final _updateService = UpdateService();
+  bool _updateChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadData());
+      if (!_updateChecked) {
+        unawaited(_updateService.checkVersion(context));
+        _updateChecked = true;
+      }
+    });
+  }
+
+  Future<void> _loadData() async {
+    final homepageState = context.read<HomepageState>();
+    final moodState = context.read<MoodState>();
+    final profileState = context.read<ProfileState>();
+
+    await Future.wait([
+      homepageState.init(),
+      moodState.init(),
+      profileState.loadProfile(),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = context.watch<AuthState>();
+    final profileState = context.watch<ProfileState>();
+
+    return VPScaffold(
+      showAppBar: false,
+      body: Stack(
+        children: [
+          // Main Content
+          SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: AppColors.primary,
+              backgroundColor: AppColors.backgroundDark,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                    24, 16, 24, 100), // Bottom padding for nav bar
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    VPHeader(
+                      title: 'JustUS',
+                      showBackButton: false,
+                      leading: VPCircleButton(
+                        icon: Icons.menu,
+                        color: AppColors.primary,
+                        onTap: () {},
+                        hasShadow: false,
+                      ),
+                      trailing: [
+                        VPCircleButton(
+                          icon: Icons.favorite,
+                          color: Colors.redAccent,
+                          isFill: true,
+                          onTap: () {
+                            unawaited(Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const FavoritesScreen()),
+                            ));
+                          },
+                          hasShadow: false,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Profile Section
+                    _buildProfileSection(authState, profileState),
+                    const SizedBox(height: 24),
+
+                    // Mood Card
+                    _buildMoodCard(context),
+                    const SizedBox(height: 24),
+
+                    // Quick Actions
+                    _buildQuickActions(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Bottom Navigation
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: HomeBottomNav(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileSection(AuthState auth, ProfileState profile) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // User Avatar
+            VPUserAvatar(
+              name: 'YOU',
+              imageUrl: profile.userProfile?.profilePicUrl,
+              indicator: VPUserAvatar.onlineIndicator,
+            ),
+
+            // Link Icon
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 2,
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A1B3D),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.link,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Partner Avatar
+            VPUserAvatar(
+              name: auth.partnerDisplayName ?? 'PARTNER',
+              imageUrl: profile.partnerProfile?.profilePicUrl,
+              indicator: VPUserAvatar.onlineIndicator,
+            ),
+          ],
+        ),
+        if (profile.anniversaryDate != null) ...[
+          const SizedBox(height: 16),
+          _buildDaysTogether(profile.anniversaryDate!),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDaysTogether(DateTime anniversary) {
+    final difference = AppDateUtils.daysSince(anniversary);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$difference',
+            style: VpWidgets.googleFont(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.0,
+            ),
+          ),
+          Text(
+            'DAYS TOGETHER',
+            style: VpWidgets.googleFont(
+              color: AppColors.primary,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoodCard(BuildContext context) {
+    return Consumer<MoodState>(
+      builder: (context, moodState, _) {
+        return VPCard(
+          padding: const EdgeInsets.all(24),
+          borderColor: Colors.white.withValues(alpha: 0.05),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'OUR CURRENT MOOD',
+                        style: VpWidgets.googleFont(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Feeling Good!',
+                        style: VpWidgets.googleFont(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.explore,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '"Thinking about you and smiling."',
+                style: VpWidgets.googleFont(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      _buildMiniMood(moodState.userMood),
+                      const SizedBox(width: 8),
+                      _buildMiniMood(moodState.partnerMood),
+                    ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      unawaited(Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MoodScreen()),
+                      ));
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.primary,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                    ),
+                    child: const Text('Update Status'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniMood(String emoji) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        emoji,
+        style: const TextStyle(fontSize: 18),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return Column(
+      children: [
+        VPSectionHeader(
+          title: 'QUICK ACTIONS',
+          actionLabel: 'View All',
+          onActionTap: () {},
+          padding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.1,
+          children: [
+            _buildActionCard(
+              context,
+              icon: Icons.sports_esports,
+              title: 'Games',
+              subtitle: 'Play a relationship quiz',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const GameScreen()),
+              ),
+            ),
+            _buildActionCard(
+              context,
+              icon: Icons.photo_library,
+              title: 'Photos',
+              subtitle: 'Our Shared Gallery',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DriveScreen()),
+              ),
+            ),
+            _buildActionCard(
+              context,
+              icon: Icons.checklist,
+              title: 'Bucket List',
+              subtitle: '3 tasks pending',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BucketListScreen()),
+              ),
+            ),
+            _buildActionCard(
+              context,
+              icon: Icons.chat_bubble,
+              title: 'Nudge',
+              subtitle: 'Send some love',
+              onTap: () => _sendNudge(context),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _sendNudge(BuildContext context) {
+    // Reusing the "Miss You" functionality as Nudge
+    final homepageState = context.read<HomepageState>();
+    unawaited(homepageState.sendMissYou());
+
+    UIUtils.showSnackBar(context, 'Mi manchi inviato! ');
+  }
+
+  Widget _buildActionCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return VPCard(
+      padding: EdgeInsets.zero,
+      borderColor: Colors.white.withValues(alpha: 0.05),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.accentAqua.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppColors.accentAqua,
+                  size: 24,
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: VpWidgets.googleFont(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: VpWidgets.googleFont(
+                      color: Colors.grey[400],
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

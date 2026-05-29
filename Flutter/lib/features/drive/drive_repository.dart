@@ -1,0 +1,113 @@
+import 'dart:io' as dart_io;
+
+import 'package:justus/all_imports.dart';
+
+class DriveRepository extends BaseRepository {
+  final MediaService _mediaService;
+
+  DriveRepository({super.sbClient, MediaService? mediaService}) 
+      : _mediaService = mediaService ?? MediaService();
+
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
+    return tryCall(() async {
+      final List<dynamic> data = await sbClient
+          .from('v_drive_dashboard')
+          .select()
+          .order('created_at', ascending: false);
+
+      return data.map((d) => DriveItem.fromJson(d as Map<String, dynamic>)).toList();
+    });
+  }
+
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental(
+      String? lastSyncTimestamp) async {
+    return tryCall(() async {
+      var query = sbClient.from('v_drive_dashboard').select();
+
+      if (lastSyncTimestamp != null && lastSyncTimestamp.isNotEmpty) {
+        query = query.gt('updated_at', lastSyncTimestamp);
+      }
+
+      final List<dynamic> data = await query.order('created_at', ascending: false);
+
+      return data.map((d) => DriveItem.fromJson(d as Map<String, dynamic>)).toList();
+    });
+  }
+
+  Future<ResultWrapper<String?>> getMediaDownloadUrl(String filename) async {
+    return tryCall(() async {
+      return _mediaService.getDownloadUrl(filename);
+    });
+  }
+
+  Future<ResultWrapper<DriveItem>> uploadDriveItemToR2({
+    required String filePath,
+    required MediaType type,
+    String? mimeType,
+  }) async {
+    return withCouple((uid, partnerId) async {
+      final file = dart_io.File(filePath);
+      final result = await _mediaService.uploadMedia(
+        file: file,
+        type: type,
+        userId: uid,
+        partnerId: partnerId,
+        mimeType: mimeType,
+      );
+
+      if (result == null) throw Exception('Upload failed');
+
+      return DriveItem.fromJson(result);
+    });
+  }
+
+  Future<ResultWrapper<void>> deleteDriveItem(int id) async {
+    return tryCall(() async {
+      await sbClient.from('drive_items').delete().eq('id', id);
+    });
+  }
+
+  Future<ResultWrapper<void>> toggleFavorite(
+      int driveItemId, bool isFavorite) async {
+    return withUser((uid) async {
+      if (isFavorite) {
+        await sbClient.from('favorites').insert({
+          'user_id': uid,
+          'item_id': driveItemId,
+        });
+      } else {
+        await sbClient
+            .from('favorites')
+            .delete()
+            .match({'user_id': uid, 'item_id': driveItemId});
+      }
+    });
+  }
+
+  Future<ResultWrapper<DriveItemReactionsListResponse>> fetchReactions(
+      int driveItemId) async {
+    return tryCall(() async {
+      final List<dynamic> data = await sbClient
+          .from('drive_item_reactions')
+          .select('id, created_at, emojis(emoji_char)')
+          .eq('item_id', driveItemId);
+
+      final reactions = data.map((r) => DriveItemReaction.fromJson(r as Map<String, dynamic>)).toList();
+
+      return DriveItemReactionsListResponse(success: true, reactions: reactions);
+    });
+  }
+
+  Future<ResultWrapper<void>> addReaction(int driveItemId, String emojiChar) async {
+    return withUser((uid) async {
+      final emojiId = await sbClient
+          .rpc('get_or_create_emoji', params: {'p_emoji_char': emojiChar});
+
+      await sbClient.from('drive_item_reactions').insert({
+        'item_id': driveItemId,
+        'user_id': uid,
+        'emoji_id': emojiId,
+      });
+    });
+  }
+}

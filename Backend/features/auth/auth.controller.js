@@ -1,0 +1,162 @@
+// =============================================================================
+// auth.controller.js — Authentication route handlers
+// =============================================================================
+
+const {
+  adminSupabase,
+  authSupabase,
+  checkLoginRisk,
+  recordFailedLogin,
+  clearFailedLogins,
+  trackSession,
+  AppError,
+  assertDbSuccess,
+  wrapRpc,
+  asyncHandler,
+} = require("../../all_imports");
+
+const updateDeviceToken = asyncHandler(async (req, res) => {
+  const { deviceToken } = req.body;
+  const userId = req.user.profileId;
+  const clientUserAgent =
+    req.get("x-client-user-agent") || req.get("user-agent") || null;
+
+  const deviceType =
+    req.body.deviceType ||
+    (clientUserAgent?.includes("justus/flutter/")
+      ? clientUserAgent.split("/").pop()?.toLowerCase()
+      : null);
+  const lastIp = req.ip;
+
+  assertDbSuccess(
+    await adminSupabase.from("user_devices").upsert(
+      {
+        user_id: userId,
+        device_token: deviceToken,
+        user_agent: clientUserAgent,
+        device_type: deviceType,
+        last_ip: lastIp,
+      },
+      { onConflict: "device_token" }
+    ),
+    "DB_WRITE_001"
+  );
+
+  res.json({ success: true });
+});
+
+const checkLoginRiskController = asyncHandler(async (req, res) => {
+  const result = checkLoginRisk({
+    email: req.body.email,
+    deviceFingerprint: req.body.deviceFingerprint,
+    ipAddress: req.ip,
+  });
+
+  if (result.blocked) {
+    throw new AppError({
+      errorKey: "SEC_BLOCK_002",
+      message: "Login temporarily blocked",
+      details: {
+        retryAfterMs: result.retryAfterMs,
+        strikeLevel: result.strikeLevel,
+      }
+    });
+  }
+
+  res.json({
+    success: true,
+    strikeLevel: result.strikeLevel,
+  });
+});
+
+const registerFailedLoginController = asyncHandler(async (req, res) => {
+  const result = await recordFailedLogin({
+    email: req.body.email,
+    deviceFingerprint: req.body.deviceFingerprint,
+    ipAddress: req.ip,
+    reason: req.body.reason,
+  });
+
+  if (result.blockedUntil) {
+    throw new AppError({
+      errorKey: "SEC_BLOCK_002",
+      message: "Too many failed attempts",
+      details: {
+        failures: result.failures,
+        strikeLevel: result.strikeLevel,
+        blockedUntil: result.blockedUntil,
+      }
+    });
+  }
+
+  res.json({
+    success: true,
+    failures: result.failures,
+    strikeLevel: result.strikeLevel,
+  });
+});
+
+const syncSessionController = asyncHandler(async (req, res) => {
+  const sessionResult = await trackSession({
+    userId: req.user.profileId,
+    authUserId: req.user.id,
+    sessionId: req.auth?.claims?.session_id ?? null,
+    deviceFingerprint: req.body.deviceFingerprint,
+    deviceLabel: req.body.deviceLabel,
+    ipAddress: req.ip,
+    countryCode: req.get("cf-ipcountry") || req.get("x-vercel-ip-country") || null,
+    userAgent: req.get("x-client-user-agent") || req.get("user-agent") || null,
+  });
+
+  clearFailedLogins({
+    email: req.user.publicEmail,
+    deviceFingerprint: req.body.deviceFingerprint,
+    ipAddress: req.ip,
+  });
+
+  res.json({
+    success: true,
+    anomalies: sessionResult.anomalies,
+    bindingSecret: sessionResult.bindingSecret,
+  });
+});
+
+// Legacy invite routes migrated to Supabase RPCs
+const invitePartnerController = asyncHandler(async (req, res) => {
+  const { email, partnershipCode } = req.body;
+  // We proxy the request to Supabase RPC, but through the backend for extra validation/logging
+  const data = wrapRpc(
+    await adminSupabase.rpc("request_partnership", {
+      partner_email: email,
+      partner_code: partnershipCode,
+      override_sender_id: req.user.profileId,
+    })
+  );
+
+  res.json({ success: true, data });
+});
+
+const refreshTokenController = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+  
+  const { data, error } = await authSupabase.auth.refreshSession({ refresh_token: refreshToken });
+  
+  if (error || !data.session) {
+    throw new AppError({ errorKey: "AUTH_FAIL_001", message: "Session expired or invalid refresh token", cause: error });
+  }
+
+  res.json({
+    success: true,
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token
+  });
+});
+
+module.exports = {
+  updateDeviceToken,
+  checkLoginRiskController,
+  registerFailedLoginController,
+  syncSessionController,
+  invitePartnerController,
+  refreshTokenController,
+};
