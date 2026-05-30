@@ -15,6 +15,18 @@ import 'package:uuid/uuid.dart';
 import 'package:justus/all_imports.dart';
 
 class ApiService {
+  static String? _cachedDeviceFingerprint;
+  static String? _cachedRequestBindingSecret;
+
+  static void setCachedRequestBindingSecret(String secret) {
+    _cachedRequestBindingSecret = secret;
+  }
+
+  static void clearHeadersCache() {
+    _cachedDeviceFingerprint = null;
+    _cachedRequestBindingSecret = null;
+  }
+
   static Map<String, String> get authHeaders {
     final token = Supabase.instance.client.auth.currentSession?.accessToken;
     if (token == null || token.isEmpty) {
@@ -37,6 +49,8 @@ class ApiService {
   // HTTP client
   final http.Client _client;
   final Uuid _uuid = const Uuid();
+  late final String _clientUserAgent = _buildClientUserAgent();
+  late final String _clientUserAgentHash = _sha256(_clientUserAgent);
 
   ApiService({http.Client? client}) : _client = client ?? LoggingHttpClient(http.Client(), tag: 'ApiService');
 
@@ -70,12 +84,14 @@ class ApiService {
       }
     }
 
-    final deviceFingerprint =
-        await StorageService.getOrCreateDeviceFingerprint();
-    final clientUserAgent = _buildClientUserAgent();
+    String? deviceFingerprint = _cachedDeviceFingerprint;
+    if (deviceFingerprint == null) {
+      deviceFingerprint = await StorageService.getOrCreateDeviceFingerprint();
+      _cachedDeviceFingerprint = deviceFingerprint;
+    }
     headers['X-Device-Fingerprint'] = deviceFingerprint;
-    headers['X-Client-User-Agent'] = clientUserAgent;
-    headers['X-Client-User-Agent-Hash'] = _sha256(clientUserAgent);
+    headers['X-Client-User-Agent'] = _clientUserAgent;
+    headers['X-Client-User-Agent-Hash'] = _clientUserAgentHash;
 
     if (method != null && path != null) {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
@@ -83,7 +99,11 @@ class ApiService {
       headers['X-Request-Timestamp'] = timestamp;
       headers['X-Request-Nonce'] = nonce;
 
-      final bindingSecret = await StorageService.getRequestBindingSecret();
+      String? bindingSecret = _cachedRequestBindingSecret;
+      if (bindingSecret == null) {
+        bindingSecret = await StorageService.getRequestBindingSecret();
+        _cachedRequestBindingSecret = bindingSecret;
+      }
       if (bindingSecret != null && bindingSecret.isNotEmpty) {
         final bodyString = payload == null ? '' : jsonEncode(payload);
         final bodyHash = _sha256(bodyString);

@@ -35,6 +35,15 @@ async function consumeNonce({ namespace, userId, nonce, expiresAt }) {
   return true;
 }
 
+// Sweep expired nonces from memory every 10 minutes to prevent unbounded growth.
+function _sweepExpiredNonces() {
+  const now = Date.now();
+  for (const [key, expiresAt] of consumedNonces) {
+    if (expiresAt <= now) consumedNonces.delete(key);
+  }
+}
+setInterval(_sweepExpiredNonces, 10 * 60 * 1000).unref();
+
 module.exports = {
   consumeNonce,
 };

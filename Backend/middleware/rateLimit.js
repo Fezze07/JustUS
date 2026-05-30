@@ -134,6 +134,18 @@ async function logRateLimitEvent(req, retryAfterSeconds, penalty) {
   });
 }
 
+// Sweep expired buckets and penalties every 15 minutes to prevent unbounded growth.
+function _sweepRateLimitMaps() {
+  const now = Date.now();
+  for (const [k, v] of buckets) {
+    if (v.resetAt <= now) buckets.delete(k);
+  }
+  for (const [k, v] of penalties) {
+    if (v.bannedUntil <= 0 || v.bannedUntil <= now) penalties.delete(k);
+  }
+}
+setInterval(_sweepRateLimitMaps, 15 * 60 * 1000).unref();
+
 module.exports = {
   createCompositeRateLimit,
 };

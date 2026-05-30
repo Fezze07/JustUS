@@ -23,6 +23,9 @@ void main() {
       // Load environment variables
       await dotenv.load();
 
+      // Initialize local storage (SharedPreferences)
+      await StorageService.init();
+
       // Initialize Supabase
       await SupabaseService.initialize();
 

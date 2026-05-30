@@ -5,7 +5,6 @@
 export 'package:justus/core/network/api_config.dart';
 export 'package:justus/core/network/api_routes.dart';
 export 'package:justus/core/network/api_service.dart';
-export 'package:justus/core/network/logging_http_client.dart';
 export 'package:justus/core/theme/app_colors.dart';
 export 'package:justus/shared/utils/app_date_utils.dart';
 export 'package:justus/core/error_handling/app_error.dart';
@@ -47,6 +46,7 @@ export 'package:justus/features/home/widgets/home_bottom_nav.dart';
 export 'package:justus/features/home/screens/homepage_screen.dart';
 export 'package:justus/features/home/homepage_state.dart';
 export 'package:justus/features/partnership/widgets/invitation_tile.dart';
+export 'package:justus/core/network/logging_http_client.dart';
 export 'package:justus/features/auth/screens/login_screen.dart';
 export 'package:justus/shared/utils/logout_utils.dart';
 export 'package:justus/core/media/media_cache_manager.dart';

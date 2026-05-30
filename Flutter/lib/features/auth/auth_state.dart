@@ -75,13 +75,22 @@ class AuthState extends BaseState {
       }
       await logout();
     };
-    // 1. Get local data
-    _accessToken = await StorageService.getAccessToken();
-    _refreshToken = await StorageService.getRefreshToken();
-    _username = await StorageService.getUsername();
-    _userId = await StorageService.getUserId();
-    _partnerId = await StorageService.getPartnerId();
-    _partnerDisplayName = await StorageService.getPartnerDisplayName();
+    // 1. Get local data parallelized
+    final results = await Future.wait([
+      StorageService.getAccessToken(),
+      StorageService.getRefreshToken(),
+      StorageService.getUsername(),
+      StorageService.getUserId(),
+      StorageService.getPartnerId(),
+      StorageService.getPartnerDisplayName(),
+    ]);
+
+    _accessToken = results[0] as String?;
+    _refreshToken = results[1] as String?;
+    _username = results[2] as String?;
+    _userId = results[3] as int?;
+    _partnerId = results[4] as int?;
+    _partnerDisplayName = results[5] as String?;
 
     // 2. Check Supabase session
     final session = _authRepo.currentSession;
@@ -366,6 +375,7 @@ class AuthState extends BaseState {
   Future<void> logout() async {
     await _authRepo.signOut();
     await StorageService.clearAll();
+    ApiService.clearHeadersCache();
     _accessToken = null;
     _refreshToken = null;
     _username = null;

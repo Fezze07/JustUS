@@ -29,18 +29,24 @@ class MoodState extends BaseState {
   }
 
   Future<void> loadCache() async {
-    final myMood = await StorageService.getMood('me');
+    final results = await Future.wait([
+      StorageService.getMood('me'),
+      StorageService.getMood('partner'),
+      StorageService.getRecentEmojis(),
+    ]);
+
+    final myMood = results[0] as String?;
     if (myMood != null) {
       _userMood = myMood;
     }
 
-    final partnerMood = await StorageService.getMood('partner');
+    final partnerMood = results[1] as String?;
     if (partnerMood != null) {
       _partnerMood = partnerMood;
     }
 
-    final recent = await StorageService.getRecentEmojis();
-    if (recent.isNotEmpty) {
+    final recent = results[2] as List<String>?;
+    if (recent != null && recent.isNotEmpty) {
       _recentEmojis = recent;
     }
 

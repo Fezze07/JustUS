@@ -47,9 +47,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = context.watch<AuthState>();
-    final profileState = context.watch<ProfileState>();
-
     return VPScaffold(
       showAppBar: false,
       body: Stack(
@@ -97,7 +94,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     const SizedBox(height: 24),
 
                     // Profile Section
-                    _buildProfileSection(authState, profileState),
+                    _buildProfileSection(),
                     const SizedBox(height: 24),
 
                     // Mood Card
@@ -124,70 +121,74 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
-  Widget _buildProfileSection(AuthState auth, ProfileState profile) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildProfileSection() {
+    return Consumer2<AuthState, ProfileState>(
+      builder: (context, auth, profile, _) {
+        return Column(
           children: [
-            // User Avatar
-            VPUserAvatar(
-              name: 'YOU',
-              imageUrl: profile.userProfile?.profilePicUrl,
-              indicator: VPUserAvatar.onlineIndicator,
-            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // User Avatar
+                VPUserAvatar(
+                  name: 'YOU',
+                  imageUrl: profile.userProfile?.profilePicUrl,
+                  indicator: VPUserAvatar.onlineIndicator,
+                ),
 
-            // Link Icon
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 2,
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                  ),
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A1B3D),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                // Link Icon
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 2,
+                        color: AppColors.primary.withValues(alpha: 0.2),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A1B3D),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.link,
-                      color: AppColors.primary,
-                      size: 18,
-                    ),
+                        child: const Icon(
+                          Icons.link,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
-            // Partner Avatar
-            VPUserAvatar(
-              name: auth.partnerDisplayName ?? 'PARTNER',
-              imageUrl: profile.partnerProfile?.profilePicUrl,
-              indicator: VPUserAvatar.onlineIndicator,
+                // Partner Avatar
+                VPUserAvatar(
+                  name: auth.partnerDisplayName ?? 'PARTNER',
+                  imageUrl: profile.partnerProfile?.profilePicUrl,
+                  indicator: VPUserAvatar.onlineIndicator,
+                ),
+              ],
             ),
+            if (profile.anniversaryDate != null) ...[
+              const SizedBox(height: 16),
+              _buildDaysTogether(profile.anniversaryDate!),
+            ],
           ],
-        ),
-        if (profile.anniversaryDate != null) ...[
-          const SizedBox(height: 16),
-          _buildDaysTogether(profile.anniversaryDate!),
-        ],
-      ],
+        );
+      },
     );
   }
 

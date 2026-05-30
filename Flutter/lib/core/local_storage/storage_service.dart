@@ -38,6 +38,15 @@ class StorageService {
     
   );
 
+  static Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
+
+  static SharedPreferences get prefsSync {
+    assert(_prefs != null, 'SharedPreferences not yet initialized');
+    return _prefs!;
+  }
+
   static Future<SharedPreferences> get prefs async {
     _prefs ??= await SharedPreferences.getInstance();
 
@@ -155,6 +164,7 @@ class StorageService {
 
   static Future<void> saveRequestBindingSecret(String secret) async {
     await _secureStorage.write(key: _keyRequestBindingSecret, value: secret);
+    ApiService.setCachedRequestBindingSecret(secret);
   }
 
   static Future<String?> getRequestBindingSecret() async {

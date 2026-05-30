@@ -116,22 +116,15 @@ class GameRepository extends BaseRepository {
         return GameStatsResponse(success: true, totalMatches: 0);
       }
 
-      final List<dynamic> data = await sbClient
-          .from('game_answers')
-          .select('game_id, selected_option, user_id')
-          .inFilter('user_id', [uid, partnerId]);
+      final response = await sbClient.rpc(
+        'get_game_stats',
+        params: {
+          'p_uid': uid,
+          'p_partner_id': partnerId,
+        },
+      );
 
-      final Map<int, List<int>> answersPerGame = {};
-      for (final row in data) {
-        final gId = row['game_id'] as int;
-        final opt = row['selected_option'] as int;
-        answersPerGame.putIfAbsent(gId, () => []).add(opt);
-      }
-
-      int matches = 0;
-      for (final opts in answersPerGame.values) {
-        if (opts.length == 2 && opts[0] == opts[1]) matches++;
-      }
+      final matches = response as int? ?? 0;
 
       return GameStatsResponse(success: true, totalMatches: matches);
     });

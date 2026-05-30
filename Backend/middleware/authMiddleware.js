@@ -46,13 +46,25 @@ async function authenticateToken(req, res, next) {
       return next(new AppError({ errorKey: "AUTH_FAIL_004" }));
     }
 
-    const profile = await fetchUserProfile(verified.user.id);
+    const clientContext = buildClientContext(req);
+    let profile;
+    let sessionBinding;
+
+    if (verified.claims.session_id) {
+      [profile, sessionBinding] = await Promise.all([
+        fetchUserProfile(verified.user.id),
+        fetchSessionBinding(verified, null, clientContext),
+      ]);
+    } else {
+      profile = await fetchUserProfile(verified.user.id);
+      if (profile) {
+        sessionBinding = await fetchSessionBinding(verified, profile, clientContext);
+      }
+    }
+
     if (!profile) {
       return next(new AppError({ errorKey: "AUTH_FAIL_005" }));
     }
-
-    const clientContext = buildClientContext(req);
-    const sessionBinding = await fetchSessionBinding(verified, profile, clientContext);
 
     validateSessionBinding(sessionBinding, clientContext);
 

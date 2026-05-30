@@ -15,13 +15,16 @@ class DriveState extends BaseState {
   DriveItem? _singleItem;
   bool _isUploading = false;
   bool _isSyncing = false;
+  List<DriveItem> _favoriteItems = [];
 
   List<DriveItem> get driveItems => _driveItems;
   DriveItem? get singleItem => _singleItem;
   bool get isUploading => _isUploading;
+  List<DriveItem> get favoriteItems => _favoriteItems;
 
-  List<DriveItem> get favoriteItems =>
-      _driveItems.where((item) => item.isFavorite == 1).toList();
+  void _rebuildFavorites() {
+    _favoriteItems = _driveItems.where((item) => item.isFavorite == 1).toList();
+  }
 
   // ---------------------------------------------------------------------------
   // Initial load: show cache instantly, then run incremental sync
@@ -33,6 +36,7 @@ class DriveState extends BaseState {
       if (cached.isNotEmpty) {
         _driveItems = List.from(cached)
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _rebuildFavorites();
         notifyListeners();
       }
 
@@ -60,6 +64,7 @@ class DriveState extends BaseState {
               _driveItems.where((e) => !updatedIds.contains(e.id)).toList();
           _driveItems = [...kept, ...value]
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          _rebuildFavorites();
           await StorageService.saveDriveItems(_driveItems);
 
           // Advance timestamp safely using the server's maximum updated_at
@@ -127,6 +132,7 @@ class DriveState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         _driveItems = [value, ..._driveItems];
+        _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);
         setMessage('Upload completato ✓');
       });
@@ -142,6 +148,7 @@ class DriveState extends BaseState {
   Future<void> deleteItem(int id) async {
     final currentList = List<DriveItem>.from(_driveItems);
     _driveItems = _driveItems.where((item) => item.id != id).toList();
+    _rebuildFavorites();
     await StorageService.saveDriveItems(_driveItems);
     notifyListeners();
 
@@ -154,6 +161,7 @@ class DriveState extends BaseState {
 
       if (result is! Success) {
         _driveItems = currentList;
+        _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);
       }
     }, showLoading: false);
@@ -174,6 +182,7 @@ class DriveState extends BaseState {
 
           return item;
         }).toList();
+        _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);
         if (_singleItem?.id == itemId) {
           _singleItem = _singleItem!.copyWith(
@@ -196,6 +205,7 @@ class DriveState extends BaseState {
     final updatedItem = item.copyWith(isFavorite: isCurrentlyFavorite ? 0 : 1);
 
     _driveItems[idx] = updatedItem;
+    _rebuildFavorites();
     await StorageService.saveDriveItems(_driveItems);
     if (_singleItem?.id == itemId) _singleItem = updatedItem;
     notifyListeners();
@@ -205,6 +215,7 @@ class DriveState extends BaseState {
 
       if (result is! Success) {
         _driveItems[idx] = item;
+        _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);
         if (_singleItem?.id == itemId) _singleItem = item;
         throw result;
@@ -221,6 +232,7 @@ class DriveState extends BaseState {
 
   void clear() {
     _driveItems = [];
+    _rebuildFavorites();
     _singleItem = null;
     notifyListeners();
   }

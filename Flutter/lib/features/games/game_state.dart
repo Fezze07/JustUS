@@ -112,9 +112,11 @@ class GameState extends ChangeNotifier {
           message: 'Aspetta che il partner risponda',
         );
         await StorageService.saveGameQuestion(_currentQuestion!);
-        await fetchStats();
+        await Future.wait([
+          fetchStats(),
+          fetchHistory(),
+        ]);
         await fetchNewQuestion();
-        await fetchHistory();
       case GenericError():
         ErrorHandler.handle(result);
       case NetworkError():
