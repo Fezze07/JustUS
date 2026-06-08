@@ -42,7 +42,7 @@ class _MoodScreenState extends State<MoodScreen> {
   @override
   Widget build(BuildContext context) {
     return VPScaffold(
-      title: 'Mood Board',
+      title: context.loc.mood_boardTitle,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
         onPressed: () => Navigator.pop(context),
@@ -61,8 +61,8 @@ class _MoodScreenState extends State<MoodScreen> {
               children: [
                 // Recents Section
                 VPSectionHeader(
-                  title: 'YOUR RECENTS',
-                  actionLabel: 'Edit',
+                  title: context.loc.mood_recents,
+                  actionLabel: context.loc.mood_edit,
                   onActionTap: () {},
                 ),
 
@@ -78,11 +78,11 @@ class _MoodScreenState extends State<MoodScreen> {
                         const defaultEmojis = ['😊', '😌', '🥰', '⚡', '😴'];
 
                         return _buildRecentItem(
-                            defaultEmojis[index], "Mood", index == 0);
+                            defaultEmojis[index], context.loc.mood_label, index == 0);
                       }
 
                       return _buildRecentItem(
-                          state.recentEmojis[index], "Mood", index == 0);
+                          state.recentEmojis[index], context.loc.mood_label, index == 0);
                     },
                   ),
                 ),
@@ -117,7 +117,7 @@ class _MoodScreenState extends State<MoodScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Update Status',
+                                context.loc.home_updateStatus,
                                 style: VpWidgets.googleFont(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -126,7 +126,7 @@ class _MoodScreenState extends State<MoodScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'How are you feeling?',
+                                context.loc.mood_howFeeling,
                                 style: VpWidgets.googleFont(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -165,7 +165,7 @@ class _MoodScreenState extends State<MoodScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Timeline',
+                        context.loc.mood_timeline,
                         style: VpWidgets.googleFont(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -180,7 +180,7 @@ class _MoodScreenState extends State<MoodScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'Today',
+                          context.loc.mood_today,
                           style: VpWidgets.googleFont(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -201,9 +201,9 @@ class _MoodScreenState extends State<MoodScreen> {
                     _buildTimelineItem(
                       emoji: state.userMood.isNotEmpty ? state.userMood : '😐',
                       title:
-                          'You felt ${state.userMood.isNotEmpty ? "Updated" : "Calm"}',
-                      time: 'Now',
-                      description: 'Just updated your mood.',
+                          context.loc.mood_youFelt(state.userMood.isNotEmpty ? context.loc.mood_statusUpdated : context.loc.mood_statusCalm),
+                      time: context.loc.mood_now,
+                      description: context.loc.mood_descriptionUserUpdated,
                       color: AppColors.primary,
                       isLast: false,
                     ),
@@ -212,9 +212,9 @@ class _MoodScreenState extends State<MoodScreen> {
                           ? state.partnerMood
                           : '😐',
                       title:
-                          'Partner felt ${state.partnerMood.isNotEmpty ? "Updated" : "Calm"}',
-                      time: 'Recent',
-                      description: 'Partner updated their mood.',
+                          context.loc.mood_partnerFelt(state.partnerMood.isNotEmpty ? context.loc.mood_statusUpdated : context.loc.mood_statusCalm),
+                      time: context.loc.mood_recent,
+                      description: context.loc.mood_descriptionPartnerUpdated,
                       color: Colors.orange,
                       isLast: true,
                     ),

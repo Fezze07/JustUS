@@ -45,7 +45,10 @@ void main() {
       final notificationService = NotificationService();
       await notificationService.init();
 
-      runApp(const JustUsApp());
+      final languageProvider = LanguageProvider();
+      await languageProvider.loadSavedLocale();
+
+      runApp(JustUsApp(languageProvider: languageProvider));
     },
     (error, stackTrace) => ErrorHandler.handleGlobal(error, stackTrace),
   ));
@@ -87,12 +90,19 @@ FilledButtonThemeData _filledButtonTheme() => FilledButtonThemeData(
     );
 
 class JustUsApp extends StatelessWidget {
-  const JustUsApp({super.key});
+  final LanguageProvider languageProvider;
+
+  const JustUsApp({
+    super.key,
+    required this.languageProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: languageProvider),
+
         // Global state
         ChangeNotifierProvider(create: (_) => AuthState()),
         ChangeNotifierProvider(create: (_) => PartnerState()),
@@ -105,63 +115,72 @@ class JustUsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DriveState()),
         ChangeNotifierProvider(create: (_) => ProfileState()),
       ],
-      child: MaterialApp(
-        title: 'JustUs',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: ErrorHandler.navigatorKey,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
-            primary: AppColors.primary,
-          ),
-          textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-          scaffoldBackgroundColor: AppColors.backgroundLight,
-          appBarTheme: AppBarTheme(
-            centerTitle: true,
-            backgroundColor: AppColors.backgroundLight,
-            elevation: 0,
-            titleTextStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textLight,
+      child: Consumer<LanguageProvider>(
+        builder: (context, languageProvider, _) {
+          return MaterialApp(
+            onGenerateTitle: (context) => context.loc.appTitle,
+            debugShowCheckedModeBanner: false,
+            navigatorKey: ErrorHandler.navigatorKey,
+            locale: languageProvider.locale,
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localeResolutionCallback: LanguageHelper.localeResolutionCallback,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: AppColors.primary,
+                primary: AppColors.primary,
+              ),
+              textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+              scaffoldBackgroundColor: AppColors.backgroundLight,
+              appBarTheme: AppBarTheme(
+                centerTitle: true,
+                backgroundColor: AppColors.backgroundLight,
+                elevation: 0,
+                titleTextStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textLight,
+                ),
+              ),
+              cardTheme: _cardTheme(Brightness.light),
+              inputDecorationTheme: _inputDecorationTheme(),
+              filledButtonTheme: _filledButtonTheme(),
             ),
-          ),
-          cardTheme: _cardTheme(Brightness.light),
-          inputDecorationTheme: _inputDecorationTheme(),
-          filledButtonTheme: _filledButtonTheme(),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
-            brightness: Brightness.dark,
-            primary: AppColors.primary,
-            surface: AppColors.backgroundDark,
-          ),
-          textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
-          scaffoldBackgroundColor: AppColors.backgroundDark,
-          appBarTheme: AppBarTheme(
-            centerTitle: true,
-            backgroundColor: AppColors.backgroundDark,
-            elevation: 0,
-            titleTextStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primary,
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: AppColors.primary,
+                brightness: Brightness.dark,
+                primary: AppColors.primary,
+                surface: AppColors.backgroundDark,
+              ),
+              textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
+              scaffoldBackgroundColor: AppColors.backgroundDark,
+              appBarTheme: AppBarTheme(
+                centerTitle: true,
+                backgroundColor: AppColors.backgroundDark,
+                elevation: 0,
+                titleTextStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+              cardTheme: _cardTheme(Brightness.dark),
+              inputDecorationTheme: _inputDecorationTheme(),
+              filledButtonTheme: _filledButtonTheme(),
             ),
-          ),
-          cardTheme: _cardTheme(Brightness.dark),
-          inputDecorationTheme: _inputDecorationTheme(),
-          filledButtonTheme: _filledButtonTheme(),
-        ),
-        home: const SplashScreen(),
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/register': (context) => const RegisterScreen(),
-          '/homepage': (context) => const HomepageScreen(),
-          '/partner': (context) => const PartnerScreen(),
-          '/change-password': (context) => const ChangePasswordScreen(),
+            home: const SplashScreen(),
+            routes: {
+              '/login': (context) => const LoginScreen(),
+              '/register': (context) => const RegisterScreen(),
+              '/homepage': (context) => const HomepageScreen(),
+              '/partner': (context) => const PartnerScreen(),
+              '/settings': (context) => const SettingsScreen(),
+              '/change-password': (context) => const ChangePasswordScreen(),
+            },
+          );
         },
       ),
     );

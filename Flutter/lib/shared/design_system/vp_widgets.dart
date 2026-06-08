@@ -724,7 +724,7 @@ class VPAuthLayout extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'JustUS',
+                                context.loc.appTitle,
                                 style: VpWidgets.googleFont(
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
@@ -733,7 +733,7 @@ class VPAuthLayout extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                'Shared moments, closer hearts',
+                                context.loc.appTagline,
                                 style: VpWidgets.googleFont(
                                   fontSize: 14,
                                   color: Colors.white70,

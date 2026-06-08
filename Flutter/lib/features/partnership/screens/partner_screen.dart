@@ -42,7 +42,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
               child: Column(
                 children: [
                   Text(
-                    'JustUS',
+                    context.loc.appTitle,
                     style: VpWidgets.googleFont(
                       color: AppColors.primary,
                       fontSize: 20,
@@ -52,7 +52,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   ),
                   const SizedBox(height: 48),
                   Text(
-                    'Who are you connecting\nwith today?',
+                    context.loc.partner_title,
                     textAlign: TextAlign.center,
                     style: VpWidgets.googleFont(
                       color: Colors.white,
@@ -139,21 +139,21 @@ class _PartnerScreenState extends State<PartnerScreen> {
                           if (receivedInvitations.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _buildInvitationsList(
-                                'RICHIESTE RICEVUTE', receivedInvitations,
+                                context.loc.partner_receivedRequests, receivedInvitations,
                                 isReceived: true),
                           ],
 
                           if (sentInvitations.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _buildInvitationsList(
-                                'RICHIESTE INVIATE', sentInvitations,
+                                context.loc.partner_sentRequests, sentInvitations,
                                 isReceived: false),
                           ] else if (sentInvitations.isEmpty &&
                               receivedInvitations.isEmpty &&
                               kDebugMode) ...[
                             const SizedBox(height: 32),
-                            const Text('Nessun invito in sospeso',
-                                style: TextStyle(color: Colors.white24)),
+                            Text(context.loc.partner_noPendingInvites,
+                                style: const TextStyle(color: Colors.white24)),
                           ],
                         ],
                       ),
@@ -173,7 +173,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                 },
                 icon: const Icon(Icons.logout, color: Colors.white),
                 label: Text(
-                  'Logout',
+                  context.loc.partner_logout,
                   style: VpWidgets.googleFont(
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -247,7 +247,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             ),
           ),
           Text(
-            'CONNECTED',
+            context.loc.partner_connected,
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -293,7 +293,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'New Connection',
+            context.loc.partner_newConnection,
             style: VpWidgets.googleFont(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -301,7 +301,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             ),
           ),
           Text(
-            'Add a partner',
+            context.loc.partner_addPartner,
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -366,7 +366,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   }
                 } else if (!success && mounted) {
                   UIUtils.showSnackBar(
-                      context, 'Errore durante l\'accettazione dell\'invito',
+                      context, context.loc.partner_acceptError,
                       isError: true);
                 }
               },
@@ -389,7 +389,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
       child: Column(
         children: [
           Text(
-            'IL TUO CODICE PERSONALE',
+            context.loc.partner_personalCodeTitle,
             style: VpWidgets.googleFont(
               color: Colors.white54,
               fontSize: 11,
@@ -415,7 +415,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                 onPressed: () {
                   unawaited(Clipboard.setData(ClipboardData(text: code)));
                   UIUtils.showSnackBar(
-                      context, 'Codice copiato negli appunti!');
+                      context, context.loc.partner_codeCopied);
                 },
                 icon: const Icon(Icons.copy_rounded,
                     color: AppColors.primary, size: 24),
@@ -428,7 +428,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Invia questo codice al tuo partner per connettervi su JustUS!',
+            context.loc.partner_personalCodeSubtitle,
             textAlign: TextAlign.center,
             style: VpWidgets.googleFont(
               color: Colors.white38,

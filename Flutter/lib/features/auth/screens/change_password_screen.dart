@@ -32,7 +32,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const VPHeader(title: 'Change Password'),
+            VPHeader(title: context.loc.auth_changePasswordTitle),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -42,7 +42,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
               Text(
-                'Create a new password that is unique and secure.',
+                context.loc.auth_changePasswordSubtitle,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   color: Colors.white54,
@@ -53,11 +53,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               // Old Password
               VPTextField(
                 controller: _oldController,
-                label: 'Current Password',
+                label: context.loc.auth_currentPasswordLabel,
                 isPassword: true,
                 obscureText: _obscureOld,
                 onTogglePassword: () => setState(() => _obscureOld = !_obscureOld),
-                hint: 'Enter current password',
+                hint: context.loc.auth_currentPasswordHint,
               ),
               
               const SizedBox(height: 24),
@@ -65,11 +65,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               // New Password
               VPTextField(
                 controller: _newController,
-                label: 'New Password',
+                label: context.loc.auth_newPasswordLabel,
                 isPassword: true,
                 obscureText: _obscureNew,
                 onTogglePassword: () => setState(() => _obscureNew = !_obscureNew),
-                hint: 'Enter new password',
+                hint: context.loc.auth_newPasswordHint,
               ),
               
               const SizedBox(height: 24),
@@ -77,22 +77,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               // Confirm Password
               VPTextField(
                 controller: _confirmController,
-                label: 'Confirm Password',
+                label: context.loc.auth_confirmPasswordLabel,
                 isPassword: true,
                 obscureText: _obscureConfirm,
                 onTogglePassword: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                hint: 'Re-enter new password',
+                hint: context.loc.auth_confirmPasswordHint,
               ),
               
               const SizedBox(height: 48),
               
               // Update Button
               VPButton(
-                label: 'Update Password',
+                label: context.loc.auth_updatePassword,
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
                     // Logic to update password
-                    UIUtils.showSnackBar(context, 'Password updated successfully!');
+                    UIUtils.showSnackBar(context, context.loc.auth_passwordUpdated);
                     Navigator.pop(context);
                   }
                 },

@@ -36,7 +36,7 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             // Header
             VPHeader(
-              title: 'JustUS',
+              title: context.loc.appTitle,
               showBackButton: false,
               leading: const Icon(Icons.favorite, color: AppColors.neonPurple, size: 28),
               trailing: [_buildNotificationButton()],
@@ -67,8 +67,8 @@ class _GameScreenState extends State<GameScreen> {
                         
                         // History Section
                         VPSectionHeader(
-                          title: 'HISTORY',
-                          actionLabel: 'View All',
+                          title: context.loc.game_historyTitle,
+                          actionLabel: context.loc.home_viewAll,
                           onActionTap: () {},
                           padding: EdgeInsets.zero,
                         ),
@@ -78,7 +78,7 @@ class _GameScreenState extends State<GameScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(32.0),
                               child: Text(
-                                'No matches yet. Answer the daily question!',
+                                context.loc.game_noMatches,
                                 style: VpWidgets.googleFont(
                                   color: Colors.white38,
                                   fontSize: 14,
@@ -98,15 +98,15 @@ class _GameScreenState extends State<GameScreen> {
                                   IconData icon;
 
                                   if (item.isMatched) {
-                                    status = 'You both agreed!';
+                                    status = context.loc.game_statusBothAgreed;
                                     badgeColor = AppColors.neonGreen;
                                     icon = Icons.check_circle;
                                   } else if (item.isDisagreed) {
-                                    status = 'A playful disagreement';
+                                    status = context.loc.game_statusDisagreed;
                                     badgeColor = AppColors.neonPink;
                                     icon = Icons.cancel;
                                   } else {
-                                    status = 'Waiting for partner';
+                                    status = context.loc.game_statusWaiting;
                                     badgeColor = AppColors.neonBlue;
                                     icon = Icons.access_time;
                                   }
@@ -204,7 +204,7 @@ class _GameScreenState extends State<GameScreen> {
                     border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.3)),
                   ),
                   child: Text(
-                    'DAILY GAME',
+                    context.loc.game_dailyGame,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
@@ -218,7 +218,7 @@ class _GameScreenState extends State<GameScreen> {
                   const CircularProgressIndicator(color: AppColors.neonPurple),
                   const SizedBox(height: 16),
                   Text(
-                    "Generando la domanda...",
+                    context.loc.game_generatingQuestion,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 18,
@@ -228,7 +228,7 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "L'IA sta creando qualcosa di speciale per voi ✨",
+                    context.loc.game_aiGeneratingSubtitle,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
@@ -237,7 +237,7 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ] else if (state.currentQuestion != null) ...[
                   Text(
-                    'Question of the Day',
+                    context.loc.game_questionOfDay,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -263,13 +263,16 @@ class _GameScreenState extends State<GameScreen> {
                   const Icon(Icons.check_circle, size: 64, color: AppColors.neonGreen),
                   const SizedBox(height: 16),
                   Text(
-                    "You're all caught up!",
+                    context.loc.game_allCaughtUp,
                     style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => state.fetchNewQuestion(),
-                    child: const Text('Try Fetching Again', style: TextStyle(color: AppColors.neonBlue)),
+                    child: Text(
+                      context.loc.game_tryFetchingAgain,
+                      style: const TextStyle(color: AppColors.neonBlue),
+                    ),
                   ),
                 ],
               ],
@@ -313,7 +316,7 @@ class _GameScreenState extends State<GameScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         VPUserAvatar(
-          name: profile.userProfile?.username ?? 'You',
+          name: profile.userProfile?.username ?? context.loc.common_youTitle,
           imageUrl: profile.userProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
@@ -322,7 +325,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
         VPUserAvatar(
-          name: profile.partnerProfile?.username ?? 'Partner',
+          name: profile.partnerProfile?.username ?? context.loc.common_partner,
           imageUrl: profile.partnerProfile?.profilePicUrl,
           indicator: partnerDone ? Container(
             padding: const EdgeInsets.all(4),

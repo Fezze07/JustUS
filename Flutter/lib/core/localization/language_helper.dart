@@ -1,0 +1,101 @@
+import 'package:flutter/widgets.dart';
+
+class AppLanguage {
+  final String code;
+  final String englishName;
+  final String nativeName;
+  final String flagEmoji;
+  final String aiTranslationHint;
+
+  const AppLanguage({
+    required this.code,
+    required this.englishName,
+    required this.nativeName,
+    required this.flagEmoji,
+    required this.aiTranslationHint,
+  });
+
+  Locale get locale => Locale(code);
+}
+
+abstract final class LanguageHelper {
+  static const String storageKey = 'app_language_code';
+  static const Locale fallbackLocale = Locale('it');
+
+  static const List<AppLanguage> supportedLanguages = [
+    AppLanguage(
+      code: 'it',
+      englishName: 'Italian',
+      nativeName: 'Italiano',
+      flagEmoji: '🇮🇹',
+      aiTranslationHint: 'Italiano naturale, tono caldo e diretto.',
+    ),
+    AppLanguage(
+      code: 'en',
+      englishName: 'English',
+      nativeName: 'English',
+      flagEmoji: '🇬🇧',
+      aiTranslationHint: 'Natural English, warm and concise tone.',
+    ),
+  ];
+
+  static List<Locale> get supportedLocales =>
+      supportedLanguages.map((language) => language.locale).toList(growable: false);
+
+  static Locale resolveLocale(Locale? locale) {
+    if (locale == null) return fallbackLocale;
+
+    return supportedLocales.firstWhere(
+      (supportedLocale) => supportedLocale.languageCode == locale.languageCode,
+      orElse: () => fallbackLocale,
+    );
+  }
+
+  static Locale resolveLanguageCode(String? languageCode) {
+    if (languageCode == null || languageCode.trim().isEmpty) {
+      return fallbackLocale;
+    }
+
+    return resolveLocale(Locale(languageCode.trim().toLowerCase()));
+  }
+
+  static Locale localeResolutionCallback(
+    Locale? locale,
+    Iterable<Locale> supportedLocales,
+  ) {
+    if (locale == null) return fallbackLocale;
+
+    for (final supportedLocale in supportedLocales) {
+      if (supportedLocale.languageCode == locale.languageCode) {
+        return supportedLocale;
+      }
+    }
+
+    return fallbackLocale;
+  }
+
+  static AppLanguage languageForLocale(Locale locale) {
+    final resolvedLocale = resolveLocale(locale);
+
+    return supportedLanguages.firstWhere(
+      (language) => language.code == resolvedLocale.languageCode,
+      orElse: () => supportedLanguages.first,
+    );
+  }
+
+  static bool isSupported(String languageCode) {
+    return supportedLanguages.any((language) => language.code == languageCode);
+  }
+
+  static Map<String, String> aiTranslationContext(Locale locale) {
+    final language = languageForLocale(locale);
+
+    return {
+      'languageCode': language.code,
+      'englishName': language.englishName,
+      'nativeName': language.nativeName,
+      'styleHint': language.aiTranslationHint,
+      'arbTemplate': 'lib/core/localization/intl_it.arb',
+    };
+  }
+}

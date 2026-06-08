@@ -11,9 +11,12 @@ class CaptchaService {
   static Future<String?> getCaptchaToken() async {
     final siteKey = dotenv.env['TURNSTILE_PUB_SITE_KEY'];
     if (siteKey == null || siteKey.isEmpty) {
-      throw const AppError(
+      throw AppError(
         code: ErrorCodes.apiValidation001,
-        message: 'Configurazione di sicurezza mancante (Site Key).',
+        message: ErrorHandler.navigatorKey.currentContext
+                ?.loc
+                .auth_captchaMissingConfig ??
+            'Missing security configuration',
       );
     }
 
@@ -34,11 +37,11 @@ class CaptchaService {
         barrierDismissible: false,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('Verifica di sicurezza'),
+            title: Text(context.loc.auth_captchaTitle),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('JustUs sta verificando che tu sia un umano...'),
+                Text(context.loc.auth_captchaMessage),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 100,
@@ -68,7 +71,7 @@ class CaptchaService {
                   captchaToken = null;
                   Navigator.of(context).pop();
                 },
-                child: const Text('Annulla'),
+                child: Text(context.loc.common_cancel),
               ),
             ],
           );

@@ -68,15 +68,18 @@ class UpdateService {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: const Text('Aggiornamento disponibile! 🚀'),
+          title: Text(context.loc.update_availableTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('È disponibile una nuova versione di JustUs.'),
+              Text(context.loc.update_newVersion),
               if (changelog != null && changelog.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                const Text('Novità:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  context.loc.update_changelogTitle,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 Text(changelog),
               ],
@@ -89,7 +92,7 @@ class UpdateService {
                   _isDialogShowing = false;
                   Navigator.pop(context);
                 },
-                child: const Text('Più tardi'),
+                child: Text(context.loc.update_later),
               ),
             FilledButton(
               onPressed: () {
@@ -99,7 +102,7 @@ class UpdateService {
                 _isDialogShowing = false;
                 Navigator.pop(context);
               },
-              child: const Text('Aggiorna ora'),
+              child: Text(context.loc.update_now),
             ),
           ],
         ),

@@ -1,0 +1,381 @@
+{
+  "@@locale": "it",
+  "appTitle": "JustUs",
+  "@appTitle": {
+    "description": "Nome dell'app mostrato dal sistema."
+  },
+  "example": "Esempio",
+  "@example": {
+    "description": "Chiave dimostrativa per l'uso context.loc.example."
+  },
+  "settingsTitle": "Impostazioni",
+  "@settingsTitle": {
+    "description": "Titolo della schermata impostazioni."
+  },
+  "settingsSubtitle": "Preferenze dell'app e lingua",
+  "@settingsSubtitle": {
+    "description": "Sottotitolo descrittivo della schermata impostazioni."
+  },
+  "languageSectionTitle": "LINGUA",
+  "@languageSectionTitle": {
+    "description": "Intestazione della sezione lingua."
+  },
+  "languageSettingTitle": "Lingua",
+  "@languageSettingTitle": {
+    "description": "Titolo della voce impostazioni per la lingua."
+  },
+  "languageSettingSubtitle": "Cambia lingua in tempo reale",
+  "@languageSettingSubtitle": {
+    "description": "Sottotitolo della voce impostazioni per la lingua."
+  },
+  "currentLanguageLabel": "Lingua corrente",
+  "@currentLanguageLabel": {
+    "description": "Etichetta della lingua attualmente selezionata."
+  },
+  "italianLanguage": "Italiano",
+  "@italianLanguage": {
+    "description": "Nome della lingua italiana."
+  },
+  "englishLanguage": "Inglese",
+  "@englishLanguage": {
+    "description": "Nome della lingua inglese."
+  },
+  "languageSavedMessage": "Lingua aggiornata",
+  "@languageSavedMessage": {
+    "description": "Messaggio snackbar dopo il cambio lingua."
+  },
+  "aiTranslationSectionTitle": "TRADUZIONI AI",
+  "@aiTranslationSectionTitle": {
+    "description": "Titolo sezione preparatoria per traduzioni AI."
+  },
+  "aiTranslationReadyTitle": "Pronto per traduzioni future",
+  "@aiTranslationReadyTitle": {
+    "description": "Titolo card informativa sul supporto AI futuro."
+  },
+  "aiTranslationReadySubtitle": "Le chiavi ARB sono organizzate per espandere nuove lingue e workflow AI.",
+  "@aiTranslationReadySubtitle": {
+    "description": "Descrizione card informativa sul supporto AI futuro."
+  },
+  "profileSettingsTitle": "Profilo e impostazioni",
+  "@profileSettingsTitle": {
+    "description": "Titolo header della schermata profilo."
+  },
+  "systemOverrideSectionTitle": "SISTEMA",
+  "@systemOverrideSectionTitle": {
+    "description": "Titolo della sezione impostazioni di sistema."
+  },
+  "appTagline": "Momenti condivisi, cuori più vicini",
+  "common_you": "TU",
+  "common_youTitle": "Tu",
+  "common_partner": "Partner",
+  "common_partnerUpper": "PARTNER",
+  "common_cancel": "Annulla",
+  "common_close": "Chiudi",
+  "common_retry": "Riprova",
+  "common_add": "Aggiungi",
+  "common_delete": "Elimina",
+  "common_file": "File",
+  "common_audio": "Audio",
+  "auth_loginTitle": "Bentornato",
+  "auth_loginSubtitle": "Accedi per riconnetterti con il tuo partner",
+  "auth_loginNoAccount": "Non hai un account?",
+  "auth_signUp": "Registrati",
+  "auth_emailLabel": "EMAIL",
+  "auth_emailTitle": "Email",
+  "auth_emailHint": "tu@email.com",
+  "auth_registerEmailHint": "mario@example.com",
+  "auth_passwordLabel": "PASSWORD",
+  "auth_passwordTitle": "Password",
+  "auth_passwordHint": "••••••••",
+  "auth_forgotPassword": "Password dimenticata?",
+  "auth_loginButton": "Accedi",
+  "auth_registerTitle": "Unisciti a JustUS",
+  "auth_registerSubtitle": "Inizia il vostro percorso verso una connessione più profonda.",
+  "auth_alreadyAccount": "Hai già un account?",
+  "auth_logIn": "Accedi",
+  "auth_nameLabel": "IL TUO NOME",
+  "auth_nameHint": "Mario Rossi",
+  "auth_createAccount": "Crea account",
+  "auth_nameFieldName": "Nome",
+  "auth_confirmEmailTitle": "Controlla la tua email",
+  "auth_goToLogin": "Vai al login",
+  "auth_changePasswordTitle": "Cambia password",
+  "auth_changePasswordSubtitle": "Crea una nuova password unica e sicura.",
+  "auth_currentPasswordLabel": "Password attuale",
+  "auth_currentPasswordHint": "Inserisci la password attuale",
+  "auth_newPasswordLabel": "Nuova password",
+  "auth_newPasswordHint": "Inserisci la nuova password",
+  "auth_confirmPasswordLabel": "Conferma password",
+  "auth_confirmPasswordHint": "Reinserisci la nuova password",
+  "auth_updatePassword": "Aggiorna password",
+  "auth_passwordUpdated": "Password aggiornata con successo!",
+  "auth_captchaTitle": "Verifica di sicurezza",
+  "auth_captchaMessage": "JustUs sta verificando che tu sia un umano...",
+  "auth_captchaMissingConfig": "Configurazione di sicurezza mancante (Site Key).",
+  "auth_captchaFailed": "Verifica captcha non riuscita",
+  "auth_loginNoUserData": "Login fallito: dati utente mancanti",
+  "auth_registerUserNotCreated": "Registrazione fallita: utente non creato",
+  "auth_tooManyLoginAttempts": "Troppi tentativi di login. Riprova tra poco.",
+  "auth_validationEmailRequired": "L'email è obbligatoria",
+  "auth_validationEmailInvalid": "Inserisci un'email valida",
+  "auth_validationPasswordRequired": "La password è obbligatoria",
+  "auth_validationPasswordMinLength": "La password deve avere almeno 8 caratteri",
+  "auth_validationPasswordLowercase": "Deve contenere almeno una minuscola",
+  "auth_validationPasswordUppercase": "Deve contenere almeno una maiuscola",
+  "auth_validationPasswordNumber": "Deve contenere almeno un numero",
+  "auth_validationPasswordSymbol": "Deve contenere almeno un simbolo",
+  "home_daysTogether": "GIORNI INSIEME",
+  "home_currentMoodTitle": "IL NOSTRO MOOD ATTUALE",
+  "home_feelingGood": "Tutto bene!",
+  "home_moodQuote": "\"Ti penso e sorrido.\"",
+  "home_updateStatus": "Aggiorna stato",
+  "home_quickActions": "AZIONI RAPIDE",
+  "home_viewAll": "Vedi tutto",
+  "home_gamesTitle": "Giochi",
+  "home_gamesSubtitle": "Gioca a un quiz di coppia",
+  "home_photosTitle": "Foto",
+  "home_photosSubtitle": "La nostra galleria condivisa",
+  "home_bucketListTitle": "Bucket List",
+  "home_bucketListSubtitle": "3 attività in sospeso",
+  "home_nudgeTitle": "Mi manchi...",
+  "home_nudgeSubtitle": "Dillo con un click",
+  "home_missYouSent": "Mi manchi inviato!",
+  "settings_notificationsTitle": "Notifiche",
+  "settings_notificationsSubtitle": "Attività e promemoria neurali",
+  "settings_darkModeTitle": "Modalità scura",
+  "settings_darkModeSubtitle": "Ottimizzata violet-punk",
+  "profile_connected": "CONNESSI",
+  "profile_coreConnectionSection": "CONNESSIONE",
+  "profile_debugUtilitiesSection": "UTILITY DEBUG",
+  "profile_yourPartnerCodeTitle": "Il tuo codice partner",
+  "profile_changePasswordSubtitle": "Proteggi il vostro spazio condiviso",
+  "profile_anniversaryTitle": "Anniversario",
+  "profile_anniversaryEmpty": "Imposta la vostra data speciale",
+  "profile_wipeDataTitle": "Cancella dati app",
+  "profile_wipeDataSubtitle": "Resetta tutto tranne l’account",
+  "profile_wipeConfirmTitle": "CANCELLARE TUTTI I DATI?",
+  "profile_wipeConfirmContent": "Questa azione eliminerà definitivamente elementi del drive, bucket list, giochi e mood.\n\nLogin e connessione saranno preservati.",
+  "profile_wipeCancel": "ANNULLA",
+  "profile_wipeConfirm": "CANCELLA TUTTO",
+  "profile_dataWiped": "Dati cancellati. Sincronizzazione...",
+  "profile_disconnectSession": "DISCONNETTI SESSIONE",
+  "partner_title": "Con chi vuoi connetterti\noggi?",
+  "partner_connected": "CONNESSI",
+  "partner_newConnection": "Nuova connessione",
+  "partner_addPartner": "Aggiungi partner",
+  "partner_receivedRequests": "RICHIESTE RICEVUTE",
+  "partner_sentRequests": "RICHIESTE INVIATE",
+  "partner_noPendingInvites": "Nessun invito in sospeso",
+  "partner_logout": "Logout",
+  "partner_acceptError": "Errore durante l'accettazione dell'invito",
+  "partner_personalCodeTitle": "IL TUO CODICE PERSONALE",
+  "partner_codeCopied": "Codice copiato negli appunti!",
+  "partner_personalCodeSubtitle": "Invia questo codice al tuo partner per connettervi su JustUS!",
+  "partner_inviteTitle": "Invita partner",
+  "partner_inviteDescription": "Inserisci l'email e il codice del tuo partner per inviare una richiesta.",
+  "partner_emailLabel": "EMAIL PARTNER",
+  "partner_emailHint": "partner@example.com",
+  "partner_codeLabel": "CODICE PARTNER",
+  "partner_codeHint": "ABC123",
+  "partner_send": "Invia",
+  "partner_fillAllFields": "Compila tutti i campi",
+  "partner_inviteSuccess": "Invito inviato con successo!",
+  "partner_wantsToConnect": "Vuole connettersi",
+  "partner_waitingResponse": "In attesa di risposta",
+  "partner_acceptTooltip": "Accetta",
+  "partner_declineTooltip": "Rifiuta",
+  "partner_cancelRequestTooltip": "Annulla richiesta",
+  "partner_requestButton": "Richiedi",
+  "drive_title": "I nostri ricordi",
+  "drive_subtitle": "ARCHIVIO VIOLA",
+  "drive_select": "SELEZIONA",
+  "drive_filterAll": "Tutti",
+  "drive_filterPhotos": "Foto",
+  "drive_filterVideos": "Video",
+  "drive_filterLikes": "Like",
+  "drive_latestVibes": "ULTIME VIBE",
+  "drive_emptyTitle": "Ancora nessuna vibe",
+  "drive_uploading": "Caricamento...",
+  "drive_invalidMediaUrl": "URL media non valido",
+  "drive_deleteTitle": "Elimina",
+  "drive_deleteConfirm": "Vuoi eliminare questo elemento?",
+  "drive_videoError": "Errore video",
+  "drive_audioError": "Errore audio",
+  "drive_favoritesTitle": "Preferiti",
+  "drive_noFavorites": "Nessun preferito",
+  "drive_noFavoritesSubtitle": "Aggiungi foto e video ai preferiti dal Drive!",
+  "drive_takePhoto": "Scatta foto",
+  "drive_fromGallery": "Dalla galleria",
+  "drive_uploadComplete": "Upload completato ✓",
+  "drive_deleted": "Eliminato!",
+  "drive_uploadInProgress": "Caricamento in corso…",
+  "bucket_categoryAll": "Tutti",
+  "bucket_categoryTravel": "Viaggi",
+  "bucket_categoryDates": "Appuntamenti",
+  "bucket_categoryGoals": "Obiettivi",
+  "bucket_categoryCrazy": "Follie",
+  "bucket_addGoalTitle": "Aggiungi obiettivo",
+  "bucket_goalHint": "Cosa vuoi fare insieme?",
+  "bucket_categoryLabel": "Categoria:",
+  "bucket_add": "Aggiungi",
+  "bucket_title": "I nostri obiettivi",
+  "bucket_emptyAll": "Nessun obiettivo creato ancora...\nAggiungine uno!",
+  "bucket_emptyCategory": "Nessun obiettivo in questa categoria.",
+  "bucket_enterText": "Inserisci del testo",
+  "bucket_addError": "Errore durante l'aggiunta",
+  "bucket_updateError": "Errore aggiornamento item",
+  "mood_boardTitle": "Mood Board",
+  "mood_recents": "I TUOI RECENTI",
+  "mood_edit": "Modifica",
+  "mood_label": "Mood",
+  "mood_howFeeling": "Come ti senti?",
+  "mood_timeline": "Timeline",
+  "mood_today": "Oggi",
+  "mood_statusUpdated": "Aggiornato",
+  "mood_statusCalm": "Calmo",
+  "mood_now": "Ora",
+  "mood_recent": "Recente",
+  "mood_descriptionUserUpdated": "Hai appena aggiornato il tuo mood.",
+  "mood_descriptionPartnerUpdated": "Il partner ha aggiornato il mood.",
+  "mood_sheetTitle": "Scegli il tuo Mood",
+  "mood_enterEmoji": "Inserisci un'emoji",
+  "mood_enterSingleEmoji": "Inserisci una sola emoji",
+  "mood_emojiHint": "Inserisci un'emoji...",
+  "mood_duplicateTechnicalMessage": "Utente ha tentato di reinserire il mood corrente.",
+  "mood_updated": "Mood aggiornato!",
+  "game_historyTitle": "STORICO",
+  "game_noMatches": "Ancora nessun match. Rispondi alla domanda del giorno!",
+  "game_statusBothAgreed": "Siete entrambi d’accordo!",
+  "game_statusDisagreed": "Un disaccordo giocoso",
+  "game_statusWaiting": "In attesa del partner",
+  "game_dailyGame": "GIOCO DEL GIORNO",
+  "game_generatingQuestion": "Generando la domanda...",
+  "game_aiGeneratingSubtitle": "L’IA sta creando qualcosa di speciale per voi",
+  "game_questionOfDay": "Domanda del giorno",
+  "game_allCaughtUp": "Hai completato tutto!",
+  "game_tryFetchingAgain": "Prova a recuperare di nuovo",
+  "game_invalidOption": "Errore: opzione non valida",
+  "game_answerSent": "Risposta inviata!",
+  "game_waitPartner": "Aspetta che il partner risponda",
+  "game_noQuestionAvailable": "Nessuna domanda disponibile",
+  "game_noActivePartnership": "Nessuna partnership attiva trovata",
+  "game_aiGenerationError": "Errore generazione AI",
+  "update_availableTitle": "Aggiornamento disponibile!",
+  "update_newVersion": "È disponibile una nuova versione di JustUs.",
+  "update_changelogTitle": "Novità:",
+  "update_later": "Più tardi",
+  "update_now": "Aggiorna ora",
+  "logout_title": "Disconnetti sessione",
+  "logout_message": "Terminare la sessione corrente?",
+  "logout_cancel": "Annulla",
+  "logout_confirm": "Disconnetti",
+  "error_dialogTitle": "Errore",
+  "error_codePrefix": "Codice:",
+  "error_reauthTitle": "Sessione scaduta",
+  "error_reauthAction": "Accedi di nuovo",
+  "error_unknownApi": "Errore API sconosciuto",
+  "error_noDataReturned": "Nessun dato restituito",
+  "error_malformedResponse": "Risposta di errore non valida",
+  "error_networkUnavailable": "Rete non disponibile",
+  "error_operationTimedOut": "Operazione scaduta",
+  "error_sessionExpiredLoginAgain": "Sessione scaduta. Effettua di nuovo il login.",
+  "error_requestTimeout": "Richiesta scaduta (timeout). Controlla la connessione.",
+  "error_connection": "Errore di connessione: {message}",
+  "error_authFail001": "Sessione scaduta. Effettua di nuovo il login.",
+  "error_authFail002": "Sessione non valida. Effettua il login.",
+  "error_authFail003": "La sessione è stata revocata. Accedi nuovamente.",
+  "error_authFail004": "Accesso non consentito.",
+  "error_authFail005": "Profilo utente non trovato.",
+  "error_authFail006": "Dispositivo non riconosciuto. Accedi di nuovo.",
+  "error_authPermission001": "Non hai i permessi per questa operazione.",
+  "error_dbRead001": "Errore durante il caricamento dei dati.",
+  "error_dbWrite001": "Errore durante il salvataggio.",
+  "error_dbNotFound001": "Risorsa non trovata.",
+  "error_dbTimeout001": "Il server è lento. Riprova tra poco.",
+  "error_apiValidation001": "I dati inseriti non sono validi.",
+  "error_apiNotFound001": "Servizio non disponibile.",
+  "error_apiTimeout001": "La richiesta ha impiegato troppo. Riprova.",
+  "error_apiFail001": "Si è verificato un errore. Riprova.",
+  "error_secBlock001": "Troppe richieste. Attendi prima di riprovare.",
+  "error_secBlock002": "Accesso temporaneamente bloccato.",
+  "error_secPermission001": "Accesso negato.",
+  "error_sysFail001": "Errore interno del server.",
+  "error_localNetworkError": "Nessuna connessione a Internet.",
+  "error_localTimeout001": "La connessione è troppo lenta. Riprova.",
+  "error_localParseError": "Risposta del server non valida.",
+  "error_localStorageError": "Errore nel salvataggio dei dati locali.",
+  "error_localConfigError": "Errore di configurazione dell'app.",
+  "error_localMoodDuplicate": "Hai già impostato questa emoji come mood attuale.",
+  "error_unknown": "Si è verificato un errore imprevisto.",
+  "auth_confirmEmailMessage": "Abbiamo inviato un link di conferma a {email}.\n\nClicca sul link per attivare il tuo account, poi torna qui per accedere.",
+  "@auth_confirmEmailMessage": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "auth_validationRequired": "Il campo {fieldName} è obbligatorio",
+  "@auth_validationRequired": {
+    "placeholders": {
+      "fieldName": {
+        "type": "String"
+      }
+    }
+  },
+  "profile_shareToConnect": "Condividi per connetterti: {code}",
+  "@profile_shareToConnect": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "profile_copiedCode": "Copiato: {code}",
+  "@profile_copiedCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "profile_appVersion": "JustUS OS {version}",
+  "@profile_appVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "bucket_createdOn": "Creato il: {date}",
+  "@bucket_createdOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "mood_youFelt": "Tu ti sei sentito {status}",
+  "@mood_youFelt": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "mood_partnerFelt": "Il partner si è sentito {status}",
+  "@mood_partnerFelt": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "@error_connection": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  }
+}

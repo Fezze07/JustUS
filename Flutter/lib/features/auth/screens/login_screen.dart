@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // LoginScreen - Violet-Punk Style
 // =============================================================================
 
@@ -24,11 +24,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return VPAuthLayout(
-      title: 'Welcome Back',
-      subtitle: 'Login to reconnect with your partner',
+      title: context.loc.auth_loginTitle,
+      subtitle: context.loc.auth_loginSubtitle,
       footer: VPAuthLink(
-        text: "Don't have an account?",
-        actionText: 'Sign Up',
+        text: context.loc.auth_loginNoAccount,
+        actionText: context.loc.auth_signUp,
         onTap: () {
           unawaited(Navigator.push(
             context,
@@ -40,9 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
         // Email
         VPTextField(
           controller: _emailController,
-          label: 'Email',
+          label: context.loc.auth_emailTitle,
           icon: Icons.email,
-          hint: 'your@email.com',
+          hint: context.loc.auth_emailHint,
         ),
 
         const SizedBox(height: 20),
@@ -50,9 +50,9 @@ class _LoginScreenState extends State<LoginScreen> {
         // Password
         VPTextField(
           controller: _passwordController,
-          label: 'Password',
+          label: context.loc.auth_passwordTitle,
           icon: Icons.lock_outline,
-          hint: '••••••••',
+          hint: '••••••••••',
           isPassword: true,
           obscureText: _obscurePassword,
           onTogglePassword: () =>
@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: TextButton(
             onPressed: () {},
             child: Text(
-              'Forgot Password?',
+              context.loc.auth_forgotPassword,
               style: VpWidgets.googleFont(
                 color: AppColors.neonBlue,
                 fontWeight: FontWeight.w600,
@@ -83,14 +83,15 @@ class _LoginScreenState extends State<LoginScreen> {
         Consumer<AuthState>(
           builder: (context, state, _) {
             return VPButton(
-              label: 'Login',
+              label: context.loc.auth_loginButton,
               isLoading: state.isLoading,
               onPressed: () async {
                 final email = _emailController.text;
                 final password = _passwordController.text;
 
-                final emailError = Validators.validateEmail(email);
-                final passwordError = Validators.validatePassword(password);
+                final emailError = Validators.validateEmail(context, email);
+                final passwordError =
+                    Validators.validatePassword(context, password);
 
                 if (emailError != null || passwordError != null) {
                   final errorMessage = emailError ?? passwordError!;

@@ -112,13 +112,13 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
   void _addEmoji() {
     final input = _emojiController.text.trim();
     if (input.isEmpty) {
-      setState(() => _errorText = 'Inserisci un\'emoji');
+      setState(() => _errorText = context.loc.mood_enterEmoji);
 
       return;
     }
 
     if (input.characters.length != 1) {
-      setState(() => _errorText = 'Inserisci una sola emoji');
+      setState(() => _errorText = context.loc.mood_enterSingleEmoji);
 
       return;
     }
@@ -126,9 +126,9 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
     final currentMood = context.read<MoodState>().userMood;
     if (input == currentMood) {
       ErrorHandler.handle(
-        const AppError(
+        AppError(
             code: ErrorCodes.localMoodDuplicate,
-            message: 'Utente ha tentato di reinserire il mood corrente.'),
+            message: context.loc.mood_duplicateTechnicalMessage),
         context: context,
       );
 
@@ -143,9 +143,9 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
     final currentMood = context.read<MoodState>().userMood;
     if (emoji == currentMood) {
       ErrorHandler.handle(
-        const AppError(
+        AppError(
             code: ErrorCodes.localMoodDuplicate,
-            message: 'Utente ha tentato di reinserire il mood corrente.'),
+            message: context.loc.mood_duplicateTechnicalMessage),
         context: context,
       );
 

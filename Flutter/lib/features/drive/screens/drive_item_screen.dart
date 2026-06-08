@@ -52,7 +52,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
     if (resolvedUrl == null) {
       setState(() {
         _hasError = true;
-        _errorMessage = 'Invalid media URL';
+        _errorMessage = context.loc.drive_invalidMediaUrl;
       });
 
       return;
@@ -187,12 +187,12 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
     unawaited(showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Elimina'),
-        content: const Text('Vuoi eliminare questo elemento?'),
+        title: Text(context.loc.drive_deleteTitle),
+        content: Text(context.loc.drive_deleteConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.loc.common_cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -200,7 +200,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back
             },
-            child: const Text('Elimina'),
+            child: Text(context.loc.common_delete),
           ),
         ],
       ),
@@ -292,7 +292,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
       
       case 'video':
         if (_hasError) {
-          return _buildErrorWidget("Errore video");
+          return _buildErrorWidget(context.loc.drive_videoError);
         }
         if (_videoController != null && _videoController!.value.isInitialized) {
           return GestureDetector(
@@ -322,7 +322,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
       
       case 'audio':
         if (_hasError) {
-          return _buildErrorWidget("Errore audio");
+          return _buildErrorWidget(context.loc.drive_audioError);
         }
         
         return Column(
@@ -331,7 +331,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
             const Icon(Icons.audiotrack, size: 80, color: Colors.white),
             const SizedBox(height: 24),
             Text(
-              item.metadata?['filename'] ?? 'Audio',
+              item.metadata?['filename'] ?? context.loc.common_audio,
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
             const SizedBox(height: 32),
@@ -375,7 +375,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
             const Icon(Icons.insert_drive_file, size: 100, color: Colors.white),
             const SizedBox(height: 16),
             Text(
-              item.metadata?['filename'] ?? 'File',
+              item.metadata?['filename'] ?? context.loc.common_file,
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
           ],

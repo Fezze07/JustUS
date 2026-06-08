@@ -54,22 +54,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.deepViolet,
-        title: const Text('WIPE ALL DATA?',
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        content: const Text(
-          'This will permanently delete all drive items, bucket list, games, and moods. \n\nLogin and connection will be preserved.',
-          style: TextStyle(color: Colors.white70),
+        title: Text(
+          context.loc.profile_wipeConfirmTitle,
+          style:
+              const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          context.loc.profile_wipeConfirmContent,
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child:
-                const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+            child: Text(context.loc.profile_wipeCancel,
+                style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('WIPE EVERYTHING'),
+            child: Text(context.loc.profile_wipeConfirm),
           ),
         ],
       ),
@@ -85,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context.read<MoodState>().clear();
         context.read<HomepageState>().clear();
 
-        UIUtils.showSnackBar(context, 'Data wiped. Re-syncing...');
+        UIUtils.showSnackBar(context, context.loc.profile_dataWiped);
         unawaited(context.read<ProfileState>().loadProfile(force: true));
       }
     }
@@ -110,7 +113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   // Header
                   VPHeader(
-                    title: 'PROFILE & SETTINGS',
+                    title: context.loc.profileSettingsTitle.toUpperCase(),
                     onBack: () => Navigator.pop(context),
                   ),
 
@@ -182,7 +185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Names
                   Text(
-                    '${user?.username ?? 'You'} & ${partner?.username ?? 'Partner'}',
+                    '${user?.username ?? context.loc.common_youTitle} & ${partner?.username ?? context.loc.common_partner}',
                     style: VpWidgets.googleFont(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -210,7 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: AppColors.neonBlue, size: 16),
                         const SizedBox(width: 8),
                         Text(
-                          'CONNECTED',
+                          context.loc.profile_connected,
                           style: VpWidgets.googleFont(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -238,12 +241,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 48),
 
                   // Settings Sections
-                  const VPSectionHeader(title: 'SYSTEM OVERRIDE'),
+                  VPSectionHeader(title: context.loc.systemOverrideSectionTitle),
                   VPSettingGroup(children: [
                     VPSettingTile(
+                      icon: Icons.settings,
+                      title: context.loc.settingsTitle,
+                      subtitle: context.loc.languageSettingSubtitle,
+                      trailing: const Icon(Icons.chevron_right,
+                          color: Colors.white54),
+                      color: AppColors.neonPurple,
+                      onTap: () => Navigator.pushNamed(context, '/settings'),
+                    ),
+                    const VPDivider(),
+                    VPSettingTile(
                       icon: Icons.notifications_active,
-                      title: 'Notifications',
-                      subtitle: 'Activity & neural reminders',
+                      title: context.loc.settings_notificationsTitle,
+                      subtitle: context.loc.settings_notificationsSubtitle,
                       trailing: Switch(
                           value: true,
                           onChanged: (v) {},
@@ -253,8 +266,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const VPDivider(),
                     VPSettingTile(
                       icon: Icons.visibility,
-                      title: 'Dark Mode',
-                      subtitle: 'Violet-punk optimized',
+                      title: context.loc.settings_darkModeTitle,
+                      subtitle: context.loc.settings_darkModeSubtitle,
                       trailing: Switch(
                           value: true,
                           onChanged: (v) {},
@@ -265,20 +278,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 24),
 
-                  const VPSectionHeader(title: 'CORE CONNECTION'),
+                  VPSectionHeader(title: context.loc.profile_coreConnectionSection),
                   VPSettingGroup(children: [
                     if (user?.partnershipCode != null) ...[
                       VPSettingTile(
                         icon: Icons.key,
-                        title: 'Your Partner Code',
-                        subtitle: 'Share to connect: ${user!.partnershipCode}',
+                        title: context.loc.profile_yourPartnerCodeTitle,
+                        subtitle: context.loc
+                            .profile_shareToConnect(user!.partnershipCode!),
                         trailing: const Icon(Icons.copy, color: Colors.white54),
                         color: AppColors.neonPink,
                         onTap: () {
                           unawaited(Clipboard.setData(
                               ClipboardData(text: user.partnershipCode!)));
                           UIUtils.showSnackBar(
-                              context, 'Copied: ${user.partnershipCode}',
+                              context,
+                              context.loc.profile_copiedCode(user.partnershipCode!),
                               backgroundColor: AppColors.neonPink);
                         },
                       ),
@@ -286,8 +301,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                     VPSettingTile(
                       icon: Icons.lock,
-                      title: 'Change Password',
-                      subtitle: 'Secure your shared space',
+                      title: context.loc.auth_changePasswordTitle,
+                      subtitle: context.loc.profile_changePasswordSubtitle,
                       trailing: const Icon(Icons.chevron_right,
                           color: Colors.white54),
                       color: AppColors.neonPurple,
@@ -297,10 +312,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const VPDivider(),
                     VPSettingTile(
                       icon: Icons.calendar_today,
-                      title: 'Anniversary',
+                      title: context.loc.profile_anniversaryTitle,
                       subtitle: state.anniversaryDate != null
                           ? "${state.anniversaryDate!.day}/${state.anniversaryDate!.month}/${state.anniversaryDate!.year}"
-                          : 'Set your special date',
+                          : context.loc.profile_anniversaryEmpty,
                       trailing: const Icon(Icons.edit, color: Colors.white54),
                       color: AppColors.neonPurple,
                       onTap: () async {
@@ -331,12 +346,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   if (kDebugMode) ...[
                     const SizedBox(height: 48),
-                    const VPSectionHeader(title: 'DEBUG UTILITIES'),
+                    VPSectionHeader(title: context.loc.profile_debugUtilitiesSection),
                     VPSettingGroup(children: [
                       VPSettingTile(
                         icon: Icons.delete_forever,
-                        title: 'Wipe App Data',
-                        subtitle: 'Reset everything except account',
+                        title: context.loc.profile_wipeDataTitle,
+                        subtitle: context.loc.profile_wipeDataSubtitle,
                         trailing: const Icon(Icons.warning_amber_rounded,
                             color: Colors.orange),
                         color: Colors.orange,
@@ -366,7 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.red),
                           const SizedBox(width: 12),
                           Text(
-                            'DISCONNECT SESSION',
+                            context.loc.profile_disconnectSession,
                             style: VpWidgets.googleFont(
                               fontWeight: FontWeight.w900,
                               letterSpacing: 2,
@@ -381,7 +396,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 32),
                   Text(
-                    'JustUS OS v2.4.0-REV',
+                    context.loc.profile_appVersion('v2.4.0-REV'),
                     style: VpWidgets.googleFont(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,

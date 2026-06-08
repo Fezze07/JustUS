@@ -124,7 +124,7 @@ class ErrorHandler {
       debugPrint('└──────────────────────────────────────────');
     } else {
       // In produzione: log minimo (nessun dato sensibile o stack)
-      debugPrint('[ERROR] ${err.code}: ${err.userMessage}');
+      debugPrint('[ERROR] ${err.code}: ${err.message}');
     }
   }
 
@@ -135,7 +135,7 @@ class ErrorHandler {
   static void _showUI(BuildContext context, AppError err) {
     final message = kDebugMode
         ? '[${err.code}] ${err.message}'   // debug: tecnico
-        : err.userMessage;                  // produzione: user-friendly
+        : err.userMessage(context.loc);                  // produzione: user-friendly
 
     if (err.requiresReauth) {
       _showReauthDialog(context, err);
@@ -194,7 +194,7 @@ class ErrorHandler {
                           if (_currentOverlay == entry) _currentOverlay = null;
                         }
                       },
-                      child: const Text('CHIUDI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(context.loc.common_close.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                 ],
               ),
@@ -236,8 +236,8 @@ class ErrorHandler {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sessione scaduta'),
-        content: Text(kDebugMode ? '[${err.code}] ${err.message}' : err.userMessage),
+        title: Text(ctx.loc.error_reauthTitle),
+        content: Text(kDebugMode ? '[${err.code}] ${err.message}' : err.userMessage(ctx.loc)),
         actions: [
           FilledButton(
             onPressed: () {
@@ -249,7 +249,7 @@ class ErrorHandler {
               );
               if (future != null) unawaited(future);
             },
-            child: const Text('Accedi di nuovo'),
+            child: Text(ctx.loc.error_reauthAction),
           ),
         ],
       ),

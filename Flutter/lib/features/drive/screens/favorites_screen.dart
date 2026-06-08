@@ -31,7 +31,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Preferiti ❤️'),
+        title: Text(context.loc.drive_favoritesTitle),
         centerTitle: true,
       ),
       body: Consumer<DriveState>(
@@ -53,12 +53,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Nessun preferito',
+                    context.loc.drive_noFavorites,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Aggiungi foto e video ai preferiti dal Drive!',
+                    context.loc.drive_noFavoritesSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey,
                         ),

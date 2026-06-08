@@ -20,7 +20,7 @@ class SupabaseService {
 
     await Supabase.initialize(
       url: url,
-      anonKey: anonKey,
+      publishableKey: anonKey,
       httpClient: LoggingHttpClient(http.Client(), tag: 'SupabaseService'),
     );
   }

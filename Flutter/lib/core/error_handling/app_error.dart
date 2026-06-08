@@ -94,7 +94,7 @@ class AppError implements Exception {
   // ---------------------------------------------------------------------------
 
   /// Messaggio da mostrare all'utente in produzione (user-friendly, senza dati tecnici)
-  String get userMessage => ErrorCodes.userMessage(code);
+  String userMessage(AppLocalizations loc) => ErrorCodes.userMessage(code, loc);
 
   /// L'errore richiede reautenticazione?
   bool get requiresReauth => ErrorCodes.requiresReauth(code);

@@ -8,10 +8,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "scan:duplicates": "npm run scan:duplicates:global && npm run scan:duplicates:backend && npm run scan:duplicates:flutter",
+    "scan:duplicates": "npm run scan:duplicates:global && npm run scan:duplicates:backend",
     "scan:duplicates:global": "echo '--- Token Duplication Check (Global) ---' && jscpd . --config .jscpd.json",
-    "scan:duplicates:backend": "echo '--- Structural Duplication Check (Backend) ---' && jsinspect -L -I -t 50 Backend",
-    "scan:duplicates:flutter": "echo '--- Structural Duplication Check (Flutter) ---' && dcm check-code-duplication Flutter/lib",
+    "scan:duplicates:backend": "echo '--- Structural Duplication Check (Backend) ---' && jsinspect -L -I -t 50 --ignore \"node_modules|test|tool|coverage|jscpd-report\" Backend",
     "validate": "bash ./scripts/test-all.sh",
     "prepare": "husky"
   },

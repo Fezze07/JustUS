@@ -38,26 +38,26 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
   @override
   Widget build(BuildContext context) {
     return VPDialog(
-      title: 'Invita Partner',
+      title: context.loc.partner_inviteTitle,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Inserisci l\'email e il codice del tuo partner per inviare una richiesta.',
+            context.loc.partner_inviteDescription,
             style: VpWidgets.googleFont(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 16),
           VPTextField(
             controller: emailController,
-            label: 'EMAIL PARTNER',
-            hint: 'partner@example.com',
+            label: context.loc.partner_emailLabel,
+            hint: context.loc.partner_emailHint,
             inputType: TextInputType.emailAddress,
           ),
           const SizedBox(height: 12),
           VPTextField(
             controller: codeController,
-            label: 'CODICE PARTNER',
-            hint: 'ABC123',
+            label: context.loc.partner_codeLabel,
+            hint: context.loc.partner_codeHint,
           ),
         ],
       ),
@@ -65,21 +65,21 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(
-            'Annulla',
+            context.loc.common_cancel,
             style: VpWidgets.googleFont(color: Colors.white60),
           ),
         ),
         Consumer<AuthState>(
           builder: (context, authState, _) {
             return VPButton(
-              label: 'Invia',
+              label: context.loc.partner_send,
               isLoading: authState.isLoading,
               width: 100,
               onPressed: () async {
                 final email = emailController.text.trim();
                 final code = codeController.text.trim();
                 if (email.isEmpty || code.isEmpty) {
-                  UIUtils.showSnackBar(context, 'Compila tutti i campi',
+                  UIUtils.showSnackBar(context, context.loc.partner_fillAllFields,
                       isError: true);
 
                   return;
@@ -90,7 +90,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
 
                 if (success) {
                   Navigator.pop(context);
-                  UIUtils.showSnackBar(context, 'Invito inviato con successo!');
+                  UIUtils.showSnackBar(context, context.loc.partner_inviteSuccess);
                 }
               },
             );

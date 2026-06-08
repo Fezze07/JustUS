@@ -26,7 +26,7 @@ class MediaPickerService {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
-              title: Text('Take Photo', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_takePhoto, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
               onTap: () async {
                 pickedFile = await _picker.pickImage(source: ImageSource.camera);
                 if (context.mounted) Navigator.pop(context);
@@ -34,7 +34,7 @@ class MediaPickerService {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, color: AppColors.accentAqua),
-              title: Text('From Gallery', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_fromGallery, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
               onTap: () async {
                 pickedFile = await _picker.pickImage(source: ImageSource.gallery);
                 if (context.mounted) Navigator.pop(context);

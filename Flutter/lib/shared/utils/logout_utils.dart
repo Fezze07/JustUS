@@ -12,14 +12,14 @@ class LogoutUtils {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardDark,
-        title: Text('Disconnect Session',
+        title: Text(context.loc.logout_title,
             style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-        content: Text('End your current session?',
+        content: Text(context.loc.logout_message,
             style: GoogleFonts.plusJakartaSans(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
+            child: Text(context.loc.logout_cancel,
                 style: GoogleFonts.plusJakartaSans(color: Colors.white54)),
           ),
           FilledButton(
@@ -28,7 +28,7 @@ class LogoutUtils {
               Navigator.pop(context);
               onConfirm();
             },
-            child: Text('Disconnect',
+            child: Text(context.loc.logout_confirm,
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
           ),
         ],

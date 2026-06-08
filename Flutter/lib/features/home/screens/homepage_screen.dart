@@ -67,7 +67,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   children: [
                     // Header
                     VPHeader(
-                      title: 'JustUS',
+                      title: context.loc.appTitle,
                       showBackButton: false,
                       leading: VPCircleButton(
                         icon: Icons.menu,
@@ -131,7 +131,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
               children: [
                 // User Avatar
                 VPUserAvatar(
-                  name: 'YOU',
+                  name: context.loc.common_you,
                   imageUrl: profile.userProfile?.profilePicUrl,
                   indicator: VPUserAvatar.onlineIndicator,
                 ),
@@ -176,7 +176,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
                 // Partner Avatar
                 VPUserAvatar(
-                  name: auth.partnerDisplayName ?? 'PARTNER',
+                  name: auth.partnerDisplayName ?? context.loc.common_partnerUpper,
                   imageUrl: profile.partnerProfile?.profilePicUrl,
                   indicator: VPUserAvatar.onlineIndicator,
                 ),
@@ -216,7 +216,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
             ),
           ),
           Text(
-            'DAYS TOGETHER',
+            context.loc.home_daysTogether,
             style: VpWidgets.googleFont(
               color: AppColors.primary,
               fontSize: 10,
@@ -246,7 +246,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'OUR CURRENT MOOD',
+                        context.loc.home_currentMoodTitle,
                         style: VpWidgets.googleFont(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 12,
@@ -256,7 +256,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Feeling Good!',
+                        context.loc.home_feelingGood,
                         style: VpWidgets.googleFont(
                           color: Colors.white,
                           fontSize: 24,
@@ -281,7 +281,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '"Thinking about you and smiling."',
+                context.loc.home_moodQuote,
                 style: VpWidgets.googleFont(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 14,
@@ -316,7 +316,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 12),
                     ),
-                    child: const Text('Update Status'),
+                    child: Text(context.loc.home_updateStatus),
                   ),
                 ],
               ),
@@ -348,8 +348,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
     return Column(
       children: [
         VPSectionHeader(
-          title: 'QUICK ACTIONS',
-          actionLabel: 'View All',
+          title: context.loc.home_quickActions,
+          actionLabel: context.loc.home_viewAll,
           onActionTap: () {},
           padding: EdgeInsets.zero,
         ),
@@ -365,8 +365,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _buildActionCard(
               context,
               icon: Icons.sports_esports,
-              title: 'Games',
-              subtitle: 'Play a relationship quiz',
+              title: context.loc.home_gamesTitle,
+              subtitle: context.loc.home_gamesSubtitle,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const GameScreen()),
@@ -375,8 +375,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _buildActionCard(
               context,
               icon: Icons.photo_library,
-              title: 'Photos',
-              subtitle: 'Our Shared Gallery',
+              title: context.loc.home_photosTitle,
+              subtitle: context.loc.home_photosSubtitle,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const DriveScreen()),
@@ -385,8 +385,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _buildActionCard(
               context,
               icon: Icons.checklist,
-              title: 'Bucket List',
-              subtitle: '3 tasks pending',
+              title: context.loc.home_bucketListTitle,
+              subtitle: context.loc.home_bucketListSubtitle,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const BucketListScreen()),
@@ -395,8 +395,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _buildActionCard(
               context,
               icon: Icons.chat_bubble,
-              title: 'Nudge',
-              subtitle: 'Send some love',
+              title: context.loc.home_nudgeTitle,
+              subtitle: context.loc.home_nudgeSubtitle,
               onTap: () => _sendNudge(context),
             ),
           ],
@@ -410,7 +410,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
     final homepageState = context.read<HomepageState>();
     unawaited(homepageState.sendMissYou());
 
-    UIUtils.showSnackBar(context, 'Mi manchi inviato! ');
+    UIUtils.showSnackBar(context, context.loc.home_missYouSent);
   }
 
   Widget _buildActionCard(

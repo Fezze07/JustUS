@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // RegisterScreen - Violet-Punk Style
 // =============================================================================
 
@@ -25,11 +25,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return VPAuthLayout(
-      title: 'Join JustUS',
-      subtitle: 'Start your journey to a deeper connection.',
+      title: context.loc.auth_registerTitle,
+      subtitle: context.loc.auth_registerSubtitle,
       footer: VPAuthLink(
-        text: 'Already have an account?',
-        actionText: 'Log in',
+        text: context.loc.auth_alreadyAccount,
+        actionText: context.loc.auth_logIn,
         onTap: () {
           Navigator.pop(context); // Go back to Login
         },
@@ -37,23 +37,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         VPTextField(
           controller: _nameController,
-          label: 'YOUR NAME',
-          hint: 'John Doe',
+          label: context.loc.auth_nameLabel,
+          hint: context.loc.auth_nameHint,
           icon: Icons.person_outline,
         ),
         const SizedBox(height: 16),
         VPTextField(
           controller: _emailController,
-          label: 'EMAIL',
-          hint: 'john@example.com',
+          label: context.loc.auth_emailLabel,
+          hint: context.loc.auth_registerEmailHint,
           icon: Icons.email_outlined,
           inputType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 16),
         VPTextField(
           controller: _passwordController,
-          label: 'PASSWORD',
-          hint: '••••••••',
+          label: context.loc.auth_passwordLabel,
+          hint: '••••••••••',
           icon: Icons.lock_outline,
           isPassword: true,
           obscureText: _obscurePassword,
@@ -67,16 +67,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Consumer<AuthState>(
           builder: (context, state, _) {
             return VPButton(
-              label: 'Create Account',
+              label: context.loc.auth_createAccount,
               isLoading: state.isLoading,
               onPressed: () async {
                 final email = _emailController.text.trim();
                 final password = _passwordController.text;
                 final name = _nameController.text.trim();
 
-                final nameError = Validators.validateRequired(name, 'Nome');
-                final emailError = Validators.validateEmail(email);
-                final passwordError = Validators.validatePassword(password);
+                final nameError = Validators.validateRequired(
+                  context,
+                  name,
+                  context.loc.auth_nameFieldName,
+                );
+                final emailError = Validators.validateEmail(context, email);
+                final passwordError =
+                    Validators.validatePassword(context, password);
 
                 if (nameError != null ||
                     emailError != null ||
@@ -109,10 +114,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       context: context,
                       barrierDismissible: false,
                       builder: (_) => VPDialog(
-                        title: 'Controlla la tua email',
+                        title: context.loc.auth_confirmEmailTitle,
                         content: Text(
-                          'Abbiamo inviato un link di conferma a $email.\n\n'
-                          'Clicca sul link per attivare il tuo account, poi torna qui per accedere.',
+                          context.loc.auth_confirmEmailMessage(email),
                           style: VpWidgets.googleFont(color: Colors.white70),
                         ),
                         actions: [
@@ -122,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               Navigator.of(context).pop(); // Torna al login
                             },
                             child: Text(
-                              'Vai al login',
+                              context.loc.auth_goToLogin,
                               style: VpWidgets.googleFont(
                                   color: AppColors.primary),
                             ),

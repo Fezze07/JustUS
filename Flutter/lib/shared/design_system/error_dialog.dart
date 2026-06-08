@@ -4,6 +4,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:justus/all_imports.dart';
+
 class ErrorDialog extends StatelessWidget {
   final String message;
   final String title;
@@ -14,7 +16,7 @@ class ErrorDialog extends StatelessWidget {
   const ErrorDialog({
     super.key,
     required this.message,
-    this.title = 'Errore',
+    this.title = '',
     this.details,
     this.errorCode,
     this.onRetry,
@@ -23,7 +25,7 @@ class ErrorDialog extends StatelessWidget {
   static Future<void> show(
     BuildContext context, {
     required String message,
-    String title = 'Errore',
+    String title = '',
     String? details,
     String? errorCode,
     VoidCallback? onRetry,
@@ -42,8 +44,10 @@ class ErrorDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTitle = title.isEmpty ? context.loc.error_dialogTitle : title;
+
     return AlertDialog(
-      title: Text(title),
+      title: Text(resolvedTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -59,7 +63,7 @@ class ErrorDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Code: $errorCode',
+                  '${context.loc.error_codePrefix} $errorCode',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -82,7 +86,7 @@ class ErrorDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Chiudi'),
+          child: Text(context.loc.common_close),
         ),
         if (onRetry != null)
           FilledButton(
@@ -90,7 +94,7 @@ class ErrorDialog extends StatelessWidget {
               Navigator.pop(context);
               onRetry!();
             },
-            child: const Text('Riprova'),
+            child: Text(context.loc.common_retry),
           ),
       ],
     );

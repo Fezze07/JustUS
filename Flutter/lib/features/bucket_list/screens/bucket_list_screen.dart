@@ -17,15 +17,13 @@ class BucketListScreen extends StatefulWidget {
 }
 
 class _BucketListScreenState extends State<BucketListScreen> {
+  static const String _allCategory = 'all';
+  static const List<String> _itemCategories = ['Travel', 'Dates', 'Goals', 'Crazy'];
+
   final TextEditingController _addController = TextEditingController();
-  String _selectedCategory = 'Tutti';
-  final List<String> _categories = [
-    'Tutti',
-    'Travel',
-    'Dates',
-    'Goals',
-    'Crazy'
-  ];
+  String _selectedCategory = _allCategory;
+
+  List<String> get _categories => [_allCategory, ..._itemCategories];
 
   @override
   void initState() {
@@ -42,16 +40,15 @@ class _BucketListScreenState extends State<BucketListScreen> {
   }
 
   void _showAddDialog() {
-    String selectedAddCategory = 'Travel';
-    final addCategories = ['Travel', 'Dates', 'Goals', 'Crazy'];
+    String selectedAddCategory = _itemCategories.first;
 
     unawaited(showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: AppColors.cardDark,
-          title: const Text('Aggiungi obiettivo',
-              style: TextStyle(color: Colors.white)),
+          title: Text(context.loc.bucket_addGoalTitle,
+              style: const TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +57,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                 controller: _addController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Cosa vuoi fare insieme?',
+                  hintText: context.loc.bucket_goalHint,
                   hintStyle: const TextStyle(color: Colors.white54),
                   enabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
@@ -74,14 +71,15 @@ class _BucketListScreenState extends State<BucketListScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Categoria:', style: TextStyle(color: Colors.white70)),
+              Text(context.loc.bucket_categoryLabel,
+                  style: const TextStyle(color: Colors.white70)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: addCategories
+                children: _itemCategories
                     .map((cat) => ChoiceChip(
-                          label: Text(cat),
+                          label: Text(_categoryLabel(context, cat)),
                           selected: selectedAddCategory == cat,
                           selectedColor: AppColors.neonPurple,
                           backgroundColor: AppColors.backgroundDark,
@@ -103,8 +101,8 @@ class _BucketListScreenState extends State<BucketListScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Annulla',
-                  style: TextStyle(color: Colors.white54)),
+              child: Text(context.loc.common_cancel,
+                  style: const TextStyle(color: Colors.white54)),
             ),
             TextButton(
               onPressed: () {
@@ -117,8 +115,8 @@ class _BucketListScreenState extends State<BucketListScreen> {
                 }
                 Navigator.pop(context);
               },
-              child: const Text('Aggiungi',
-                  style: TextStyle(color: AppColors.neonBlue)),
+              child: Text(context.loc.bucket_add,
+                  style: const TextStyle(color: AppColors.neonBlue)),
             ),
           ],
         ),
@@ -140,7 +138,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
           children: [
             // Header
             VPHeader(
-              title: 'Our Bucket List',
+              title: context.loc.bucket_title,
               trailing: [
                 IconButton(
                   icon: const Icon(Icons.add_circle,
@@ -159,7 +157,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                     .map((cat) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text(cat),
+                            label: Text(_categoryLabel(context, cat)),
                             selected: _selectedCategory == cat,
                             selectedColor: AppColors.neonBlue,
                             backgroundColor: AppColors.cardDark,
@@ -196,19 +194,17 @@ class _BucketListScreenState extends State<BucketListScreen> {
                   }
 
                   if (state.items.isEmpty) {
-                    return _buildEmptyState(
-                        'Nessun obiettivo nella bucket list.\nAggiungine uno!');
+                    return _buildEmptyState(context.loc.bucket_emptyAll);
                   }
 
-                  final filteredItems = _selectedCategory == 'Tutti'
+                  final filteredItems = _selectedCategory == _allCategory
                       ? state.items
                       : state.items
                           .where((i) => i.category == _selectedCategory)
                           .toList();
 
                   if (filteredItems.isEmpty) {
-                    return _buildEmptyState(
-                        'Nessun obiettivo in questa categoria.');
+                    return _buildEmptyState(context.loc.bucket_emptyCategory);
                   }
 
                   return ListView.separated(
@@ -327,7 +323,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                                   AppColors.neonPurple.withValues(alpha: 0.5)),
                         ),
                         child: Text(
-                          item.category,
+                          _categoryLabel(context, item.category),
                           style: VpWidgets.googleFont(
                             fontSize: 10,
                             color: AppColors.neonPurple,
@@ -339,7 +335,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Creato il: ${item.createdAt.split('T').first}',
+                    context.loc.bucket_createdOn(item.createdAt.split('T').first),
                     style: VpWidgets.googleFont(
                       fontSize: 12,
                       color: Colors.white38,
@@ -365,5 +361,16 @@ class _BucketListScreenState extends State<BucketListScreen> {
         ),
       ),
     );
+  }
+
+  String _categoryLabel(BuildContext context, String category) {
+    return switch (category) {
+      _allCategory => context.loc.bucket_categoryAll,
+      'Travel' => context.loc.bucket_categoryTravel,
+      'Dates' => context.loc.bucket_categoryDates,
+      'Goals' => context.loc.bucket_categoryGoals,
+      'Crazy' => context.loc.bucket_categoryCrazy,
+      _ => category,
+    };
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:justus/core/localization/localization_extensions.dart';
+
 class UIUtils {
   /// Mostra una SnackBar con logica speciale per il Debug:
   /// Se siamo in debug e c'è un errore, la SnackBar non si chiude finché l'utente non preme "CHIUDI".
@@ -21,7 +23,7 @@ class UIUtils {
           : const Duration(seconds: 4),
       action: (isError && kDebugMode)
           ? SnackBarAction(
-              label: 'CHIUDI',
+              label: context.loc.common_close.toUpperCase(),
               textColor: Colors.white,
               onPressed: () {
                 messenger.hideCurrentSnackBar();

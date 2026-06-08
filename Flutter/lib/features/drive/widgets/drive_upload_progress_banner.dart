@@ -42,7 +42,7 @@ class DriveUploadProgressBanner extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  'Uploading...',
+                  context.loc.drive_uploading,
                   style: GoogleFonts.plusJakartaSans(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

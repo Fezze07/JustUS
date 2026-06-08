@@ -25,7 +25,7 @@ class PartnerUserTile extends StatelessWidget {
         title: Text(user.username),
         trailing: FilledButton(
           onPressed: onSendRequest,
-          child: const Text('Richiedi'),
+          child: Text(context.loc.partner_requestButton),
         ),
       ),
     );

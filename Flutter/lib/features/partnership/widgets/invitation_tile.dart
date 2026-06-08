@@ -54,7 +54,9 @@ class InvitationTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  isReceived ? 'Wants to connect' : 'Waiting for response',
+                  isReceived
+                      ? context.loc.partner_wantsToConnect
+                      : context.loc.partner_waitingResponse,
                   style: GoogleFonts.plusJakartaSans(
                     color: Colors.white54,
                     fontSize: 12,
@@ -67,18 +69,18 @@ class InvitationTile extends StatelessWidget {
             IconButton(
               onPressed: onAccept,
               icon: const Icon(Icons.check_circle, color: AppColors.neonGreen),
-              tooltip: 'Accept',
+              tooltip: context.loc.partner_acceptTooltip,
             ),
             IconButton(
               onPressed: onReject,
               icon: const Icon(Icons.cancel, color: AppColors.neonPink),
-              tooltip: 'Decline',
+              tooltip: context.loc.partner_declineTooltip,
             ),
           ] else
             IconButton(
               onPressed: onReject,
               icon: const Icon(Icons.delete_outline, color: Colors.white54),
-              tooltip: 'Cancel Request',
+              tooltip: context.loc.partner_cancelRequestTooltip,
             ),
         ],
       ),

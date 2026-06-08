@@ -89,7 +89,7 @@ class _DriveScreenState extends State<DriveScreen> {
                         Column(
                           children: [
                             Text(
-                              'Our Memories',
+                              context.loc.drive_title,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
@@ -103,7 +103,7 @@ class _DriveScreenState extends State<DriveScreen> {
                               ),
                             ),
                             Text(
-                              'VIOLET ARCHIVE',
+                              context.loc.drive_subtitle,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -116,7 +116,7 @@ class _DriveScreenState extends State<DriveScreen> {
                         TextButton(
                           onPressed: () {},
                           child: Text(
-                            'SELECT',
+                            context.loc.drive_select,
                             style: GoogleFonts.plusJakartaSans(
                               color: AppColors.accentAqua,
                               fontWeight: FontWeight.bold,
@@ -131,19 +131,19 @@ class _DriveScreenState extends State<DriveScreen> {
                 ),
 
                 // Filter Chips
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       children: [
-                        VPFilterChip(label: 'All', isActive: true),
-                        SizedBox(width: 12),
-                        VPFilterChip(label: 'Photos'),
-                        SizedBox(width: 12),
-                        VPFilterChip(label: 'Videos'),
-                        SizedBox(width: 12),
-                        VPFilterChip(label: 'Likes', icon: Icons.favorite, iconColor: Colors.red),
+                        VPFilterChip(label: context.loc.drive_filterAll, isActive: true),
+                        const SizedBox(width: 12),
+                        VPFilterChip(label: context.loc.drive_filterPhotos),
+                        const SizedBox(width: 12),
+                        VPFilterChip(label: context.loc.drive_filterVideos),
+                        const SizedBox(width: 12),
+                        VPFilterChip(label: context.loc.drive_filterLikes, icon: Icons.favorite, iconColor: Colors.red),
                       ],
                     ),
                   ),
@@ -156,7 +156,7 @@ class _DriveScreenState extends State<DriveScreen> {
                     child: Row(
                       children: [
                         Text(
-                          'LATEST VIBES',
+                          context.loc.drive_latestVibes,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
@@ -207,7 +207,7 @@ class _DriveScreenState extends State<DriveScreen> {
                               Icon(Icons.photo_library_outlined, size: 64, color: Colors.white.withValues(alpha: 0.2)),
                               const SizedBox(height: 16),
                               Text(
-                                'No Vibes Yet',
+                                context.loc.drive_emptyTitle,
                                 style: GoogleFonts.plusJakartaSans(
                                   color: Colors.white.withValues(alpha: 0.5),
                                   fontWeight: FontWeight.bold,
