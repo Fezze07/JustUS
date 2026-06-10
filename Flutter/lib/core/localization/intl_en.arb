@@ -81,6 +81,8 @@
   "home_updateStatus": "Update Status",
   "home_quickActions": "QUICK ACTIONS",
   "home_viewAll": "View All",
+  "home_moodTitle": "Mood",
+  "home_moodSubtitle": "Share how you feel",
   "home_gamesTitle": "Games",
   "home_gamesSubtitle": "Play a relationship quiz",
   "home_photosTitle": "Photos",

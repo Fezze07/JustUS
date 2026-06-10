@@ -110,7 +110,7 @@ class MoodState extends BaseState {
 
   Future<void> fetchTimeline() async {
     await runSafe(() async {
-      final result = await _repo.fetchTimeline(limit: 4, offset: 0);
+      final result = await _repo.fetchTimeline();
       await handleResult(result, onSuccess: (value) {
         _timeline = value;
         _timelineOffset = value.length;
@@ -123,7 +123,7 @@ class MoodState extends BaseState {
   Future<void> loadMoreTimeline() async {
     await runSafe(() async {
       final result =
-          await _repo.fetchTimeline(limit: 4, offset: _timelineOffset);
+          await _repo.fetchTimeline(offset: _timelineOffset);
       await handleResult(result, onSuccess: (value) {
         _timeline.addAll(value);
         _timelineOffset += value.length;

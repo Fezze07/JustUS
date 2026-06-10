@@ -33,8 +33,7 @@ async function verifyToken(token) {
 
 
 async function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = extractBearerToken(req);
 
   if (!token) {
     return next(new AppError({ errorKey: "AUTH_FAIL_002" }));
@@ -47,20 +46,7 @@ async function authenticateToken(req, res, next) {
     }
 
     const clientContext = buildClientContext(req);
-    let profile;
-    let sessionBinding;
-
-    if (verified.claims.session_id) {
-      [profile, sessionBinding] = await Promise.all([
-        fetchUserProfile(verified.user.id),
-        fetchSessionBinding(verified, null, clientContext),
-      ]);
-    } else {
-      profile = await fetchUserProfile(verified.user.id);
-      if (profile) {
-        sessionBinding = await fetchSessionBinding(verified, profile, clientContext);
-      }
-    }
+    const { profile, sessionBinding } = await resolveProfileAndSession(verified, clientContext);
 
     if (!profile) {
       return next(new AppError({ errorKey: "AUTH_FAIL_005" }));
@@ -80,22 +66,52 @@ async function authenticateToken(req, res, next) {
 
     req.auth = { token, claims: verified.claims, clientContext };
     req.user = buildUserObject(verified.user, profile);
-    
-    const watermarkSeed = "justus-watermark";
-    res.set(
-      "X-Response-Watermark",
-      hmacSha256(watermarkSeed, `${req.user.profileId}:${req.requestId}`).slice(0, 24)
-    );
-
-    req.sessionBinding = sessionBinding ? {
-      sessionId: sessionBinding.session_id,
-      bindingSecret: sessionBinding.binding_secret,
-    } : null;
+    applyResponseWatermark(res, req);
+    req.sessionBinding = buildSessionBinding(sessionBinding);
 
     next();
   } catch (error) {
     handleAuthError(error, req, next);
   }
+}
+
+function extractBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+}
+
+async function resolveProfileAndSession(verified, clientContext) {
+  let profile;
+  let sessionBinding;
+
+  if (verified.claims.session_id) {
+    [profile, sessionBinding] = await Promise.all([
+      fetchUserProfile(verified.user.id),
+      fetchSessionBinding(verified, null, clientContext),
+    ]);
+  } else {
+    profile = await fetchUserProfile(verified.user.id);
+    if (profile) {
+      sessionBinding = await fetchSessionBinding(verified, profile, clientContext);
+    }
+  }
+
+  return { profile, sessionBinding };
+}
+
+function applyResponseWatermark(res, req) {
+  const watermarkSeed = "justus-watermark";
+  res.set(
+    "X-Response-Watermark",
+    hmacSha256(watermarkSeed, `${req.user.profileId}:${req.requestId}`).slice(0, 24)
+  );
+}
+
+function buildSessionBinding(sessionBinding) {
+  return sessionBinding ? {
+    sessionId: sessionBinding.session_id,
+    bindingSecret: sessionBinding.binding_secret,
+  } : null;
 }
 
 /**

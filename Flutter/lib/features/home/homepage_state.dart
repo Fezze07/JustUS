@@ -57,9 +57,9 @@ class HomepageState extends ChangeNotifier {
     final result = await _repo.sendMissYou();
 
     switch (result) {
-      case Success(:final value):
-        _totalMissYou = value.total;
-        await StorageService.saveTotalMissYou(value.total);
+      case Success():
+        _totalMissYou += 1;
+        await StorageService.saveTotalMissYou(_totalMissYou);
         _message = 'Mi manchi inviato!';
       case GenericError():
         ErrorHandler.handle(result);

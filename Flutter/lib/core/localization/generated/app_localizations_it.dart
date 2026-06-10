@@ -264,6 +264,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_viewAll => 'Vedi tutto';
 
   @override
+  String get home_moodTitle => 'Mood';
+
+  @override
+  String get home_moodSubtitle => 'Condividi come ti senti';
+
+  @override
   String get home_gamesTitle => 'Giochi';
 
   @override

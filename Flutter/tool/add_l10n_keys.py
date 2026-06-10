@@ -1,4 +1,4 @@
-﻿import json
+import json
 from pathlib import Path
 
 it_path = Path('Flutter/lib/core/localization/intl_it.arb')
@@ -74,6 +74,8 @@ entries = {
   'home_updateStatus': ('Aggiorna stato', 'Update Status'),
   'home_quickActions': ('AZIONI RAPIDE', 'QUICK ACTIONS'),
   'home_viewAll': ('Vedi tutto', 'View All'),
+  'home_moodTitle': ("Mood", 'Mood'),
+  'home_moodSubtitle': ('Condividi come ti senti', 'Share how you feel'),
   'home_gamesTitle': ('Giochi', 'Games'),
   'home_gamesSubtitle': ('Gioca a un quiz di coppia', 'Play a relationship quiz'),
   'home_photosTitle': ('Foto', 'Photos'),

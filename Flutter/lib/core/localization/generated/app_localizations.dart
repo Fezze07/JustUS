@@ -584,6 +584,18 @@ abstract class AppLocalizations {
   /// **'Vedi tutto'**
   String get home_viewAll;
 
+  /// No description provided for @home_moodTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Mood'**
+  String get home_moodTitle;
+
+  /// No description provided for @home_moodSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi come ti senti'**
+  String get home_moodSubtitle;
+
   /// No description provided for @home_gamesTitle.
   ///
   /// In it, this message translates to:

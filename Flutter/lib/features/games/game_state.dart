@@ -115,7 +115,6 @@ class GameState extends ChangeNotifier {
           fetchStats(),
           fetchHistory(),
         ]);
-        await fetchNewQuestion();
       case GenericError():
         ErrorHandler.handle(result);
       case NetworkError():

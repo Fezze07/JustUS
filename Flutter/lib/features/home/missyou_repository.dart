@@ -3,16 +3,9 @@ import 'package:justus/all_imports.dart';
 class MissYouRepository extends BaseRepository {
   MissYouRepository({super.sbClient});
 
-  Future<ResultWrapper<MissYouResponse>> sendMissYou() async {
+  Future<ResultWrapper<void>> sendMissYou() async {
     return tryCall(() async {
       await sbClient.rpc('send_missyou');
-
-      final result = await fetchMissYouTotal();
-      if (result is Success<MissYouResponse>) {
-        return result.value;
-      }
-
-      return MissYouResponse(success: true, total: 0);
     });
   }
 

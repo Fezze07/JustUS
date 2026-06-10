@@ -239,8 +239,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
   }
 
   Widget _buildMoodCard(BuildContext context) {
-    return Consumer<MoodState>(
-      builder: (context, moodState, _) {
+    return Consumer2<MoodState, HomepageState>(
+      builder: (context, moodState, hpState, _) {
         return VPCard(
           padding: const EdgeInsets.all(24),
           borderColor: Colors.white.withValues(alpha: 0.05),
@@ -297,27 +297,45 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Center(
-                child: ElevatedButton(
-                  onPressed: () {
-                    unawaited(Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const MoodScreen()),
-                    ));
+                child: GestureDetector(
+                  onTap: () {
+                    unawaited(hpState.sendMissYou());
+                    UIUtils.showSnackBar(context, context.loc.home_missYouSent);
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.primary,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.2),
+                          Colors.redAccent.withValues(alpha: 0.2),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.favorite,
+                            color: Colors.redAccent, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${hpState.totalMissYou}',
+                          style: VpWidgets.googleFont(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Text(context.loc.home_updateStatus),
                 ),
               ),
             ],
@@ -351,6 +369,16 @@ class _HomepageScreenState extends State<HomepageScreen> {
               children: [
                 _buildActionCard(
                   context,
+                  icon: Icons.emoji_emotions,
+                  title: context.loc.home_moodTitle,
+                  subtitle: context.loc.home_moodSubtitle,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MoodScreen()),
+                  ),
+                ),
+                _buildActionCard(
+                  context,
                   icon: Icons.sports_esports,
                   title: context.loc.home_gamesTitle,
                   subtitle: context.loc.home_gamesSubtitle,
@@ -380,27 +408,12 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     MaterialPageRoute(builder: (_) => const BucketListScreen()),
                   ),
                 ),
-                _buildActionCard(
-                  context,
-                  icon: Icons.chat_bubble,
-                  title: context.loc.home_nudgeTitle,
-                  subtitle: context.loc.home_nudgeSubtitle,
-                  onTap: () => _sendNudge(context),
-                ),
               ],
             ),
           ],
         );
       },
     );
-  }
-
-  void _sendNudge(BuildContext context) {
-    // Reusing the "Miss You" functionality as Nudge
-    final homepageState = context.read<HomepageState>();
-    unawaited(homepageState.sendMissYou());
-
-    UIUtils.showSnackBar(context, context.loc.home_missYouSent);
   }
 
   Widget _buildActionCard(

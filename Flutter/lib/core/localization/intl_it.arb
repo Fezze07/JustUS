@@ -129,6 +129,8 @@
   "home_updateStatus": "Aggiorna stato",
   "home_quickActions": "AZIONI RAPIDE",
   "home_viewAll": "Vedi tutto",
+  "home_moodTitle": "Mood",
+  "home_moodSubtitle": "Condividi come ti senti",
   "home_gamesTitle": "Giochi",
   "home_gamesSubtitle": "Gioca a un quiz di coppia",
   "home_photosTitle": "Foto",

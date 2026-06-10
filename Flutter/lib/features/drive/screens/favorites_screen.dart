@@ -31,9 +31,17 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(
         title: Text(context.loc.drive_favoritesTitle),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: VpWidgets.googleFont(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          fontSize: 18,
+        ),
       ),
       body: Consumer<DriveState>(
         builder: (context, state, _) {
@@ -55,7 +63,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   const SizedBox(height: 16),
                   Text(
                     context.loc.drive_noFavorites,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.backgroundLight,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -80,7 +90,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             itemCount: favorites.length,
             itemBuilder: (context, index) {
               final item = favorites[index];
-              
+
               return DriveGridItem(
                 item: item,
                 onTap: () {
