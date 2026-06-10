@@ -28,6 +28,8 @@ class GameNewQuestionResponse {
   final String? message;
   final int? userIdA;
   final int? userIdB;
+  final bool hasAnswered;
+  final bool partnerAnswered;
 
   GameNewQuestionResponse({
     required this.success,
@@ -39,6 +41,8 @@ class GameNewQuestionResponse {
     this.userIdB,
     this.status,
     this.message,
+    this.hasAnswered = false,
+    this.partnerAnswered = false,
   });
 
   factory GameNewQuestionResponse.fromJson(Map<String, dynamic> json) {
@@ -52,6 +56,8 @@ class GameNewQuestionResponse {
       userIdB: ((json['user_id_b'] ?? json['userIdB']) as num?)?.toInt(),
       status: json['status'] as String?,
       message: json['message'] as String?,
+      hasAnswered: (json['has_answered'] as bool?) ?? (json['hasAnswered'] as bool?) ?? false,
+      partnerAnswered: (json['partner_answered'] as bool?) ?? (json['partnerAnswered'] as bool?) ?? false,
     );
   }
 
@@ -66,6 +72,8 @@ class GameNewQuestionResponse {
       'userIdB': userIdB,
       'status': status,
       'message': message,
+      'hasAnswered': hasAnswered,
+      'partnerAnswered': partnerAnswered,
     };
   }
 
@@ -79,6 +87,8 @@ class GameNewQuestionResponse {
     int? userIdB,
     String? status,
     String? message,
+    bool? hasAnswered,
+    bool? partnerAnswered,
   }) {
     return GameNewQuestionResponse(
       success: success ?? this.success,
@@ -90,6 +100,8 @@ class GameNewQuestionResponse {
       userIdB: userIdB ?? this.userIdB,
       status: status ?? this.status,
       message: message ?? this.message,
+      hasAnswered: hasAnswered ?? this.hasAnswered,
+      partnerAnswered: partnerAnswered ?? this.partnerAnswered,
     );
   }
 }

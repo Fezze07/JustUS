@@ -20,11 +20,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
-    // Load drive items if not already loaded
-    final driveState = context.read<DriveState>();
-    if (driveState.driveItems.isEmpty) {
-      unawaited(driveState.initialLoad());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final driveState = context.read<DriveState>();
+      if (driveState.driveItems.isEmpty) {
+        unawaited(driveState.initialLoad());
+      }
+    });
   }
 
   @override

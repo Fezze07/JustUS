@@ -18,30 +18,44 @@ class BucketListScreen extends StatefulWidget {
 
 class _BucketListScreenState extends State<BucketListScreen> {
   static const String _allCategory = 'all';
-  static const List<String> _itemCategories = ['Travel', 'Dates', 'Goals', 'Crazy'];
+  static const List<String> _itemCategories = [
+    'Travel',
+    'Dates',
+    'Goals',
+    'Crazy',
+    'Adventure',
+    'Romantic',
+    'Homemade',
+  ];
 
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = _allCategory;
+  final Map<int, bool> _pendingChanges = {};
+  final Set<int> _pendingDeletes = {};
+  late BucketState _bucketState;
 
   List<String> get _categories => [_allCategory, ..._itemCategories];
 
   @override
   void initState() {
     super.initState();
+    _bucketState = context.read<BucketState>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(context.read<BucketState>().init());
+      unawaited(_bucketState.init());
     });
   }
 
   @override
   void dispose() {
     _addController.dispose();
+    if (_pendingChanges.isNotEmpty) {
+      unawaited(_bucketState.flushPendingChanges(_pendingChanges));
+    }
     super.dispose();
   }
 
   void _showAddDialog() {
     String selectedAddCategory = _itemCategories.first;
-
     unawaited(showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -139,13 +153,6 @@ class _BucketListScreenState extends State<BucketListScreen> {
             // Header
             VPHeader(
               title: context.loc.bucket_title,
-              trailing: [
-                IconButton(
-                  icon: const Icon(Icons.add_circle,
-                      color: AppColors.neonBlue, size: 28),
-                  onPressed: _showAddDialog,
-                ),
-              ],
             ),
 
             // Category Filter
@@ -186,20 +193,25 @@ class _BucketListScreenState extends State<BucketListScreen> {
             Expanded(
               child: Consumer<BucketState>(
                 builder: (context, state, child) {
-                  if (state.isLoading && state.items.isEmpty) {
+                  final items = state.items
+                      .where((item) => !_pendingDeletes.contains(item.id))
+                      .map((item) {
+                    if (_pendingChanges.containsKey(item.id)) {
+                      return item.copyWith(done: _pendingChanges[item.id] ?? false);
+                    }
+                    return item;
+                  }).toList();
+
+                  if (state.isLoading && items.isEmpty) {
                     return const Center(
                       child:
                           CircularProgressIndicator(color: AppColors.neonBlue),
                     );
                   }
 
-                  if (state.items.isEmpty) {
-                    return _buildEmptyState(context.loc.bucket_emptyAll);
-                  }
-
                   final filteredItems = _selectedCategory == _allCategory
-                      ? state.items
-                      : state.items
+                      ? items
+                      : items
                           .where((i) => i.category == _selectedCategory)
                           .toList();
 
@@ -243,6 +255,9 @@ class _BucketListScreenState extends State<BucketListScreen> {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (direction) {
+        // Optimistic local removal — filters the item out on the very next
+        // frame so the Dismissible is no longer in the tree when Flutter checks.
+        setState(() => _pendingDeletes.add(item.id));
         unawaited(state.deleteItem(item.id));
       },
       child: Container(
@@ -271,7 +286,19 @@ class _BucketListScreenState extends State<BucketListScreen> {
             // Checkbox
             GestureDetector(
               onTap: () {
-                unawaited(state.toggleDone(item.id));
+                final originalItem =
+                    state.items.firstWhere((i) => i.id == item.id);
+                final currentDone = _pendingChanges.containsKey(item.id)
+                    ? _pendingChanges[item.id] ?? originalItem.done
+                    : originalItem.done;
+                final newDone = !currentDone;
+                setState(() {
+                  if (newDone == originalItem.done) {
+                    _pendingChanges.remove(item.id);
+                  } else {
+                    _pendingChanges[item.id] = newDone;
+                  }
+                });
               },
               child: Container(
                 width: 24,
@@ -335,7 +362,8 @@ class _BucketListScreenState extends State<BucketListScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    context.loc.bucket_createdOn(item.createdAt.split('T').first),
+                    context.loc
+                        .bucket_createdOn(item.createdAt.split('T').first),
                     style: VpWidgets.googleFont(
                       fontSize: 12,
                       color: Colors.white38,
@@ -370,6 +398,9 @@ class _BucketListScreenState extends State<BucketListScreen> {
       'Dates' => context.loc.bucket_categoryDates,
       'Goals' => context.loc.bucket_categoryGoals,
       'Crazy' => context.loc.bucket_categoryCrazy,
+      'Adventure' => context.loc.bucket_categoryAdventure,
+      'Romantic' => context.loc.bucket_categoryRomantic,
+      'Homemade' => context.loc.bucket_categoryHomemade,
       _ => category,
     };
   }

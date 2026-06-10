@@ -126,8 +126,6 @@
   "auth_validationPasswordSymbol": "Deve contenere almeno un simbolo",
   "home_daysTogether": "GIORNI INSIEME",
   "home_currentMoodTitle": "IL NOSTRO MOOD ATTUALE",
-  "home_feelingGood": "Tutto bene!",
-  "home_moodQuote": "\"Ti penso e sorrido.\"",
   "home_updateStatus": "Aggiorna stato",
   "home_quickActions": "AZIONI RAPIDE",
   "home_viewAll": "Vedi tutto",
@@ -136,7 +134,14 @@
   "home_photosTitle": "Foto",
   "home_photosSubtitle": "La nostra galleria condivisa",
   "home_bucketListTitle": "Bucket List",
-  "home_bucketListSubtitle": "3 attività in sospeso",
+  "home_bucketListSubtitleDynamic": "{count} attività in sospeso",
+  "@home_bucketListSubtitleDynamic": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "home_nudgeTitle": "Mi manchi...",
   "home_nudgeSubtitle": "Dillo con un click",
   "home_missYouSent": "Mi manchi inviato!",
@@ -214,6 +219,9 @@
   "bucket_categoryDates": "Appuntamenti",
   "bucket_categoryGoals": "Obiettivi",
   "bucket_categoryCrazy": "Follie",
+  "bucket_categoryAdventure": "Avventura",
+  "bucket_categoryRomantic": "Romantico",
+  "bucket_categoryHomemade": "Fatto in casa",
   "bucket_addGoalTitle": "Aggiungi obiettivo",
   "bucket_goalHint": "Cosa vuoi fare insieme?",
   "bucket_categoryLabel": "Categoria:",
@@ -227,27 +235,23 @@
   "mood_boardTitle": "Mood Board",
   "mood_recents": "I TUOI RECENTI",
   "mood_edit": "Modifica",
-  "mood_label": "Mood",
   "mood_howFeeling": "Come ti senti?",
   "mood_timeline": "Timeline",
   "mood_today": "Oggi",
-  "mood_statusUpdated": "Aggiornato",
-  "mood_statusCalm": "Calmo",
-  "mood_now": "Ora",
-  "mood_recent": "Recente",
-  "mood_descriptionUserUpdated": "Hai appena aggiornato il tuo mood.",
-  "mood_descriptionPartnerUpdated": "Il partner ha aggiornato il mood.",
   "mood_sheetTitle": "Scegli il tuo Mood",
   "mood_enterEmoji": "Inserisci un'emoji",
   "mood_enterSingleEmoji": "Inserisci una sola emoji",
   "mood_emojiHint": "Inserisci un'emoji...",
   "mood_duplicateTechnicalMessage": "Utente ha tentato di reinserire il mood corrente.",
   "mood_updated": "Mood aggiornato!",
+  "mood_noneSet": "Nessun mood settato",
+  "mood_showMore": "Mostra altri",
   "game_historyTitle": "STORICO",
   "game_noMatches": "Ancora nessun match. Rispondi alla domanda del giorno!",
   "game_statusBothAgreed": "Siete entrambi d’accordo!",
   "game_statusDisagreed": "Un disaccordo giocoso",
   "game_statusWaiting": "In attesa del partner",
+  "game_statusWaitingForYou": "In attesa della tua risposta",
   "game_dailyGame": "GIOCO DEL GIORNO",
   "game_generatingQuestion": "Generando la domanda...",
   "game_aiGeneratingSubtitle": "L’IA sta creando qualcosa di speciale per voi",
@@ -351,22 +355,6 @@
   "@bucket_createdOn": {
     "placeholders": {
       "date": {
-        "type": "String"
-      }
-    }
-  },
-  "mood_youFelt": "Tu ti sei sentito {status}",
-  "@mood_youFelt": {
-    "placeholders": {
-      "status": {
-        "type": "String"
-      }
-    }
-  },
-  "mood_partnerFelt": "Il partner si è sentito {status}",
-  "@mood_partnerFelt": {
-    "placeholders": {
-      "status": {
         "type": "String"
       }
     }

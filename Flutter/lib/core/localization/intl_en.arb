@@ -78,8 +78,6 @@
   "auth_validationPasswordSymbol": "Must contain at least one symbol",
   "home_daysTogether": "DAYS TOGETHER",
   "home_currentMoodTitle": "OUR CURRENT MOOD",
-  "home_feelingGood": "Feeling Good!",
-  "home_moodQuote": "\"Thinking about you and smiling.\"",
   "home_updateStatus": "Update Status",
   "home_quickActions": "QUICK ACTIONS",
   "home_viewAll": "View All",
@@ -88,7 +86,14 @@
   "home_photosTitle": "Photos",
   "home_photosSubtitle": "Our Shared Gallery",
   "home_bucketListTitle": "Bucket List",
-  "home_bucketListSubtitle": "3 tasks pending",
+  "home_bucketListSubtitleDynamic": "{count} tasks pending",
+  "@home_bucketListSubtitleDynamic": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "home_nudgeTitle": "Miss you...",
   "home_nudgeSubtitle": "Say it with a click",
   "home_missYouSent": "Miss you sent!",
@@ -166,6 +171,9 @@
   "bucket_categoryDates": "Dates",
   "bucket_categoryGoals": "Goals",
   "bucket_categoryCrazy": "Crazy",
+  "bucket_categoryAdventure": "Adventure",
+  "bucket_categoryRomantic": "Romantic",
+  "bucket_categoryHomemade": "Homemade",
   "bucket_addGoalTitle": "Add goal",
   "bucket_goalHint": "What do you want to do together?",
   "bucket_categoryLabel": "Category:",
@@ -179,27 +187,23 @@
   "mood_boardTitle": "Mood Board",
   "mood_recents": "YOUR RECENTS",
   "mood_edit": "Edit",
-  "mood_label": "Mood",
   "mood_howFeeling": "How are you feeling?",
   "mood_timeline": "Timeline",
   "mood_today": "Today",
-  "mood_statusUpdated": "Updated",
-  "mood_statusCalm": "Calm",
-  "mood_now": "Now",
-  "mood_recent": "Recent",
-  "mood_descriptionUserUpdated": "Just updated your mood.",
-  "mood_descriptionPartnerUpdated": "Partner updated their mood.",
   "mood_sheetTitle": "Choose your Mood",
   "mood_enterEmoji": "Enter an emoji",
   "mood_enterSingleEmoji": "Enter a single emoji",
   "mood_emojiHint": "Enter an emoji...",
   "mood_duplicateTechnicalMessage": "User tried to re-enter the current mood.",
   "mood_updated": "Mood updated!",
+  "mood_noneSet": "No mood set",
+  "mood_showMore": "Show more",
   "game_historyTitle": "HISTORY",
   "game_noMatches": "No matches yet. Answer the daily question!",
   "game_statusBothAgreed": "You both agreed!",
   "game_statusDisagreed": "A playful disagreement",
   "game_statusWaiting": "Waiting for partner",
+  "game_statusWaitingForYou": "Waiting for your answer",
   "game_dailyGame": "DAILY GAME",
   "game_generatingQuestion": "Generating the question...",
   "game_aiGeneratingSubtitle": "AI is creating something special for you",
@@ -303,22 +307,6 @@
   "@bucket_createdOn": {
     "placeholders": {
       "date": {
-        "type": "String"
-      }
-    }
-  },
-  "mood_youFelt": "You felt {status}",
-  "@mood_youFelt": {
-    "placeholders": {
-      "status": {
-        "type": "String"
-      }
-    }
-  },
-  "mood_partnerFelt": "Partner felt {status}",
-  "@mood_partnerFelt": {
-    "placeholders": {
-      "status": {
         "type": "String"
       }
     }

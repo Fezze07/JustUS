@@ -22,14 +22,16 @@ class MoodResponse {
   final bool success;
   /// The emoji character (dynamic, any Unicode emoji).
   final String? emoji;
+  final String? createdAt;
 
-  MoodResponse({required this.success, this.emoji});
+  MoodResponse({required this.success, this.emoji, this.createdAt});
 
   factory MoodResponse.fromJson(Map<String, dynamic> json) {
     // RPC set_mood returns void; fetching mood returns emoji_char from emojis table
     return MoodResponse(
       success: (json['success'] as bool?) ?? true,
       emoji: (json['emoji_char'] ?? json['emoji']) as String?,
+      createdAt: (json['created_at'] ?? json['createdAt']) as String?,
     );
   }
 }
@@ -41,6 +43,7 @@ class MoodEntry {
   final String emoji;
   final String? note;
   final String createdAt;
+  final bool isMine;
 
   MoodEntry({
     required this.id,
@@ -48,21 +51,24 @@ class MoodEntry {
     required this.emoji,
     this.note,
     required this.createdAt,
+    this.isMine = false,
   });
 
-  factory MoodEntry.fromJson(Map<String, dynamic> json) {
+  factory MoodEntry.fromJson(Map<String, dynamic> json, {int? currentUserId}) {
     // Support both direct emoji field and joined emojis.emoji_char
     final emojiChar = (json['emoji_char'] ??
         (json['emojis'] as Map<String, dynamic>?)?['emoji_char'] ??
         json['emoji'] ??
         '') as String;
+    final userId = (json['user_id'] as num?)?.toInt();
 
     return MoodEntry(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      userId: (json['user_id'] as num?)?.toInt(),
+      userId: userId,
       emoji: emojiChar,
       note: json['note'] as String?,
       createdAt: (json['created_at'] as String?) ?? '',
+      isMine: currentUserId != null && userId == currentUserId,
     );
   }
 

@@ -37,11 +37,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
     final homepageState = context.read<HomepageState>();
     final moodState = context.read<MoodState>();
     final profileState = context.read<ProfileState>();
+    final bucketState = context.read<BucketState>();
 
     await Future.wait([
       homepageState.init(),
       moodState.init(),
       profileState.loadProfile(),
+      if (bucketState.items.isEmpty) bucketState.init(),
     ]);
   }
 
@@ -72,7 +74,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       leading: VPCircleButton(
                         icon: Icons.menu,
                         color: AppColors.primary,
-                        onTap: () {},
+                        onTap: () {
+                          unawaited(Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ProfileScreen()),
+                          ));
+                        },
                         hasShadow: false,
                       ),
                       trailing: [
@@ -176,7 +184,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
                 // Partner Avatar
                 VPUserAvatar(
-                  name: auth.partnerDisplayName ?? context.loc.common_partnerUpper,
+                  name: auth.partnerDisplayName ??
+                      context.loc.common_partnerUpper,
                   imageUrl: profile.partnerProfile?.profilePicUrl,
                   indicator: VPUserAvatar.onlineIndicator,
                 ),
@@ -240,30 +249,15 @@ class _HomepageScreenState extends State<HomepageScreen> {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.loc.home_currentMoodTitle,
-                        style: VpWidgets.googleFont(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        context.loc.home_feelingGood,
-                        style: VpWidgets.googleFont(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    context.loc.home_currentMoodTitle,
+                    style: VpWidgets.googleFont(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.0,
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.all(8),
@@ -279,46 +273,52 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                context.loc.home_moodQuote,
-                style: VpWidgets.googleFont(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      _buildMiniMood(moodState.userMood),
-                      const SizedBox(width: 8),
-                      _buildMiniMood(moodState.partnerMood),
-                    ],
+                  Text(
+                    moodState.userMood.isNotEmpty ? moodState.userMood : '😐',
+                    style: const TextStyle(fontSize: 48),
                   ),
-                  ElevatedButton(
-                    onPressed: () {
-                      unawaited(Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MoodScreen()),
-                      ));
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.primary,
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      width: 2,
+                      height: 40,
+                      color: Colors.white.withValues(alpha: 0.15),
                     ),
-                    child: Text(context.loc.home_updateStatus),
+                  ),
+                  Text(
+                    moodState.partnerMood.isNotEmpty
+                        ? moodState.partnerMood
+                        : '😐',
+                    style: const TextStyle(fontSize: 48),
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    unawaited(Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const MoodScreen()),
+                    ));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                  ),
+                  child: Text(context.loc.home_updateStatus),
+                ),
               ),
             ],
           ),
@@ -327,81 +327,71 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
-  Widget _buildMiniMood(String emoji) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        emoji,
-        style: const TextStyle(fontSize: 18),
-      ),
-    );
-  }
-
   Widget _buildQuickActions(BuildContext context) {
-    return Column(
-      children: [
-        VPSectionHeader(
-          title: context.loc.home_quickActions,
-          actionLabel: context.loc.home_viewAll,
-          onActionTap: () {},
-          padding: EdgeInsets.zero,
-        ),
-        const SizedBox(height: 16),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.1,
+    return Consumer<BucketState>(
+      builder: (context, bucketState, child) {
+        final pendingCount = bucketState.items.where((i) => !i.done).length;
+
+        return Column(
           children: [
-            _buildActionCard(
-              context,
-              icon: Icons.sports_esports,
-              title: context.loc.home_gamesTitle,
-              subtitle: context.loc.home_gamesSubtitle,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GameScreen()),
-              ),
+            VPSectionHeader(
+              title: context.loc.home_quickActions,
+              actionLabel: context.loc.home_viewAll,
+              onActionTap: () {},
+              padding: EdgeInsets.zero,
             ),
-            _buildActionCard(
-              context,
-              icon: Icons.photo_library,
-              title: context.loc.home_photosTitle,
-              subtitle: context.loc.home_photosSubtitle,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DriveScreen()),
-              ),
-            ),
-            _buildActionCard(
-              context,
-              icon: Icons.checklist,
-              title: context.loc.home_bucketListTitle,
-              subtitle: context.loc.home_bucketListSubtitle,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BucketListScreen()),
-              ),
-            ),
-            _buildActionCard(
-              context,
-              icon: Icons.chat_bubble,
-              title: context.loc.home_nudgeTitle,
-              subtitle: context.loc.home_nudgeSubtitle,
-              onTap: () => _sendNudge(context),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.1,
+              children: [
+                _buildActionCard(
+                  context,
+                  icon: Icons.sports_esports,
+                  title: context.loc.home_gamesTitle,
+                  subtitle: context.loc.home_gamesSubtitle,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GameScreen()),
+                  ),
+                ),
+                _buildActionCard(
+                  context,
+                  icon: Icons.photo_library,
+                  title: context.loc.home_photosTitle,
+                  subtitle: context.loc.home_photosSubtitle,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DriveScreen()),
+                  ),
+                ),
+                _buildActionCard(
+                  context,
+                  icon: Icons.checklist,
+                  title: context.loc.home_bucketListTitle,
+                  subtitle:
+                      context.loc.home_bucketListSubtitleDynamic(pendingCount),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BucketListScreen()),
+                  ),
+                ),
+                _buildActionCard(
+                  context,
+                  icon: Icons.chat_bubble,
+                  title: context.loc.home_nudgeTitle,
+                  subtitle: context.loc.home_nudgeSubtitle,
+                  onTap: () => _sendNudge(context),
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 

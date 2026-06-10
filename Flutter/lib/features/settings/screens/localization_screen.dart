@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+class LocalizationScreen extends StatelessWidget {
+  const LocalizationScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

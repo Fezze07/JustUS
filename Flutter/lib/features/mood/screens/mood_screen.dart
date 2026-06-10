@@ -7,6 +7,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:intl/intl.dart';
+
 import 'package:justus/all_imports.dart';
 
 class MoodScreen extends StatefulWidget {
@@ -66,26 +68,30 @@ class _MoodScreenState extends State<MoodScreen> {
                   onActionTap: () {},
                 ),
 
-                SizedBox(
-                  height: 100,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: state.recentEmojis.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      if (state.recentEmojis.isEmpty) {
-                        const defaultEmojis = ['😊', '😌', '🥰', '⚡', '😴'];
-
-                        return _buildRecentItem(
-                            defaultEmojis[index], context.loc.mood_label, index == 0);
-                      }
-
-                      return _buildRecentItem(
-                          state.recentEmojis[index], context.loc.mood_label, index == 0);
-                    },
+                if (state.recentEmojis.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24),
+                    child: Text(
+                      context.loc.mood_noneSet,
+                      style: VpWidgets.googleFont(
+                        fontSize: 14,
+                        color: Colors.white38,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 70,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: state.recentEmojis.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 16),
+                      itemBuilder: (context, index) => _buildRecentItem(
+                          state.recentEmojis[index], index == 0),
+                    ),
                   ),
-                ),
 
                 // Add New Mood Button
                 Padding(
@@ -193,33 +199,55 @@ class _MoodScreenState extends State<MoodScreen> {
                 ),
 
                 // Timeline List
-                ListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  children: [
-                    _buildTimelineItem(
-                      emoji: state.userMood.isNotEmpty ? state.userMood : '😐',
-                      title:
-                          context.loc.mood_youFelt(state.userMood.isNotEmpty ? context.loc.mood_statusUpdated : context.loc.mood_statusCalm),
-                      time: context.loc.mood_now,
-                      description: context.loc.mood_descriptionUserUpdated,
-                      color: AppColors.primary,
-                      isLast: false,
+                if (state.timeline.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      context.loc.mood_noneSet,
+                      style: VpWidgets.googleFont(
+                        fontSize: 14,
+                        color: Colors.white38,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-                    _buildTimelineItem(
-                      emoji: state.partnerMood.isNotEmpty
-                          ? state.partnerMood
-                          : '😐',
-                      title:
-                          context.loc.mood_partnerFelt(state.partnerMood.isNotEmpty ? context.loc.mood_statusUpdated : context.loc.mood_statusCalm),
-                      time: context.loc.mood_recent,
-                      description: context.loc.mood_descriptionPartnerUpdated,
-                      color: Colors.orange,
-                      isLast: true,
-                    ),
-                  ],
-                ),
+                  )
+                else
+                  ListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    children: [
+                      for (var i = 0; i < state.timeline.length; i++)
+                        _buildTimelineItem(
+                          emoji: state.timeline[i].emoji,
+                          timestamp: state.timeline[i].createdAt,
+                          color: state.timeline[i].isMine
+                              ? AppColors.primary
+                              : Colors.pinkAccent,
+                          isLast: i == state.timeline.length - 1 &&
+                              !state.hasMoreTimeline,
+                        ),
+                      if (state.hasMoreTimeline)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Center(
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  unawaited(state.loadMoreTimeline()),
+                              icon: const Icon(Icons.expand_more,
+                                  color: AppColors.primary),
+                              label: Text(
+                                context.loc.mood_showMore,
+                                style: VpWidgets.googleFont(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
 
                 const SizedBox(height: 100),
               ],
@@ -230,48 +258,82 @@ class _MoodScreenState extends State<MoodScreen> {
     );
   }
 
-  Widget _buildRecentItem(String emoji, String label, bool isSelected) {
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.backgroundDark.withValues(alpha: 0.5),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.primary.withValues(alpha: 0.5)
-                  : Colors.white10,
-              width: 2,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(emoji, style: const TextStyle(fontSize: 28)),
+  Widget _buildRecentItem(String emoji, bool isSelected) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: isSelected
+            ? AppColors.primary.withValues(alpha: 0.1)
+            : AppColors.backgroundDark.withValues(alpha: 0.5),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.5)
+              : Colors.white10,
+          width: 2,
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: VpWidgets.googleFont(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white70,
-          ),
-        ),
-      ],
+      ),
+      alignment: Alignment.center,
+      child: Text(emoji, style: const TextStyle(fontSize: 28)),
     );
   }
 
   Widget _buildTimelineItem({
     required String emoji,
-    required String title,
-    required String time,
-    required String description,
+    required String? timestamp,
     required Color color,
     required bool isLast,
   }) {
+    Widget content;
+    if (timestamp != null) {
+      final parsed = AppDateUtils.tryParse(timestamp)?.toLocal();
+      if (parsed != null) {
+        final dateFormat = DateFormat('d MMMM', 'it');
+        final timeFormat = DateFormat('HH:mm');
+        content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              dateFormat.format(parsed),
+              style: VpWidgets.googleFont(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+            Text(
+              timeFormat.format(parsed),
+              style: VpWidgets.googleFont(
+                fontWeight: FontWeight.w500,
+                color: Colors.white38,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        );
+      } else {
+        content = Text(
+          context.loc.mood_noneSet,
+          style: VpWidgets.googleFont(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 16,
+          ),
+        );
+      }
+    } else {
+      content = Text(
+        context.loc.mood_noneSet,
+        style: VpWidgets.googleFont(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          fontSize: 16,
+        ),
+      );
+    }
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,43 +370,10 @@ class _MoodScreenState extends State<MoodScreen> {
           const SizedBox(width: 16),
           // Content
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        title,
-                        style: VpWidgets.googleFont(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        time,
-                        style: VpWidgets.googleFont(
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: VpWidgets.googleFont(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
+            child: Container(
+              height: 48,
+              alignment: Alignment.centerLeft,
+              child: content,
             ),
           ),
         ],

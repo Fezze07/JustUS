@@ -255,12 +255,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_currentMoodTitle => 'IL NOSTRO MOOD ATTUALE';
 
   @override
-  String get home_feelingGood => 'Tutto bene!';
-
-  @override
-  String get home_moodQuote => '\"Ti penso e sorrido.\"';
-
-  @override
   String get home_updateStatus => 'Aggiorna stato';
 
   @override
@@ -285,7 +279,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_bucketListTitle => 'Bucket List';
 
   @override
-  String get home_bucketListSubtitle => '3 attività in sospeso';
+  String home_bucketListSubtitleDynamic(int count) {
+    return '$count attività in sospeso';
+  }
 
   @override
   String get home_nudgeTitle => 'Mi manchi...';
@@ -525,6 +521,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_categoryCrazy => 'Follie';
 
   @override
+  String get bucket_categoryAdventure => 'Avventura';
+
+  @override
+  String get bucket_categoryRomantic => 'Romantico';
+
+  @override
+  String get bucket_categoryHomemade => 'Fatto in casa';
+
+  @override
   String get bucket_addGoalTitle => 'Aggiungi obiettivo';
 
   @override
@@ -565,9 +570,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mood_edit => 'Modifica';
 
   @override
-  String get mood_label => 'Mood';
-
-  @override
   String get mood_howFeeling => 'Come ti senti?';
 
   @override
@@ -575,26 +577,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get mood_today => 'Oggi';
-
-  @override
-  String get mood_statusUpdated => 'Aggiornato';
-
-  @override
-  String get mood_statusCalm => 'Calmo';
-
-  @override
-  String get mood_now => 'Ora';
-
-  @override
-  String get mood_recent => 'Recente';
-
-  @override
-  String get mood_descriptionUserUpdated =>
-      'Hai appena aggiornato il tuo mood.';
-
-  @override
-  String get mood_descriptionPartnerUpdated =>
-      'Il partner ha aggiornato il mood.';
 
   @override
   String get mood_sheetTitle => 'Scegli il tuo Mood';
@@ -616,6 +598,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mood_updated => 'Mood aggiornato!';
 
   @override
+  String get mood_noneSet => 'Nessun mood settato';
+
+  @override
+  String get mood_showMore => 'Mostra altri';
+
+  @override
   String get game_historyTitle => 'STORICO';
 
   @override
@@ -630,6 +618,9 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get game_statusWaiting => 'In attesa del partner';
+
+  @override
+  String get game_statusWaitingForYou => 'In attesa della tua risposta';
 
   @override
   String get game_dailyGame => 'GIOCO DEL GIORNO';
@@ -849,15 +840,5 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String bucket_createdOn(String date) {
     return 'Creato il: $date';
-  }
-
-  @override
-  String mood_youFelt(String status) {
-    return 'Tu ti sei sentito $status';
-  }
-
-  @override
-  String mood_partnerFelt(String status) {
-    return 'Il partner si è sentito $status';
   }
 }

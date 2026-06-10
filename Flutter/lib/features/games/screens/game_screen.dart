@@ -38,7 +38,8 @@ class _GameScreenState extends State<GameScreen> {
             VPHeader(
               title: context.loc.appTitle,
               showBackButton: false,
-              leading: const Icon(Icons.favorite, color: AppColors.neonPurple, size: 28),
+              leading: const Icon(Icons.favorite,
+                  color: AppColors.neonPurple, size: 28),
               trailing: [_buildNotificationButton()],
             ),
 
@@ -52,19 +53,20 @@ class _GameScreenState extends State<GameScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 16),
-                        
+
                         // Daily Game Card
                         _buildDailyGameCard(state),
-                        
+
                         const SizedBox(height: 32),
-                        
+
                         // Status Section (You vs Partner)
                         Consumer<ProfileState>(
-                          builder: (context, profile, _) => _buildStatusSection(profile, state),
+                          builder: (context, profile, _) =>
+                              _buildStatusSection(profile, state),
                         ),
-                        
+
                         const SizedBox(height: 48),
-                        
+
                         // History Section
                         VPSectionHeader(
                           title: context.loc.game_historyTitle,
@@ -105,6 +107,12 @@ class _GameScreenState extends State<GameScreen> {
                                     status = context.loc.game_statusDisagreed;
                                     badgeColor = AppColors.neonPink;
                                     icon = Icons.cancel;
+                                  } else if (item.userOption == null &&
+                                      item.partnerOption != null) {
+                                    status =
+                                        context.loc.game_statusWaitingForYou;
+                                    badgeColor = AppColors.neonBlue;
+                                    icon = Icons.access_time;
                                   } else {
                                     status = context.loc.game_statusWaiting;
                                     badgeColor = AppColors.neonBlue;
@@ -118,8 +126,10 @@ class _GameScreenState extends State<GameScreen> {
                                       status: status,
                                       badgeColor: badgeColor,
                                       icon: icon,
-                                      userImageUrl: profile.userProfile?.profilePicUrl,
-                                      partnerImageUrl: profile.partnerProfile?.profilePicUrl,
+                                      userImageUrl:
+                                          profile.userProfile?.profilePicUrl,
+                                      partnerImageUrl:
+                                          profile.partnerProfile?.profilePicUrl,
                                     ),
                                   );
                                 }).toList(),
@@ -148,9 +158,13 @@ class _GameScreenState extends State<GameScreen> {
           decoration: BoxDecoration(
             color: AppColors.cardDark,
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.2)),
+            border:
+                Border.all(color: AppColors.neonPurple.withValues(alpha: 0.2)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4)),
             ],
           ),
           child: const Icon(Icons.notifications, color: Colors.white, size: 24),
@@ -188,7 +202,12 @@ class _GameScreenState extends State<GameScreen> {
               decoration: BoxDecoration(
                 color: AppColors.neonPurple.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                boxShadow: const [BoxShadow(color: AppColors.neonPurple, blurRadius: 50, spreadRadius: 10)],
+                boxShadow: const [
+                  BoxShadow(
+                      color: AppColors.neonPurple,
+                      blurRadius: 50,
+                      spreadRadius: 10)
+                ],
               ),
             ),
           ),
@@ -197,11 +216,13 @@ class _GameScreenState extends State<GameScreen> {
             child: Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.neonPurple.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppColors.neonPurple.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     context.loc.game_dailyGame,
@@ -256,15 +277,21 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildOptionButton(context, state, 'A', state.currentQuestion!.optionA, Colors.blue),
+                  _buildOptionButton(context, state, 'A',
+                      state.currentQuestion!.optionA, Colors.blue),
                   const SizedBox(height: 16),
-                  _buildOptionButton(context, state, 'B', state.currentQuestion!.optionB, Colors.purple),
+                  _buildOptionButton(context, state, 'B',
+                      state.currentQuestion!.optionB, Colors.purple),
                 ] else ...[
-                  const Icon(Icons.check_circle, size: 64, color: AppColors.neonGreen),
+                  const Icon(Icons.check_circle,
+                      size: 64, color: AppColors.neonGreen),
                   const SizedBox(height: 16),
                   Text(
                     context.loc.game_allCaughtUp,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
@@ -283,11 +310,15 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildOptionButton(BuildContext context, GameState state, String answerCode, String text, Color color) {
+  Widget _buildOptionButton(BuildContext context, GameState state,
+      String answerCode, String text, Color color) {
+    final hasAnswered = state.currentQuestion?.hasAnswered ?? false;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: state.isLoading ? null : () => state.submitAnswer(answerCode),
+        onPressed: (state.isLoading || hasAnswered)
+            ? null
+            : () => state.submitAnswer(answerCode),
         style: ElevatedButton.styleFrom(
           backgroundColor: color.withValues(alpha: 0.2),
           foregroundColor: color.withValues(alpha: 0.8),
@@ -301,17 +332,17 @@ class _GameScreenState extends State<GameScreen> {
         ),
         child: Text(
           text,
-          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
     );
   }
 
   Widget _buildStatusSection(ProfileState profile, GameState game) {
-    // Determine if partner has answered
-    // (This logic might need refinement based on how 'waiting' is handled)
-    bool partnerDone = game.currentQuestion?.status == 'both_answered'; 
-    
+    final userDone = game.currentQuestion?.hasAnswered ?? false;
+    final partnerDone = game.currentQuestion?.partnerAnswered ?? false;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -320,18 +351,28 @@ class _GameScreenState extends State<GameScreen> {
           imageUrl: profile.userProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(color: AppColors.backgroundDark, shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle, color: AppColors.neonPurple, size: 24),
+            decoration: const BoxDecoration(
+                color: AppColors.backgroundDark, shape: BoxShape.circle),
+            child: Icon(
+              userDone ? Icons.check_circle : Icons.access_time,
+              color: userDone ? AppColors.neonPurple : Colors.white38,
+              size: 24,
+            ),
           ),
         ),
         VPUserAvatar(
           name: profile.partnerProfile?.username ?? context.loc.common_partner,
           imageUrl: profile.partnerProfile?.profilePicUrl,
-          indicator: partnerDone ? Container(
+          indicator: Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(color: AppColors.backgroundDark, shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle, color: AppColors.neonPurple, size: 24),
-          ) : null,
+            decoration: const BoxDecoration(
+                color: AppColors.backgroundDark, shape: BoxShape.circle),
+            child: Icon(
+              partnerDone ? Icons.check_circle : Icons.access_time,
+              color: partnerDone ? AppColors.neonPurple : Colors.white38,
+              size: 24,
+            ),
+          ),
         ),
       ],
     );

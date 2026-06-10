@@ -74,12 +74,27 @@ class GameRepository extends BaseRepository {
           .limit(1)
           .maybeSingle();
 
+      final uid = await getUserId();
+      bool hasAnswered = false;
+      bool partnerAnswered = false;
+      if (existing != null && uid != null) {
+        final List<dynamic> answers = await sbClient
+            .from('game_answers')
+            .select('user_id')
+            .eq('game_id', existing['id'] as Object);
+        
+        hasAnswered = answers.any((a) => a['user_id'] == uid);
+        partnerAnswered = answers.any((a) => a['user_id'] != uid);
+      }
+
       if (existing != null) {
         return GameNewQuestionResponse.fromJson({
           ...existing,
           'success': true,
           'option_a': nameA,
           'option_b': nameB,
+          'has_answered': hasAnswered,
+          'partner_answered': partnerAnswered,
         });
       }
 
@@ -103,6 +118,8 @@ class GameRepository extends BaseRepository {
           'success': true,
           'option_a': nameA,
           'option_b': nameB,
+          'has_answered': false,
+          'partner_answered': false,
         });
       } else {
         throw Exception('Errore generazione AI');

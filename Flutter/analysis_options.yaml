@@ -104,36 +104,3 @@ linter:
 
     # Intentionally OFF — these conflict with the VP design system patterns:
     # avoid_positional_boolean_parameters: false  (VPButton uses isLoading bool)
-
-# ==============================================================================
-# DCM (Dart Code Metrics) - PREMIUM QUALITY CHECKS
-# ==============================================================================
-dcm:
-  # Structural Duplication & Advanced Logic Rules
-  rules:
-    - avoid-duplicate-test-assertions
-    - avoid-unnecessary-type-assertions
-    - avoid-unnecessary-type-casts
-    - avoid-unrelated-type-assertions
-    - newline-before-return
-    - prefer-async-await
-    - prefer-match-file-name
-
-  # Complexity & Maintainability Metrics
-  metrics:
-    cyclomatic-complexity: 15
-    number-of-parameters: 5
-    maximum-nesting-level: 5
-    source-lines-of-code: 100
-    technical-debt:
-      threshold: 1
-      todo-cost: 161
-      ignore-cost: 320
-
-  # Exclusions
-  exclude:
-    - "**/*.g.dart"
-    - "**/*.freezed.dart"
-    - "lib/all_imports.dart"
-    - "test/**"
-    - "tool/**"

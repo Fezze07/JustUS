@@ -77,6 +77,15 @@ class BucketState extends BaseState {
     });
   }
 
+  Future<void> flushPendingChanges(Map<int, bool> changes) async {
+    if (changes.isEmpty) return;
+    await runSafe(() async {
+      final futures = changes.entries.map((entry) => _repository.toggleBucketItem(entry.key, entry.value));
+      await Future.wait(futures);
+      await fetchBucket();
+    });
+  }
+
   void clear() {
     _items = [];
     notifyListeners();

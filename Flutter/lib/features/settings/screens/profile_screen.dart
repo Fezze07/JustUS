@@ -245,12 +245,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   VPSettingGroup(children: [
                     VPSettingTile(
                       icon: Icons.settings,
-                      title: context.loc.settingsTitle,
+                      title: context.loc.languageSettingTitle,
                       subtitle: context.loc.languageSettingSubtitle,
                       trailing: const Icon(Icons.chevron_right,
                           color: Colors.white54),
                       color: AppColors.neonPurple,
-                      onTap: () => Navigator.pushNamed(context, '/settings'),
+                      onTap: () => Navigator.pushNamed(context, '/localization'),
                     ),
                     const VPDivider(),
                     VPSettingTile(

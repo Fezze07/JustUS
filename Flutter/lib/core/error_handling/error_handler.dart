@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import 'package:justus/all_imports.dart';
@@ -49,10 +50,14 @@ class ErrorHandler {
     final appError = _toAppError(error);
     _log(appError, stackTrace);
 
-    // Prova a mostrare UI se c'è un contesto disponibile
+    // Prova a mostrare UI se c'è un contesto disponibile.
+    // Defer always to post-frame: handleGlobal is called by FlutterError.onError
+    // which fires during the build phase — inserting into Overlay during build crashes.
     final ctx = navigatorKey.currentContext;
     if (ctx != null) {
-      _showUI(ctx, appError);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (ctx.mounted) _showUI(ctx, appError);
+      });
     }
   }
 
@@ -149,7 +154,18 @@ class ErrorHandler {
   // ---- Snackbar (errori lievi) tramite Overlay globale -----------------------
   static void _showSnackBar(BuildContext context, String message) {
     if (!context.mounted) return;
-    
+
+    // Guard: if called during a build/layout/paint phase, defer to next frame.
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final isMidBuild = phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.transientCallbacks;
+    if (isMidBuild) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) _showSnackBar(context, message);
+      });
+      return;
+    }
+
     // Rimuoviamo l'eventuale toast precedente
     _currentOverlay?.remove();
     _currentOverlay = null;

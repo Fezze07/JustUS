@@ -177,7 +177,7 @@ class JustUsApp extends StatelessWidget {
               '/register': (context) => const RegisterScreen(),
               '/homepage': (context) => const HomepageScreen(),
               '/partner': (context) => const PartnerScreen(),
-              '/settings': (context) => const SettingsScreen(),
+              '/localization': (context) => const LocalizationScreen(),
               '/change-password': (context) => const ChangePasswordScreen(),
             },
           );

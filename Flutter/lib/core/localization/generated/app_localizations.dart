@@ -566,18 +566,6 @@ abstract class AppLocalizations {
   /// **'IL NOSTRO MOOD ATTUALE'**
   String get home_currentMoodTitle;
 
-  /// No description provided for @home_feelingGood.
-  ///
-  /// In it, this message translates to:
-  /// **'Tutto bene!'**
-  String get home_feelingGood;
-
-  /// No description provided for @home_moodQuote.
-  ///
-  /// In it, this message translates to:
-  /// **'\"Ti penso e sorrido.\"'**
-  String get home_moodQuote;
-
   /// No description provided for @home_updateStatus.
   ///
   /// In it, this message translates to:
@@ -626,11 +614,11 @@ abstract class AppLocalizations {
   /// **'Bucket List'**
   String get home_bucketListTitle;
 
-  /// No description provided for @home_bucketListSubtitle.
+  /// No description provided for @home_bucketListSubtitleDynamic.
   ///
   /// In it, this message translates to:
-  /// **'3 attività in sospeso'**
-  String get home_bucketListSubtitle;
+  /// **'{count} attività in sospeso'**
+  String home_bucketListSubtitleDynamic(int count);
 
   /// No description provided for @home_nudgeTitle.
   ///
@@ -1094,6 +1082,24 @@ abstract class AppLocalizations {
   /// **'Follie'**
   String get bucket_categoryCrazy;
 
+  /// No description provided for @bucket_categoryAdventure.
+  ///
+  /// In it, this message translates to:
+  /// **'Avventura'**
+  String get bucket_categoryAdventure;
+
+  /// No description provided for @bucket_categoryRomantic.
+  ///
+  /// In it, this message translates to:
+  /// **'Romantico'**
+  String get bucket_categoryRomantic;
+
+  /// No description provided for @bucket_categoryHomemade.
+  ///
+  /// In it, this message translates to:
+  /// **'Fatto in casa'**
+  String get bucket_categoryHomemade;
+
   /// No description provided for @bucket_addGoalTitle.
   ///
   /// In it, this message translates to:
@@ -1172,12 +1178,6 @@ abstract class AppLocalizations {
   /// **'Modifica'**
   String get mood_edit;
 
-  /// No description provided for @mood_label.
-  ///
-  /// In it, this message translates to:
-  /// **'Mood'**
-  String get mood_label;
-
   /// No description provided for @mood_howFeeling.
   ///
   /// In it, this message translates to:
@@ -1195,42 +1195,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Oggi'**
   String get mood_today;
-
-  /// No description provided for @mood_statusUpdated.
-  ///
-  /// In it, this message translates to:
-  /// **'Aggiornato'**
-  String get mood_statusUpdated;
-
-  /// No description provided for @mood_statusCalm.
-  ///
-  /// In it, this message translates to:
-  /// **'Calmo'**
-  String get mood_statusCalm;
-
-  /// No description provided for @mood_now.
-  ///
-  /// In it, this message translates to:
-  /// **'Ora'**
-  String get mood_now;
-
-  /// No description provided for @mood_recent.
-  ///
-  /// In it, this message translates to:
-  /// **'Recente'**
-  String get mood_recent;
-
-  /// No description provided for @mood_descriptionUserUpdated.
-  ///
-  /// In it, this message translates to:
-  /// **'Hai appena aggiornato il tuo mood.'**
-  String get mood_descriptionUserUpdated;
-
-  /// No description provided for @mood_descriptionPartnerUpdated.
-  ///
-  /// In it, this message translates to:
-  /// **'Il partner ha aggiornato il mood.'**
-  String get mood_descriptionPartnerUpdated;
 
   /// No description provided for @mood_sheetTitle.
   ///
@@ -1268,6 +1232,18 @@ abstract class AppLocalizations {
   /// **'Mood aggiornato!'**
   String get mood_updated;
 
+  /// No description provided for @mood_noneSet.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun mood settato'**
+  String get mood_noneSet;
+
+  /// No description provided for @mood_showMore.
+  ///
+  /// In it, this message translates to:
+  /// **'Mostra altri'**
+  String get mood_showMore;
+
   /// No description provided for @game_historyTitle.
   ///
   /// In it, this message translates to:
@@ -1297,6 +1273,12 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'In attesa del partner'**
   String get game_statusWaiting;
+
+  /// No description provided for @game_statusWaitingForYou.
+  ///
+  /// In it, this message translates to:
+  /// **'In attesa della tua risposta'**
+  String get game_statusWaitingForYou;
 
   /// No description provided for @game_dailyGame.
   ///
@@ -1687,18 +1669,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Creato il: {date}'**
   String bucket_createdOn(String date);
-
-  /// No description provided for @mood_youFelt.
-  ///
-  /// In it, this message translates to:
-  /// **'Tu ti sei sentito {status}'**
-  String mood_youFelt(String status);
-
-  /// No description provided for @mood_partnerFelt.
-  ///
-  /// In it, this message translates to:
-  /// **'Il partner si è sentito {status}'**
-  String mood_partnerFelt(String status);
 }
 
 class _AppLocalizationsDelegate

@@ -14,17 +14,31 @@ class MoodState extends BaseState {
   String _userMood = '😐';
   String _partnerMood = '😐';
   List<String> _recentEmojis = [];
+  String? _userMoodUpdatedAt;
+  String? _partnerMoodUpdatedAt;
+  List<MoodEntry> _timeline = [];
+  int _timelineOffset = 0;
+  bool _hasMoreTimeline = false;
 
   String get userMood => _userMood;
   String get partnerMood => _partnerMood;
   List<String> get recentEmojis => _recentEmojis;
+  String? get userMoodUpdatedAt => _userMoodUpdatedAt;
+  String? get partnerMoodUpdatedAt => _partnerMoodUpdatedAt;
+  List<MoodEntry> get timeline => _timeline;
+  bool get hasMoreTimeline => _hasMoreTimeline;
 
   Future<void> init() async {
     await loadCache();
+    _timeline = [];
+    _timelineOffset = 0;
+    _hasMoreTimeline = false;
+    notifyListeners();
     await Future.wait([
       fetchMyMood(),
       fetchPartnerMood(),
       fetchRecentEmojis(),
+      fetchTimeline(),
     ]);
   }
 
@@ -65,6 +79,7 @@ class MoodState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         _userMood = value.emoji ?? '😐';
+        _userMoodUpdatedAt = value.createdAt;
         await StorageService.saveMood('me', _userMood);
       });
     }, showLoading: false);
@@ -76,6 +91,7 @@ class MoodState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         _partnerMood = value.emoji ?? '😐';
+        _partnerMoodUpdatedAt = value.createdAt;
         await StorageService.saveMood('partner', _partnerMood);
       });
     }, showLoading: false);
@@ -92,11 +108,52 @@ class MoodState extends BaseState {
     }, showLoading: false);
   }
 
+  Future<void> fetchTimeline() async {
+    await runSafe(() async {
+      final result = await _repo.fetchTimeline(limit: 4, offset: 0);
+      await handleResult(result, onSuccess: (value) {
+        _timeline = value;
+        _timelineOffset = value.length;
+        _hasMoreTimeline = value.length >= 4;
+        notifyListeners();
+      });
+    }, showLoading: false);
+  }
+
+  Future<void> loadMoreTimeline() async {
+    await runSafe(() async {
+      final result =
+          await _repo.fetchTimeline(limit: 4, offset: _timelineOffset);
+      await handleResult(result, onSuccess: (value) {
+        _timeline.addAll(value);
+        _timelineOffset += value.length;
+        _hasMoreTimeline = value.length >= 4;
+        notifyListeners();
+      });
+    }, showLoading: false);
+  }
+
   Future<void> updateMood(String emoji) async {
     await runSafe(() async {
+      final now = DateTime.now().toUtc().toIso8601String();
+
       // Optimistic update
       final previousMood = _userMood;
+      final previousTimestamp = _userMoodUpdatedAt;
+      final previousTimeline = List<MoodEntry>.from(_timeline);
       _userMood = emoji;
+      _userMoodUpdatedAt = now;
+      _recentEmojis = [emoji, ..._recentEmojis.where((e) => e != emoji)];
+      const maxTimelineItems = 5;
+      _timeline.insert(
+          0,
+          MoodEntry(
+              id: 0, userId: 0, isMine: true, emoji: emoji, createdAt: now));
+      if (_timeline.length > maxTimelineItems) {
+        _timeline.removeLast();
+      } else {
+        _timelineOffset++;
+      }
       await StorageService.saveMood('me', emoji);
       notifyListeners();
 
@@ -104,13 +161,18 @@ class MoodState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         _userMood = value.emoji;
+        _userMoodUpdatedAt = value.createdAt;
         await StorageService.saveMood('me', _userMood);
         setMessage('Mood aggiornato!');
       });
 
       if (result is! Success) {
         _userMood = previousMood;
+        _userMoodUpdatedAt = previousTimestamp;
+        _timeline = previousTimeline;
+        _timelineOffset--;
         await StorageService.saveMood('me', previousMood);
+        notifyListeners();
       }
     });
   }

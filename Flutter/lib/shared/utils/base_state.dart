@@ -3,15 +3,41 @@
 // =============================================================================
 
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:justus/all_imports.dart';
+
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 
 abstract class BaseState extends ChangeNotifier {
   bool _isLoading = false;
   String? _message;
+  bool _pendingNotify = false;
 
   bool get isLoading => _isLoading;
   String? get message => _message;
+
+  /// Safe notifyListeners — defers to the next frame if the framework is
+  /// currently building / animating (locked widget tree).
+  @override
+  void notifyListeners() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final locked = phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.transientCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks;
+
+    if (locked) {
+      if (!_pendingNotify) {
+        _pendingNotify = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _pendingNotify = false;
+          if (hasListeners) super.notifyListeners();
+        });
+      }
+    } else {
+      super.notifyListeners();
+    }
+  }
+
 
   void setLoading(bool value) {
     _isLoading = value;

@@ -61,10 +61,8 @@ class GameState extends ChangeNotifier {
     switch (result) {
       case Success(:final value):
         if (value.success) {
-          if (value.id != _currentQuestion?.id) {
-            _currentQuestion = value;
-            await StorageService.saveGameQuestion(value);
-          }
+          _currentQuestion = value;
+          await StorageService.saveGameQuestion(value);
         } else {
           _currentQuestion = null;
         }
@@ -110,6 +108,7 @@ class GameState extends ChangeNotifier {
         _currentQuestion = _currentQuestion!.copyWith(
           status: 'waiting',
           message: 'Aspetta che il partner risponda',
+          hasAnswered: true,
         );
         await StorageService.saveGameQuestion(_currentQuestion!);
         await Future.wait([
