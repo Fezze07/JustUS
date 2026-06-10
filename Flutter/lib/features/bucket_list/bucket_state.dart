@@ -42,8 +42,9 @@ class BucketState extends BaseState {
 
     await runSafe(() async {
       final result = await _repository.addBucketItem(text, category);
-      await handleResult(result, onSuccess: (_) async {
-        await fetchBucket();
+      await handleResult(result, onSuccess: (item) async {
+        _items = [item, ..._items];
+        await StorageService.saveBucketList(_items);
       });
     });
   }
@@ -81,8 +82,13 @@ class BucketState extends BaseState {
     if (changes.isEmpty) return;
     await runSafe(() async {
       final futures = changes.entries.map((entry) => _repository.toggleBucketItem(entry.key, entry.value));
-      await Future.wait(futures);
-      await fetchBucket();
+      final results = await Future.wait(futures);
+      for (final result in results) {
+        if (result is Success<BucketItem>) {
+          _items = _items.map((i) => i.id == result.value.id ? result.value : i).toList();
+        }
+      }
+      await StorageService.saveBucketList(_items);
     });
   }
 

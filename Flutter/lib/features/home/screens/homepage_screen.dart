@@ -51,80 +51,67 @@ class _HomepageScreenState extends State<HomepageScreen> {
   Widget build(BuildContext context) {
     return VPScaffold(
       showAppBar: false,
-      body: Stack(
-        children: [
-          // Main Content
-          SafeArea(
-            bottom: false,
-            child: RefreshIndicator(
-              onRefresh: _loadData,
-              color: AppColors.primary,
-              backgroundColor: AppColors.backgroundDark,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                    24, 16, 24, 100), // Bottom padding for nav bar
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Header
-                    VPHeader(
-                      title: context.loc.appTitle,
-                      showBackButton: false,
-                      leading: VPCircleButton(
-                        icon: Icons.menu,
-                        color: AppColors.primary,
-                        onTap: () {
-                          unawaited(Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ProfileScreen()),
-                          ));
-                        },
-                        hasShadow: false,
-                      ),
-                      trailing: [
-                        VPCircleButton(
-                          icon: Icons.favorite,
-                          color: Colors.redAccent,
-                          isFill: true,
-                          onTap: () {
-                            unawaited(Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const FavoritesScreen()),
-                            ));
-                          },
-                          hasShadow: false,
-                        ),
-                      ],
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppColors.primary,
+          backgroundColor: AppColors.backgroundDark,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+                24, 16, 24, 100), // Bottom padding for nav bar
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                VPHeader(
+                  title: context.loc.appTitle,
+                  showBackButton: false,
+                  leading: VPCircleButton(
+                    icon: Icons.menu,
+                    color: AppColors.primary,
+                    onTap: () {
+                      unawaited(Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProfileScreen()),
+                      ));
+                    },
+                    hasShadow: false,
+                  ),
+                  trailing: [
+                    VPCircleButton(
+                      icon: Icons.favorite,
+                      color: Colors.redAccent,
+                      isFill: true,
+                      onTap: () {
+                        unawaited(Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const FavoritesScreen()),
+                        ));
+                      },
+                      hasShadow: false,
                     ),
-                    const SizedBox(height: 24),
-
-                    // Profile Section
-                    _buildProfileSection(),
-                    const SizedBox(height: 24),
-
-                    // Mood Card
-                    _buildMoodCard(context),
-                    const SizedBox(height: 24),
-
-                    // Quick Actions
-                    _buildQuickActions(context),
                   ],
                 ),
-              ),
+                const SizedBox(height: 24),
+
+                // Profile Section
+                _buildProfileSection(),
+                const SizedBox(height: 24),
+
+                // Mood Card
+                _buildMoodCard(context),
+                const SizedBox(height: 24),
+
+                // Quick Actions
+                _buildQuickActions(context),
+              ],
             ),
           ),
-
-          // Bottom Navigation
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: HomeBottomNav(),
-          ),
-        ],
+        ),
       ),
     );
   }

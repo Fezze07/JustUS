@@ -1,9 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import 'package:justus/all_imports.dart';
 
 class HomeBottomNav extends StatelessWidget {
-  const HomeBottomNav({super.key});
+  final int currentIndex;
+  final ValueChanged<int> onIndexChanged;
+
+  const HomeBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onIndexChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,24 +34,27 @@ class HomeBottomNav extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(context, Icons.home_filled, 'Home', true, () {}),
-            _buildNavItem(context, Icons.sports_esports, 'Games', false, () {
-              unawaited(Navigator.push(context, MaterialPageRoute(builder: (_) => const GameScreen())));
-            }),
+            _buildNavItem(context, Icons.sports_esports, 'Games',
+                currentIndex == 1, () => onIndexChanged(1)),
+            _buildNavItem(context, Icons.emoji_emotions, 'Mood',
+                currentIndex == 2, () => onIndexChanged(2)),
+            _buildNavItem(context, Icons.checklist, 'List', currentIndex == 3,
+                () => onIndexChanged(3)),
             _buildCenterItem(context),
-            _buildNavItem(context, Icons.photo_library, 'Photos', false, () {
-              unawaited(Navigator.push(context, MaterialPageRoute(builder: (_) => const DriveScreen())));
-            }),
-            _buildNavItem(context, Icons.person, 'Profile', false, () {
-              unawaited(Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())));
-            }),
+            _buildNavItem(context, Icons.photo, 'Drive', currentIndex == 4,
+                () => onIndexChanged(4)),
+            _buildNavItem(context, Icons.favorite, 'Favorites',
+                currentIndex == 5, () => onIndexChanged(5)),
+            _buildNavItem(context, Icons.person, 'Profile', currentIndex == 6,
+                () => onIndexChanged(6)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, bool isActive, VoidCallback onTap) {
+  Widget _buildNavItem(BuildContext context, IconData icon, String label,
+      bool isActive, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -71,29 +81,33 @@ class HomeBottomNav extends StatelessWidget {
   }
 
   Widget _buildCenterItem(BuildContext context) {
+    final isHome = currentIndex == 0;
     return Container(
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.neonPurple, AppColors.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: isHome
+            ? const LinearGradient(
+                colors: [AppColors.neonPurple, AppColors.primary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: isHome ? null : Colors.white.withValues(alpha: 0.1),
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.neonPurple.withValues(alpha: 0.4),
-            blurRadius: 15,
-            spreadRadius: 2,
-          ),
-        ],
+        boxShadow: isHome
+            ? [
+                BoxShadow(
+                  color: AppColors.neonPurple.withValues(alpha: 0.4),
+                  blurRadius: 15,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
       ),
       child: IconButton(
-        icon: const Icon(Icons.favorite, color: Colors.white, size: 28),
-        onPressed: () {
-          // Action for the center button (e.g. quick nudge or love)
-        },
+        icon: const Icon(Icons.home_filled, color: Colors.white, size: 28),
+        onPressed: () => onIndexChanged(0),
       ),
     );
   }

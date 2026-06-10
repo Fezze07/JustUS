@@ -56,6 +56,7 @@ export 'package:justus/features/settings/screens/localization_screen.dart';
 export 'package:justus/core/network/logging_http_client.dart';
 export 'package:justus/features/auth/screens/login_screen.dart';
 export 'package:justus/shared/utils/logout_utils.dart';
+export 'package:justus/features/home/screens/main_shell.dart';
 export 'package:justus/core/media/media_cache_manager.dart';
 export 'package:justus/shared/utils/media_picker_service.dart';
 export 'package:justus/core/media/media_service.dart';
