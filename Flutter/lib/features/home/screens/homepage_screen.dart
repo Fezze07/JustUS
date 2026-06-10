@@ -41,7 +41,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
     await Future.wait([
       homepageState.init(),
-      moodState.init(),
+      moodState.initHome(),
       profileState.loadProfile(),
       if (bucketState.items.isEmpty) bucketState.init(),
     ]);

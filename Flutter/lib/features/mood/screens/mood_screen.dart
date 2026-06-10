@@ -12,7 +12,8 @@ import 'package:intl/intl.dart';
 import 'package:justus/all_imports.dart';
 
 class MoodScreen extends StatefulWidget {
-  const MoodScreen({super.key});
+  final bool isActive;
+  const MoodScreen({super.key, this.isActive = false});
 
   @override
   State<MoodScreen> createState() => _MoodScreenState();
@@ -22,14 +23,22 @@ class _MoodScreenState extends State<MoodScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (widget.isActive) {
       unawaited(_loadData());
-    });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MoodScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      unawaited(_loadData());
+    }
   }
 
   Future<void> _loadData() async {
     final moodState = context.read<MoodState>();
-    await moodState.init();
+    await moodState.initMoodScreen();
   }
 
   void _showEmojiPicker() {

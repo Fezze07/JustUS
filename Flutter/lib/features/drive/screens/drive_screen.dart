@@ -13,7 +13,8 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class DriveScreen extends StatefulWidget {
-  const DriveScreen({super.key});
+  final bool isActive;
+  const DriveScreen({super.key, this.isActive = false});
 
   @override
   State<DriveScreen> createState() => _DriveScreenState();
@@ -25,6 +26,20 @@ class _DriveScreenState extends State<DriveScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.isActive) {
+      _loadData();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DriveScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadData();
+    }
+  }
+
+  void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(context.read<DriveState>().initialLoad());
     });

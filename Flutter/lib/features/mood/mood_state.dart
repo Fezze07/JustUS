@@ -29,14 +29,24 @@ class MoodState extends BaseState {
   bool get hasMoreTimeline => _hasMoreTimeline;
 
   Future<void> init() async {
+    await initHome();
+    await initMoodScreen();
+  }
+
+  Future<void> initHome() async {
     await loadCache();
+    await Future.wait([
+      fetchMyMood(),
+      fetchPartnerMood(),
+    ]);
+  }
+
+  Future<void> initMoodScreen() async {
     _timeline = [];
     _timelineOffset = 0;
     _hasMoreTimeline = false;
     notifyListeners();
     await Future.wait([
-      fetchMyMood(),
-      fetchPartnerMood(),
       fetchRecentEmojis(),
       fetchTimeline(),
     ]);

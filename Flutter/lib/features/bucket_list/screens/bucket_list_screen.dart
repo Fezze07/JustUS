@@ -10,7 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class BucketListScreen extends StatefulWidget {
-  const BucketListScreen({super.key});
+  final bool isActive;
+  const BucketListScreen({super.key, this.isActive = false});
 
   @override
   State<BucketListScreen> createState() => _BucketListScreenState();
@@ -40,8 +41,24 @@ class _BucketListScreenState extends State<BucketListScreen> {
   void initState() {
     super.initState();
     _bucketState = context.read<BucketState>();
+    if (widget.isActive) {
+      _loadData();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant BucketListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadData();
+    }
+  }
+
+  void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_bucketState.init());
+      if (_bucketState.items.isEmpty) {
+        unawaited(_bucketState.init());
+      }
     });
   }
 

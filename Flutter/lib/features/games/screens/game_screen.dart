@@ -11,7 +11,8 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final bool isActive;
+  const GameScreen({super.key, this.isActive = false});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -21,6 +22,20 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.isActive) {
+      _loadData();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant GameScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadData();
+    }
+  }
+
+  void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(context.read<GameState>().init());
       unawaited(context.read<ProfileState>().loadProfile());

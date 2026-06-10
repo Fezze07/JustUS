@@ -11,14 +11,14 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  static const List<Widget> _pages = [
-    HomepageScreen(),   // 0 - Home (centro)
-    GameScreen(),       // 1 - Games
-    MoodScreen(),       // 2 - Mood
-    BucketListScreen(), // 3 - List
-    DriveScreen(),      // 4 - Drive
-    FavoritesScreen(),  // 5 - Favorites
-    ProfileScreen(),    // 6 - Profile
+  List<Widget> get _pages => [
+    const HomepageScreen(),                       // 0 - Home (centro)
+    GameScreen(isActive: _currentIndex == 1),     // 1 - Games
+    MoodScreen(isActive: _currentIndex == 2),     // 2 - Mood
+    BucketListScreen(isActive: _currentIndex == 3), // 3 - List
+    DriveScreen(isActive: _currentIndex == 4),    // 4 - Drive
+    FavoritesScreen(isActive: _currentIndex == 5),  // 5 - Favorites
+    const ProfileScreen(),                        // 6 - Profile
   ];
 
   @override

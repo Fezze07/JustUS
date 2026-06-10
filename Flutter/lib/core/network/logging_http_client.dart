@@ -21,6 +21,18 @@ class LoggingHttpClient extends http.BaseClient {
       final tableName = pathSegments[2];
       final queryParams = uri.queryParameters;
 
+      // Handle RPC calls (e.g. /rest/v1/rpc/function_name)
+      if (tableName == 'rpc' && pathSegments.length >= 4) {
+        final rpcName = pathSegments[3];
+        String rpcParams = '';
+        if (queryParams.isNotEmpty) {
+          rpcParams = ' params($queryParams)';
+        } else if (request is http.Request && request.body.isNotEmpty) {
+          rpcParams = ' body(${request.body})';
+        }
+        return 'RPC ${request.method} $rpcName$rpcParams';
+      }
+
       final select = queryParams['select'];
       final selectStr = select != null ? ' select($select)' : '';
 

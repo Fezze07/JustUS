@@ -10,7 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class FavoritesScreen extends StatefulWidget {
-  const FavoritesScreen({super.key});
+  final bool isActive;
+  const FavoritesScreen({super.key, this.isActive = false});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
@@ -20,6 +21,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.isActive) {
+      _loadData();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FavoritesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadData();
+    }
+  }
+
+  void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final driveState = context.read<DriveState>();
       if (driveState.driveItems.isEmpty) {
