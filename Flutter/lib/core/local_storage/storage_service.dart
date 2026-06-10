@@ -32,6 +32,7 @@ class StorageService {
   static const String _keyDriveThumbCache = 'drive_thumb_cache';
   static const String _keyDeviceFingerprint = 'device_fingerprint';
   static const String _keyRequestBindingSecret = 'request_binding_secret';
+  static const String _keyTimeline = 'mood_timeline';
 
   static SharedPreferences? _prefs;
   static const _secureStorage = FlutterSecureStorage(
@@ -314,6 +315,14 @@ class StorageService {
     return p.getStringList(_keyRecentEmojis) ?? [];
   }
 
+  static Future<void> saveTimeline(List<MoodEntry> entries) async {
+    await _saveJsonList(_keyTimeline, entries, (e) => e.toJson());
+  }
+
+  static Future<List<MoodEntry>> getTimeline() async {
+    return _getJsonList(_keyTimeline, MoodEntry.fromJson);
+  }
+
   // -------------------- Clear Cache --------------------
 
   static Future<void> clearAppCache() async {
@@ -332,6 +341,7 @@ class StorageService {
       _keyPartnerProfile,
       _keyMoodMe,
       _keyMoodPartner,
+      _keyTimeline,
     ];
     for (final key in keysToClear) {
       await p.remove(key);

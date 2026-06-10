@@ -42,14 +42,35 @@ class MoodState extends BaseState {
   }
 
   Future<void> initMoodScreen() async {
-    _timeline = [];
-    _timelineOffset = 0;
-    _hasMoreTimeline = false;
-    notifyListeners();
+    // Load cache first
+    await _loadMoodScreenCache();
+
+    // Then fetch from network
     await Future.wait([
       fetchRecentEmojis(),
       fetchTimeline(),
     ]);
+  }
+
+  Future<void> _loadMoodScreenCache() async {
+    final results = await Future.wait([
+      StorageService.getRecentEmojis(),
+      StorageService.getTimeline(),
+    ]);
+
+    final cachedRecent = results[0] as List<String>;
+    if (cachedRecent.isNotEmpty) {
+      _recentEmojis = cachedRecent;
+    }
+
+    final cachedTimeline = results[1] as List<MoodEntry>;
+    if (cachedTimeline.isNotEmpty) {
+      _timeline = cachedTimeline;
+      _timelineOffset = cachedTimeline.length;
+      _hasMoreTimeline = true;
+    }
+
+    notifyListeners();
   }
 
   Future<void> loadCache() async {
@@ -121,10 +142,11 @@ class MoodState extends BaseState {
   Future<void> fetchTimeline() async {
     await runSafe(() async {
       final result = await _repo.fetchTimeline();
-      await handleResult(result, onSuccess: (value) {
+      await handleResult(result, onSuccess: (value) async {
         _timeline = value;
         _timelineOffset = value.length;
         _hasMoreTimeline = value.length >= 4;
+        await StorageService.saveTimeline(value);
         notifyListeners();
       });
     }, showLoading: false);
@@ -134,10 +156,11 @@ class MoodState extends BaseState {
     await runSafe(() async {
       final result =
           await _repo.fetchTimeline(offset: _timelineOffset);
-      await handleResult(result, onSuccess: (value) {
+      await handleResult(result, onSuccess: (value) async {
         _timeline.addAll(value);
         _timelineOffset += value.length;
         _hasMoreTimeline = value.length >= 4;
+        await StorageService.saveTimeline(_timeline);
         notifyListeners();
       });
     }, showLoading: false);
@@ -165,6 +188,8 @@ class MoodState extends BaseState {
         _timelineOffset++;
       }
       await StorageService.saveMood('me', emoji);
+      await StorageService.saveRecentEmojis(_recentEmojis);
+      await StorageService.saveTimeline(_timeline);
       notifyListeners();
 
       final result = await _repo.updateMood(emoji);
@@ -182,6 +207,8 @@ class MoodState extends BaseState {
         _timeline = previousTimeline;
         _timelineOffset--;
         await StorageService.saveMood('me', previousMood);
+        await StorageService.saveRecentEmojis(_recentEmojis);
+        await StorageService.saveTimeline(_timeline);
         notifyListeners();
       }
     });

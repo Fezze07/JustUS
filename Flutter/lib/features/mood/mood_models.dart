@@ -61,6 +61,8 @@ class MoodEntry {
         json['emoji'] ??
         '') as String;
     final userId = (json['user_id'] as num?)?.toInt();
+    final mine = json['is_mine'] as bool? ??
+        (currentUserId != null && userId == currentUserId);
 
     return MoodEntry(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -68,7 +70,7 @@ class MoodEntry {
       emoji: emojiChar,
       note: json['note'] as String?,
       createdAt: (json['created_at'] as String?) ?? '',
-      isMine: currentUserId != null && userId == currentUserId,
+      isMine: mine,
     );
   }
 
@@ -79,6 +81,7 @@ class MoodEntry {
       'emoji': emoji,
       'note': note,
       'created_at': createdAt,
+      'is_mine': isMine,
     };
   }
 }

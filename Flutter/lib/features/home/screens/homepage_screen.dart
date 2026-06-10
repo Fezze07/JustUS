@@ -37,13 +37,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
     final homepageState = context.read<HomepageState>();
     final moodState = context.read<MoodState>();
     final profileState = context.read<ProfileState>();
-    final bucketState = context.read<BucketState>();
-
     await Future.wait([
       homepageState.init(),
       moodState.initHome(),
       profileState.loadProfile(),
-      if (bucketState.items.isEmpty) bucketState.init(),
     ]);
   }
 
@@ -106,8 +103,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 _buildMoodCard(context),
                 const SizedBox(height: 24),
 
-                // Quick Actions
-                _buildQuickActions(context),
               ],
             ),
           ),
@@ -329,138 +324,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Consumer<BucketState>(
-      builder: (context, bucketState, child) {
-        final pendingCount = bucketState.items.where((i) => !i.done).length;
-
-        return Column(
-          children: [
-            VPSectionHeader(
-              title: context.loc.home_quickActions,
-              actionLabel: context.loc.home_viewAll,
-              onActionTap: () {},
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.1,
-              children: [
-                _buildActionCard(
-                  context,
-                  icon: Icons.emoji_emotions,
-                  title: context.loc.home_moodTitle,
-                  subtitle: context.loc.home_moodSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MoodScreen()),
-                  ),
-                ),
-                _buildActionCard(
-                  context,
-                  icon: Icons.sports_esports,
-                  title: context.loc.home_gamesTitle,
-                  subtitle: context.loc.home_gamesSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const GameScreen()),
-                  ),
-                ),
-                _buildActionCard(
-                  context,
-                  icon: Icons.photo_library,
-                  title: context.loc.home_photosTitle,
-                  subtitle: context.loc.home_photosSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DriveScreen()),
-                  ),
-                ),
-                _buildActionCard(
-                  context,
-                  icon: Icons.checklist,
-                  title: context.loc.home_bucketListTitle,
-                  subtitle:
-                      context.loc.home_bucketListSubtitleDynamic(pendingCount),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BucketListScreen()),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildActionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return VPCard(
-      padding: EdgeInsets.zero,
-      borderColor: Colors.white.withValues(alpha: 0.05),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.accentAqua.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.accentAqua,
-                  size: 24,
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: VpWidgets.googleFont(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: VpWidgets.googleFont(
-                      color: Colors.grey[400],
-                      fontSize: 11,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
