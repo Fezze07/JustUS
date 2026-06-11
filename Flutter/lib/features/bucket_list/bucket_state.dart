@@ -15,12 +15,49 @@ class BucketState extends BaseState {
   List<BucketItem> get items => _items;
 
   Future<void> init() async {
-    // Load from cache first
+    await loadWithChangeDetection(
+      loadFromCache: _loadFromCache,
+      hasChanges: _hasBucketChanges,
+      fetchFromNetwork: fetchBucket,
+    );
+  }
+
+  Future<void> _loadFromCache() async {
     _items = await StorageService.getBucketList();
     notifyListeners();
+  }
 
-    // Then fetch from server
-    await fetchBucket();
+  Future<bool> _hasBucketChanges() async {
+    final partnershipData = await _repository.getActivePartnership();
+    final partnershipId = partnershipData?['partnership_id'] as int?;
+    if (partnershipId == null) return false;
+
+    final changed = await _repository.hasNewBucketItems(partnershipId);
+    if (changed) {
+      await CacheService.saveCheckpoint(CacheService.kBucketItems, CacheService.kCheckpointEmpty);
+    }
+    return changed;
+  }
+
+  Future<void> _updateBucketCheckpoint() async {
+    if (_items.isEmpty) {
+      await CacheService.saveCheckpoint(
+          CacheService.kBucketItems, CacheService.kCheckpointEmpty);
+      return;
+    }
+
+    final timestamps = _items
+        .map((item) => DateTime.tryParse(item.createdAt))
+        .whereType<DateTime>()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    if (timestamps.isNotEmpty) {
+      await CacheService.saveCheckpoint(
+        CacheService.kBucketItems,
+        timestamps.first.toUtc().toIso8601String(),
+      );
+    }
   }
 
   Future<void> fetchBucket() async {
@@ -29,6 +66,7 @@ class BucketState extends BaseState {
       await handleResult(result, onSuccess: (value) async {
         _items = value;
         await StorageService.saveBucketList(_items);
+        await _updateBucketCheckpoint();
       });
     });
   }
@@ -45,6 +83,7 @@ class BucketState extends BaseState {
       await handleResult(result, onSuccess: (item) async {
         _items = [item, ..._items];
         await StorageService.saveBucketList(_items);
+        await _updateBucketCheckpoint();
       });
     });
   }
@@ -81,14 +120,18 @@ class BucketState extends BaseState {
   Future<void> flushPendingChanges(Map<int, bool> changes) async {
     if (changes.isEmpty) return;
     await runSafe(() async {
-      final futures = changes.entries.map((entry) => _repository.toggleBucketItem(entry.key, entry.value));
+      final futures = changes.entries
+          .map((entry) => _repository.toggleBucketItem(entry.key, entry.value));
       final results = await Future.wait(futures);
       for (final result in results) {
         if (result is Success<BucketItem>) {
-          _items = _items.map((i) => i.id == result.value.id ? result.value : i).toList();
+          _items = _items
+              .map((i) => i.id == result.value.id ? result.value : i)
+              .toList();
         }
       }
       await StorageService.saveBucketList(_items);
+      await _updateBucketCheckpoint();
     });
   }
 

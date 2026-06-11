@@ -56,8 +56,12 @@ class GameNewQuestionResponse {
       userIdB: ((json['user_id_b'] ?? json['userIdB']) as num?)?.toInt(),
       status: json['status'] as String?,
       message: json['message'] as String?,
-      hasAnswered: (json['has_answered'] as bool?) ?? (json['hasAnswered'] as bool?) ?? false,
-      partnerAnswered: (json['partner_answered'] as bool?) ?? (json['partnerAnswered'] as bool?) ?? false,
+      hasAnswered: (json['has_answered'] as bool?) ??
+          (json['hasAnswered'] as bool?) ??
+          false,
+      partnerAnswered: (json['partner_answered'] as bool?) ??
+          (json['partnerAnswered'] as bool?) ??
+          false,
     );
   }
 
@@ -122,7 +126,9 @@ class GameQuestion {
   factory GameQuestion.fromJson(Map<String, dynamic> json) {
     return GameQuestion(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      question: ((json['question'] ?? json['question_text'] ?? json['text']) as String?) ?? '',
+      question: ((json['question'] ?? json['question_text'] ?? json['text'])
+              as String?) ??
+          '',
       createdAt: (json['created_at'] as String?) ?? '',
       partnershipId: (json['partnership_id'] as num?)?.toInt(),
     );
@@ -180,10 +186,22 @@ class GameHistoryItem {
   factory GameHistoryItem.fromJson(Map<String, dynamic> json) {
     return GameHistoryItem(
       questionId: (json['id'] as num?)?.toInt() ?? 0,
-      question: ((json['question'] ?? json['text'] ?? json['question_text']) as String?) ?? '',
+      question: ((json['question'] ?? json['text'] ?? json['question_text'])
+              as String?) ??
+          '',
       userOption: (json['user_option'] as num?)?.toInt(),
       partnerOption: (json['partner_option'] as num?)?.toInt(),
       createdAt: (json['created_at'] as String?) ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': questionId,
+      'question': question,
+      'user_option': userOption,
+      'partner_option': partnerOption,
+      'created_at': createdAt,
+    };
   }
 }

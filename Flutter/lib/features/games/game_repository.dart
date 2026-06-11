@@ -3,7 +3,7 @@ import 'package:justus/all_imports.dart';
 class GameRepository extends BaseRepository {
   final ApiService _api;
 
-  GameRepository({super.sbClient, ApiService? api}) 
+  GameRepository({super.sbClient, ApiService? api})
       : _api = api ?? ApiService();
 
   Future<ResultWrapper<GameQuestion>> fetchDailyQuestion() async {
@@ -41,7 +41,9 @@ class GameRepository extends BaseRepository {
           .select()
           .eq('game_id', questionId);
 
-      return data.map((a) => GameAnswer.fromJson(a as Map<String, dynamic>)).toList();
+      return data
+          .map((a) => GameAnswer.fromJson(a as Map<String, dynamic>))
+          .toList();
     });
   }
 
@@ -60,7 +62,9 @@ class GameRepository extends BaseRepository {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
-      if (partnershipId == null) throw Exception('Nessuna partnership attiva trovata');
+      if (partnershipId == null) {
+        throw Exception('Nessuna partnership attiva trovata');
+      }
 
       final nameA = partnershipData?['user_a_name'] ?? 'Partner A';
       final nameB = partnershipData?['user_b_name'] ?? 'Partner B';
@@ -82,7 +86,7 @@ class GameRepository extends BaseRepository {
             .from('game_answers')
             .select('user_id')
             .eq('game_id', existing['id'] as Object);
-        
+
         hasAnswered = answers.any((a) => a['user_id'] == uid);
         partnerAnswered = answers.any((a) => a['user_id'] != uid);
       }
@@ -147,11 +151,20 @@ class GameRepository extends BaseRepository {
     });
   }
 
+  Future<bool> hasNewGameActivity(int uid, int partnerId) {
+    return hasChanges(
+      table: 'game_answers',
+      field: 'created_at',
+      filterColumn: 'user_id',
+      filterValues: [uid, partnerId],
+      cacheKey: CacheService.kGameAnswers,
+    );
+  }
+
   Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
     return withCouple((uid, partnerId) async {
-      var query = sbClient
-          .from('game_answers')
-          .select('game_id, selected_option, user_id, game_questions(id, question, created_at)');
+      var query = sbClient.from('game_answers').select(
+          'game_id, selected_option, user_id, game_questions(id, question, created_at)');
 
       if (partnerId != null) {
         query = query.inFilter('user_id', [uid, partnerId]);
@@ -159,7 +172,8 @@ class GameRepository extends BaseRepository {
         query = query.eq('user_id', uid);
       }
 
-      final List<dynamic> data = await query.order('created_at', ascending: false);
+      final List<dynamic> data =
+          await query.order('created_at', ascending: false);
 
       final Map<int, Map<String, dynamic>> historyMap = {};
 

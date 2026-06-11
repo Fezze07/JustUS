@@ -21,6 +21,7 @@ export 'package:justus/features/bucket_list/screens/bucket_list_screen.dart';
 export 'package:justus/features/bucket_list/bucket_models.dart';
 export 'package:justus/features/bucket_list/bucket_repository.dart';
 export 'package:justus/features/bucket_list/bucket_state.dart';
+export 'package:justus/core/local_storage/cache_service.dart';
 export 'package:justus/features/auth/captcha_service.dart';
 export 'package:justus/features/auth/screens/change_password_screen.dart';
 export 'package:justus/core/media/compression_service.dart';

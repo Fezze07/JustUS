@@ -3,6 +3,16 @@ import 'package:justus/all_imports.dart';
 class BucketRepository extends BaseRepository {
   BucketRepository({super.sbClient});
 
+  Future<bool> hasNewBucketItems(int partnershipId) {
+    return hasChanges(
+      table: 'bucket_items',
+      field: 'created_at',
+      filterColumn: 'partnership_id',
+      filterValues: [partnershipId],
+      cacheKey: CacheService.kBucketItems,
+    );
+  }
+
   Future<ResultWrapper<List<BucketItem>>> fetchBucketList() async {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
@@ -11,15 +21,18 @@ class BucketRepository extends BaseRepository {
 
       final List<dynamic> data = await sbClient
           .from('bucket_items')
-          .select()
+          .select('id, text, done, created_at, category')
           .eq('partnership_id', partnershipId)
           .order('created_at', ascending: false);
 
-      return data.map((b) => BucketItem.fromJson(b as Map<String, dynamic>)).toList();
+      return data
+          .map((b) => BucketItem.fromJson(b as Map<String, dynamic>))
+          .toList();
     });
   }
 
-  Future<ResultWrapper<BucketItem>> addBucketItem(String text, String? category) async {
+  Future<ResultWrapper<BucketItem>> addBucketItem(
+      String text, String? category) async {
     return withPartnership((partnershipId) async {
       final dataToInsert = {
         'text': text,
@@ -31,7 +44,11 @@ class BucketRepository extends BaseRepository {
         dataToInsert['category'] = category;
       }
 
-      final data = await sbClient.from('bucket_items').insert(dataToInsert).select().maybeSingle();
+      final data = await sbClient
+          .from('bucket_items')
+          .insert(dataToInsert)
+          .select()
+          .maybeSingle();
 
       if (data == null) throw Exception("Errore durante l'aggiunta");
 

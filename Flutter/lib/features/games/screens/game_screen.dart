@@ -23,7 +23,9 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     if (widget.isActive) {
-      _loadData();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_loadData());
+      });
     }
   }
 
@@ -31,15 +33,21 @@ class _GameScreenState extends State<GameScreen> {
   void didUpdateWidget(covariant GameScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isActive && !oldWidget.isActive) {
-      _loadData();
+      unawaited(_loadData());
     }
   }
 
-  void _loadData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(context.read<GameState>().init());
-      unawaited(context.read<ProfileState>().loadProfile());
-    });
+  Future<void> _loadData({bool force = false}) async {
+    if (force) {
+      await CacheService.clearCheckpoints([CacheService.kGameAnswers]);
+    }
+
+    if (!mounted) return;
+
+    await Future.wait([
+      context.read<GameState>().init(),
+      context.read<ProfileState>().loadProfile(),
+    ]);
   }
 
   @override
@@ -62,97 +70,105 @@ class _GameScreenState extends State<GameScreen> {
             Expanded(
               child: Consumer<GameState>(
                 builder: (context, state, _) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 16),
+                  return RefreshIndicator(
+                    onRefresh: () => _loadData(force: true),
+                    color: AppColors.primary,
+                    backgroundColor: AppColors.backgroundDark,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
 
-                        // Daily Game Card
-                        _buildDailyGameCard(state),
+                          // Daily Game Card
+                          _buildDailyGameCard(state),
 
-                        const SizedBox(height: 32),
+                          const SizedBox(height: 32),
 
-                        // Status Section (You vs Partner)
-                        Consumer<ProfileState>(
-                          builder: (context, profile, _) =>
-                              _buildStatusSection(profile, state),
-                        ),
+                          // Status Section (You vs Partner)
+                          Consumer<ProfileState>(
+                            builder: (context, profile, _) =>
+                                _buildStatusSection(profile, state),
+                          ),
 
-                        const SizedBox(height: 48),
+                          const SizedBox(height: 48),
 
-                        // History Section
-                        VPSectionHeader(
-                          title: context.loc.game_historyTitle,
-                          actionLabel: context.loc.home_viewAll,
-                          onActionTap: () {},
-                          padding: EdgeInsets.zero,
-                        ),
-                        const SizedBox(height: 16),
-                        if (state.history.isEmpty)
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32.0),
-                              child: Text(
-                                context.loc.game_noMatches,
-                                style: VpWidgets.googleFont(
-                                  color: Colors.white38,
-                                  fontSize: 14,
+                          // History Section
+                          VPSectionHeader(
+                            title: context.loc.game_historyTitle,
+                            actionLabel: context.loc.home_viewAll,
+                            onActionTap: () {},
+                            padding: EdgeInsets.zero,
+                          ),
+                          const SizedBox(height: 16),
+                          if (state.history.isEmpty)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Text(
+                                  context.loc.game_noMatches,
+                                  style: VpWidgets.googleFont(
+                                    color: Colors.white38,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
+                            )
+                          else
+                            Builder(
+                              builder: (context) {
+                                final profile = context.read<ProfileState>();
+
+                                return Column(
+                                  children: state.history.take(5).map((item) {
+                                    String status;
+                                    Color badgeColor;
+                                    IconData icon;
+
+                                    if (item.isMatched) {
+                                      status =
+                                          context.loc.game_statusBothAgreed;
+                                      badgeColor = AppColors.neonGreen;
+                                      icon = Icons.check_circle;
+                                    } else if (item.isDisagreed) {
+                                      status = context.loc.game_statusDisagreed;
+                                      badgeColor = AppColors.neonPink;
+                                      icon = Icons.cancel;
+                                    } else if (item.userOption == null &&
+                                        item.partnerOption != null) {
+                                      status =
+                                          context.loc.game_statusWaitingForYou;
+                                      badgeColor = AppColors.neonBlue;
+                                      icon = Icons.access_time;
+                                    } else {
+                                      status = context.loc.game_statusWaiting;
+                                      badgeColor = AppColors.neonBlue;
+                                      icon = Icons.access_time;
+                                    }
+
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 12),
+                                      child: GameHistoryCard(
+                                        question: item.question,
+                                        status: status,
+                                        badgeColor: badgeColor,
+                                        icon: icon,
+                                        userImageUrl:
+                                            profile.userProfile?.profilePicUrl,
+                                        partnerImageUrl: profile
+                                            .partnerProfile?.profilePicUrl,
+                                      ),
+                                    );
+                                  }).toList(),
+                                );
+                              },
                             ),
-                          )
-                        else
-                          Builder(
-                            builder: (context) {
-                              final profile = context.read<ProfileState>();
-
-                              return Column(
-                                children: state.history.take(5).map((item) {
-                                  String status;
-                                  Color badgeColor;
-                                  IconData icon;
-
-                                  if (item.isMatched) {
-                                    status = context.loc.game_statusBothAgreed;
-                                    badgeColor = AppColors.neonGreen;
-                                    icon = Icons.check_circle;
-                                  } else if (item.isDisagreed) {
-                                    status = context.loc.game_statusDisagreed;
-                                    badgeColor = AppColors.neonPink;
-                                    icon = Icons.cancel;
-                                  } else if (item.userOption == null &&
-                                      item.partnerOption != null) {
-                                    status =
-                                        context.loc.game_statusWaitingForYou;
-                                    badgeColor = AppColors.neonBlue;
-                                    icon = Icons.access_time;
-                                  } else {
-                                    status = context.loc.game_statusWaiting;
-                                    badgeColor = AppColors.neonBlue;
-                                    icon = Icons.access_time;
-                                  }
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: GameHistoryCard(
-                                      question: item.question,
-                                      status: status,
-                                      badgeColor: badgeColor,
-                                      icon: icon,
-                                      userImageUrl:
-                                          profile.userProfile?.profilePicUrl,
-                                      partnerImageUrl:
-                                          profile.partnerProfile?.profilePicUrl,
-                                    ),
-                                  );
-                                }).toList(),
-                              );
-                            },
-                          ),
-                        const SizedBox(height: 32),
-                      ],
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   );
                 },

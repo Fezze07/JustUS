@@ -42,7 +42,9 @@ class _BucketListScreenState extends State<BucketListScreen> {
     super.initState();
     _bucketState = context.read<BucketState>();
     if (widget.isActive) {
-      _loadData();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_loadData());
+      });
     }
   }
 
@@ -50,16 +52,16 @@ class _BucketListScreenState extends State<BucketListScreen> {
   void didUpdateWidget(covariant BucketListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isActive && !oldWidget.isActive) {
-      _loadData();
+      unawaited(_loadData());
     }
   }
 
-  void _loadData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_bucketState.items.isEmpty) {
-        unawaited(_bucketState.init());
-      }
-    });
+  Future<void> _loadData({bool force = false}) async {
+    if (force) {
+      await CacheService.clearCheckpoints([CacheService.kBucketItems]);
+    }
+
+    await _bucketState.init();
   }
 
   @override
@@ -208,46 +210,69 @@ class _BucketListScreenState extends State<BucketListScreen> {
 
             // List
             Expanded(
-              child: Consumer<BucketState>(
-                builder: (context, state, child) {
-                  final items = state.items
-                      .where((item) => !_pendingDeletes.contains(item.id))
-                      .map((item) {
-                    if (_pendingChanges.containsKey(item.id)) {
-                      return item.copyWith(done: _pendingChanges[item.id] ?? false);
+              child: RefreshIndicator(
+                onRefresh: () => _loadData(force: true),
+                color: AppColors.primary,
+                backgroundColor: AppColors.backgroundDark,
+                child: Consumer<BucketState>(
+                  builder: (context, state, child) {
+                    final items = state.items
+                        .where((item) => !_pendingDeletes.contains(item.id))
+                        .map((item) {
+                      if (_pendingChanges.containsKey(item.id)) {
+                        return item.copyWith(
+                            done: _pendingChanges[item.id] ?? false);
+                      }
+
+                      return item;
+                    }).toList();
+
+                    if (state.isLoading && items.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 240),
+                          Center(
+                            child: CircularProgressIndicator(
+                                color: AppColors.neonBlue),
+                          ),
+                        ],
+                      );
                     }
-                    return item;
-                  }).toList();
 
-                  if (state.isLoading && items.isEmpty) {
-                    return const Center(
-                      child:
-                          CircularProgressIndicator(color: AppColors.neonBlue),
+                    final filteredItems = _selectedCategory == _allCategory
+                        ? items
+                        : items
+                            .where((i) => i.category == _selectedCategory)
+                            .toList();
+
+                    if (filteredItems.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: 240,
+                            child: _buildEmptyState(
+                                context.loc.bucket_emptyCategory),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 8),
+                      itemCount: filteredItems.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+
+                        return _buildBucketItem(item, state);
+                      },
                     );
-                  }
-
-                  final filteredItems = _selectedCategory == _allCategory
-                      ? items
-                      : items
-                          .where((i) => i.category == _selectedCategory)
-                          .toList();
-
-                  if (filteredItems.isEmpty) {
-                    return _buildEmptyState(context.loc.bucket_emptyCategory);
-                  }
-
-                  return ListView.separated(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                    itemCount: filteredItems.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      final item = filteredItems[index];
-
-                      return _buildBucketItem(item, state);
-                    },
-                  );
-                },
+                  },
+                ),
               ),
             ),
           ],

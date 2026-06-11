@@ -110,6 +110,16 @@ class MoodRepository extends BaseRepository {
     });
   }
 
+  Future<bool> hasNewMoods(int uid, int? partnerId) {
+    return hasChanges(
+      table: 'moods',
+      field: 'created_at',
+      filterColumn: 'user_id',
+      filterValues: [uid, if (partnerId != null) partnerId],
+      cacheKey: CacheService.kMoods,
+    );
+  }
+
   Future<ResultWrapper<List<MoodEntry>>> fetchTimeline(
       {int limit = 4, int offset = 0}) async {
     return withCouple((uid, partnerId) async {

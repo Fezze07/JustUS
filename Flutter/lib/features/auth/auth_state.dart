@@ -374,6 +374,7 @@ class AuthState extends BaseState {
 
   Future<void> logout() async {
     await _authRepo.signOut();
+    await CacheService.clearAll();
     await StorageService.clearAll();
     ApiService.clearHeadersCache();
     _accessToken = null;

@@ -33,7 +33,16 @@ class _HomepageScreenState extends State<HomepageScreen> {
     });
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool force = false}) async {
+    if (force) {
+      await CacheService.clearCheckpoints([
+        CacheService.kMoods,
+        CacheService.kMissYou,
+      ]);
+    }
+
+    if (!mounted) return;
+
     final homepageState = context.read<HomepageState>();
     final moodState = context.read<MoodState>();
     final profileState = context.read<ProfileState>();
@@ -51,7 +60,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          onRefresh: _loadData,
+          onRefresh: () => _loadData(force: true),
           color: AppColors.primary,
           backgroundColor: AppColors.backgroundDark,
           child: SingleChildScrollView(
@@ -102,7 +111,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 // Mood Card
                 _buildMoodCard(context),
                 const SizedBox(height: 24),
-
               ],
             ),
           ),

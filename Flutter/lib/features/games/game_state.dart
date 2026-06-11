@@ -1,13 +1,8 @@
-// =============================================================================
-// GameState - Game screen state management
-// =============================================================================
-
-import 'package:flutter/foundation.dart';
-
 import 'package:justus/all_imports.dart';
 
-class GameState extends ChangeNotifier {
-  GameState({GameRepository? repository}) : _repo = repository ?? GameRepository();
+class GameState extends BaseState {
+  GameState({GameRepository? repository})
+      : _repo = repository ?? GameRepository();
 
   final GameRepository _repo;
 
@@ -21,33 +16,86 @@ class GameState extends ChangeNotifier {
   GameNewQuestionResponse? get currentQuestion => _currentQuestion;
   List<GameHistoryItem> get history => _history;
   int get gameStats => _gameStats;
+  @override
   String? get message => _message;
+  @override
   bool get isLoading => _isLoading;
   bool get isFetchingQuestion => _isFetchingQuestion;
 
+  @override
   void clearMessage() {
     _message = null;
   }
 
   Future<void> init() async {
-    // Load from cache
+    await loadWithChangeDetection(
+      loadFromCache: _loadFromCache,
+      hasChanges: _hasGameChanges,
+      fetchFromNetwork: _fetchAllInBackground,
+    );
+  }
+
+  Future<void> _loadFromCache() async {
     final cached = await StorageService.getCachedGameQuestion();
     if (cached != null) {
       _currentQuestion = cached;
     }
     _gameStats = await StorageService.getGameMatches();
+    _history = await StorageService.getGameHistory();
     notifyListeners();
+  }
 
-    // Fetch fresh data
-    await fetchStats();
-    
-    // Smart Cache: Only fetch a new question if we don't have one 
-    // or if the current one is already completed.
-    if (_currentQuestion == null || _currentQuestion!.status == 'both_answered') {
+  Future<bool> _hasGameChanges() async {
+    final uid = await StorageService.getUserId();
+    final partnerId = await StorageService.getPartnerId();
+    if (uid == null) return false;
+    if (partnerId == null) return true;
+
+    final changed = await _repo.hasNewGameActivity(uid, partnerId);
+    if (changed) {
+      await CacheService.saveCheckpoint(CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
+    }
+    return changed;
+  }
+
+  Future<void> _fetchAllInBackground() async {
+    await Future.wait([
+      fetchStats(),
+      fetchHistory(),
+    ]);
+
+    if (_currentQuestion == null ||
+        _currentQuestion!.status == 'both_answered') {
       await fetchNewQuestion();
     }
-    
-    await fetchHistory();
+
+    await _updateGameCheckpoint();
+  }
+
+  Future<void> _updateGameCheckpoint() async {
+    final uid = await StorageService.getUserId();
+    final partnerId = await StorageService.getPartnerId();
+    if (uid == null || partnerId == null) {
+      if (_history.isEmpty) {
+        await CacheService.saveCheckpoint(
+            CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
+      }
+      return;
+    }
+
+    final serverMax = await _repo.fetchMaxTimestamp(
+      table: 'game_answers',
+      field: 'created_at',
+      filterColumn: 'user_id',
+      filterValues: [uid, partnerId],
+    );
+
+    if (serverMax != null) {
+      await CacheService.saveCheckpoint(CacheService.kGameAnswers, serverMax);
+    } else if (_history.isEmpty) {
+      await CacheService.saveCheckpoint(
+          CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
+    }
   }
 
   Future<void> fetchNewQuestion() async {
@@ -99,7 +147,7 @@ class GameState extends ChangeNotifier {
 
       return;
     }
-    
+
     final result = await _repo.submitAnswer(_currentQuestion!.id, option);
 
     switch (result) {
@@ -146,6 +194,8 @@ class GameState extends ChangeNotifier {
     switch (result) {
       case Success(:final value):
         _history = value;
+        await StorageService.saveGameHistory(value);
+        await _updateGameCheckpoint();
       case GenericError():
         ErrorHandler.handle(result);
       case NetworkError():

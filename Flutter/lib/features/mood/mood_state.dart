@@ -34,22 +34,62 @@ class MoodState extends BaseState {
   }
 
   Future<void> initHome() async {
-    await loadCache();
-    await Future.wait([
-      fetchMyMood(),
-      fetchPartnerMood(),
-    ]);
+    await loadWithChangeDetection(
+      loadFromCache: loadCache,
+      hasChanges: _hasMoodChanges,
+      fetchFromNetwork: () async {
+        await Future.wait([
+          fetchMyMood(),
+          fetchPartnerMood(),
+        ]);
+        await _updateMoodsCheckpoint();
+      },
+    );
   }
 
   Future<void> initMoodScreen() async {
-    // Load cache first
-    await _loadMoodScreenCache();
+    await loadWithChangeDetection(
+      loadFromCache: _loadMoodScreenCache,
+      hasChanges: _hasMoodChanges,
+      fetchFromNetwork: () async {
+        await Future.wait([
+          fetchRecentEmojis(),
+          fetchTimeline(),
+        ]);
+        await _updateMoodsCheckpoint();
+      },
+    );
+  }
 
-    // Then fetch from network
-    await Future.wait([
-      fetchRecentEmojis(),
-      fetchTimeline(),
-    ]);
+  Future<bool> _hasMoodChanges() async {
+    final uid = await StorageService.getUserId();
+    if (uid == null) return false;
+
+    final changed = await _repo.hasNewMoods(uid, await StorageService.getPartnerId());
+    if (changed) {
+      // Optimistic checkpoint: prevent redundant fetches during rapid init cycles
+      await CacheService.saveCheckpoint(CacheService.kMoods, CacheService.kCheckpointEmpty);
+    }
+    return changed;
+  }
+
+  Future<void> _updateMoodsCheckpoint() async {
+    final timestamps = [
+      ..._timeline.map((entry) => entry.createdAt),
+      _userMoodUpdatedAt,
+      _partnerMoodUpdatedAt,
+    ].whereType<String>().map(DateTime.tryParse).whereType<DateTime>().toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    if (timestamps.isNotEmpty) {
+      await CacheService.saveCheckpoint(
+        CacheService.kMoods,
+        timestamps.first.toUtc().toIso8601String(),
+      );
+    } else {
+      await CacheService.saveCheckpoint(
+          CacheService.kMoods, CacheService.kCheckpointEmpty);
+    }
   }
 
   Future<void> _loadMoodScreenCache() async {
@@ -147,6 +187,7 @@ class MoodState extends BaseState {
         _timelineOffset = value.length;
         _hasMoreTimeline = value.length >= 4;
         await StorageService.saveTimeline(value);
+        await _updateMoodsCheckpoint();
         notifyListeners();
       });
     }, showLoading: false);
@@ -154,13 +195,13 @@ class MoodState extends BaseState {
 
   Future<void> loadMoreTimeline() async {
     await runSafe(() async {
-      final result =
-          await _repo.fetchTimeline(offset: _timelineOffset);
+      final result = await _repo.fetchTimeline(offset: _timelineOffset);
       await handleResult(result, onSuccess: (value) async {
         _timeline.addAll(value);
         _timelineOffset += value.length;
         _hasMoreTimeline = value.length >= 4;
         await StorageService.saveTimeline(_timeline);
+        await _updateMoodsCheckpoint();
         notifyListeners();
       });
     }, showLoading: false);
@@ -198,6 +239,7 @@ class MoodState extends BaseState {
         _userMood = value.emoji;
         _userMoodUpdatedAt = value.createdAt;
         await StorageService.saveMood('me', _userMood);
+        await _updateMoodsCheckpoint();
         setMessage('Mood aggiornato!');
       });
 

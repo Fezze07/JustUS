@@ -11,6 +11,57 @@ abstract class BaseRepository {
 
   Future<int?> getUserId() async => await StorageService.getUserId();
 
+  Future<String?> fetchMaxTimestamp({
+    required String table,
+    required String field,
+    String? filterColumn,
+    List<Object> filterValues = const [],
+  }) async {
+    dynamic query = sbClient.from(table).select(field);
+
+    if (filterColumn != null && filterValues.isNotEmpty) {
+      query = query.inFilter(filterColumn, filterValues);
+    }
+
+    final data = await query
+        .order(field, ascending: false)
+        .limit(1)
+        .maybeSingle() as Map<String, dynamic>?;
+
+    return data?[field]?.toString();
+  }
+
+  Future<bool> hasChanges({
+    required String table,
+    required String field,
+    String? filterColumn,
+    List<Object> filterValues = const [],
+    required String cacheKey,
+  }) async {
+    final checkpoint = await CacheService.getCheckpoint(cacheKey);
+    if (checkpoint == null) return true;
+
+    final serverMax = await fetchMaxTimestamp(
+      table: table,
+      field: field,
+      filterColumn: filterColumn,
+      filterValues: filterValues,
+    );
+    if (serverMax == null) {
+      // No rows on server — if the checkpoint says we had data before, it was deleted
+      return checkpoint != CacheService.kCheckpointEmpty;
+    }
+
+    final serverDate = DateTime.tryParse(serverMax);
+    final checkpointDate = checkpoint == CacheService.kCheckpointEmpty
+        ? null
+        : DateTime.tryParse(checkpoint);
+
+    if (serverDate == null || checkpointDate == null) return true;
+
+    return serverDate.isAfter(checkpointDate);
+  }
+
   Future<ResultWrapper<T>> tryCall<T>(Future<T> Function() fn) async {
     try {
       return Success(await fn());

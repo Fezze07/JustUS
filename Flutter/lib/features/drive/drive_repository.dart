@@ -5,7 +5,7 @@ import 'package:justus/all_imports.dart';
 class DriveRepository extends BaseRepository {
   final MediaService _mediaService;
 
-  DriveRepository({super.sbClient, MediaService? mediaService}) 
+  DriveRepository({super.sbClient, MediaService? mediaService})
       : _mediaService = mediaService ?? MediaService();
 
   Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
@@ -15,23 +15,39 @@ class DriveRepository extends BaseRepository {
           .select()
           .order('created_at', ascending: false);
 
-      return data.map((d) => DriveItem.fromJson(d as Map<String, dynamic>)).toList();
+      return data
+          .map((d) => DriveItem.fromJson(d as Map<String, dynamic>))
+          .toList();
     });
   }
 
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental(
-      String? lastSyncTimestamp) async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental() async {
     return tryCall(() async {
+      final lastSyncTimestamp =
+          await CacheService.getCheckpoint(CacheService.kDriveItems);
       var query = sbClient.from('v_drive_dashboard').select();
 
-      if (lastSyncTimestamp != null && lastSyncTimestamp.isNotEmpty) {
+      if (lastSyncTimestamp != null &&
+          lastSyncTimestamp.isNotEmpty &&
+          lastSyncTimestamp != CacheService.kCheckpointEmpty) {
         query = query.gt('updated_at', lastSyncTimestamp);
       }
 
-      final List<dynamic> data = await query.order('created_at', ascending: false);
+      final List<dynamic> data =
+          await query.order('created_at', ascending: false);
 
-      return data.map((d) => DriveItem.fromJson(d as Map<String, dynamic>)).toList();
+      return data
+          .map((d) => DriveItem.fromJson(d as Map<String, dynamic>))
+          .toList();
     });
+  }
+
+  Future<bool> hasNewDriveItems() {
+    return hasChanges(
+      table: 'v_drive_dashboard',
+      field: 'updated_at',
+      cacheKey: CacheService.kDriveItems,
+    );
   }
 
   Future<ResultWrapper<String?>> getMediaDownloadUrl(String filename) async {
@@ -92,13 +108,17 @@ class DriveRepository extends BaseRepository {
           .select('id, created_at, emojis(emoji_char)')
           .eq('item_id', driveItemId);
 
-      final reactions = data.map((r) => DriveItemReaction.fromJson(r as Map<String, dynamic>)).toList();
+      final reactions = data
+          .map((r) => DriveItemReaction.fromJson(r as Map<String, dynamic>))
+          .toList();
 
-      return DriveItemReactionsListResponse(success: true, reactions: reactions);
+      return DriveItemReactionsListResponse(
+          success: true, reactions: reactions);
     });
   }
 
-  Future<ResultWrapper<void>> addReaction(int driveItemId, String emojiChar) async {
+  Future<ResultWrapper<void>> addReaction(
+      int driveItemId, String emojiChar) async {
     return withUser((uid) async {
       final emojiId = await sbClient
           .rpc('get_or_create_emoji', params: {'p_emoji_char': emojiChar});

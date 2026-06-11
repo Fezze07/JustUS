@@ -30,19 +30,30 @@ class DriveState extends BaseState {
   // Initial load: show cache instantly, then run incremental sync
   // ---------------------------------------------------------------------------
   Future<void> initialLoad() async {
-    await runSafe(() async {
-      // 1. Warm up from local cache (instant paint)
-      final cached = await StorageService.getDriveItems();
-      if (cached.isNotEmpty) {
-        _driveItems = List.from(cached)
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _rebuildFavorites();
-        notifyListeners();
-      }
+    await loadWithChangeDetection(
+      loadFromCache: _loadFromCache,
+      hasChanges: _hasDriveChanges,
+      fetchFromNetwork: syncDriveItems,
+    );
+  }
 
-      // 2. Incremental sync from Supabase
-      await syncDriveItems();
-    });
+  Future<bool> _hasDriveChanges() async {
+    final changed = await _repo.hasNewDriveItems();
+    if (changed) {
+      await CacheService.saveCheckpoint(
+          CacheService.kDriveItems, CacheService.kCheckpointEmpty);
+    }
+    return changed;
+  }
+
+  Future<void> _loadFromCache() async {
+    final cached = await StorageService.getDriveItems();
+    if (cached.isNotEmpty) {
+      _driveItems = List.from(cached)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _rebuildFavorites();
+      notifyListeners();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -53,8 +64,7 @@ class DriveState extends BaseState {
     _isSyncing = true;
 
     await runSafe(() async {
-      final lastSync = await StorageService.getLastSync();
-      final result = await _repo.fetchDriveItemsIncremental(lastSync);
+      final result = await _repo.fetchDriveItemsIncremental();
 
       await handleResult(result, onSuccess: (value) async {
         if (value.isNotEmpty) {
@@ -75,13 +85,21 @@ class DriveState extends BaseState {
             ..sort((a, b) => b.compareTo(a));
 
           if (latestUpdated.isNotEmpty) {
-            await StorageService.saveLastSync(
-                latestUpdated.first.toUtc().toIso8601String());
+            await CacheService.saveCheckpoint(
+              CacheService.kDriveItems,
+              latestUpdated.first.toUtc().toIso8601String(),
+            );
           }
+        } else if (await CacheService.getCheckpoint(CacheService.kDriveItems) ==
+            null) {
+          await CacheService.saveCheckpoint(
+            CacheService.kDriveItems,
+            DateTime.now().toUtc().toIso8601String(),
+          );
         }
       });
     }, showLoading: false);
-    
+
     _isSyncing = false;
     notifyListeners();
   }

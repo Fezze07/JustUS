@@ -37,6 +37,16 @@ class _MoodScreenState extends State<MoodScreen> {
   }
 
   Future<void> _loadData() async {
+    await _loadDataWithOptions();
+  }
+
+  Future<void> _loadDataWithOptions({bool force = false}) async {
+    if (force) {
+      await CacheService.clearCheckpoints([CacheService.kMoods]);
+    }
+
+    if (!mounted) return;
+
     final moodState = context.read<MoodState>();
     await moodState.initMoodScreen();
   }
@@ -66,200 +76,206 @@ class _MoodScreenState extends State<MoodScreen> {
       ],
       body: Consumer<MoodState>(
         builder: (context, state, _) {
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Recents Section
-                VPSectionHeader(
-                  title: context.loc.mood_recents,
-                  actionLabel: context.loc.mood_edit,
-                  onActionTap: () {},
-                ),
-
-                if (state.recentEmojis.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24),
-                    child: Text(
-                      context.loc.mood_noneSet,
-                      style: VpWidgets.googleFont(
-                        fontSize: 14,
-                        color: Colors.white38,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 70,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: state.recentEmojis.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 16),
-                      itemBuilder: (context, index) => _buildRecentItem(
-                          state.recentEmojis[index], index == 0),
-                    ),
+          return RefreshIndicator(
+            onRefresh: () => _loadDataWithOptions(force: true),
+            color: AppColors.primary,
+            backgroundColor: AppColors.backgroundDark,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Recents Section
+                  VPSectionHeader(
+                    title: context.loc.mood_recents,
+                    actionLabel: context.loc.mood_edit,
+                    onActionTap: () {},
                   ),
 
-                // Add New Mood Button
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: GestureDetector(
-                    onTap: _showEmojiPicker,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFA855F7), AppColors.primary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                  if (state.recentEmojis.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Text(
+                        context.loc.mood_noneSet,
+                        style: VpWidgets.googleFont(
+                          fontSize: 14,
+                          color: Colors.white38,
+                          fontStyle: FontStyle.italic,
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          VpWidgets.boxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.4),
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                context.loc.home_updateStatus,
-                                style: VpWidgets.googleFont(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                context.loc.mood_howFeeling,
-                                style: VpWidgets.googleFont(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                            ],
+                    )
+                  else
+                    SizedBox(
+                      height: 70,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: state.recentEmojis.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 16),
+                        itemBuilder: (context, index) => _buildRecentItem(
+                            state.recentEmojis[index], index == 0),
+                      ),
+                    ),
+
+                  // Add New Mood Button
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: GestureDetector(
+                      onTap: _showEmojiPicker,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFA855F7), AppColors.primary],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: AppColors.neonGreen,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                VpWidgets.boxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                )
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            VpWidgets.boxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  context.loc.home_updateStatus,
+                                  style: VpWidgets.googleFont(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  context.loc.mood_howFeeling,
+                                  style: VpWidgets.googleFont(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white70,
+                                  ),
+                                ),
                               ],
                             ),
-                            child: const Icon(Icons.add,
-                                color: AppColors.deepViolet, size: 30),
-                          ),
-                        ],
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: AppColors.neonGreen,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  VpWidgets.boxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ],
+                              ),
+                              child: const Icon(Icons.add,
+                                  color: AppColors.deepViolet, size: 30),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // Timeline Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        context.loc.mood_timeline,
-                        style: VpWidgets.googleFont(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          context.loc.mood_today,
-                          style: VpWidgets.googleFont(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Timeline List
-                if (state.timeline.isEmpty)
+                  // Timeline Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      context.loc.mood_noneSet,
-                      style: VpWidgets.googleFont(
-                        fontSize: 14,
-                        color: Colors.white38,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  )
-                else
-                  ListView(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    children: [
-                      for (var i = 0; i < state.timeline.length; i++)
-                        _buildTimelineItem(
-                          emoji: state.timeline[i].emoji,
-                          timestamp: state.timeline[i].createdAt,
-                          color: state.timeline[i].isMine
-                              ? AppColors.primary
-                              : Colors.pinkAccent,
-                          isLast: i == state.timeline.length - 1 &&
-                              !state.hasMoreTimeline,
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          context.loc.mood_timeline,
+                          style: VpWidgets.googleFont(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      if (state.hasMoreTimeline)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Center(
-                            child: TextButton.icon(
-                              onPressed: () =>
-                                  unawaited(state.loadMoreTimeline()),
-                              icon: const Icon(Icons.expand_more,
-                                  color: AppColors.primary),
-                              label: Text(
-                                context.loc.mood_showMore,
-                                style: VpWidgets.googleFont(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            context.loc.mood_today,
+                            style: VpWidgets.googleFont(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Timeline List
+                  if (state.timeline.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        context.loc.mood_noneSet,
+                        style: VpWidgets.googleFont(
+                          fontSize: 14,
+                          color: Colors.white38,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  else
+                    ListView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      children: [
+                        for (var i = 0; i < state.timeline.length; i++)
+                          _buildTimelineItem(
+                            emoji: state.timeline[i].emoji,
+                            timestamp: state.timeline[i].createdAt,
+                            color: state.timeline[i].isMine
+                                ? AppColors.primary
+                                : Colors.pinkAccent,
+                            isLast: i == state.timeline.length - 1 &&
+                                !state.hasMoreTimeline,
+                          ),
+                        if (state.hasMoreTimeline)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Center(
+                              child: TextButton.icon(
+                                onPressed: () =>
+                                    unawaited(state.loadMoreTimeline()),
+                                icon: const Icon(Icons.expand_more,
+                                    color: AppColors.primary),
+                                label: Text(
+                                  context.loc.mood_showMore,
+                                  style: VpWidgets.googleFont(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
 
-                const SizedBox(height: 100),
-              ],
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
           );
         },

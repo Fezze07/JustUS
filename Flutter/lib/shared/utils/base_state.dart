@@ -38,7 +38,6 @@ abstract class BaseState extends ChangeNotifier {
     }
   }
 
-
   void setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
@@ -52,6 +51,21 @@ abstract class BaseState extends ChangeNotifier {
   void clearMessage() {
     _message = null;
     notifyListeners();
+  }
+
+  Future<void> loadWithChangeDetection({
+    required Future<void> Function() loadFromCache,
+    required Future<bool> Function() hasChanges,
+    required Future<void> Function() fetchFromNetwork,
+  }) async {
+    await loadFromCache();
+    final changed = await hasChanges();
+
+    if (changed) {
+      unawaited(fetchFromNetwork().catchError((Object e, StackTrace st) {
+        ErrorHandler.handle(e, stackTrace: st);
+      }));
+    }
   }
 
   /// Centralized handling of Result patterns to reduce duplication across states.

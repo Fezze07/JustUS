@@ -21,8 +21,8 @@ class StorageService {
   static const String _keyBucketList = 'bucket_list';
   static const String _keyGameMatches = 'game_matches';
   static const String _keyGameQuestion = 'game_question';
+  static const String _keyGameHistory = 'game_history';
   static const String _keyDriveCache = 'drive_cache';
-  static const String _keyDriveLastSync = 'drive_last_sync';
   static const String _keyUserProfile = 'user_profile';
   static const String _keyPartnerProfile = 'partner_profile';
   static const String _keyProfilePicVersion = 'profile_pic_version';
@@ -35,9 +35,7 @@ class StorageService {
   static const String _keyTimeline = 'mood_timeline';
 
   static SharedPreferences? _prefs;
-  static const _secureStorage = FlutterSecureStorage(
-    
-  );
+  static const _secureStorage = FlutterSecureStorage();
 
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -65,7 +63,8 @@ class StorageService {
     await p.setString(key, jsonEncode(json));
   }
 
-  static Future<T?> _getJson<T>(String key, T Function(Map<String, dynamic>) fromJson) async {
+  static Future<T?> _getJson<T>(
+      String key, T Function(Map<String, dynamic>) fromJson) async {
     final p = await prefs;
     final json = p.getString(key);
     if (json == null) return null;
@@ -76,13 +75,15 @@ class StorageService {
     }
   }
 
-  static Future<void> _saveJsonList<T>(String key, List<T> list, Map<String, dynamic> Function(T) toJson) async {
+  static Future<void> _saveJsonList<T>(
+      String key, List<T> list, Map<String, dynamic> Function(T) toJson) async {
     final p = await prefs;
     final json = jsonEncode(list.map((e) => toJson(e)).toList());
     await p.setString(key, json);
   }
 
-  static Future<List<T>> _getJsonList<T>(String key, T Function(Map<String, dynamic>) fromJson) async {
+  static Future<List<T>> _getJsonList<T>(
+      String key, T Function(Map<String, dynamic>) fromJson) async {
     final p = await prefs;
     final json = p.getString(key);
     if (json == null) return [];
@@ -203,13 +204,11 @@ class StorageService {
   static Future<int?> getTotalMissYou() async {
     final p = await prefs;
 
-    return p.containsKey(_keyMissYouTotal)
-        ? p.getInt(_keyMissYouTotal)
-        : null;
+    return p.containsKey(_keyMissYouTotal) ? p.getInt(_keyMissYouTotal) : null;
   }
 
   // -------------------- Bucket List --------------------
-  
+
   static Future<void> saveBucketList(List<BucketItem> list) async {
     await _saveJsonList(_keyBucketList, list, (e) => e.toJson());
   }
@@ -239,6 +238,14 @@ class StorageService {
     return _getJson(_keyGameQuestion, GameNewQuestionResponse.fromJson);
   }
 
+  static Future<void> saveGameHistory(List<GameHistoryItem> items) async {
+    await _saveJsonList(_keyGameHistory, items, (e) => e.toJson());
+  }
+
+  static Future<List<GameHistoryItem>> getGameHistory() async {
+    return _getJsonList(_keyGameHistory, GameHistoryItem.fromJson);
+  }
+
   // -------------------- Drive --------------------
 
   static Future<void> saveDriveItems(List<DriveItem> items) async {
@@ -247,17 +254,6 @@ class StorageService {
 
   static Future<List<DriveItem>> getDriveItems() async {
     return _getJsonList(_keyDriveCache, DriveItem.fromJson);
-  }
-
-  static Future<void> saveLastSync(String lastSync) async {
-    final p = await prefs;
-    await p.setString(_keyDriveLastSync, lastSync);
-  }
-
-  static Future<String?> getLastSync() async {
-    final p = await prefs;
-
-    return p.getString(_keyDriveLastSync);
   }
 
   // -------------------- Profile --------------------
@@ -331,10 +327,10 @@ class StorageService {
       _keyBucketList,
       _keyGameMatches,
       _keyGameQuestion,
+      _keyGameHistory,
       _keyMissYouTotal,
       _keyRecentEmojis,
       _keyDriveCache,
-      _keyDriveLastSync,
       _keyProfilePicVersion,
       _keyDriveThumbCache,
       _keyUserProfile,

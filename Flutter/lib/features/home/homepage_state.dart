@@ -1,13 +1,8 @@
-// =============================================================================
-// HomepageState - Homepage screen state management
-// =============================================================================
-
-import 'package:flutter/foundation.dart';
-
 import 'package:justus/all_imports.dart';
 
-class HomepageState extends ChangeNotifier {
-  HomepageState({MissYouRepository? repository}) : _repo = repository ?? MissYouRepository();
+class HomepageState extends BaseState {
+  HomepageState({MissYouRepository? repository})
+      : _repo = repository ?? MissYouRepository();
 
   final MissYouRepository _repo;
 
@@ -16,23 +11,32 @@ class HomepageState extends ChangeNotifier {
   bool _isLoading = false;
 
   int get totalMissYou => _totalMissYou;
+  @override
   String? get message => _message;
+  @override
   bool get isLoading => _isLoading;
 
+  @override
   void clearMessage() {
     _message = null;
   }
 
   Future<void> init() async {
-    // Load from cache first
+    await loadWithChangeDetection(
+      loadFromCache: _loadFromCache,
+      hasChanges: () => CacheService.needsRefresh(
+        CacheService.kMissYou,
+      ),
+      fetchFromNetwork: fetchTotalMissYou,
+    );
+  }
+
+  Future<void> _loadFromCache() async {
     final cached = await StorageService.getTotalMissYou();
     if (cached != null) {
       _totalMissYou = cached;
       notifyListeners();
     }
-    
-    // Then fetch from server
-    await fetchTotalMissYou();
   }
 
   Future<void> fetchTotalMissYou() async {
@@ -42,6 +46,10 @@ class HomepageState extends ChangeNotifier {
       case Success(:final value):
         _totalMissYou = value.total;
         await StorageService.saveTotalMissYou(value.total);
+        await CacheService.saveCheckpoint(
+          CacheService.kMissYou,
+          DateTime.now().toUtc().toIso8601String(),
+        );
       case GenericError():
         ErrorHandler.handle(result);
       case NetworkError():
@@ -60,6 +68,10 @@ class HomepageState extends ChangeNotifier {
       case Success():
         _totalMissYou += 1;
         await StorageService.saveTotalMissYou(_totalMissYou);
+        await CacheService.saveCheckpoint(
+          CacheService.kMissYou,
+          DateTime.now().toUtc().toIso8601String(),
+        );
         _message = 'Mi manchi inviato!';
       case GenericError():
         ErrorHandler.handle(result);

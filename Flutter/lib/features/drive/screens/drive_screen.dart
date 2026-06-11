@@ -22,12 +22,14 @@ class DriveScreen extends StatefulWidget {
 
 class _DriveScreenState extends State<DriveScreen> {
   // ImagePicker moved to MediaPickerService
-  
+
   @override
   void initState() {
     super.initState();
     if (widget.isActive) {
-      _loadData();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_loadData());
+      });
     }
   }
 
@@ -35,14 +37,18 @@ class _DriveScreenState extends State<DriveScreen> {
   void didUpdateWidget(covariant DriveScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isActive && !oldWidget.isActive) {
-      _loadData();
+      unawaited(_loadData());
     }
   }
 
-  void _loadData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(context.read<DriveState>().initialLoad());
-    });
+  Future<void> _loadData({bool force = false}) async {
+    if (force) {
+      await CacheService.clearCheckpoints([CacheService.kDriveItems]);
+    }
+
+    if (!mounted) return;
+
+    await context.read<DriveState>().initialLoad();
   }
 
   Future<void> _pickFile() async {
@@ -54,9 +60,9 @@ class _DriveScreenState extends State<DriveScreen> {
     if (!mounted) return;
     // Use new R2-based upload: compress → signed URL → R2 → Supabase metadata
     await context.read<DriveState>().addFileItemR2(
-      filePath: file.path,
-      mimeType: file.mimeType ?? 'image/jpeg',
-    );
+          filePath: file.path,
+          mimeType: file.mimeType ?? 'image/jpeg',
+        );
   }
 
   @override
@@ -87,177 +93,196 @@ class _DriveScreenState extends State<DriveScreen> {
           ),
 
           SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                // Custom App Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        VPCircleButton(
-                          icon: Icons.chevron_left,
-                          color: AppColors.neonPurple,
-                          onTap: () => Navigator.pop(context),
-                        ),
-                        Column(
-                          children: [
-                            Text(
-                              context.loc.drive_title,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                shadows: [
-                                  const BoxShadow(
-                                    color: AppColors.neonPurple,
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              context.loc.drive_subtitle,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.neonPurple.withValues(alpha: 0.8),
-                                letterSpacing: 2.0,
-                              ),
-                            ),
-                          ],
-                        ),
-                        TextButton(
-                          onPressed: () {},
-                          child: Text(
-                            context.loc.drive_select,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: AppColors.accentAqua,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Filter Chips
-                SliverToBoxAdapter(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        VPFilterChip(label: context.loc.drive_filterAll, isActive: true),
-                        const SizedBox(width: 12),
-                        VPFilterChip(label: context.loc.drive_filterPhotos),
-                        const SizedBox(width: 12),
-                        VPFilterChip(label: context.loc.drive_filterVideos),
-                        const SizedBox(width: 12),
-                        VPFilterChip(label: context.loc.drive_filterLikes, icon: Icons.favorite, iconColor: Colors.red),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // "Latest Vibes" Header
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                    child: Row(
-                      children: [
-                        Text(
-                          context.loc.drive_latestVibes,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
+            child: RefreshIndicator(
+              onRefresh: () => _loadData(force: true),
+              color: AppColors.primary,
+              backgroundColor: AppColors.backgroundDark,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // Custom App Bar
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          VPCircleButton(
+                            icon: Icons.chevron_left,
                             color: AppColors.neonPurple,
-                            letterSpacing: 2.0,
-                            shadows: [
-                              const BoxShadow(
-                                color: AppColors.neonPurple,
-                                blurRadius: 4,
-                              ),
-                            ],
+                            onTap: () => Navigator.pop(context),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.neonPurple.withValues(alpha: 0.5),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Grid Content
-                Consumer<DriveState>(
-                  builder: (context, state, _) {
-                    if (state.isLoading && state.driveItems.isEmpty) {
-                      return const SliverFillRemaining(
-                        child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
-                      );
-                    }
-
-                    if (state.driveItems.isEmpty) {
-                      return SliverFillRemaining(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Column(
                             children: [
-                              Icon(Icons.photo_library_outlined, size: 64, color: Colors.white.withValues(alpha: 0.2)),
-                              const SizedBox(height: 16),
                               Text(
-                                context.loc.drive_emptyTitle,
+                                context.loc.drive_title,
                                 style: GoogleFonts.plusJakartaSans(
-                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  shadows: [
+                                    const BoxShadow(
+                                      color: AppColors.neonPurple,
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                context.loc.drive_subtitle,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
+                                  color: AppColors.neonPurple
+                                      .withValues(alpha: 0.8),
+                                  letterSpacing: 2.0,
                                 ),
                               ),
                             ],
                           ),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              context.loc.drive_select,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: AppColors.accentAqua,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Filter Chips
+                  SliverToBoxAdapter(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          VPFilterChip(
+                              label: context.loc.drive_filterAll,
+                              isActive: true),
+                          const SizedBox(width: 12),
+                          VPFilterChip(label: context.loc.drive_filterPhotos),
+                          const SizedBox(width: 12),
+                          VPFilterChip(label: context.loc.drive_filterVideos),
+                          const SizedBox(width: 12),
+                          VPFilterChip(
+                              label: context.loc.drive_filterLikes,
+                              icon: Icons.favorite,
+                              iconColor: Colors.red),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // "Latest Vibes" Header
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                      child: Row(
+                        children: [
+                          Text(
+                            context.loc.drive_latestVibes,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.neonPurple,
+                              letterSpacing: 2.0,
+                              shadows: [
+                                const BoxShadow(
+                                  color: AppColors.neonPurple,
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.neonPurple.withValues(alpha: 0.5),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Grid Content
+                  Consumer<DriveState>(
+                    builder: (context, state, _) {
+                      if (state.isLoading && state.driveItems.isEmpty) {
+                        return const SliverFillRemaining(
+                          child: Center(
+                              child: CircularProgressIndicator(
+                                  color: AppColors.neonPurple)),
+                        );
+                      }
+
+                      if (state.driveItems.isEmpty) {
+                        return SliverFillRemaining(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.photo_library_outlined,
+                                    size: 64,
+                                    color: Colors.white.withValues(alpha: 0.2)),
+                                const SizedBox(height: 16),
+                                Text(
+                                  context.loc.drive_emptyTitle,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 6,
+                            crossAxisSpacing: 6,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final item = state.driveItems[index];
+
+                              return _buildGridItem(context, item, index);
+                            },
+                            childCount: state.driveItems.length,
+                          ),
                         ),
                       );
-                    }
+                    },
+                  ),
 
-                    return SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 6,
-                          crossAxisSpacing: 6,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final item = state.driveItems[index];
-                            
-                            return _buildGridItem(context, item, index);
-                          },
-                          childCount: state.driveItems.length,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                
-                // Bottom padding
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
-              ],
+                  // Bottom padding
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              ),
             ),
           ),
 
@@ -267,7 +292,7 @@ class _DriveScreenState extends State<DriveScreen> {
             right: 24,
             child: _buildFloatingActionButton(),
           ),
-          
+
           // Upload Progress
           Consumer<DriveState>(
             builder: (context, state, _) {
@@ -279,12 +304,10 @@ class _DriveScreenState extends State<DriveScreen> {
     );
   }
 
-
-
   Widget _buildGridItem(BuildContext context, DriveItem item, int index) {
     // Determine if we should highlight this item (e.g. first item borders)
     final isHighlighted = index == 0;
-    
+
     return GestureDetector(
       onTap: () {
         context.read<DriveState>().loadSingleItem(item.id);
@@ -298,13 +321,17 @@ class _DriveScreenState extends State<DriveScreen> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: isHighlighted ? Border.all(color: AppColors.neonPurple, width: 2) : null,
-          boxShadow: isHighlighted ? [
-            const BoxShadow(
-              color: AppColors.neonPurple,
-              blurRadius: 8,
-            )
-          ] : null,
+          border: isHighlighted
+              ? Border.all(color: AppColors.neonPurple, width: 2)
+              : null,
+          boxShadow: isHighlighted
+              ? [
+                  const BoxShadow(
+                    color: AppColors.neonPurple,
+                    blurRadius: 8,
+                  )
+                ]
+              : null,
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -328,9 +355,10 @@ class _DriveScreenState extends State<DriveScreen> {
                 ),
               ),
             ),
-            
+
             // Video indicator overlay
-            if (item.type.toLowerCase().contains('video') || item.content.toLowerCase().endsWith('.mp4'))
+            if (item.type.toLowerCase().contains('video') ||
+                item.content.toLowerCase().endsWith('.mp4'))
               Container(
                 color: Colors.black26,
                 child: const Center(
