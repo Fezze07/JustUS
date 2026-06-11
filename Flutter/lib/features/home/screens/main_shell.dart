@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:justus/all_imports.dart';
 
 class MainShell extends StatefulWidget {
+  static final GlobalKey<MainShellState> shellKey = GlobalKey<MainShellState>();
+
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  State<MainShell> createState() => MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+
+  void switchToTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   List<Widget> get _pages => [
     const HomepageScreen(),                       // 0 - Home (centro)

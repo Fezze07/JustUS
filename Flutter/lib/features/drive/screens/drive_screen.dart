@@ -26,11 +26,9 @@ class _DriveScreenState extends State<DriveScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_loadData());
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadData());
+    });
   }
 
   @override

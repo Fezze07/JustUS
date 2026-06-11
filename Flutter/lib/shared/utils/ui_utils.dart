@@ -15,7 +15,7 @@ class UIUtils {
     final messenger = ScaffoldMessenger.of(context);
 
     final snackBar = SnackBar(
-      content: Text(message),
+      content: Text(message, key: UniqueKey()),
       backgroundColor: backgroundColor ?? (isError ? Colors.red.shade800 : null),
       behavior: SnackBarBehavior.floating,
       duration: (isError && kDebugMode) 

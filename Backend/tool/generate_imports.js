@@ -61,26 +61,24 @@ function parseExports(filePath) {
   return null;
 }
 
-function generate() {
-  console.log('Scanning directories for exports...');
-  const rootDir = path.resolve(__dirname, '..');
-  let allFiles = [];
-
+function collectFiles(rootDir) {
+  const allFiles = [];
   TARGET_DIRS.forEach(dir => {
     const dirPath = path.join(rootDir, dir);
     if (fs.existsSync(dirPath)) {
-      allFiles = allFiles.concat(walkDir(dirPath));
+      allFiles.push(...walkDir(dirPath));
     }
   });
+  return allFiles;
+}
 
+function buildExportEntries(allFiles, rootDir) {
   const exportEntries = [];
   const duplicateCheck = new Map();
 
   allFiles.forEach(file => {
     const relativePath = path.relative(rootDir, file).replace(/\\/g, '/');
-    if (EXCLUDE_FILES.includes(path.basename(file))) {
-      return;
-    }
+    if (EXCLUDE_FILES.includes(path.basename(file))) return;
 
     const parseResult = parseExports(file);
     if (!parseResult) return;
@@ -117,9 +115,11 @@ function generate() {
     }
   });
 
-  // Sort by key name alphabetically
   exportEntries.sort((a, b) => a.key.localeCompare(b.key));
+  return exportEntries;
+}
 
+function writeOutput(exportEntries, rootDir) {
   const code = [];
   code.push('// GENERATED CODE - DO NOT MODIFY BY HAND');
   code.push('// This file allows you to import everything from a single point.');
@@ -132,6 +132,14 @@ function generate() {
 
   fs.writeFileSync(path.join(rootDir, OUTPUT_FILE), code.join('\n'));
   console.log(`Successfully generated ${OUTPUT_FILE} with ${exportEntries.length} entries.`);
+}
+
+function generate() {
+  console.log('Scanning directories for exports...');
+  const rootDir = path.resolve(__dirname, '..');
+  const allFiles = collectFiles(rootDir);
+  const exportEntries = buildExportEntries(allFiles, rootDir);
+  writeOutput(exportEntries, rootDir);
 }
 
 generate();

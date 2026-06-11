@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // Has partner, go to homepage
         unawaited(Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainShell()),
+          MaterialPageRoute(builder: (_) => MainShell(key: MainShell.shellKey)),
         ));
       } else {
         // No partner, go to partner screen

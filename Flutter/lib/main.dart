@@ -175,7 +175,7 @@ class JustUsApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginScreen(),
               '/register': (context) => const RegisterScreen(),
-              '/homepage': (context) => const MainShell(),
+              '/homepage': (context) => MainShell(key: MainShell.shellKey),
               '/partner': (context) => const PartnerScreen(),
               '/localization': (context) => const LocalizationScreen(),
               '/change-password': (context) => const ChangePasswordScreen(),

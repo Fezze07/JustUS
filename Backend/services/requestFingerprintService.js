@@ -1,15 +1,4 @@
-const crypto = require("crypto");
-
-function sha256(value) {
-  return crypto.createHash("sha256").update(String(value ?? "")).digest("hex");
-}
-
-function hmacSha256(secret, value) {
-  return crypto
-    .createHmac("sha256", String(secret ?? ""))
-    .update(String(value ?? ""))
-    .digest("hex");
-}
+const { sha256, hmacSha256 } = require("../utils/cryptoUtils");
 
 function ipToSoftRange(ipAddress) {
   const value = String(ipAddress ?? "").trim();
@@ -66,8 +55,6 @@ function buildClientContext(req) {
 }
 
 module.exports = {
-  sha256,
-  hmacSha256,
   ipToSoftRange,
   buildClientContext,
 };

@@ -18,34 +18,19 @@ class BucketListScreen extends StatefulWidget {
 }
 
 class _BucketListScreenState extends State<BucketListScreen> {
-  static const String _allCategory = 'all';
-  static const List<String> _itemCategories = [
-    'Travel',
-    'Dates',
-    'Goals',
-    'Crazy',
-    'Adventure',
-    'Romantic',
-    'Homemade',
-  ];
-
   final TextEditingController _addController = TextEditingController();
-  String _selectedCategory = _allCategory;
+  String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
   final Set<int> _pendingDeletes = {};
   late BucketState _bucketState;
-
-  List<String> get _categories => [_allCategory, ..._itemCategories];
 
   @override
   void initState() {
     super.initState();
     _bucketState = context.read<BucketState>();
-    if (widget.isActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_loadData());
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadData());
+    });
   }
 
   @override
@@ -74,7 +59,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
   }
 
   void _showAddDialog() {
-    String selectedAddCategory = _itemCategories.first;
+    String selectedAddCategory = BucketCategory.items.first;
     unawaited(showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -110,16 +95,16 @@ class _BucketListScreenState extends State<BucketListScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _itemCategories
+                children: BucketCategory.items
                     .map((cat) => ChoiceChip(
-                          label: Text(_categoryLabel(context, cat)),
+                          label: Text(BucketCategory.localizedLabel(cat, context.loc)),
                           selected: selectedAddCategory == cat,
-                          selectedColor: AppColors.neonPurple,
+                          selectedColor: BucketCategory.colorFor(cat),
                           backgroundColor: AppColors.backgroundDark,
                           labelStyle: TextStyle(
                             color: selectedAddCategory == cat
                                 ? Colors.white
-                                : Colors.white54,
+                                : BucketCategory.colorFor(cat).withValues(alpha: 0.7),
                           ),
                           onSelected: (selected) {
                             if (selected) {
@@ -179,18 +164,22 @@ class _BucketListScreenState extends State<BucketListScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
-                children: _categories
+                children: BucketCategory.withAll
                     .map((cat) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text(_categoryLabel(context, cat)),
+                            label: Text(BucketCategory.localizedLabel(cat, context.loc)),
                             selected: _selectedCategory == cat,
-                            selectedColor: AppColors.neonBlue,
+                            selectedColor: cat == BucketCategory.all
+                                ? AppColors.neonBlue
+                                : BucketCategory.colorFor(cat),
                             backgroundColor: AppColors.cardDark,
                             labelStyle: VpWidgets.googleFont(
                               color: _selectedCategory == cat
                                   ? AppColors.backgroundDark
-                                  : Colors.white70,
+                                  : cat == BucketCategory.all
+                                      ? Colors.white70
+                                      : BucketCategory.colorFor(cat).withValues(alpha: 0.7),
                               fontWeight: _selectedCategory == cat
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -240,7 +229,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                       );
                     }
 
-                    final filteredItems = _selectedCategory == _allCategory
+                    final filteredItems = _selectedCategory == BucketCategory.all
                         ? items
                         : items
                             .where((i) => i.category == _selectedCategory)
@@ -312,13 +301,13 @@ class _BucketListScreenState extends State<BucketListScreen> {
           border: Border.all(
             color: isDone
                 ? Colors.transparent
-                : AppColors.neonPurple.withValues(alpha: 0.3),
+                : BucketCategory.colorFor(item.category).withValues(alpha: 0.3),
           ),
           boxShadow: isDone
               ? []
               : [
                   BoxShadow(
-                    color: AppColors.neonPurple.withValues(alpha: 0.05),
+                    color: BucketCategory.colorFor(item.category).withValues(alpha: 0.1),
                     blurRadius: 10,
                   )
                 ],
@@ -385,17 +374,19 @@ class _BucketListScreenState extends State<BucketListScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.neonPurple.withValues(alpha: 0.2),
+                          color: BucketCategory.colorFor(item.category)
+                              .withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color:
-                                  AppColors.neonPurple.withValues(alpha: 0.5)),
+                            color: BucketCategory.colorFor(item.category)
+                                .withValues(alpha: 0.5),
+                          ),
                         ),
                         child: Text(
-                          _categoryLabel(context, item.category),
+                          BucketCategory.localizedLabel(item.category, context.loc),
                           style: VpWidgets.googleFont(
                             fontSize: 10,
-                            color: AppColors.neonPurple,
+                            color: BucketCategory.colorFor(item.category),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -433,17 +424,5 @@ class _BucketListScreenState extends State<BucketListScreen> {
     );
   }
 
-  String _categoryLabel(BuildContext context, String category) {
-    return switch (category) {
-      _allCategory => context.loc.bucket_categoryAll,
-      'Travel' => context.loc.bucket_categoryTravel,
-      'Dates' => context.loc.bucket_categoryDates,
-      'Goals' => context.loc.bucket_categoryGoals,
-      'Crazy' => context.loc.bucket_categoryCrazy,
-      'Adventure' => context.loc.bucket_categoryAdventure,
-      'Romantic' => context.loc.bucket_categoryRomantic,
-      'Homemade' => context.loc.bucket_categoryHomemade,
-      _ => category,
-    };
-  }
+
 }

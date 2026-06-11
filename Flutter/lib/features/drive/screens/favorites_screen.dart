@@ -21,9 +21,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isActive) {
-      _loadData();
-    }
+    _loadData();
   }
 
   @override

@@ -6,7 +6,7 @@ const crypto = require("crypto");
  * @returns {string} L'hash in formato hex.
  */
 function sha256(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
+  return crypto.createHash("sha256").update(String(value ?? "")).digest("hex");
 }
 
 /**
@@ -16,7 +16,7 @@ function sha256(value) {
  * @returns {string} L'HMAC in formato hex.
  */
 function hmacSha256(secret, message) {
-  return crypto.createHmac("sha256", secret).update(message).digest("hex");
+  return crypto.createHmac("sha256", String(secret ?? "")).update(String(message ?? "")).digest("hex");
 }
 
 module.exports = { sha256, hmacSha256 };

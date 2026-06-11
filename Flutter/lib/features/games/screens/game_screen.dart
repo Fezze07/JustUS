@@ -22,11 +22,9 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_loadData());
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadData());
+    });
   }
 
   @override

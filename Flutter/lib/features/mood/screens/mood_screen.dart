@@ -23,9 +23,7 @@ class _MoodScreenState extends State<MoodScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isActive) {
-      unawaited(_loadData());
-    }
+    unawaited(_loadData());
   }
 
   @override

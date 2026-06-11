@@ -18,6 +18,7 @@ export 'package:justus/core/network/base_repository.dart';
 export 'package:justus/shared/utils/base_state.dart';
 export 'package:justus/features/bucket_list/widgets/bucket_item_tile.dart';
 export 'package:justus/features/bucket_list/screens/bucket_list_screen.dart';
+export 'package:justus/features/bucket_list/bucket_category.dart';
 export 'package:justus/features/bucket_list/bucket_models.dart';
 export 'package:justus/features/bucket_list/bucket_repository.dart';
 export 'package:justus/features/bucket_list/bucket_state.dart';
