@@ -12,18 +12,19 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
-class DriveScreen extends StatefulWidget {
-  final bool isActive;
-  const DriveScreen({super.key, this.isActive = false});
+class DriveScreen extends TabScreen {
+  const DriveScreen({super.key, super.isActive});
 
   @override
   State<DriveScreen> createState() => _DriveScreenState();
 }
 
-class _DriveScreenState extends State<DriveScreen> {
-  bool _dataLoadedOnce = false;
+class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
+  @override
+  bool get activeForTab => widget.isActive;
 
-  Future<void> _loadData({bool force = false}) async {
+  @override
+  Future<void> loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kDriveItems]);
     }
@@ -49,10 +50,7 @@ class _DriveScreenState extends State<DriveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isActive && !_dataLoadedOnce) {
-      _dataLoadedOnce = true;
-      unawaited(_loadData(force: true));
-    }
+    handleScreenActivation();
     return Scaffold(
       backgroundColor: AppColors.deepViolet,
       body: Stack(
@@ -80,7 +78,7 @@ class _DriveScreenState extends State<DriveScreen> {
 
           SafeArea(
             child: RefreshIndicator(
-              onRefresh: () => _loadData(force: true),
+              onRefresh: () => loadData(force: true),
               color: AppColors.primary,
               backgroundColor: AppColors.backgroundDark,
               child: CustomScrollView(

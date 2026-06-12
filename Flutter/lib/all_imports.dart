@@ -82,6 +82,7 @@ export 'package:justus/core/realtime/realtime_sync_service.dart';
 export 'package:justus/features/auth/screens/register_screen.dart';
 export 'package:justus/core/network/result_wrapper.dart';
 export 'package:justus/shared/utils/shared_utils.dart';
+export 'package:justus/shared/widgets/tab_screen.dart';
 export 'package:justus/features/auth/screens/splash_screen.dart';
 export 'package:justus/core/local_storage/storage_service.dart';
 export 'package:justus/core/network/supabase_service.dart';

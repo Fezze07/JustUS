@@ -10,18 +10,19 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
-class GameScreen extends StatefulWidget {
-  final bool isActive;
-  const GameScreen({super.key, this.isActive = false});
+class GameScreen extends TabScreen {
+  const GameScreen({super.key, super.isActive});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
-  bool _dataLoadedOnce = false;
+class _GameScreenState extends State<GameScreen> with TabScreenMixin {
+  @override
+  bool get activeForTab => widget.isActive;
 
-  Future<void> _loadData({bool force = false}) async {
+  @override
+  Future<void> loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kGameAnswers]);
     }
@@ -33,10 +34,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isActive && !_dataLoadedOnce) {
-      _dataLoadedOnce = true;
-      unawaited(_loadData(force: true));
-    }
+    handleScreenActivation();
     return VPScaffold(
       showAppBar: false,
       body: SafeArea(
@@ -56,7 +54,7 @@ class _GameScreenState extends State<GameScreen> {
               child: Consumer<GameState>(
                 builder: (context, state, _) {
                   return RefreshIndicator(
-                    onRefresh: () => _loadData(force: true),
+                    onRefresh: () => loadData(force: true),
                     color: AppColors.primary,
                     backgroundColor: AppColors.backgroundDark,
                     child: SingleChildScrollView(

@@ -11,18 +11,19 @@ import 'package:intl/intl.dart';
 
 import 'package:justus/all_imports.dart';
 
-class MoodScreen extends StatefulWidget {
-  final bool isActive;
-  const MoodScreen({super.key, this.isActive = false});
+class MoodScreen extends TabScreen {
+  const MoodScreen({super.key, super.isActive});
 
   @override
   State<MoodScreen> createState() => _MoodScreenState();
 }
 
-class _MoodScreenState extends State<MoodScreen> {
-  bool _dataLoadedOnce = false;
+class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
+  @override
+  bool get activeForTab => widget.isActive;
 
-  Future<void> _loadData({bool force = false}) async {
+  @override
+  Future<void> loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kMoods]);
     }
@@ -41,10 +42,7 @@ class _MoodScreenState extends State<MoodScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isActive && !_dataLoadedOnce) {
-      _dataLoadedOnce = true;
-      unawaited(_loadData(force: true));
-    }
+    handleScreenActivation();
     return VPScaffold(
       title: context.loc.mood_boardTitle,
       leading: IconButton(
@@ -65,7 +63,7 @@ class _MoodScreenState extends State<MoodScreen> {
           final hasMore = moodData.$3;
 
           return RefreshIndicator(
-            onRefresh: () => _loadData(force: true),
+            onRefresh: () => loadData(force: true),
             color: AppColors.primary,
             backgroundColor: AppColors.backgroundDark,
             child: SingleChildScrollView(

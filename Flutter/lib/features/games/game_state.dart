@@ -51,11 +51,7 @@ class GameState extends BaseState {
     if (uid == null) return false;
     if (partnerId == null) return true;
 
-    final changed = await _repo.hasNewGameActivity(uid, partnerId);
-    if (changed) {
-      await CacheService.saveCheckpoint(CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
-    }
-    return changed;
+    return _repo.hasNewGameActivity(uid, partnerId);
   }
 
   Future<void> _fetchAllInBackground() async {
@@ -73,23 +69,21 @@ class GameState extends BaseState {
   }
 
   Future<void> _updateGameCheckpoint() async {
-    if (_history.isEmpty) {
-      await CacheService.saveCheckpoint(
-          CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
-      return;
-    }
+    final uid = await StorageService.getUserId();
+    final partnerId = await StorageService.getPartnerId();
+    if (uid == null || partnerId == null) return;
 
-    final timestamps = _history
-        .map((item) => DateTime.tryParse(item.createdAt))
-        .whereType<DateTime>()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final maxTimestamp = await _repo.fetchMaxTimestamp(
+      table: 'game_answers',
+      field: 'created_at',
+      filterColumn: 'user_id',
+      filterValues: [uid, partnerId],
+    );
 
-    if (timestamps.isNotEmpty) {
-      await CacheService.saveCheckpoint(
-        CacheService.kGameAnswers,
-        timestamps.first.toUtc().toIso8601String(),
-      );
+    if (maxTimestamp != null) {
+      await CacheService.saveCheckpoint(CacheService.kGameAnswers, maxTimestamp);
+    } else {
+      await CacheService.saveCheckpoint(CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
     }
   }
 
@@ -210,7 +204,7 @@ class GameState extends BaseState {
     ]);
 
     if (_currentQuestion == null ||
-        _currentQuestion!.status != 'both_answered') {
+        _currentQuestion!.status == 'both_answered') {
       await fetchNewQuestion(showLoading: false);
     }
 

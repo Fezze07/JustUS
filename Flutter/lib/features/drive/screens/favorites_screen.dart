@@ -9,18 +9,19 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
-class FavoritesScreen extends StatefulWidget {
-  final bool isActive;
-  const FavoritesScreen({super.key, this.isActive = false});
+class FavoritesScreen extends TabScreen {
+  const FavoritesScreen({super.key, super.isActive});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
-class _FavoritesScreenState extends State<FavoritesScreen> {
-  bool _dataLoadedOnce = false;
+class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
+  @override
+  bool get activeForTab => widget.isActive;
 
-  void _loadData() {
+  @override
+  Future<void> loadData({bool force = false}) async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final driveState = context.read<DriveState>();
       if (driveState.driveItems.isEmpty) {
@@ -31,10 +32,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isActive && !_dataLoadedOnce) {
-      _dataLoadedOnce = true;
-      _loadData();
-    }
+    handleScreenActivation();
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(

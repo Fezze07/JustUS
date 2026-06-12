@@ -9,23 +9,25 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
-class BucketListScreen extends StatefulWidget {
-  final bool isActive;
-  const BucketListScreen({super.key, this.isActive = false});
+class BucketListScreen extends TabScreen {
+  const BucketListScreen({super.key, super.isActive});
 
   @override
   State<BucketListScreen> createState() => _BucketListScreenState();
 }
 
-class _BucketListScreenState extends State<BucketListScreen> {
+class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin {
+  @override
+  bool get activeForTab => widget.isActive;
+
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
   final Set<int> _pendingDeletes = {};
   BucketState get _bucketState => context.read<BucketState>();
-  bool _dataLoadedOnce = false;
 
-  Future<void> _loadData({bool force = false}) async {
+  @override
+  Future<void> loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kBucketItems]);
     }
@@ -128,10 +130,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isActive && !_dataLoadedOnce) {
-      _dataLoadedOnce = true;
-      unawaited(_loadData(force: true));
-    }
+    handleScreenActivation();
     return VPScaffold(
       showAppBar: false,
       floatingActionButton: FloatingActionButton(
@@ -188,7 +187,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
             // List
             Expanded(
               child: RefreshIndicator(
-                onRefresh: () => _loadData(force: true),
+                onRefresh: () => loadData(force: true),
                 color: AppColors.primary,
                 backgroundColor: AppColors.backgroundDark,
                 child: Selector<BucketState, (List<BucketItem>, bool)>(
