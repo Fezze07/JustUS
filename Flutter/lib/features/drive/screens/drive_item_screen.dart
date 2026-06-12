@@ -215,21 +215,18 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
         backgroundColor: const Color(0xFF12091D),
         foregroundColor: Colors.white,
         actions: [
-          Consumer<DriveState>(
-            builder: (context, state, _) {
-              final item = state.singleItem;
-              if (item == null) {
-                return const SizedBox();
-              }
-              
+          Selector<DriveState, bool>(
+            selector: (_, s) => s.singleItem?.isFavorite == 1,
+            builder: (context, isFav, _) {
+              final driveState = context.read<DriveState>();
               return Row(
                 children: [
                   IconButton(
                     icon: Icon(
-                      item.isFavorite == 1 ? Icons.favorite : Icons.favorite_border,
-                      color: item.isFavorite == 1 ? Colors.red : Colors.white,
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: isFav ? Colors.red : Colors.white,
                     ),
-                    onPressed: () => unawaited(state.toggleFavorite(widget.itemId)),
+                    onPressed: () => unawaited(driveState.toggleFavorite(widget.itemId)),
                   ),
                   IconButton(
                     icon: const Icon(Icons.add_reaction_outlined),
@@ -245,24 +242,21 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
           ),
         ],
       ),
-      body: Consumer<DriveState>(
-        builder: (context, state, _) {
-          final item = state.singleItem;
-          
+      body: Selector<DriveState, DriveItem?>(
+        selector: (_, s) => s.singleItem,
+        builder: (context, item, _) {
           if (item == null) {
             return const Center(child: CircularProgressIndicator());
           }
 
           return Column(
             children: [
-              // Content
               Expanded(
                 child: Center(
                   child: _buildContent(item),
                 ),
               ),
               
-              // Reactions
               if (item.reactions.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import 'package:justus/all_imports.dart';
@@ -11,7 +13,50 @@ abstract class BaseRepository {
 
   Future<int?> getUserId() async => await StorageService.getUserId();
 
+  static final Map<String, Future<String?>> _pendingTimestampFetches = {};
+
+  static String _timestampCacheKey({
+    required String table,
+    required String field,
+    String? filterColumn,
+    List<Object> filterValues = const [],
+  }) {
+    return '$table|$field|$filterColumn|${filterValues.join(",")}';
+  }
+
   Future<String?> fetchMaxTimestamp({
+    required String table,
+    required String field,
+    String? filterColumn,
+    List<Object> filterValues = const [],
+  }) async {
+    final key = _timestampCacheKey(
+      table: table,
+      field: field,
+      filterColumn: filterColumn,
+      filterValues: filterValues,
+    );
+
+    if (_pendingTimestampFetches.containsKey(key)) {
+      return _pendingTimestampFetches[key];
+    }
+
+    final future = _doFetchMaxTimestamp(
+      table: table,
+      field: field,
+      filterColumn: filterColumn,
+      filterValues: filterValues,
+    );
+    _pendingTimestampFetches[key] = future;
+
+    try {
+      return await future;
+    } finally {
+      unawaited(_pendingTimestampFetches.remove(key));
+    }
+  }
+
+  Future<String?> _doFetchMaxTimestamp({
     required String table,
     required String field,
     String? filterColumn,

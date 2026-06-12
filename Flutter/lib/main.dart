@@ -115,73 +115,76 @@ class JustUsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DriveState()),
         ChangeNotifierProvider(create: (_) => ProfileState()),
       ],
-      child: Consumer<LanguageProvider>(
-        builder: (context, languageProvider, _) {
-          return MaterialApp(
-            onGenerateTitle: (context) => context.loc.appTitle,
-            debugShowCheckedModeBanner: false,
-            navigatorKey: ErrorHandler.navigatorKey,
-            locale: languageProvider.locale,
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            localeResolutionCallback: LanguageHelper.localeResolutionCallback,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: AppColors.primary,
-                primary: AppColors.primary,
-              ),
-              textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-              scaffoldBackgroundColor: AppColors.backgroundLight,
-              appBarTheme: AppBarTheme(
-                centerTitle: true,
-                backgroundColor: AppColors.backgroundLight,
-                elevation: 0,
-                titleTextStyle: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textLight,
+      child: RealtimeSyncScope(
+        child: Selector<LanguageProvider, Locale>(
+          selector: (_, lp) => lp.locale,
+          builder: (context, locale, _) {
+            return MaterialApp(
+              onGenerateTitle: (context) => context.loc.appTitle,
+              debugShowCheckedModeBanner: false,
+              navigatorKey: ErrorHandler.navigatorKey,
+              locale: locale,
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localeResolutionCallback: LanguageHelper.localeResolutionCallback,
+              theme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: AppColors.primary,
+                  primary: AppColors.primary,
                 ),
-              ),
-              cardTheme: _cardTheme(Brightness.light),
-              inputDecorationTheme: _inputDecorationTheme(),
-              filledButtonTheme: _filledButtonTheme(),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: AppColors.primary,
-                brightness: Brightness.dark,
-                primary: AppColors.primary,
-                surface: AppColors.backgroundDark,
-              ),
-              textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
-              scaffoldBackgroundColor: AppColors.backgroundDark,
-              appBarTheme: AppBarTheme(
-                centerTitle: true,
-                backgroundColor: AppColors.backgroundDark,
-                elevation: 0,
-                titleTextStyle: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
+                textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+                scaffoldBackgroundColor: AppColors.backgroundLight,
+                appBarTheme: AppBarTheme(
+                  centerTitle: true,
+                  backgroundColor: AppColors.backgroundLight,
+                  elevation: 0,
+                  titleTextStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textLight,
+                  ),
                 ),
+                cardTheme: _cardTheme(Brightness.light),
+                inputDecorationTheme: _inputDecorationTheme(),
+                filledButtonTheme: _filledButtonTheme(),
               ),
-              cardTheme: _cardTheme(Brightness.dark),
-              inputDecorationTheme: _inputDecorationTheme(),
-              filledButtonTheme: _filledButtonTheme(),
-            ),
-            home: const SplashScreen(),
-            routes: {
-              '/login': (context) => const LoginScreen(),
-              '/register': (context) => const RegisterScreen(),
-              '/homepage': (context) => MainShell(key: MainShell.shellKey),
-              '/partner': (context) => const PartnerScreen(),
-              '/localization': (context) => const LocalizationScreen(),
-              '/change-password': (context) => const ChangePasswordScreen(),
-            },
-          );
-        },
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: AppColors.primary,
+                  brightness: Brightness.dark,
+                  primary: AppColors.primary,
+                  surface: AppColors.backgroundDark,
+                ),
+                textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
+                scaffoldBackgroundColor: AppColors.backgroundDark,
+                appBarTheme: AppBarTheme(
+                  centerTitle: true,
+                  backgroundColor: AppColors.backgroundDark,
+                  elevation: 0,
+                  titleTextStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+                cardTheme: _cardTheme(Brightness.dark),
+                inputDecorationTheme: _inputDecorationTheme(),
+                filledButtonTheme: _filledButtonTheme(),
+              ),
+              home: const SplashScreen(),
+              routes: {
+                '/login': (context) => const LoginScreen(),
+                '/register': (context) => const RegisterScreen(),
+                '/homepage': (context) => MainShell(key: MainShell.shellKey),
+                '/partner': (context) => const PartnerScreen(),
+                '/localization': (context) => const LocalizationScreen(),
+                '/change-password': (context) => const ChangePasswordScreen(),
+              },
+            );
+          },
+        ),
       ),
     );
   }

@@ -18,19 +18,7 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  @override
-  void didUpdateWidget(covariant FavoritesScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      _loadData();
-    }
-  }
+  bool _dataLoadedOnce = false;
 
   void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -43,6 +31,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isActive && !_dataLoadedOnce) {
+      _dataLoadedOnce = true;
+      _loadData();
+    }
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(
@@ -56,11 +48,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           fontSize: 18,
         ),
       ),
-      body: Consumer<DriveState>(
-        builder: (context, state, _) {
-          final favorites = state.favoriteItems;
+      body: Selector<DriveState, (bool, List<DriveItem>)>(
+        selector: (_, s) => (s.isLoading, s.favoriteItems),
+        builder: (context, favData, _) {
+          final isLoading = favData.$1;
+          final favorites = favData.$2;
+          final driveState = context.read<DriveState>();
 
-          if (state.isLoading && favorites.isEmpty) {
+          if (isLoading && favorites.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -107,7 +102,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               return DriveGridItem(
                 item: item,
                 onTap: () {
-                  state.loadSingleItem(item.id);
+                  driveState.loadSingleItem(item.id);
                   unawaited(Navigator.push(
                     context,
                     MaterialPageRoute(

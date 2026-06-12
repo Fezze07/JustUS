@@ -21,23 +21,7 @@ class DriveScreen extends StatefulWidget {
 }
 
 class _DriveScreenState extends State<DriveScreen> {
-  // ImagePicker moved to MediaPickerService
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadData());
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant DriveScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      unawaited(_loadData());
-    }
-  }
+  bool _dataLoadedOnce = false;
 
   Future<void> _loadData({bool force = false}) async {
     if (force) {
@@ -65,6 +49,10 @@ class _DriveScreenState extends State<DriveScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isActive && !_dataLoadedOnce) {
+      _dataLoadedOnce = true;
+      unawaited(_loadData(force: true));
+    }
     return Scaffold(
       backgroundColor: AppColors.deepViolet,
       body: Stack(
@@ -221,10 +209,13 @@ class _DriveScreenState extends State<DriveScreen> {
                     ),
                   ),
 
-                  // Grid Content
-                  Consumer<DriveState>(
-                    builder: (context, state, _) {
-                      if (state.isLoading && state.driveItems.isEmpty) {
+                  Selector<DriveState, (bool, List<DriveItem>)>(
+                    selector: (_, s) => (s.isLoading, s.driveItems),
+                    builder: (context, driveData, _) {
+                      final isLoading = driveData.$1;
+                      final items = driveData.$2;
+
+                      if (isLoading && items.isEmpty) {
                         return const SliverFillRemaining(
                           child: Center(
                               child: CircularProgressIndicator(
@@ -232,7 +223,7 @@ class _DriveScreenState extends State<DriveScreen> {
                         );
                       }
 
-                      if (state.driveItems.isEmpty) {
+                      if (items.isEmpty) {
                         return SliverFillRemaining(
                           child: Center(
                             child: Column(
@@ -266,11 +257,9 @@ class _DriveScreenState extends State<DriveScreen> {
                           ),
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
-                              final item = state.driveItems[index];
-
-                              return _buildGridItem(context, item, index);
+                              return _buildGridItem(context, items[index], index);
                             },
-                            childCount: state.driveItems.length,
+                            childCount: items.length,
                           ),
                         ),
                       );
@@ -291,12 +280,7 @@ class _DriveScreenState extends State<DriveScreen> {
             child: _buildFloatingActionButton(),
           ),
 
-          // Upload Progress
-          Consumer<DriveState>(
-            builder: (context, state, _) {
-              return const DriveUploadProgressBanner();
-            },
-          ),
+          const DriveUploadProgressBanner(),
         ],
       ),
     );

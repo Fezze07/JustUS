@@ -321,6 +321,12 @@ class StorageService {
 
   // -------------------- Clear Cache --------------------
 
+  static Future<void> clearPartner() async {
+    final p = await prefs;
+    await _secureStorage.delete(key: _keyPartnerId);
+    await p.remove(_keyPartnerDisplayName);
+  }
+
   static Future<void> clearAppCache() async {
     final p = await prefs;
     final keysToClear = [

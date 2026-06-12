@@ -58,6 +58,10 @@ class HomepageState extends BaseState {
     notifyListeners();
   }
 
+  Future<void> refreshFromRealtime() async {
+    await fetchTotalMissYou();
+  }
+
   Future<void> sendMissYou() async {
     _isLoading = true;
     notifyListeners();

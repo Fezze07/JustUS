@@ -20,33 +20,14 @@ class MoodScreen extends StatefulWidget {
 }
 
 class _MoodScreenState extends State<MoodScreen> {
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_loadData());
-  }
+  bool _dataLoadedOnce = false;
 
-  @override
-  void didUpdateWidget(covariant MoodScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      unawaited(_loadData());
-    }
-  }
-
-  Future<void> _loadData() async {
-    await _loadDataWithOptions();
-  }
-
-  Future<void> _loadDataWithOptions({bool force = false}) async {
+  Future<void> _loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kMoods]);
     }
-
     if (!mounted) return;
-
-    final moodState = context.read<MoodState>();
-    await moodState.initMoodScreen();
+    await context.read<MoodState>().initMoodScreen();
   }
 
   void _showEmojiPicker() {
@@ -60,6 +41,10 @@ class _MoodScreenState extends State<MoodScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isActive && !_dataLoadedOnce) {
+      _dataLoadedOnce = true;
+      unawaited(_loadData(force: true));
+    }
     return VPScaffold(
       title: context.loc.mood_boardTitle,
       leading: IconButton(
@@ -72,10 +57,15 @@ class _MoodScreenState extends State<MoodScreen> {
           onPressed: () {},
         ),
       ],
-      body: Consumer<MoodState>(
-        builder: (context, state, _) {
+      body: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(
+        selector: (_, s) => (s.recentEmojis, s.timeline, s.hasMoreTimeline),
+        builder: (context, moodData, _) {
+          final recentEmojis = moodData.$1;
+          final timeline = moodData.$2;
+          final hasMore = moodData.$3;
+
           return RefreshIndicator(
-            onRefresh: () => _loadDataWithOptions(force: true),
+            onRefresh: () => _loadData(force: true),
             color: AppColors.primary,
             backgroundColor: AppColors.backgroundDark,
             child: SingleChildScrollView(
@@ -83,14 +73,13 @@ class _MoodScreenState extends State<MoodScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Recents Section
                   VPSectionHeader(
                     title: context.loc.mood_recents,
                     actionLabel: context.loc.mood_edit,
                     onActionTap: () {},
                   ),
 
-                  if (state.recentEmojis.isEmpty)
+                  if (recentEmojis.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(left: 24),
                       child: Text(
@@ -108,14 +97,13 @@ class _MoodScreenState extends State<MoodScreen> {
                       child: ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         scrollDirection: Axis.horizontal,
-                        itemCount: state.recentEmojis.length,
+                        itemCount: recentEmojis.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 16),
                         itemBuilder: (context, index) => _buildRecentItem(
-                            state.recentEmojis[index], index == 0),
+                            recentEmojis[index], index == 0),
                       ),
                     ),
 
-                  // Add New Mood Button
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: GestureDetector(
@@ -186,7 +174,6 @@ class _MoodScreenState extends State<MoodScreen> {
                     ),
                   ),
 
-                  // Timeline Header
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     child: Row(
@@ -220,8 +207,7 @@ class _MoodScreenState extends State<MoodScreen> {
                     ),
                   ),
 
-                  // Timeline List
-                  if (state.timeline.isEmpty)
+                  if (timeline.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
@@ -239,23 +225,22 @@ class _MoodScreenState extends State<MoodScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       children: [
-                        for (var i = 0; i < state.timeline.length; i++)
+                        for (var i = 0; i < timeline.length; i++)
                           _buildTimelineItem(
-                            emoji: state.timeline[i].emoji,
-                            timestamp: state.timeline[i].createdAt,
-                            color: state.timeline[i].isMine
+                            emoji: timeline[i].emoji,
+                            timestamp: timeline[i].createdAt,
+                            color: timeline[i].isMine
                                 ? AppColors.primary
                                 : Colors.pinkAccent,
-                            isLast: i == state.timeline.length - 1 &&
-                                !state.hasMoreTimeline,
+                            isLast: i == timeline.length - 1 && !hasMore,
                           ),
-                        if (state.hasMoreTimeline)
+                        if (hasMore)
                           Padding(
                             padding: const EdgeInsets.only(top: 12),
                             child: Center(
                               child: TextButton.icon(
                                 onPressed: () =>
-                                    unawaited(state.loadMoreTimeline()),
+                                    unawaited(context.read<MoodState>().loadMoreTimeline()),
                                 icon: const Icon(Icons.expand_more,
                                     color: AppColors.primary),
                                 label: Text(

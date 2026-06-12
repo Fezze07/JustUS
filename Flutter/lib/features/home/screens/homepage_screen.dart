@@ -11,7 +11,6 @@ import 'package:justus/all_imports.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 class _C {
-  static const bg = Color(0xFF0D0B10);
   static const surface = Color(0xFF151219);
   static const surfaceContainer = Color(0xFF211E26);
   static const primary = Color(0xFFD4BBFF); // light lavender
@@ -203,17 +202,21 @@ class _HomepageScreenState extends State<HomepageScreen>
 
   // ── Profile Section ────────────────────────────────────────────────────────
   Widget _buildProfileSection() {
-    return Consumer2<AuthState, ProfileState>(
-      builder: (context, auth, profile, _) {
+    return Selector<ProfileState, (String?, String?, DateTime?)>(
+      selector: (_, p) => (
+        p.userProfile?.profilePicUrl,
+        p.partnerProfile?.profilePicUrl,
+        p.anniversaryDate,
+      ),
+      builder: (context, profileData, _) {
+        final auth = context.read<AuthState>();
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: Column(
             children: [
-              // Background glow
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Ambient glow
                   Container(
                     width: 240,
                     height: 80,
@@ -227,13 +230,11 @@ class _HomepageScreenState extends State<HomepageScreen>
                       ),
                     ),
                   ),
-                  // Avatars + connection line
                   SizedBox(
                     width: 280,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        // Gradient connection line
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 48),
                           child: Container(
@@ -249,20 +250,18 @@ class _HomepageScreenState extends State<HomepageScreen>
                             ),
                           ),
                         ),
-                        // User + Partner row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             _AvatarColumn(
                               label: context.loc.common_you,
-                              imageUrl: profile.userProfile?.profilePicUrl,
+                              imageUrl: profileData.$1,
                             ),
-                            // Link node (glassmorphic)
                             _GlassLinkNode(),
                             _AvatarColumn(
                               label: auth.partnerDisplayName ??
                                   context.loc.common_partnerUpper,
-                              imageUrl: profile.partnerProfile?.profilePicUrl,
+                              imageUrl: profileData.$2,
                             ),
                           ],
                         ),
@@ -271,9 +270,9 @@ class _HomepageScreenState extends State<HomepageScreen>
                   ),
                 ],
               ),
-              if (profile.anniversaryDate != null) ...[
+              if (profileData.$3 != null) ...[
                 const SizedBox(height: 20),
-                _buildDaysTogether(profile.anniversaryDate!),
+                _buildDaysTogether(profileData.$3!),
               ],
             ],
           ),
@@ -330,66 +329,65 @@ class _HomepageScreenState extends State<HomepageScreen>
 
   // ── Mood Card ──────────────────────────────────────────────────────────────
   Widget _buildMoodCard(BuildContext context) {
-    return Consumer2<MoodState, HomepageState>(
-      builder: (context, moodState, hpState, _) {
-        return _GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                child: Row(
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.loc.home_currentMoodTitle.toUpperCase(),
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _C.onSurfaceVariant,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          width: 32,
-                          height: 2,
-                          decoration: BoxDecoration(
-                            color: _C.primaryContainer,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      context.loc.home_currentMoodTitle.toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _C.onSurfaceVariant,
+                        letterSpacing: 1.5,
+                      ),
                     ),
-                    const Spacer(),
-                    _GlassIconButton(
-                      icon: Icons.explore_rounded,
-                      color: _C.primaryContainer,
-                      onTap: () {
-                        MainShell.shellKey.currentState?.switchToTab(2);
-                      },
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 32,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: _C.primaryContainer,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              // Mood emojis
-              Padding(
+                const Spacer(),
+                _GlassIconButton(
+                  icon: Icons.explore_rounded,
+                  color: _C.primaryContainer,
+                  onTap: () {
+                    MainShell.shellKey.currentState?.switchToTab(2);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Selector<MoodState, (String, String)>(
+            selector: (_, m) => (
+              m.userMood.isNotEmpty ? m.userMood : '😐',
+              m.partnerMood.isNotEmpty ? m.partnerMood : '😐',
+            ),
+            builder: (context, moods, _) {
+              return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _EmojiDisplay(
-                      emoji: moodState.userMood.isNotEmpty
-                          ? moodState.userMood
-                          : '😐',
+                      emoji: moods.$1,
                       glowColor: _C.primaryContainer,
                     ),
-                    // Divider
                     Container(
                       height: 48,
                       width: 1,
@@ -406,16 +404,19 @@ class _HomepageScreenState extends State<HomepageScreen>
                       ),
                     ),
                     _EmojiDisplay(
-                      emoji: moodState.partnerMood.isNotEmpty
-                          ? moodState.partnerMood
-                          : '😐',
+                      emoji: moods.$2,
                       glowColor: _C.secondary,
                     ),
                   ],
                 ),
-              ),
-              // Miss You button
-              Padding(
+              );
+            },
+          ),
+          Selector<HomepageState, int>(
+            selector: (_, h) => h.totalMissYou,
+            builder: (context, totalMissYou, _) {
+              final hpState = context.read<HomepageState>();
+              return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                 child: Center(
                   child: GestureDetector(
@@ -425,31 +426,31 @@ class _HomepageScreenState extends State<HomepageScreen>
                           context, context.loc.home_missYouSent);
                     },
                     child: _MissYouButton(
-                      count: hpState.totalMissYou,
+                      count: totalMissYou,
                       pulseAnim: _pulseAnim,
                     ),
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   // ── Bucket List ────────────────────────────────────────────────────────────
   Widget _buildPendingBucketList() {
-    return Consumer<BucketState>(
-      builder: (context, state, _) {
-        final all = state.items.where((item) => !item.done);
+    return Selector<BucketState, (List<BucketItem>, bool)>(
+      selector: (_, s) => (s.items, s.isLoading),
+      builder: (context, bucketData, _) {
+        final all = bucketData.$1.where((item) => !item.done);
         final pendingItems = all.take(4).toList();
         final totalPending = all.length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
@@ -484,7 +485,7 @@ class _HomepageScreenState extends State<HomepageScreen>
               ),
             ),
             const SizedBox(height: 12),
-            if (state.isLoading && pendingItems.isEmpty)
+            if (bucketData.$2 && pendingItems.isEmpty)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),

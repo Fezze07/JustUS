@@ -19,7 +19,6 @@ class MoodState extends BaseState {
   List<MoodEntry> _timeline = [];
   int _timelineOffset = 0;
   bool _hasMoreTimeline = false;
-
   String get userMood => _userMood;
   String get partnerMood => _partnerMood;
   List<String> get recentEmojis => _recentEmojis;
@@ -27,11 +26,6 @@ class MoodState extends BaseState {
   String? get partnerMoodUpdatedAt => _partnerMoodUpdatedAt;
   List<MoodEntry> get timeline => _timeline;
   bool get hasMoreTimeline => _hasMoreTimeline;
-
-  Future<void> init() async {
-    await initHome();
-    await initMoodScreen();
-  }
 
   Future<void> initHome() async {
     await loadWithChangeDetection(
@@ -205,6 +199,16 @@ class MoodState extends BaseState {
         notifyListeners();
       });
     }, showLoading: false);
+  }
+
+  Future<void> refreshFromRealtime() async {
+    await Future.wait([
+      fetchMyMood(),
+      fetchPartnerMood(),
+      fetchRecentEmojis(),
+      fetchTimeline(),
+    ]);
+    await _updateMoodsCheckpoint();
   }
 
   Future<void> updateMood(String emoji) async {

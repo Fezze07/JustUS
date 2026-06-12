@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => hasPartner
-                          ? const HomepageScreen()
+                          ? MainShell(key: MainShell.shellKey)
                           : const PartnerScreen(),
                     ),
                   ));

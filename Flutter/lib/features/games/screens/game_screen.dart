@@ -19,21 +19,7 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadData());
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant GameScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      unawaited(_loadData());
-    }
-  }
+  bool _dataLoadedOnce = false;
 
   Future<void> _loadData({bool force = false}) async {
     if (force) {
@@ -42,14 +28,15 @@ class _GameScreenState extends State<GameScreen> {
 
     if (!mounted) return;
 
-    await Future.wait([
-      context.read<GameState>().init(),
-      context.read<ProfileState>().loadProfile(),
-    ]);
+    await context.read<GameState>().init();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isActive && !_dataLoadedOnce) {
+      _dataLoadedOnce = true;
+      unawaited(_loadData(force: true));
+    }
     return VPScaffold(
       showAppBar: false,
       body: SafeArea(

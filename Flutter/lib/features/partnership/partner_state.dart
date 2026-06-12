@@ -59,16 +59,26 @@ class PartnerState extends BaseState {
     await runSafe(() async {
       final result = await _repo.getPartnership();
 
-      await handleResult(result, onSuccess: (value) async {
-        _partnershipInfo = value;
-        if (value.partner != null) {
-          await StorageService.savePartner(
-            value.partner!.id,
-            value.partner!.username,
-          );
-        }
-      });
+      await handleResult(result, onSuccess: _applyPartnership);
     });
+  }
+
+  Future<void> refreshFromRealtime() async {
+    await runSafe(() async {
+      final result = await _repo.getPartnership();
+
+      await handleResult(result, onSuccess: _applyPartnership);
+    }, showLoading: false);
+  }
+
+  Future<void> _applyPartnership(PartnershipResponse value) async {
+    _partnershipInfo = value;
+    if (value.partner != null) {
+      await StorageService.savePartner(
+        value.partner!.id,
+        value.partner!.username,
+      );
+    }
   }
 
   /// Sends a partnership request via email and code (maps to request_partnership RPC).

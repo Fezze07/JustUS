@@ -8,9 +8,10 @@ class DriveUploadProgressBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DriveState>(
-      builder: (context, state, child) {
-        if (!state.isUploading) return const SizedBox.shrink();
+    return Selector<DriveState, bool>(
+      selector: (_, s) => s.isUploading,
+      builder: (context, isUploading, child) {
+        if (!isUploading) return const SizedBox.shrink();
 
         return Positioned(
           bottom: 100,

@@ -21,8 +21,9 @@ class PartnershipRepository extends BaseRepository {
     final future = () async {
       try {
         final currentUid = await getUserId();
-        // If the user changed, invalidate and fetch again
+        // If the user changed (both non-null and different), invalidate and fetch again
         if (_activePartnershipUserId != null &&
+            currentUid != null &&
             _activePartnershipUserId != currentUid) {
           clearPartnershipCache();
           _activePartnershipUserId = currentUid;

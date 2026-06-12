@@ -99,10 +99,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return VPScaffold(
       backgroundColor: AppColors.deepViolet,
       showAppBar: false,
-      body: Consumer<ProfileState>(
-        builder: (context, state, _) {
-          final user = state.userProfile;
-          final partner = state.partnerProfile;
+      body: Selector<ProfileState, (User?, User?, bool, DateTime?)>(
+        selector: (_, s) => (s.userProfile, s.partnerProfile, s.isUploading, s.anniversaryDate),
+        builder: (context, profileData, _) {
+          final user = profileData.$1;
+          final partner = profileData.$2;
+          final isUploading = profileData.$3;
           final userPicPath = user?.profilePicUrl;
           final partnerPicPath = partner?.profilePicUrl;
 
@@ -165,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: _pickProfilePhoto,
                             child: VPAvatar(
                               imageUrl: userPicPath,
-                              isUploading: state.isUploading,
+                              isUploading: isUploading,
                             ),
                           ),
                         ),
@@ -313,15 +315,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     VPSettingTile(
                       icon: Icons.calendar_today,
                       title: context.loc.profile_anniversaryTitle,
-                      subtitle: state.anniversaryDate != null
-                          ? "${state.anniversaryDate!.day}/${state.anniversaryDate!.month}/${state.anniversaryDate!.year}"
+                      subtitle: profileData.$4 != null
+                          ? "${profileData.$4!.day}/${profileData.$4!.month}/${profileData.$4!.year}"
                           : context.loc.profile_anniversaryEmpty,
                       trailing: const Icon(Icons.edit, color: Colors.white54),
                       color: AppColors.neonPurple,
                       onTap: () async {
+                        final profileState = context.read<ProfileState>();
                         final picked = await showDatePicker(
                           context: context,
-                          initialDate: state.anniversaryDate ?? DateTime.now(),
+                          initialDate: profileData.$4 ?? DateTime.now(),
                           firstDate: DateTime(1900),
                           lastDate: DateTime.now(),
                           builder: (context, child) {
@@ -338,7 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           },
                         );
                         if (picked != null) {
-                          unawaited(state.updateAnniversaryDate(picked));
+                          unawaited(profileState.updateAnniversaryDate(picked));
                         }
                       },
                     ),

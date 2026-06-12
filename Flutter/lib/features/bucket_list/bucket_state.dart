@@ -11,15 +11,22 @@ class BucketState extends BaseState {
       : _repository = repository ?? BucketRepository();
 
   List<BucketItem> _items = [];
+  bool _isInitLoading = false;
 
   List<BucketItem> get items => _items;
 
   Future<void> init() async {
-    await loadWithChangeDetection(
-      loadFromCache: _loadFromCache,
-      hasChanges: _hasBucketChanges,
-      fetchFromNetwork: fetchBucket,
-    );
+    if (_isInitLoading) return;
+    _isInitLoading = true;
+    try {
+      await loadWithChangeDetection(
+        loadFromCache: _loadFromCache,
+        hasChanges: _hasBucketChanges,
+        fetchFromNetwork: fetchBucket,
+      );
+    } finally {
+      _isInitLoading = false;
+    }
   }
 
   Future<void> _loadFromCache() async {
@@ -69,6 +76,17 @@ class BucketState extends BaseState {
         await _updateBucketCheckpoint();
       });
     });
+  }
+
+  Future<void> refreshFromRealtime() async {
+    await runSafe(() async {
+      final result = await _repository.fetchBucketList();
+      await handleResult(result, onSuccess: (value) async {
+        _items = value;
+        await StorageService.saveBucketList(_items);
+        await _updateBucketCheckpoint();
+      });
+    }, showLoading: false);
   }
 
   Future<void> addItem(String text, String category) async {

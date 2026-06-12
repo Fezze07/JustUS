@@ -58,7 +58,7 @@ class ApiService {
   bool _isRefreshing = false;
 
   // Global callback for session expiration
-  static Function()? onSessionExpired;
+  static Future<void> Function()? onSessionExpired;
 
   // -------------------- Helper Methods --------------------
 
@@ -170,7 +170,7 @@ class ApiService {
               isRetry: true, timeout: timeout, label: label);
         }
         // Refresh failed
-        onSessionExpired?.call();
+        await onSessionExpired?.call();
 
         return const GenericError(
             code: 401, message: 'Session expired. Please login again.');

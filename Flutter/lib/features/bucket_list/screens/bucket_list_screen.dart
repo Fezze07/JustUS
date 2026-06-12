@@ -22,24 +22,8 @@ class _BucketListScreenState extends State<BucketListScreen> {
   String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
   final Set<int> _pendingDeletes = {};
-  late BucketState _bucketState;
-
-  @override
-  void initState() {
-    super.initState();
-    _bucketState = context.read<BucketState>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadData());
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant BucketListScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      unawaited(_loadData());
-    }
-  }
+  BucketState get _bucketState => context.read<BucketState>();
+  bool _dataLoadedOnce = false;
 
   Future<void> _loadData({bool force = false}) async {
     if (force) {
@@ -144,6 +128,10 @@ class _BucketListScreenState extends State<BucketListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isActive && !_dataLoadedOnce) {
+      _dataLoadedOnce = true;
+      unawaited(_loadData(force: true));
+    }
     return VPScaffold(
       showAppBar: false,
       floatingActionButton: FloatingActionButton(
@@ -203,9 +191,10 @@ class _BucketListScreenState extends State<BucketListScreen> {
                 onRefresh: () => _loadData(force: true),
                 color: AppColors.primary,
                 backgroundColor: AppColors.backgroundDark,
-                child: Consumer<BucketState>(
-                  builder: (context, state, child) {
-                    final items = state.items
+                child: Selector<BucketState, (List<BucketItem>, bool)>(
+                  selector: (_, s) => (s.items, s.isLoading),
+                  builder: (context, bucketData, child) {
+                    final items = bucketData.$1
                         .where((item) => !_pendingDeletes.contains(item.id))
                         .map((item) {
                       if (_pendingChanges.containsKey(item.id)) {
@@ -216,7 +205,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                       return item;
                     }).toList();
 
-                    if (state.isLoading && items.isEmpty) {
+                    if (bucketData.$2 && items.isEmpty) {
                       return ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: const [
@@ -257,7 +246,7 @@ class _BucketListScreenState extends State<BucketListScreen> {
                       itemBuilder: (context, index) {
                         final item = filteredItems[index];
 
-                        return _buildBucketItem(item, state);
+                        return _buildBucketItem(item, context.read<BucketState>());
                       },
                     );
                   },

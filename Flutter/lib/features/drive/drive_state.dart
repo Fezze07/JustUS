@@ -29,12 +29,20 @@ class DriveState extends BaseState {
   // ---------------------------------------------------------------------------
   // Initial load: show cache instantly, then run incremental sync
   // ---------------------------------------------------------------------------
+  bool _initialLoading = false;
+
   Future<void> initialLoad() async {
-    await loadWithChangeDetection(
-      loadFromCache: _loadFromCache,
-      hasChanges: _hasDriveChanges,
-      fetchFromNetwork: syncDriveItems,
-    );
+    if (_initialLoading) return;
+    _initialLoading = true;
+    try {
+      await loadWithChangeDetection(
+        loadFromCache: _loadFromCache,
+        hasChanges: _hasDriveChanges,
+        fetchFromNetwork: syncDriveItems,
+      );
+    } finally {
+      _initialLoading = false;
+    }
   }
 
   Future<bool> _hasDriveChanges() async {
@@ -102,6 +110,46 @@ class DriveState extends BaseState {
 
     _isSyncing = false;
     notifyListeners();
+  }
+
+  Future<void> refreshFromRealtime() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+
+    await runSafe(() async {
+      final result = await _repo.fetchDriveItems();
+
+      await handleResult(result, onSuccess: (value) async {
+        _driveItems = value
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _rebuildFavorites();
+        if (_singleItem != null) {
+          final index =
+              _driveItems.indexWhere((item) => item.id == _singleItem!.id);
+          _singleItem = index == -1 ? null : _driveItems[index];
+        }
+        await StorageService.saveDriveItems(_driveItems);
+        await _updateDriveCheckpointFromItems();
+      });
+    }, showLoading: false);
+
+    _isSyncing = false;
+    notifyListeners();
+  }
+
+  Future<void> _updateDriveCheckpointFromItems() async {
+    final latestUpdated = _driveItems
+        .map((item) => DateTime.tryParse(item.updatedAt))
+        .whereType<DateTime>()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    await CacheService.saveCheckpoint(
+      CacheService.kDriveItems,
+      latestUpdated.isEmpty
+          ? CacheService.kCheckpointEmpty
+          : latestUpdated.first.toUtc().toIso8601String(),
+    );
   }
 
   // ---------------------------------------------------------------------------

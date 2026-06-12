@@ -73,35 +73,32 @@ class GameState extends BaseState {
   }
 
   Future<void> _updateGameCheckpoint() async {
-    final uid = await StorageService.getUserId();
-    final partnerId = await StorageService.getPartnerId();
-    if (uid == null || partnerId == null) {
-      if (_history.isEmpty) {
-        await CacheService.saveCheckpoint(
-            CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
-      }
+    if (_history.isEmpty) {
+      await CacheService.saveCheckpoint(
+          CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
       return;
     }
 
-    final serverMax = await _repo.fetchMaxTimestamp(
-      table: 'game_answers',
-      field: 'created_at',
-      filterColumn: 'user_id',
-      filterValues: [uid, partnerId],
-    );
+    final timestamps = _history
+        .map((item) => DateTime.tryParse(item.createdAt))
+        .whereType<DateTime>()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
 
-    if (serverMax != null) {
-      await CacheService.saveCheckpoint(CacheService.kGameAnswers, serverMax);
-    } else if (_history.isEmpty) {
+    if (timestamps.isNotEmpty) {
       await CacheService.saveCheckpoint(
-          CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
+        CacheService.kGameAnswers,
+        timestamps.first.toUtc().toIso8601String(),
+      );
     }
   }
 
-  Future<void> fetchNewQuestion() async {
+  Future<void> fetchNewQuestion({bool showLoading = true}) async {
     if (_isFetchingQuestion) return;
     _isFetchingQuestion = true;
-    _isLoading = true;
+    if (showLoading) {
+      _isLoading = true;
+    }
     notifyListeners();
 
     final result = await _repo.fetchNewGameQuestion();
@@ -124,7 +121,9 @@ class GameState extends BaseState {
         ErrorHandler.handle(AppError.network());
     }
 
-    _isLoading = false;
+    if (showLoading) {
+      _isLoading = false;
+    }
     _isFetchingQuestion = false;
     notifyListeners();
   }
@@ -202,6 +201,20 @@ class GameState extends BaseState {
         ErrorHandler.handle(AppError.network());
     }
     notifyListeners();
+  }
+
+  Future<void> refreshFromRealtime() async {
+    await Future.wait([
+      fetchStats(),
+      fetchHistory(),
+    ]);
+
+    if (_currentQuestion == null ||
+        _currentQuestion!.status != 'both_answered') {
+      await fetchNewQuestion(showLoading: false);
+    }
+
+    await _updateGameCheckpoint();
   }
 
   void clear() {

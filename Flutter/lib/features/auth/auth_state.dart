@@ -324,6 +324,31 @@ class AuthState extends BaseState {
     notifyListeners();
   }
 
+  Future<void> refreshPartnershipFromRealtime() async {
+    try {
+      BaseRepository.clearPartnershipCache();
+      await _fetchInvitations();
+
+      final partnershipResult = await _partnershipRepo.getPartnership();
+      if (partnershipResult is! Success<PartnershipResponse>) return;
+
+      final partner = partnershipResult.value.partner;
+      if (partner != null && partnershipResult.value.status == 'accepted') {
+        _partnerId = partner.id;
+        _partnerDisplayName = partner.username;
+        await StorageService.savePartner(partner.id, partner.username);
+      } else {
+        _partnerId = null;
+        _partnerDisplayName = null;
+        await StorageService.clearPartner();
+      }
+
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) print('[AuthState] realtime partnership refresh error: $e');
+    }
+  }
+
   Future<void> _checkLoginRisk(String email) async {
     try {
       final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
