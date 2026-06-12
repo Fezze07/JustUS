@@ -204,7 +204,7 @@ class GameState extends BaseState {
     ]);
 
     if (_currentQuestion == null ||
-        _currentQuestion!.status == 'both_answered') {
+        _currentQuestion!.status != 'both_answered') {
       await fetchNewQuestion(showLoading: false);
     }
 

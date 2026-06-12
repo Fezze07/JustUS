@@ -61,8 +61,10 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_started || _disposed) return;
 
     _started = true;
+    debugPrint('[RealtimeSync] start() - service started, userId=$_userId');
     WidgetsBinding.instance.addObserver(this);
     _authSubscription = _client.auth.onAuthStateChange.listen((_) {
+      debugPrint('[RealtimeSync] auth state changed, foreground=$_foreground, userId=$_userId');
       if (_foreground && _userId != null) {
         _scheduleReconnect();
       }
@@ -79,11 +81,13 @@ class RealtimeSyncService with WidgetsBindingObserver {
     final changed = _userId != userId ||
         _partnerId != partnerId ||
         _partnershipId != partnershipId;
+    debugPrint('[RealtimeSync] configure() - userId=$userId partnerId=$partnerId partnershipId=$partnershipId changed=$changed foreground=$_foreground');
     _userId = userId;
     _partnerId = partnerId;
     _partnershipId = partnershipId;
 
-    if (userId == null) {
+    if (userId == null || partnershipId == null) {
+      debugPrint('[RealtimeSync] configure() - userId=$userId partnershipId=$partnershipId, deferring subscribe');
       unawaited(_unsubscribe());
       return;
     }
@@ -113,18 +117,24 @@ class RealtimeSyncService with WidgetsBindingObserver {
   }
 
   void _scheduleReconnect({bool refreshAfterSubscribe = false}) {
-    if (_disposed || !_foreground || _userId == null) return;
+    if (_disposed || !_foreground || _userId == null || _subscribing) return;
 
+    debugPrint('[RealtimeSync] _scheduleReconnect() - refreshAfterSubscribe=$refreshAfterSubscribe');
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(milliseconds: 250), () {
+      debugPrint('[RealtimeSync] _scheduleReconnect() - timer fired, calling _subscribe');
       unawaited(_subscribe(refreshAfterSubscribe: refreshAfterSubscribe));
     });
   }
 
   Future<void> _subscribe({required bool refreshAfterSubscribe}) async {
-    if (_disposed || _subscribing || !_foreground || _userId == null) return;
+    if (_disposed || _subscribing || !_foreground || _userId == null) {
+      debugPrint('[RealtimeSync] _subscribe() - SKIP: disposed=$_disposed subscribing=$_subscribing foreground=$_foreground userId=$_userId');
+      return;
+    }
 
     _subscribing = true;
+    debugPrint('[RealtimeSync] _subscribe() - subscribing generation=${_generation + 1} userId=$_userId refreshAfterSubscribe=$refreshAfterSubscribe');
     try {
       await _unsubscribe();
       if (_disposed || !_foreground || _userId == null) return;
@@ -185,6 +195,8 @@ class RealtimeSyncService with WidgetsBindingObserver {
       channel.subscribe((status, error) {
         if (_disposed) return;
 
+        debugPrint('[RealtimeSync] channel status=$status${error != null ? ' error=$error' : ''}');
+
         if (status == sb.RealtimeSubscribeStatus.subscribed) {
           if (refreshAfterSubscribe) {
             unawaited(_refreshAll());
@@ -210,29 +222,38 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _reconnectTimer?.cancel();
     final channel = _channel;
     _channel = null;
-    if (channel == null) return;
+    if (channel == null) {
+      debugPrint('[RealtimeSync] _unsubscribe() - no active channel');
+      return;
+    }
 
+    debugPrint('[RealtimeSync] _unsubscribe() - removing channel');
     try {
       await _client.removeChannel(channel);
+      debugPrint('[RealtimeSync] _unsubscribe() - channel removed');
     } catch (e) {
       if (kDebugMode) debugPrint('[RealtimeSync] removeChannel failed: $e');
     }
   }
 
   void _handleMoodPayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handleMoodPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantMood(payload) || !_markSeen(payload)) return;
 
     _moodRefreshTimer?.cancel();
     _moodRefreshTimer = Timer(const Duration(milliseconds: 120), () {
+      debugPrint('[RealtimeSync] _handleMoodPayload -> refreshFromRealtime()');
       unawaited(_moodState.refreshFromRealtime());
     });
   }
 
   void _handlePartnershipPayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handlePartnershipPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantPartnership(payload) || !_markSeen(payload)) return;
 
     _partnershipRefreshTimer?.cancel();
     _partnershipRefreshTimer = Timer(const Duration(milliseconds: 150), () {
+      debugPrint('[RealtimeSync] _handlePartnershipPayload -> refreshFromRealtime()');
       BaseRepository.clearPartnershipCache();
       unawaited(Future.wait([
         _partnerState.refreshFromRealtime(),
@@ -242,37 +263,45 @@ class RealtimeSyncService with WidgetsBindingObserver {
   }
 
   void _handleMissYouPayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handleMissYouPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantMissYou(payload) || !_markSeen(payload)) return;
 
     _missYouRefreshTimer?.cancel();
     _missYouRefreshTimer = Timer(const Duration(milliseconds: 120), () {
+      debugPrint('[RealtimeSync] _handleMissYouPayload -> refreshFromRealtime()');
       unawaited(_homepageState.refreshFromRealtime());
     });
   }
 
   void _handleBucketPayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handleBucketPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isPartnershipRecord(payload) || !_markSeen(payload)) return;
 
     _bucketRefreshTimer?.cancel();
     _bucketRefreshTimer = Timer(const Duration(milliseconds: 120), () {
+      debugPrint('[RealtimeSync] _handleBucketPayload -> refreshFromRealtime()');
       unawaited(_bucketState.refreshFromRealtime());
     });
   }
 
   void _handleGamePayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handleGamePayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantGame(payload) || !_markSeen(payload)) return;
 
     _gameRefreshTimer?.cancel();
     _gameRefreshTimer = Timer(const Duration(milliseconds: 150), () {
+      debugPrint('[RealtimeSync] _handleGamePayload -> refreshFromRealtime()');
       unawaited(_gameState.refreshFromRealtime());
     });
   }
 
   void _handleDrivePayload(sb.PostgresChangePayload payload) {
+    debugPrint('[RealtimeSync] _handleDrivePayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantDrive(payload) || !_markSeen(payload)) return;
 
     _driveRefreshTimer?.cancel();
     _driveRefreshTimer = Timer(const Duration(milliseconds: 150), () {
+      debugPrint('[RealtimeSync] _handleDrivePayload -> refreshFromRealtime()');
       unawaited(_driveState.refreshFromRealtime());
     });
   }
@@ -361,8 +390,12 @@ class RealtimeSyncService with WidgetsBindingObserver {
       payload.commitTimestamp.toUtc().toIso8601String(),
     ].join(':');
 
-    if (_recentEventKeySet.contains(key)) return false;
+    if (_recentEventKeySet.contains(key)) {
+      debugPrint('[RealtimeSync] _markSeen - DUPLICATE key=$key');
+      return false;
+    }
 
+    debugPrint('[RealtimeSync] _markSeen - NEW event key=$key');
     _recentEventKeys.addLast(key);
     _recentEventKeySet.add(key);
     const maxTrackedEvents = 80;
@@ -374,6 +407,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
   }
 
   Future<void> _refreshAll() async {
+    debugPrint('[RealtimeSync] _refreshAll() - refreshing all states');
     await Future.wait([
       _moodState.refreshFromRealtime(),
       _homepageState.refreshFromRealtime(),
@@ -383,6 +417,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
       _gameState.refreshFromRealtime(),
       _driveState.refreshFromRealtime(),
     ]);
+    debugPrint('[RealtimeSync] _refreshAll() - done');
   }
 
   Future<void> dispose() async {

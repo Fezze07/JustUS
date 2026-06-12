@@ -29,6 +29,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
       gameState: context.read<GameState>(),
       driveState: context.read<DriveState>(),
     )..start();
+    debugPrint('[RealtimeSync] RealtimeSyncScope created');
   }
 
   @override
@@ -38,6 +39,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
 
+          debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=${partnerState.partnershipInfo?.partnershipId}');
           _service?.configure(
             userId: authState.userId,
             partnerId: authState.partnerId ??
