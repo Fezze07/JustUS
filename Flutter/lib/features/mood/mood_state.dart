@@ -99,9 +99,10 @@ class MoodState extends BaseState {
 
     final cachedTimeline = results[1] as List<MoodEntry>;
     if (cachedTimeline.isNotEmpty) {
-      _timeline = cachedTimeline;
-      _timelineOffset = cachedTimeline.length;
-      _hasMoreTimeline = true;
+      const initialPageSize = 4;
+      _timeline = cachedTimeline.take(initialPageSize).toList();
+      _timelineOffset = _timeline.length;
+      _hasMoreTimeline = cachedTimeline.length > initialPageSize;
     }
 
     notifyListeners();
