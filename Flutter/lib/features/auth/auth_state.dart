@@ -15,6 +15,8 @@ class AuthState extends BaseState {
   final PartnershipRepository _partnershipRepo;
   final UserRepository _userRepo;
 
+  StreamSubscription<dynamic>? _authSubscription;
+
   AuthState({
     AuthRepository? authRepo,
     PartnershipRepository? partnershipRepo,
@@ -113,7 +115,7 @@ class AuthState extends BaseState {
     }
 
     // Sincronizza lo StorageService quando Supabase refresha il token in background
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final evt = data.event;
       final currentSession = data.session;
       if (evt == AuthChangeEvent.tokenRefreshed && currentSession != null) {
@@ -255,8 +257,17 @@ class AuthState extends BaseState {
 
       final result = await _partnershipRepo.getPendingInvitations();
       if (result is Success<List<PartnershipInvitation>>) {
-        _sentInvitations = result.value.where((i) => !i.isReceived).toList();
-        _receivedInvitations = result.value.where((i) => i.isReceived).toList();
+        final sent = <PartnershipInvitation>[];
+        final received = <PartnershipInvitation>[];
+        for (final inv in result.value) {
+          if (inv.isReceived) {
+            received.add(inv);
+          } else {
+            sent.add(inv);
+          }
+        }
+        _sentInvitations = sent;
+        _receivedInvitations = received;
         notifyListeners();
       }
     } catch (e) {
@@ -396,6 +407,12 @@ class AuthState extends BaseState {
   }
 
   Future<String?> _getCaptchaToken() => CaptchaService.getCaptchaToken();
+
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    super.dispose();
+  }
 
   Future<void> logout() async {
     await _authRepo.signOut();

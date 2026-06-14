@@ -11,16 +11,13 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class GameScreen extends TabScreen {
-  const GameScreen({super.key, super.isActive});
+  const GameScreen({super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> with TabScreenMixin {
-  @override
-  bool get activeForTab => widget.isActive;
-
   @override
   Future<void> loadData({bool force = false}) async {
     if (force) {
@@ -34,7 +31,6 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    handleScreenActivation();
     return VPScaffold(
       showAppBar: false,
       body: SafeArea(
@@ -51,110 +47,116 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
 
             // Content
             Expanded(
-              child: Consumer<GameState>(
-                builder: (context, state, _) {
-                  return RefreshIndicator(
-                    onRefresh: () => loadData(force: true),
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.backgroundDark,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const SizedBox(height: 16),
+              child: RefreshIndicator(
+                onRefresh: () => loadData(force: true),
+                color: AppColors.primary,
+                backgroundColor: AppColors.backgroundDark,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 16),
 
-                          // Daily Game Card
-                          _buildDailyGameCard(state),
-
-                          const SizedBox(height: 32),
-
-                          // Status Section (You vs Partner)
-                          Consumer<ProfileState>(
-                            builder: (context, profile, _) =>
-                                _buildStatusSection(profile, state),
-                          ),
-
-                          const SizedBox(height: 48),
-
-                          // History Section
-                          VPSectionHeader(
-                            title: context.loc.game_historyTitle,
-                            actionLabel: context.loc.home_viewAll,
-                            onActionTap: () {},
-                            padding: EdgeInsets.zero,
-                          ),
-                          const SizedBox(height: 16),
-                          if (state.history.isEmpty)
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(32.0),
-                                child: Text(
-                                  context.loc.game_noMatches,
-                                  style: VpWidgets.googleFont(
-                                    color: Colors.white38,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            Builder(
-                              builder: (context) {
-                                final profile = context.read<ProfileState>();
-
-                                return Column(
-                                  children: state.history.take(5).map((item) {
-                                    String status;
-                                    Color badgeColor;
-                                    IconData icon;
-
-                                    if (item.isMatched) {
-                                      status =
-                                          context.loc.game_statusBothAgreed;
-                                      badgeColor = AppColors.neonGreen;
-                                      icon = Icons.check_circle;
-                                    } else if (item.isDisagreed) {
-                                      status = context.loc.game_statusDisagreed;
-                                      badgeColor = AppColors.neonPink;
-                                      icon = Icons.cancel;
-                                    } else if (item.userOption == null &&
-                                        item.partnerOption != null) {
-                                      status =
-                                          context.loc.game_statusWaitingForYou;
-                                      badgeColor = AppColors.neonBlue;
-                                      icon = Icons.access_time;
-                                    } else {
-                                      status = context.loc.game_statusWaiting;
-                                      badgeColor = AppColors.neonBlue;
-                                      icon = Icons.access_time;
-                                    }
-
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: GameHistoryCard(
-                                        question: item.question,
-                                        status: status,
-                                        badgeColor: badgeColor,
-                                        icon: icon,
-                                        userImageUrl:
-                                            profile.userProfile?.profilePicUrl,
-                                        partnerImageUrl: profile
-                                            .partnerProfile?.profilePicUrl,
-                                      ),
-                                    );
-                                  }).toList(),
-                                );
-                              },
-                            ),
-                          const SizedBox(height: 32),
-                        ],
+                      // Daily Game Card
+                      Selector<GameState, (GameNewQuestionResponse?, bool, bool)>(
+                        selector: (_, s) => (s.currentQuestion, s.isFetchingQuestion, s.isLoading),
+                        builder: (context, _, __) =>
+                            _buildDailyGameCard(context.read<GameState>()),
                       ),
-                    ),
-                  );
-                },
+
+                      const SizedBox(height: 32),
+
+                      // Status Section (You vs Partner)
+                      Consumer2<GameState, ProfileState>(
+                        builder: (context, gs, ps, _) => _buildStatusSection(
+                          gs.currentQuestion?.hasAnswered ?? false,
+                          gs.currentQuestion?.partnerAnswered ?? false,
+                          ps.userProfile,
+                          ps.partnerProfile,
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
+
+                      // History Section
+                      Selector<GameState, List<GameHistoryItem>>(
+                        selector: (_, s) => s.history,
+                        builder: (context, history, _) {
+                          final profile = context.read<ProfileState>();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              VPSectionHeader(
+                                title: context.loc.game_historyTitle,
+                                actionLabel: context.loc.home_viewAll,
+                                onActionTap: () {},
+                                padding: EdgeInsets.zero,
+                              ),
+                              const SizedBox(height: 16),
+                              if (history.isEmpty)
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Text(
+                                      context.loc.game_noMatches,
+                                      style: VpWidgets.googleFont(
+                                        color: Colors.white38,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...history.take(5).map((item) {
+                                  String status;
+                                  Color badgeColor;
+                                  IconData icon;
+
+                                  if (item.isMatched) {
+                                    status = context.loc.game_statusBothAgreed;
+                                    badgeColor = AppColors.neonGreen;
+                                    icon = Icons.check_circle;
+                                  } else if (item.isDisagreed) {
+                                    status = context.loc.game_statusDisagreed;
+                                    badgeColor = AppColors.neonPink;
+                                    icon = Icons.cancel;
+                                  } else if (item.userOption == null &&
+                                      item.partnerOption != null) {
+                                    status = context.loc.game_statusWaitingForYou;
+                                    badgeColor = AppColors.neonBlue;
+                                    icon = Icons.access_time;
+                                  } else {
+                                    status = context.loc.game_statusWaiting;
+                                    badgeColor = AppColors.neonBlue;
+                                    icon = Icons.access_time;
+                                  }
+
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 12),
+                                    child: GameHistoryCard(
+                                      question: item.question,
+                                      status: status,
+                                      badgeColor: badgeColor,
+                                      icon: icon,
+                                      userImageUrl:
+                                          profile.userProfile?.profilePicUrl,
+                                      partnerImageUrl: profile
+                                          .partnerProfile?.profilePicUrl,
+                                    ),
+                                  );
+                                }),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -353,16 +355,14 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
     );
   }
 
-  Widget _buildStatusSection(ProfileState profile, GameState game) {
-    final userDone = game.currentQuestion?.hasAnswered ?? false;
-    final partnerDone = game.currentQuestion?.partnerAnswered ?? false;
-
+  Widget _buildStatusSection(
+      bool userDone, bool partnerDone, User? userProfile, User? partnerProfile) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         VPUserAvatar(
-          name: profile.userProfile?.username ?? context.loc.common_youTitle,
-          imageUrl: profile.userProfile?.profilePicUrl,
+          name: userProfile?.username ?? context.loc.common_youTitle,
+          imageUrl: userProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
             decoration: const BoxDecoration(
@@ -375,8 +375,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           ),
         ),
         VPUserAvatar(
-          name: profile.partnerProfile?.username ?? context.loc.common_partner,
-          imageUrl: profile.partnerProfile?.profilePicUrl,
+          name: partnerProfile?.username ?? context.loc.common_partner,
+          imageUrl: partnerProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
             decoration: const BoxDecoration(

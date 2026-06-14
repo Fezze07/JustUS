@@ -63,8 +63,20 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _started = true;
     debugPrint('[RealtimeSync] start() - service started, userId=$_userId');
     WidgetsBinding.instance.addObserver(this);
-    _authSubscription = _client.auth.onAuthStateChange.listen((_) {
-      debugPrint('[RealtimeSync] auth state changed, foreground=$_foreground, userId=$_userId');
+    _authSubscription = _client.auth.onAuthStateChange.listen((authState) {
+      debugPrint('[RealtimeSync] auth state changed: event=${authState.event} foreground=$_foreground userId=$_userId');
+
+      // Token refresh is handled internally by Supabase; just update the
+      // JWT on the existing Realtime connection without disconnecting.
+      if (authState.event == sb.AuthChangeEvent.tokenRefreshed) {
+        final token = authState.session?.accessToken;
+        if (token != null) {
+          debugPrint('[RealtimeSync] token refreshed -> realtime.setAuth()');
+          unawaited(_client.realtime.setAuth(token));
+        }
+        return;
+      }
+
       if (_foreground && _userId != null) {
         _scheduleReconnect();
       }

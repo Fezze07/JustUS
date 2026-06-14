@@ -56,23 +56,26 @@ class ProfileState extends BaseState {
       notifyListeners();
 
       if (!shouldSkipServer) {
-        // Fetch user profile from server
-        final userResult = await _userRepo.fetchProfile();
+        final results = await Future.wait([
+          _userRepo.fetchProfile(),
+          _partnershipRepo.fetchPartnerProfile(),
+          _partnershipRepo.getPartnership(),
+        ]);
+
+        final userResult = results[0] as ResultWrapper<User>;
         await handleResult(userResult, onSuccess: (value) async {
           _userProfile = value;
           await StorageService.saveUserProfile(value);
           _lastFetch = DateTime.now();
         });
 
-        // Fetch partner profile from server
-        final partnerResult = await _partnershipRepo.fetchPartnerProfile();
+        final partnerResult = results[1] as ResultWrapper<User>;
         await handleResult(partnerResult, onSuccess: (value) async {
           _partnerProfile = value;
           await StorageService.savePartnerProfile(value);
         });
 
-        // Fetch partnership (for anniversary)
-        final partnershipResult = await _partnershipRepo.getPartnership();
+        final partnershipResult = results[2] as ResultWrapper<PartnershipResponse>;
         if (partnershipResult is Success<PartnershipResponse>) {
           _anniversaryDate = partnershipResult.value.anniversaryDate;
         }

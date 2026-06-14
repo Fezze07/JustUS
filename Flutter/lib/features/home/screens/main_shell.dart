@@ -12,21 +12,23 @@ class MainShell extends StatefulWidget {
 
 class MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final TabIndexNotifier _tabNotifier = TabIndexNotifier();
   final Set<int> _builtPages = {0};
 
   void switchToTab(int index) {
     _builtPages.add(index);
+    _tabNotifier.index = index;
     setState(() => _currentIndex = index);
   }
 
   Widget _pageWidget(int index) {
     switch (index) {
       case 0: return const HomepageScreen();
-      case 1: return GameScreen(isActive: _currentIndex == 1);
-      case 2: return MoodScreen(isActive: _currentIndex == 2);
-      case 3: return BucketListScreen(isActive: _currentIndex == 3);
-      case 4: return DriveScreen(isActive: _currentIndex == 4);
-      case 5: return FavoritesScreen(isActive: _currentIndex == 5);
+      case 1: return GameScreen(tabIndex: 1, tabNotifier: _tabNotifier);
+      case 2: return MoodScreen(tabIndex: 2, tabNotifier: _tabNotifier);
+      case 3: return BucketListScreen(tabIndex: 3, tabNotifier: _tabNotifier);
+      case 4: return DriveScreen(tabIndex: 4, tabNotifier: _tabNotifier);
+      case 5: return FavoritesScreen(tabIndex: 5, tabNotifier: _tabNotifier);
       case 6: return const ProfileScreen();
       default: return const SizedBox.shrink();
     }
@@ -54,6 +56,7 @@ class MainShellState extends State<MainShell> {
               currentIndex: _currentIndex,
               onIndexChanged: (index) {
                 _builtPages.add(index);
+                _tabNotifier.index = index;
                 setState(() => _currentIndex = index);
               },
             ),

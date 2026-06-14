@@ -444,7 +444,7 @@ class _HomepageScreenState extends State<HomepageScreen>
     return Selector<BucketState, (List<BucketItem>, bool)>(
       selector: (_, s) => (s.items, s.isLoading),
       builder: (context, bucketData, _) {
-        final all = bucketData.$1.where((item) => !item.done);
+        final all = bucketData.$1.where((item) => !item.done).toList();
         final pendingItems = all.take(4).toList();
         final totalPending = all.length;
 

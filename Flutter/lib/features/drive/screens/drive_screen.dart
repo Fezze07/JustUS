@@ -13,16 +13,13 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class DriveScreen extends TabScreen {
-  const DriveScreen({super.key, super.isActive});
+  const DriveScreen({super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<DriveScreen> createState() => _DriveScreenState();
 }
 
 class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
-  @override
-  bool get activeForTab => widget.isActive;
-
   @override
   Future<void> loadData({bool force = false}) async {
     if (force) {
@@ -50,7 +47,6 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    handleScreenActivation();
     return Scaffold(
       backgroundColor: AppColors.deepViolet,
       body: Stack(

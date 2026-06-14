@@ -10,16 +10,13 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class FavoritesScreen extends TabScreen {
-  const FavoritesScreen({super.key, super.isActive});
+  const FavoritesScreen({super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
-  @override
-  bool get activeForTab => widget.isActive;
-
   @override
   Future<void> loadData({bool force = false}) async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -32,7 +29,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    handleScreenActivation();
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(

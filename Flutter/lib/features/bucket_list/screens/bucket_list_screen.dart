@@ -10,16 +10,13 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class BucketListScreen extends TabScreen {
-  const BucketListScreen({super.key, super.isActive});
+  const BucketListScreen({super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<BucketListScreen> createState() => _BucketListScreenState();
 }
 
 class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin {
-  @override
-  bool get activeForTab => widget.isActive;
-
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
@@ -130,7 +127,6 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
 
   @override
   Widget build(BuildContext context) {
-    handleScreenActivation();
     return VPScaffold(
       showAppBar: false,
       floatingActionButton: FloatingActionButton(

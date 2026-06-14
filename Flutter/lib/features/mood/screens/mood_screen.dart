@@ -12,16 +12,13 @@ import 'package:intl/intl.dart';
 import 'package:justus/all_imports.dart';
 
 class MoodScreen extends TabScreen {
-  const MoodScreen({super.key, super.isActive});
+  const MoodScreen({super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<MoodScreen> createState() => _MoodScreenState();
 }
 
 class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
-  @override
-  bool get activeForTab => widget.isActive;
-
   @override
   Future<void> loadData({bool force = false}) async {
     if (force) {
@@ -42,7 +39,6 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    handleScreenActivation();
     return VPScaffold(
       title: context.loc.mood_boardTitle,
       leading: IconButton(
