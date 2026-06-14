@@ -35,9 +35,6 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
   @override
   void dispose() {
     _addController.dispose();
-    if (_pendingChanges.isNotEmpty) {
-      unawaited(_bucketState.flushPendingChanges(_pendingChanges));
-    }
     super.dispose();
   }
 
@@ -314,6 +311,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                     _pendingChanges[item.id] = newDone;
                   }
                 });
+                unawaited(state.toggleDone(item.id, newDone));
               },
               child: Container(
                 width: 24,

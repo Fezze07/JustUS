@@ -1,6 +1,4 @@
-// =============================================================================
-// BucketState - Bucket list screen state management
-// =============================================================================
+import 'dart:async';
 
 import 'package:justus/all_imports.dart';
 
@@ -11,9 +9,20 @@ class BucketState extends BaseState {
       : _repository = repository ?? BucketRepository();
 
   List<BucketItem> _items = [];
+  final Set<int> _knownIds = {};
   bool _isInitLoading = false;
+  Timer? _cacheDebounceTimer;
 
   List<BucketItem> get items => _items;
+
+  @override
+  void dispose() {
+    _cacheDebounceTimer?.cancel();
+    unawaited(_flushCache());
+    super.dispose();
+  }
+
+  // --- Init & Fetch ---
 
   Future<void> init() async {
     if (_isInitLoading) return;
@@ -31,6 +40,7 @@ class BucketState extends BaseState {
 
   Future<void> _loadFromCache() async {
     _items = await StorageService.getBucketList();
+    _knownIds.addAll(_items.map((i) => i.id));
     notifyListeners();
   }
 
@@ -72,8 +82,10 @@ class BucketState extends BaseState {
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
         _items = value;
-        await StorageService.saveBucketList(_items);
-        await _updateBucketCheckpoint();
+        _knownIds
+          ..clear()
+          ..addAll(_items.map((i) => i.id));
+        await _flushCache();
       });
     });
   }
@@ -83,11 +95,15 @@ class BucketState extends BaseState {
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
         _items = value;
-        await StorageService.saveBucketList(_items);
-        await _updateBucketCheckpoint();
+        _knownIds
+          ..clear()
+          ..addAll(_items.map((i) => i.id));
+        await _flushCache();
       });
     }, showLoading: false);
   }
+
+  // --- Mutations (fire-and-forget, Realtime is source of truth) ---
 
   Future<void> addItem(String text, String category) async {
     if (text.trim().isEmpty) {
@@ -98,29 +114,17 @@ class BucketState extends BaseState {
 
     await runSafe(() async {
       final result = await _repository.addBucketItem(text, category);
-      await handleResult(result, onSuccess: (item) async {
-        _items = [item, ..._items];
-        await StorageService.saveBucketList(_items);
-        await _updateBucketCheckpoint();
-      });
+      if (result is GenericError || result is NetworkError) {
+        await handleResult(result);
+      }
     });
   }
 
-  Future<void> toggleDone(int id) async {
+  Future<void> toggleDone(int id, bool done) async {
     await runSafe(() async {
-      final item = _items.firstWhere((i) => i.id == id);
-      final newDoneStatus = !item.done;
-
-      final result = await _repository.toggleBucketItem(id, newDoneStatus);
-      if (result is Success<BucketItem>) {
-        _items = _items.map((i) {
-          if (i.id == id) {
-            return i.copyWith(done: newDoneStatus);
-          }
-
-          return i;
-        }).toList();
-        await StorageService.saveBucketList(_items);
+      final result = await _repository.toggleBucketItem(id, done);
+      if (result is GenericError || result is NetworkError) {
+        await handleResult(result);
       }
     });
   }
@@ -128,69 +132,67 @@ class BucketState extends BaseState {
   Future<void> deleteItem(int id) async {
     await runSafe(() async {
       final result = await _repository.deleteBucketItem(id);
-      if (result is Success) {
-        _items = _items.where((item) => item.id != id).toList();
-        await StorageService.saveBucketList(_items);
+      if (result is GenericError || result is NetworkError) {
+        await handleResult(result);
       }
     });
   }
 
-  Future<void> flushPendingChanges(Map<int, bool> changes) async {
-    if (changes.isEmpty) return;
-    await runSafe(() async {
-      final futures = changes.entries
-          .map((entry) => _repository.toggleBucketItem(entry.key, entry.value));
-      final results = await Future.wait(futures);
-      for (final result in results) {
-        if (result is Success<BucketItem>) {
-          _items = _items
-              .map((i) => i.id == result.value.id ? result.value : i)
-              .toList();
-        }
-      }
-      await StorageService.saveBucketList(_items);
-      await _updateBucketCheckpoint();
-    });
-  }
-
-  void clear() {
-    _items = [];
-    notifyListeners();
-  }
+  // --- Realtime (single source of truth) ---
 
   Future<void> applyRealtimeEvent({
     required String eventType,
     required Map<String, dynamic> newRecord,
     required Map<String, dynamic> oldRecord,
   }) async {
+    bool changed = false;
+
     switch (eventType) {
       case 'insert':
         final item = BucketItem.fromJson(newRecord);
-        if (_items.any((i) => i.id == item.id)) return;
+        if (!_knownIds.add(item.id)) return;
         _items = [item, ..._items];
-        await StorageService.saveBucketList(_items);
-        await _updateBucketCheckpoint();
-        notifyListeners();
-        break;
+        changed = true;
       case 'update':
         final item = BucketItem.fromJson(newRecord);
+        if (!_knownIds.contains(item.id)) return;
         final index = _items.indexWhere((i) => i.id == item.id);
-        if (index != -1) {
-          _items = _items.toList();
-          _items[index] = item;
-          await StorageService.saveBucketList(_items);
-          notifyListeners();
-        }
-        break;
+        if (index == -1) return;
+        _items = _items.toList();
+        _items[index] = item;
+        changed = true;
       case 'delete':
         final id = (oldRecord['id'] as num?)?.toInt();
-        if (id != null) {
-          _items = _items.where((i) => i.id != id).toList();
-          await StorageService.saveBucketList(_items);
-          await _updateBucketCheckpoint();
-          notifyListeners();
-        }
-        break;
+        if (id == null || !_knownIds.remove(id)) return;
+        _items = _items.where((i) => i.id != id).toList();
+        changed = true;
     }
+
+    if (changed) {
+      _scheduleCacheSave();
+      notifyListeners();
+    }
+  }
+
+  // --- Debounced cache ---
+
+  void _scheduleCacheSave() {
+    _cacheDebounceTimer?.cancel();
+    _cacheDebounceTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(_flushCache());
+    });
+  }
+
+  Future<void> _flushCache() async {
+    await StorageService.saveBucketList(_items);
+    await _updateBucketCheckpoint();
+  }
+
+  void clear() {
+    _cacheDebounceTimer?.cancel();
+    _cacheDebounceTimer = null;
+    _items = [];
+    _knownIds.clear();
+    notifyListeners();
   }
 }

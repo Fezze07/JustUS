@@ -31,7 +31,7 @@ class BucketRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<BucketItem>> addBucketItem(
+  Future<ResultWrapper<void>> addBucketItem(
       String text, String? category) async {
     return withPartnership((partnershipId) async {
       final dataToInsert = {
@@ -44,29 +44,16 @@ class BucketRepository extends BaseRepository {
         dataToInsert['category'] = category;
       }
 
-      final data = await sbClient
-          .from('bucket_items')
-          .insert(dataToInsert)
-          .select()
-          .maybeSingle();
-
-      if (data == null) throw Exception("Errore durante l'aggiunta");
-
-      return BucketItem.fromJson(data);
+      await sbClient.from('bucket_items').insert(dataToInsert);
     });
   }
 
-  Future<ResultWrapper<BucketItem>> toggleBucketItem(int id, bool done) async {
+  Future<ResultWrapper<void>> toggleBucketItem(int id, bool done) async {
     return tryCall(() async {
-      final data = await sbClient
+      await sbClient
           .from('bucket_items')
           .update({'done': done})
-          .eq('id', id)
-          .select()
-          .maybeSingle();
-      if (data == null) throw Exception("Errore aggiornamento item");
-
-      return BucketItem.fromJson(data);
+          .eq('id', id);
     });
   }
 
