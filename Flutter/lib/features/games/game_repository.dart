@@ -13,14 +13,14 @@ class GameRepository extends BaseRepository {
 
       var query = sbClient
           .from('game_questions')
-          .select()
+          .select('id, question, created_at, partnership_id')
           .order('created_at', ascending: false)
           .limit(1);
 
       if (partnershipId != null) {
         query = sbClient
             .from('game_questions')
-            .select()
+            .select('id, question, created_at, partnership_id')
             .eq('partnership_id', partnershipId)
             .order('created_at', ascending: false)
             .limit(1);
@@ -38,7 +38,7 @@ class GameRepository extends BaseRepository {
     return tryCall(() async {
       final List<dynamic> data = await sbClient
           .from('game_answers')
-          .select()
+          .select('game_id, user_id, selected_option, created_at')
           .eq('game_id', questionId);
 
       return data
@@ -58,6 +58,15 @@ class GameRepository extends BaseRepository {
     });
   }
 
+  Future<ResultWrapper<void>> updateQuestionStatus(int questionId, String status) {
+    return tryCall(() async {
+      await sbClient
+          .from('game_questions')
+          .update({'status': status})
+          .eq('id', questionId);
+    });
+  }
+
   Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
@@ -71,7 +80,7 @@ class GameRepository extends BaseRepository {
 
       final existing = await sbClient
           .from('game_questions')
-          .select()
+          .select('id, question, status, user_id_a, user_id_b')
           .eq('partnership_id', partnershipId)
           .neq('status', 'both_answered')
           .order('created_at', ascending: false)
@@ -114,7 +123,7 @@ class GameRepository extends BaseRepository {
               'user_id_a': partnershipData?['user_id_a'],
               'user_id_b': partnershipData?['user_id_b'],
             })
-            .select()
+            .select('id, question, status, user_id_a, user_id_b')
             .single();
 
         return GameNewQuestionResponse.fromJson({
@@ -128,6 +137,35 @@ class GameRepository extends BaseRepository {
       } else {
         throw Exception('Errore generazione AI');
       }
+    });
+  }
+
+  Future<ResultWrapper<({bool hasAnswered, bool partnerAnswered, int? userOption, int? partnerOption})>>
+      fetchAnswerStatus(int questionId) async {
+    return withUser((uid) async {
+      final List<dynamic> answers = await sbClient
+          .from('game_answers')
+          .select('user_id, selected_option')
+          .eq('game_id', questionId);
+
+      int? userOpt;
+      int? partnerOpt;
+      for (final a in answers) {
+        final aid = a['user_id'] as int?;
+        final opt = a['selected_option'] as int?;
+        if (aid == uid) {
+          userOpt = opt;
+        } else {
+          partnerOpt = opt;
+        }
+      }
+
+      return (
+        hasAnswered: userOpt != null,
+        partnerAnswered: partnerOpt != null,
+        userOption: userOpt,
+        partnerOption: partnerOpt,
+      );
     });
   }
 

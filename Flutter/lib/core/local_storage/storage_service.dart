@@ -256,6 +256,11 @@ class StorageService {
     return _getJson(_keyGameQuestion, GameNewQuestionResponse.fromJson);
   }
 
+  static Future<void> clearCachedGameQuestion() async {
+    final p = await prefs;
+    await p.remove(_keyGameQuestion);
+  }
+
   static Future<void> saveGameHistory(List<GameHistoryItem> items) async {
     await _saveJsonList(_keyGameHistory, items, (e) => e.toJson());
   }

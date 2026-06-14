@@ -305,8 +305,26 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
     _gameRefreshTimer?.cancel();
     _gameRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      debugPrint('[RealtimeSync] _handleGamePayload -> refreshFromRealtime()');
-      unawaited(_gameState.refreshFromRealtime());
+      final table = payload.table;
+      final eventType = payload.eventType.name;
+      final newRecord = payload.newRecord;
+
+      if (table == 'game_questions' && eventType == 'update') {
+        debugPrint('[RealtimeSync] _handleGamePayload -> handleQuestionUpdate()');
+        unawaited(_gameState.handleQuestionUpdate(newRecord));
+      } else if (table == 'game_questions' && eventType == 'delete') {
+        debugPrint('[RealtimeSync] _handleGamePayload -> handleQuestionDelete()');
+        unawaited(_gameState.handleQuestionDelete(payload.oldRecord));
+      } else if (table == 'game_answers' && eventType == 'insert') {
+        debugPrint('[RealtimeSync] _handleGamePayload -> handleAnswerInsert()');
+        unawaited(_gameState.handleAnswerInsert(newRecord));
+      } else if (table == 'game_answers' && eventType == 'update') {
+        debugPrint('[RealtimeSync] _handleGamePayload -> handleAnswerUpdate()');
+        unawaited(_gameState.handleAnswerUpdate(newRecord));
+      } else if (table == 'game_answers' && eventType == 'delete') {
+        debugPrint('[RealtimeSync] _handleGamePayload -> handleAnswerDelete()');
+        unawaited(_gameState.handleAnswerDelete(payload.oldRecord));
+      }
     });
   }
 

@@ -299,22 +299,31 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                   _buildOptionButton(context, state, 'B',
                       state.currentQuestion!.optionB, Colors.purple),
                 ] else ...[
-                  const Icon(Icons.check_circle,
-                      size: 64, color: AppColors.neonGreen),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.loc.game_allCaughtUp,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => state.fetchNewQuestion(),
-                    child: Text(
-                      context.loc.game_tryFetchingAgain,
-                      style: const TextStyle(color: AppColors.neonBlue),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle,
+                            size: 64, color: AppColors.neonGreen),
+                        const SizedBox(height: 16),
+                        Text(
+                          context.loc.game_allCaughtUp,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => state.fetchNewQuestion(),
+                          child: Text(
+                            context.loc.game_tryFetchingAgain,
+                            style:
+                                const TextStyle(color: AppColors.neonBlue),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

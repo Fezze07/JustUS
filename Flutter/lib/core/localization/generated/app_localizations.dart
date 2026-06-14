@@ -1319,13 +1319,13 @@ abstract class AppLocalizations {
   /// No description provided for @game_allCaughtUp.
   ///
   /// In it, this message translates to:
-  /// **'Hai completato tutto!'**
+  /// **'Pronti per una nuova domanda?'**
   String get game_allCaughtUp;
 
   /// No description provided for @game_tryFetchingAgain.
   ///
   /// In it, this message translates to:
-  /// **'Prova a recuperare di nuovo'**
+  /// **'Certo, generane una!'**
   String get game_tryFetchingAgain;
 
   /// No description provided for @game_invalidOption.

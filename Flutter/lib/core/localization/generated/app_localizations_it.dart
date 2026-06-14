@@ -642,10 +642,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get game_questionOfDay => 'Domanda del giorno';
 
   @override
-  String get game_allCaughtUp => 'Hai completato tutto!';
+  String get game_allCaughtUp => 'Pronti per una nuova domanda?';
 
   @override
-  String get game_tryFetchingAgain => 'Prova a recuperare di nuovo';
+  String get game_tryFetchingAgain => 'Certo, generane una!';
 
   @override
   String get game_invalidOption => 'Errore: opzione non valida';
