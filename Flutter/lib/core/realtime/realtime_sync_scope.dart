@@ -16,6 +16,7 @@ class RealtimeSyncScope extends StatefulWidget {
 
 class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
   RealtimeSyncService? _service;
+  bool _configureScheduled = false;
 
   @override
   void didChangeDependencies() {
@@ -36,17 +37,21 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
   Widget build(BuildContext context) {
     return Consumer2<AuthState, PartnerState>(
       builder: (context, authState, partnerState, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+        if (!_configureScheduled) {
+          _configureScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _configureScheduled = false;
+            if (!mounted) return;
 
-          debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=${partnerState.partnershipInfo?.partnershipId}');
-          _service?.configure(
-            userId: authState.userId,
-            partnerId: authState.partnerId ??
-                partnerState.partnershipInfo?.partner?.id,
-            partnershipId: partnerState.partnershipInfo?.partnershipId,
-          );
-        });
+            debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=${partnerState.partnershipInfo?.partnershipId}');
+            _service?.configure(
+              userId: authState.userId,
+              partnerId: authState.partnerId ??
+                  partnerState.partnershipInfo?.partner?.id,
+              partnershipId: partnerState.partnershipInfo?.partnershipId,
+            );
+          });
+        }
 
         return child!;
       },

@@ -157,4 +157,40 @@ class BucketState extends BaseState {
     _items = [];
     notifyListeners();
   }
+
+  Future<void> applyRealtimeEvent({
+    required String eventType,
+    required Map<String, dynamic> newRecord,
+    required Map<String, dynamic> oldRecord,
+  }) async {
+    switch (eventType) {
+      case 'insert':
+        final item = BucketItem.fromJson(newRecord);
+        if (_items.any((i) => i.id == item.id)) return;
+        _items = [item, ..._items];
+        await StorageService.saveBucketList(_items);
+        await _updateBucketCheckpoint();
+        notifyListeners();
+        break;
+      case 'update':
+        final item = BucketItem.fromJson(newRecord);
+        final index = _items.indexWhere((i) => i.id == item.id);
+        if (index != -1) {
+          _items = _items.toList();
+          _items[index] = item;
+          await StorageService.saveBucketList(_items);
+          notifyListeners();
+        }
+        break;
+      case 'delete':
+        final id = (oldRecord['id'] as num?)?.toInt();
+        if (id != null) {
+          _items = _items.where((i) => i.id != id).toList();
+          await StorageService.saveBucketList(_items);
+          await _updateBucketCheckpoint();
+          notifyListeners();
+        }
+        break;
+    }
+  }
 }

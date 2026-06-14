@@ -14,6 +14,12 @@ import 'package:uuid/uuid.dart';
 
 import 'package:justus/all_imports.dart';
 
+// --- Isolate helper for JSON response decoding ---
+// Top-level function required by compute() for isolate offloading.
+
+Map<String, dynamic> _isolateDecodeResponse(String body) =>
+    jsonDecode(body) as Map<String, dynamic>;
+
 class ApiService {
   static String? _cachedDeviceFingerprint;
   static String? _cachedRequestBindingSecret;
@@ -158,7 +164,7 @@ class ApiService {
         }
       }
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final body = await compute(_isolateDecodeResponse, response.body);
 
         return Success(fromJson(body));
       } else if (response.statusCode == 401 && !isRetry && !_isRefreshing) {
@@ -178,7 +184,7 @@ class ApiService {
         String? errorMessage;
         AppError? appError;
         try {
-          final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
+          final errorBody = await compute(_isolateDecodeResponse, response.body);
           if (errorBody['error'] != null) {
             appError = AppError.fromJson(errorBody);
             errorMessage = appError.message;

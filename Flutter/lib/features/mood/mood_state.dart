@@ -201,13 +201,29 @@ class MoodState extends BaseState {
     }, showLoading: false);
   }
 
-  Future<void> refreshFromRealtime() async {
-    await Future.wait([
-      fetchMyMood(),
-      fetchPartnerMood(),
+  Future<void> refreshFromRealtime({int? changedUserId}) async {
+    final uid = await StorageService.getUserId();
+
+    // Own action: optimistic update already handled everything
+    if (changedUserId != null && changedUserId == uid) {
+      await _updateMoodsCheckpoint();
+      return;
+    }
+
+    final futures = <Future<void>>[
       fetchRecentEmojis(),
       fetchTimeline(),
-    ]);
+    ];
+
+    if (changedUserId != null) {
+      // Partner's action: skip our mood, fetch partner's
+      futures.add(fetchPartnerMood());
+    } else {
+      // Unknown: safe fallback — fetch everything
+      futures.addAll([fetchMyMood(), fetchPartnerMood()]);
+    }
+
+    await Future.wait(futures);
     await _updateMoodsCheckpoint();
   }
 

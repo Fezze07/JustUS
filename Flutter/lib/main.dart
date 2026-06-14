@@ -92,6 +92,21 @@ FilledButtonThemeData _filledButtonTheme() => FilledButtonThemeData(
 class JustUsApp extends StatelessWidget {
   final LanguageProvider languageProvider;
 
+  static final ColorScheme _lightColorScheme = ColorScheme.fromSeed(
+    seedColor: AppColors.primary,
+    primary: AppColors.primary,
+  );
+
+  static final ColorScheme _darkColorScheme = ColorScheme.fromSeed(
+    seedColor: AppColors.primary,
+    brightness: Brightness.dark,
+    primary: AppColors.primary,
+    surface: AppColors.backgroundDark,
+  );
+
+  static final TextTheme _textTheme = GoogleFonts.plusJakartaSansTextTheme();
+  static final TextTheme _darkTextTheme = GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme);
+
   const JustUsApp({
     super.key,
     required this.languageProvider,
@@ -129,11 +144,8 @@ class JustUsApp extends StatelessWidget {
               localeResolutionCallback: LanguageHelper.localeResolutionCallback,
               theme: ThemeData(
                 useMaterial3: true,
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: AppColors.primary,
-                  primary: AppColors.primary,
-                ),
-                textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+                colorScheme: _lightColorScheme,
+                textTheme: _textTheme,
                 scaffoldBackgroundColor: AppColors.backgroundLight,
                 appBarTheme: AppBarTheme(
                   centerTitle: true,
@@ -151,13 +163,8 @@ class JustUsApp extends StatelessWidget {
               ),
               darkTheme: ThemeData(
                 useMaterial3: true,
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: AppColors.primary,
-                  brightness: Brightness.dark,
-                  primary: AppColors.primary,
-                  surface: AppColors.backgroundDark,
-                ),
-                textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme),
+                colorScheme: _darkColorScheme,
+                textTheme: _darkTextTheme,
                 scaffoldBackgroundColor: AppColors.backgroundDark,
                 appBarTheme: AppBarTheme(
                   centerTitle: true,

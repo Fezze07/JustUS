@@ -5,7 +5,6 @@
 import 'dart:async';
 import 'package:justus/all_imports.dart';
 
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 abstract class BaseState extends ChangeNotifier {
@@ -16,26 +15,17 @@ abstract class BaseState extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get message => _message;
 
-  /// Safe notifyListeners — defers to the next frame if the framework is
-  /// currently building / animating (locked widget tree).
+  /// Coalesces multiple notifyListeners() calls within the same frame into a
+  /// single notification at the end of the frame. Prevents rebuild storms when
+  /// multiple providers fire in rapid succession during startup.
   @override
   void notifyListeners() {
-    final phase = SchedulerBinding.instance.schedulerPhase;
-    final locked = phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.transientCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (locked) {
-      if (!_pendingNotify) {
-        _pendingNotify = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _pendingNotify = false;
-          if (hasListeners) super.notifyListeners();
-        });
-      }
-    } else {
-      super.notifyListeners();
-    }
+    if (_pendingNotify) return;
+    _pendingNotify = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pendingNotify = false;
+      if (hasListeners) super.notifyListeners();
+    });
   }
 
   void setLoading(bool value) {

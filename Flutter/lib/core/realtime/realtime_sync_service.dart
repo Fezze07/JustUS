@@ -240,10 +240,12 @@ class RealtimeSyncService with WidgetsBindingObserver {
     debugPrint('[RealtimeSync] _handleMoodPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isRelevantMood(payload) || !_markSeen(payload)) return;
 
+    final changedUserId = _rowUserId(_currentRecord(payload), 'user_id');
+
     _moodRefreshTimer?.cancel();
     _moodRefreshTimer = Timer(const Duration(milliseconds: 120), () {
-      debugPrint('[RealtimeSync] _handleMoodPayload -> refreshFromRealtime()');
-      unawaited(_moodState.refreshFromRealtime());
+      debugPrint('[RealtimeSync] _handleMoodPayload -> refreshFromRealtime(changedUserId=$changedUserId)');
+      unawaited(_moodState.refreshFromRealtime(changedUserId: changedUserId));
     });
   }
 
@@ -277,11 +279,12 @@ class RealtimeSyncService with WidgetsBindingObserver {
     debugPrint('[RealtimeSync] _handleBucketPayload - table=${payload.table} eventType=${payload.eventType.name}');
     if (!_isPartnershipRecord(payload) || !_markSeen(payload)) return;
 
-    _bucketRefreshTimer?.cancel();
-    _bucketRefreshTimer = Timer(const Duration(milliseconds: 120), () {
-      debugPrint('[RealtimeSync] _handleBucketPayload -> refreshFromRealtime()');
-      unawaited(_bucketState.refreshFromRealtime());
-    });
+    debugPrint('[RealtimeSync] _handleBucketPayload -> applyRealtimeEvent()');
+    unawaited(_bucketState.applyRealtimeEvent(
+      eventType: payload.eventType.name,
+      newRecord: payload.newRecord,
+      oldRecord: payload.oldRecord,
+    ));
   }
 
   void _handleGamePayload(sb.PostgresChangePayload payload) {

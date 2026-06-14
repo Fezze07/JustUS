@@ -4,11 +4,25 @@
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:justus/all_imports.dart';
+
+// --- Isolate helpers for JSON operations ---
+// Top-level functions required by compute() for isolate offloading.
+
+Map<String, dynamic> _isolateDecodeMap(String json) =>
+    jsonDecode(json) as Map<String, dynamic>;
+
+List<dynamic> _isolateDecodeList(String json) =>
+    jsonDecode(json) as List<dynamic>;
+
+String _isolateEncodeMap(Map<String, dynamic> map) => jsonEncode(map);
+
+String _isolateEncodeList(List<Map<String, dynamic>> list) => jsonEncode(list);
 
 class StorageService {
   static const String _keyUsername = 'username';
@@ -60,16 +74,18 @@ class StorageService {
 
   static Future<void> _saveJson(String key, Map<String, dynamic> json) async {
     final p = await prefs;
-    await p.setString(key, jsonEncode(json));
+    final encoded = await compute(_isolateEncodeMap, json);
+    await p.setString(key, encoded);
   }
 
   static Future<T?> _getJson<T>(
       String key, T Function(Map<String, dynamic>) fromJson) async {
     final p = await prefs;
-    final json = p.getString(key);
-    if (json == null) return null;
+    final raw = p.getString(key);
+    if (raw == null) return null;
     try {
-      return fromJson(jsonDecode(json) as Map<String, dynamic>);
+      final decoded = await compute(_isolateDecodeMap, raw);
+      return fromJson(decoded);
     } catch (_) {
       return null;
     }
@@ -78,19 +94,21 @@ class StorageService {
   static Future<void> _saveJsonList<T>(
       String key, List<T> list, Map<String, dynamic> Function(T) toJson) async {
     final p = await prefs;
-    final json = jsonEncode(list.map((e) => toJson(e)).toList());
-    await p.setString(key, json);
+    final maps = list.map((e) => toJson(e)).toList();
+    final encoded = await compute(_isolateEncodeList, maps);
+    await p.setString(key, encoded);
   }
 
   static Future<List<T>> _getJsonList<T>(
       String key, T Function(Map<String, dynamic>) fromJson) async {
     final p = await prefs;
-    final json = p.getString(key);
-    if (json == null) return [];
+    final raw = p.getString(key);
+    if (raw == null) return [];
     try {
-      final decoded = jsonDecode(json) as List<dynamic>;
-
-      return decoded.map((e) => fromJson(e as Map<String, dynamic>)).toList();
+      final decoded = await compute(_isolateDecodeList, raw);
+      return decoded
+          .map((e) => fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }
