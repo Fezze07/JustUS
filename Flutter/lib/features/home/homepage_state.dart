@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class HomepageState extends BaseState {
@@ -59,6 +61,12 @@ class HomepageState extends BaseState {
     await fetchTotalMissYou();
   }
 
+  void addMissYou() {
+    _totalMissYou += 1;
+    unawaited(StorageService.saveTotalMissYou(_totalMissYou));
+    notifyListeners();
+  }
+
   Future<void> sendMissYou() async {
     _isLoading = true;
     notifyListeners();
@@ -67,8 +75,6 @@ class HomepageState extends BaseState {
 
     await result.handleAsync(
       onSuccess: (_) async {
-        _totalMissYou += 1;
-        await StorageService.saveTotalMissYou(_totalMissYou);
         await CacheService.saveCheckpoint(
           CacheService.kMissYou,
           DateTime.now().toUtc().toIso8601String(),

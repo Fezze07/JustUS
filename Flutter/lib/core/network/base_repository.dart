@@ -64,14 +64,14 @@ abstract class BaseRepository {
   }) async {
     dynamic query = sbClient.from(table).select(field);
 
-    if (filterColumn != null) {
-      query = query.maybeFilterIn(filterColumn, filterValues);
+    if (filterColumn != null && filterValues.isNotEmpty) {
+      query = query.inFilter(filterColumn, filterValues);
     }
 
     final data = await query
         .order(field, ascending: false)
         .limit(1)
-        .toSingle();
+        .maybeSingle();
 
     return data?[field]?.toString();
   }

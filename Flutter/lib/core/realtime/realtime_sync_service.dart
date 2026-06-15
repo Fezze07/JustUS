@@ -168,6 +168,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     }
 
     _subscribing = true;
+    _suppressProcessing = false;
     debugPrint('[RealtimeSync] _subscribe() - subscribing generation=${_generation + 1} userId=$_userId refreshAfterSubscribe=$refreshAfterSubscribe');
     try {
       await _unsubscribe();
@@ -305,11 +306,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_suppressProcessing) return;
     if (!_isRelevantMissYou(payload) || !_markSeen(payload)) return;
 
-    _missYouRefreshTimer?.cancel();
-    _missYouRefreshTimer = Timer(const Duration(milliseconds: 120), () {
-      debugPrint('[RealtimeSync] _handleMissYouPayload -> refreshFromRealtime()');
-      unawaited(_homepageState.refreshFromRealtime());
-    });
+    _homepageState.addMissYou();
   }
 
   void _handleBucketPayload(sb.PostgresChangePayload payload) {
@@ -392,7 +389,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   bool _isPartnershipRecord(sb.PostgresChangePayload payload) {
     final partnershipId = _partnershipId;
-    if (partnershipId == null) return false;
+    if (partnershipId == null) return true;
 
     final eventPartnershipId = _rowInt(_currentRecord(payload), 'partnership_id');
 

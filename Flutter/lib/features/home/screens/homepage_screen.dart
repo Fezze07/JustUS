@@ -547,8 +547,8 @@ class _HomepageScreenState extends State<HomepageScreen>
                 ),
               ),
               child: Text(
-                item.category.toUpperCase(),
-                style: TextStyle(
+                BucketCategory.localizedLabel(item.category, context.loc).toUpperCase(),
+            style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -800,9 +800,9 @@ class _MissYouButton extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          const Text(
-            'MISS YOU',
-            style: TextStyle(
+          Text(
+            context.loc.home_nudgeTitle.toUpperCase(),
+            style: const TextStyle(
               fontFamily: 'Inter',
               fontSize: 11,
               fontWeight: FontWeight.w700,
