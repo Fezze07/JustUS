@@ -49,6 +49,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
   bool _disposed = false;
   bool _foreground = true;
   bool _subscribing = false;
+  bool _suppressProcessing = false;
   int _generation = 0;
   int? _userId;
   int? _partnerId;
@@ -56,6 +57,27 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   final Queue<String> _recentEventKeys = Queue<String>();
   final Set<String> _recentEventKeySet = <String>{};
+
+  void suppress() {
+    debugPrint('[RealtimeSync] suppress() - pausing event processing');
+    _suppressProcessing = true;
+  }
+
+  void resume({bool refresh = true}) {
+    _suppressProcessing = false;
+    debugPrint('[RealtimeSync] resume() - resumed event processing, refresh=$refresh');
+    if (refresh) {
+      unawaited(_refreshAll());
+    }
+  }
+
+  Future<void> refreshChannel() async {
+    debugPrint('[RealtimeSync] refreshChannel() - replacing channel to drop stale events');
+    await _unsubscribe();
+    if (!_disposed && _foreground && _userId != null) {
+      await _subscribe(refreshAfterSubscribe: true);
+    }
+  }
 
   void start() {
     if (_started || _disposed) return;
@@ -250,6 +272,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handleMoodPayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handleMoodPayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isRelevantMood(payload) || !_markSeen(payload)) return;
 
     final changedUserId = _rowUserId(_currentRecord(payload), 'user_id');
@@ -263,6 +286,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handlePartnershipPayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handlePartnershipPayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isRelevantPartnership(payload) || !_markSeen(payload)) return;
 
     _partnershipRefreshTimer?.cancel();
@@ -278,6 +302,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handleMissYouPayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handleMissYouPayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isRelevantMissYou(payload) || !_markSeen(payload)) return;
 
     _missYouRefreshTimer?.cancel();
@@ -289,6 +314,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handleBucketPayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handleBucketPayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isPartnershipRecord(payload) || !_markSeen(payload)) return;
 
     debugPrint('[RealtimeSync] _handleBucketPayload -> applyRealtimeEvent()');
@@ -301,6 +327,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handleGamePayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handleGamePayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isRelevantGame(payload) || !_markSeen(payload)) return;
 
     _gameRefreshTimer?.cancel();
@@ -330,6 +357,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
   void _handleDrivePayload(sb.PostgresChangePayload payload) {
     debugPrint('[RealtimeSync] _handleDrivePayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
     if (!_isRelevantDrive(payload) || !_markSeen(payload)) return;
 
     _driveRefreshTimer?.cancel();

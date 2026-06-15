@@ -79,9 +79,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if ((confirmed ?? false) && mounted) {
+      final rt = context.read<RealtimeSyncService>();
+      rt.suppress();
+
       final success = await context.read<ProfileState>().wipeAppData();
       if (success && mounted) {
-        // Clear all states in memory to prevent showing old cached data
         context.read<GameState>().clear();
         context.read<BucketState>().clear();
         context.read<DriveState>().clear();
@@ -90,6 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         UIUtils.showSnackBar(context, context.loc.profile_dataWiped);
         unawaited(context.read<ProfileState>().loadProfile(force: true));
+        unawaited(rt.refreshChannel());
       }
     }
   }

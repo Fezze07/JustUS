@@ -53,7 +53,10 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
           });
         }
 
-        return child!;
+        return Provider<RealtimeSyncService>.value(
+          value: _service!,
+          child: child,
+        );
       },
       child: widget.child,
     );
