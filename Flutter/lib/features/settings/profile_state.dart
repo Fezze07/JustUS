@@ -76,9 +76,7 @@ class ProfileState extends BaseState {
         });
 
         final partnershipResult = results[2] as ResultWrapper<PartnershipResponse>;
-        if (partnershipResult is Success<PartnershipResponse>) {
-          _anniversaryDate = partnershipResult.value.anniversaryDate;
-        }
+        _anniversaryDate = partnershipResult.valueOrNull?.anniversaryDate;
       }
     });
   }
@@ -141,7 +139,7 @@ class ProfileState extends BaseState {
   Future<bool> wipeAppData() async {
     return runSafe(() async {
       final result = await _userRepo.debugWipeData();
-      if (result is Success) {
+      if (result.isSuccess) {
         await StorageService.clearAppCache();
         setMessage('Data wiped successfully!');
       } else {

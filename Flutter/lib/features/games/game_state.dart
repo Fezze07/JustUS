@@ -1,6 +1,6 @@
 import 'package:justus/all_imports.dart';
 
-class GameState extends BaseState {
+class GameState extends BaseState with CheckpointMixin {
   GameState({GameRepository? repository})
       : _repo = repository ?? GameRepository();
 
@@ -71,18 +71,17 @@ class GameState extends BaseState {
     final partnerId = await StorageService.getPartnerId();
     if (uid == null || partnerId == null) return;
 
-    final maxTimestamp = await _repo.fetchMaxTimestamp(
-      table: 'game_answers',
-      field: 'created_at',
-      filterColumn: 'user_id',
-      filterValues: [uid, partnerId],
+    await saveMaxTimestampCheckpoint(
+      checkpointKey: CacheService.kGameAnswers,
+      timestamps: [
+        await _repo.fetchMaxTimestamp(
+          table: 'game_answers',
+          field: 'created_at',
+          filterColumn: 'user_id',
+          filterValues: [uid, partnerId],
+        ),
+      ],
     );
-
-    if (maxTimestamp != null) {
-      await CacheService.saveCheckpoint(CacheService.kGameAnswers, maxTimestamp);
-    } else {
-      await CacheService.saveCheckpoint(CacheService.kGameAnswers, CacheService.kCheckpointEmpty);
-    }
   }
 
   Future<void> fetchNewQuestion({bool showLoading = true}) async {
@@ -95,23 +94,23 @@ class GameState extends BaseState {
 
     final result = await _repo.fetchNewGameQuestion();
 
-    switch (result) {
-      case Success(:final value):
+    await result.handleAsync(
+      onSuccess: (value) async {
         if (value.success) {
           _currentQuestion = value;
           await StorageService.saveGameQuestion(value);
         } else {
           _currentQuestion = null;
         }
-      case GenericError(:final message):
+      },
+      onError: (code, message) {
         if (message != 'No questions') {
           ErrorHandler.handle(result);
         } else {
           _currentQuestion = null;
         }
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
 
     if (showLoading) {
       _isLoading = false;
@@ -141,8 +140,8 @@ class GameState extends BaseState {
 
     final result = await _repo.submitAnswer(_currentQuestion!.id, option);
 
-    switch (result) {
-      case Success():
+    await result.handleAsync(
+      onSuccess: (value) async {
         final wasPending = !_currentQuestion!.partnerAnswered;
         _message = 'Risposta inviata! ✨';
         _currentQuestion = _currentQuestion!.copyWith(
@@ -186,11 +185,8 @@ class GameState extends BaseState {
           await fetchStats();
         }
         await _updateGameCheckpoint();
-      case GenericError():
-        ErrorHandler.handle(result);
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
 
     _isLoading = false;
     notifyListeners();
@@ -199,31 +195,25 @@ class GameState extends BaseState {
   Future<void> fetchStats() async {
     final result = await _repo.fetchGameStats();
 
-    switch (result) {
-      case Success(:final value):
+    result.handle(
+      onSuccess: (value) async {
         _gameStats = value.totalMatches;
         await StorageService.saveGameMatches(value.totalMatches);
-      case GenericError():
-        ErrorHandler.handle(result);
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
     notifyListeners();
   }
 
   Future<void> fetchHistory() async {
     final result = await _repo.fetchGameHistory();
 
-    switch (result) {
-      case Success(:final value):
+    await result.handleAsync(
+      onSuccess: (value) async {
         _history = value;
         await StorageService.saveGameHistory(value);
         await _updateGameCheckpoint();
-      case GenericError():
-        ErrorHandler.handle(result);
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
     notifyListeners();
   }
 
@@ -396,8 +386,8 @@ class GameState extends BaseState {
     if (_currentUserId == null || (_currentQuestion?.id != gameId && _history.every((h) => h.questionId != gameId))) return;
 
     final result = await _repo.fetchAnswerStatus(gameId);
-    switch (result) {
-      case Success(:final value):
+    result.handle(
+      onSuccess: (value) async {
         if (_currentQuestion != null && _currentQuestion!.id == gameId) {
           if (value.hasAnswered && value.partnerAnswered) {
             await _repo.updateQuestionStatus(gameId, 'both_answered');
@@ -445,10 +435,8 @@ class GameState extends BaseState {
         _history = newHistory;
         await StorageService.saveGameHistory(_history);
         notifyListeners();
-      case GenericError():
-      case NetworkError():
-        break;
-    }
+      },
+    );
   }
 
   int? _rowInt(Map<String, dynamic> row, String key) {

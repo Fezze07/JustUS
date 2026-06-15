@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:justus/all_imports.dart';
 
-class BucketState extends BaseState {
+class BucketState extends BaseState with CheckpointMixin {
   final BucketRepository _repository;
 
   BucketState({BucketRepository? repository})
@@ -57,24 +57,11 @@ class BucketState extends BaseState {
   }
 
   Future<void> _updateBucketCheckpoint() async {
-    if (_items.isEmpty) {
-      await CacheService.saveCheckpoint(
-          CacheService.kBucketItems, CacheService.kCheckpointEmpty);
-      return;
-    }
-
-    final timestamps = _items
-        .map((item) => DateTime.tryParse(item.createdAt))
-        .whereType<DateTime>()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
-
-    if (timestamps.isNotEmpty) {
-      await CacheService.saveCheckpoint(
-        CacheService.kBucketItems,
-        timestamps.first.toUtc().toIso8601String(),
-      );
-    }
+    await saveMaxTimestampCheckpointFromItems(
+      checkpointKey: CacheService.kBucketItems,
+      items: _items,
+      timestampField: (item) => (item as BucketItem).createdAt,
+    );
   }
 
   Future<void> fetchBucket() async {
@@ -114,7 +101,7 @@ class BucketState extends BaseState {
 
     await runSafe(() async {
       final result = await _repository.addBucketItem(text, category);
-      if (result is GenericError || result is NetworkError) {
+      if (result.isError) {
         await handleResult(result);
       }
     });
@@ -123,7 +110,7 @@ class BucketState extends BaseState {
   Future<void> toggleDone(int id, bool done) async {
     await runSafe(() async {
       final result = await _repository.toggleBucketItem(id, done);
-      if (result is GenericError || result is NetworkError) {
+      if (result.isError) {
         await handleResult(result);
       }
     });
@@ -132,7 +119,7 @@ class BucketState extends BaseState {
   Future<void> deleteItem(int id) async {
     await runSafe(() async {
       final result = await _repository.deleteBucketItem(id);
-      if (result is GenericError || result is NetworkError) {
+      if (result.isError) {
         await handleResult(result);
       }
     });

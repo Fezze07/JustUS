@@ -1,14 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createCompositeRateLimit,
-  ipKey,
-  userKey,
-  DEFAULT_WINDOW_MS,
   presignUploadController,
   completeUploadController,
   redirectToSignedDownloadController,
 } = require("../../all_imports");
+const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 const {
   chain,
   authenticated,
@@ -23,13 +20,11 @@ const {
   fileQuerySchema,
 } = require("./media.schemas");
 
-const mediaRateLimit = createCompositeRateLimit({
+const mediaRateLimit = createIpUserRateLimit({
   name: "media",
   message: "Too many media requests",
-  rules: [
-    { name: "ip", windowMs: DEFAULT_WINDOW_MS, max: 60, key: ipKey },
-    { name: "user", windowMs: DEFAULT_WINDOW_MS, max: 40, key: userKey },
-  ],
+  ipMax: 60,
+  userMax: 40,
 });
 
 router.post(

@@ -1,8 +1,8 @@
 const admin = require("firebase-admin");
-const serviceAccount = require("../secrets/fcm-key.json");
 
-// Inizializzazione Firebase Admin
-if (!admin.apps.length) {
+let serviceAccount;
+try { serviceAccount = require("../secrets/fcm-key.json"); } catch { /* file missing in test */ }
+if (serviceAccount && admin.credential?.cert && !admin.apps?.length) {
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
     });

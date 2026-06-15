@@ -78,8 +78,9 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
     final repo = context.read<MoodState>().repository;
     final result = await repo.fetchMoods();
     if (mounted) {
-      if (result is Success<List<MoodEntry>>) {
-        final uniqueEmojis = result.value.map((e) => e.emoji).toSet().toList();
+      final moods = result.valueOrNull;
+      if (moods != null) {
+        final uniqueEmojis = moods.map((e) => e.emoji).toSet().toList();
         setState(() {
           _userEmojis = uniqueEmojis;
           _isLoadingEmojis = false;

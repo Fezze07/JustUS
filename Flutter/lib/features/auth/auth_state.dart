@@ -103,11 +103,12 @@ class AuthState extends BaseState {
         final profileResult =
             await _userRepo.fetchProfileByAuthId(session.user.id);
 
-        if (profileResult is Success<User>) {
+        final user = profileResult.valueOrNull;
+        if (user != null) {
           await setLoginData(
             accessToken: session.accessToken,
             refreshToken: session.refreshToken ?? '',
-            user: profileResult.value,
+            user: user,
           );
         }
       }
@@ -159,14 +160,14 @@ class AuthState extends BaseState {
       // Step 2: Fetch public.users + user_profiles by auth_id (UUID)
       final profileResult = await _userRepo.fetchProfileByAuthId(res.user!.id);
 
-      if (profileResult is! Success<User>) {
+      final user = profileResult.valueOrNull;
+      if (user == null) {
         throw const AppError(
             code: ErrorCodes.dbNotFound001,
             message: 'Profilo utente non trovato nel database');
       }
 
       // Step 3: Set local data
-      final user = profileResult.value;
       await setLoginData(
         accessToken: res.session!.accessToken,
         refreshToken: res.session!.refreshToken ?? '',
@@ -184,11 +185,11 @@ class AuthState extends BaseState {
       try {
         final partnershipResult = await _partnershipRepo.getPartnership();
 
-        if (partnershipResult is Success<PartnershipResponse> &&
-            partnershipResult.value.partner != null) {
+        final partner = partnershipResult.valueOrNull?.partner;
+        if (partner != null) {
           await setPartner(
-            partnerId: partnershipResult.value.partner!.id,
-            displayName: partnershipResult.value.partner!.username,
+            partnerId: partner.id,
+            displayName: partner.username,
           );
         }
       } catch (_) {}
@@ -256,10 +257,11 @@ class AuthState extends BaseState {
       if (_userId == null) return;
 
       final result = await _partnershipRepo.getPendingInvitations();
-      if (result is Success<List<PartnershipInvitation>>) {
+      final invitations = result.valueOrNull;
+      if (invitations != null) {
         final sent = <PartnershipInvitation>[];
         final received = <PartnershipInvitation>[];
-        for (final inv in result.value) {
+        for (final inv in invitations) {
           if (inv.isReceived) {
             received.add(inv);
           } else {
@@ -287,11 +289,11 @@ class AuthState extends BaseState {
 
       if (kDebugMode) print('[AuthState] Partnership data: $partnershipResult');
 
-      if (partnershipResult is Success<PartnershipResponse> &&
-          partnershipResult.value.partner != null) {
+      final partner = partnershipResult.valueOrNull?.partner;
+      if (partner != null) {
         await setPartner(
-          partnerId: partnershipResult.value.partner!.id,
-          displayName: partnershipResult.value.partner!.username,
+          partnerId: partner.id,
+          displayName: partner.username,
         );
         if (kDebugMode) print('[AuthState] Partner set successfully');
       }
@@ -341,10 +343,11 @@ class AuthState extends BaseState {
       await _fetchInvitations();
 
       final partnershipResult = await _partnershipRepo.getPartnership();
-      if (partnershipResult is! Success<PartnershipResponse>) return;
+      final partnership = partnershipResult.valueOrNull;
+      if (partnership == null) return;
 
-      final partner = partnershipResult.value.partner;
-      if (partner != null && partnershipResult.value.status == 'accepted') {
+      final partner = partnership.partner;
+      if (partner != null && partnership.status == 'accepted') {
         _partnerId = partner.id;
         _partnerDisplayName = partner.username;
         await StorageService.savePartner(partner.id, partner.username);
@@ -388,7 +391,8 @@ class AuthState extends BaseState {
       final result = await _authRepo.syncSession(
           deviceFingerprint, '${defaultTargetPlatform.name}-client');
 
-      if (result case Success<Map<String, dynamic>>(:final value)) {
+      final value = result.valueOrNull;
+      if (value != null) {
         final bindingSecret = value['bindingSecret'];
         if (bindingSecret is String && bindingSecret.isNotEmpty) {
           await StorageService.saveRequestBindingSecret(bindingSecret);
@@ -396,9 +400,9 @@ class AuthState extends BaseState {
             print('[AuthState] Session synced, binding secret saved.');
           }
         }
-      } else if (result is NetworkError<Map<String, dynamic>>) {
+      } else if (result.isError) {
         if (kDebugMode) {
-          print('[AuthState] Session sync network error: ${result.message}');
+          print('[AuthState] Session sync network error');
         }
       }
     } catch (e) {

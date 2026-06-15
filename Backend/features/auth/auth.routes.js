@@ -9,7 +9,6 @@ const {
   refreshTokenController,
   createCompositeRateLimit,
   ipKey,
-  userKey,
   deviceKey,
   DEFAULT_WINDOW_MS,
 } = require("../../all_imports");
@@ -32,21 +31,19 @@ const {
   limited,
 } = require("../../routes/routeHelpers");
 
-const authRateLimit = createCompositeRateLimit({
+const { createIpUserRateLimit, createIpOnlyRateLimit } = require("../../utils/auth/rateLimitPresets");
+
+const authRateLimit = createIpUserRateLimit({
   name: "auth.device-token",
   message: "Too many device token updates",
-  rules: [
-    { name: "ip",   windowMs: DEFAULT_WINDOW_MS, max: 20, key: ipKey },
-    { name: "user", windowMs: DEFAULT_WINDOW_MS, max: 10, key: userKey },
-  ],
+  ipMax: 20,
+  userMax: 10,
 });
 
-const authRefreshRateLimit = createCompositeRateLimit({
+const authRefreshRateLimit = createIpOnlyRateLimit({
   name: "auth.refresh",
   message: "Too many token refresh attempts",
-  rules: [
-    { name: "ip", windowMs: DEFAULT_WINDOW_MS, max: 10, key: ipKey },
-  ],
+  ipMax: 10,
 });
 
 const loginRiskRateLimit = createCompositeRateLimit({

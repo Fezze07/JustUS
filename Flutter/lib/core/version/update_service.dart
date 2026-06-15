@@ -25,10 +25,11 @@ class UpdateService {
     // Get server version
     final result = await _repo.checkAppVersion();
 
-    if (result is Success<AppVersionResponse>) {
-      final serverVersion = result.value.version;
-      final apkUrl = result.value.apkUrl;
-      final changelog = result.value.changelog;
+    final versionInfo = result.valueOrNull;
+    if (versionInfo != null) {
+      final serverVersion = versionInfo.version;
+      final apkUrl = versionInfo.apkUrl;
+      final changelog = versionInfo.changelog;
 
       if (_isUpdateAvailable(localVersion, serverVersion)) {
         if (context.mounted) {

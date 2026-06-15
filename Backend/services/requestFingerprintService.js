@@ -1,4 +1,4 @@
-const { sha256, hmacSha256 } = require("../utils/cryptoUtils");
+const { sha256, hmacSha256 } = require("../utils/auth/cryptoUtils");
 
 function ipToSoftRange(ipAddress) {
   const value = String(ipAddress ?? "").trim();

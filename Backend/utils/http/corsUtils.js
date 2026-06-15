@@ -1,4 +1,5 @@
-const { AppError } = require("../all_imports");
+const { AppError } = require("../../all_imports");
+const { CORS_ALLOWED_HEADERS, CORS_ALLOWED_METHODS } = require("./httpConstants");
 
 /**
  * Configura gli header CORS e gestisce le richieste preflight OPTIONS.
@@ -17,11 +18,8 @@ function handleCors(req, res, next, allowedOrigins) {
   if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Vary", "Origin");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Authorization, Content-Type, X-Request-Id, X-Request-Timestamp, X-Request-Nonce, X-Request-Signature, X-Idempotency-Key, Idempotency-Key"
-    );
-    res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+    res.header("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
     
     if (req.method === "OPTIONS") {
       return res.status(204).end();

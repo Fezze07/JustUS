@@ -4,7 +4,7 @@
 
 import 'package:justus/all_imports.dart';
 
-class MoodState extends BaseState {
+class MoodState extends BaseState with CheckpointMixin {
   MoodState({MoodRepository? repository})
       : _repo = repository ?? MoodRepository();
 
@@ -68,22 +68,14 @@ class MoodState extends BaseState {
   }
 
   Future<void> _updateMoodsCheckpoint() async {
-    final timestamps = [
-      ..._timeline.map((entry) => entry.createdAt),
-      _userMoodUpdatedAt,
-      _partnerMoodUpdatedAt,
-    ].whereType<String>().map(DateTime.tryParse).whereType<DateTime>().toList()
-      ..sort((a, b) => b.compareTo(a));
-
-    if (timestamps.isNotEmpty) {
-      await CacheService.saveCheckpoint(
-        CacheService.kMoods,
-        timestamps.first.toUtc().toIso8601String(),
-      );
-    } else {
-      await CacheService.saveCheckpoint(
-          CacheService.kMoods, CacheService.kCheckpointEmpty);
-    }
+    await saveMaxTimestampCheckpoint(
+      checkpointKey: CacheService.kMoods,
+      timestamps: [
+        ..._timeline.map((entry) => entry.createdAt),
+        _userMoodUpdatedAt,
+        _partnerMoodUpdatedAt,
+      ],
+    );
   }
 
   Future<void> _loadMoodScreenCache() async {
@@ -143,11 +135,13 @@ class MoodState extends BaseState {
     await runSafe(() async {
       final result = await _repo.fetchMyMood();
 
-      await handleResult(result, onSuccess: (value) async {
-        _userMood = value.emoji ?? '😐';
-        _userMoodUpdatedAt = value.createdAt;
-        await StorageService.saveMood('me', _userMood);
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _userMood = value.emoji ?? '😐';
+          _userMoodUpdatedAt = value.createdAt;
+          await StorageService.saveMood('me', _userMood);
+        },
+      );
     }, showLoading: false);
   }
 
@@ -155,11 +149,13 @@ class MoodState extends BaseState {
     await runSafe(() async {
       final result = await _repo.fetchPartnerMood();
 
-      await handleResult(result, onSuccess: (value) async {
-        _partnerMood = value.emoji ?? '😐';
-        _partnerMoodUpdatedAt = value.createdAt;
-        await StorageService.saveMood('partner', _partnerMood);
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _partnerMood = value.emoji ?? '😐';
+          _partnerMoodUpdatedAt = value.createdAt;
+          await StorageService.saveMood('partner', _partnerMood);
+        },
+      );
     }, showLoading: false);
   }
 
@@ -167,38 +163,44 @@ class MoodState extends BaseState {
     await runSafe(() async {
       final result = await _repo.fetchRecentCoupleEmojis();
 
-      await handleResult(result, onSuccess: (value) async {
-        _recentEmojis = value;
-        await StorageService.saveRecentEmojis(value);
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _recentEmojis = value;
+          await StorageService.saveRecentEmojis(value);
+        },
+      );
     }, showLoading: false);
   }
 
   Future<void> fetchTimeline() async {
     await runSafe(() async {
       final result = await _repo.fetchTimeline();
-      await handleResult(result, onSuccess: (value) async {
-        _timeline = value;
-        _timelineOffset = value.length;
-        _hasMoreTimeline = value.length >= 4;
-        await StorageService.saveTimeline(value);
-        await _updateMoodsCheckpoint();
-        notifyListeners();
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _timeline = value;
+          _timelineOffset = value.length;
+          _hasMoreTimeline = value.length >= 4;
+          await StorageService.saveTimeline(value);
+          await _updateMoodsCheckpoint();
+          notifyListeners();
+        },
+      );
     }, showLoading: false);
   }
 
   Future<void> loadMoreTimeline() async {
     await runSafe(() async {
       final result = await _repo.fetchTimeline(offset: _timelineOffset);
-      await handleResult(result, onSuccess: (value) async {
-        _timeline.addAll(value);
-        _timelineOffset += value.length;
-        _hasMoreTimeline = value.length >= 4;
-        await StorageService.saveTimeline(_timeline);
-        await _updateMoodsCheckpoint();
-        notifyListeners();
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _timeline.addAll(value);
+          _timelineOffset += value.length;
+          _hasMoreTimeline = value.length >= 4;
+          await StorageService.saveTimeline(_timeline);
+          await _updateMoodsCheckpoint();
+          notifyListeners();
+        },
+      );
     }, showLoading: false);
   }
 
@@ -256,15 +258,17 @@ class MoodState extends BaseState {
 
       final result = await _repo.updateMood(emoji);
 
-      await handleResult(result, onSuccess: (value) async {
-        _userMood = value.emoji;
-        _userMoodUpdatedAt = value.createdAt;
-        await StorageService.saveMood('me', _userMood);
-        await _updateMoodsCheckpoint();
-        setMessage('Mood aggiornato!');
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _userMood = value.emoji;
+          _userMoodUpdatedAt = value.createdAt;
+          await StorageService.saveMood('me', _userMood);
+          await _updateMoodsCheckpoint();
+          setMessage('Mood aggiornato!');
+        },
+      );
 
-      if (result is! Success) {
+      if (result.isError) {
         _userMood = previousMood;
         _userMoodUpdatedAt = previousTimestamp;
         _timeline = previousTimeline;

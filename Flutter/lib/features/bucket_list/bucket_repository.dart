@@ -19,14 +19,15 @@ class BucketRepository extends BaseRepository {
       final partnershipId = partnershipData?['partnership_id'] as int?;
       if (partnershipId == null) return <BucketItem>[];
 
-      final List<dynamic> data = await sbClient
+      final data = await sbClient
           .from('bucket_items')
           .select('id, text, done, created_at, category')
           .eq('partnership_id', partnershipId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .toList();
 
       return data
-          .map((b) => BucketItem.fromJson(b as Map<String, dynamic>))
+          .map((b) => BucketItem.fromJson(b))
           .toList();
     });
   }

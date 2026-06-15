@@ -12,7 +12,7 @@
 //   const result = wrapRpc({ data, error });               // throws API_VALIDATION_001
 // =============================================================================
 
-const { AppError } = require("../all_imports");
+const { AppError } = require("../../all_imports");
 
 /**
  * Asserts that a Supabase query succeeded and returns the data.

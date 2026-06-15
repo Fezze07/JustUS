@@ -14,17 +14,9 @@ class GameRepository extends BaseRepository {
       var query = sbClient
           .from('game_questions')
           .select('id, question, created_at, partnership_id')
+          .maybeEq('partnership_id', partnershipId)
           .order('created_at', ascending: false)
           .limit(1);
-
-      if (partnershipId != null) {
-        query = sbClient
-            .from('game_questions')
-            .select('id, question, created_at, partnership_id')
-            .eq('partnership_id', partnershipId)
-            .order('created_at', ascending: false)
-            .limit(1);
-      }
 
       final data = await query.maybeSingle();
       if (data == null) throw Exception('Nessuna domanda disponibile');
@@ -36,13 +28,14 @@ class GameRepository extends BaseRepository {
   Future<ResultWrapper<List<GameAnswer>>> fetchQuestionAnswers(
       int questionId) async {
     return tryCall(() async {
-      final List<dynamic> data = await sbClient
+      final data = await sbClient
           .from('game_answers')
           .select('game_id, user_id, selected_option, created_at')
-          .eq('game_id', questionId);
+          .eq('game_id', questionId)
+          .toList();
 
       return data
-          .map((a) => GameAnswer.fromJson(a as Map<String, dynamic>))
+          .map((a) => GameAnswer.fromJson(a))
           .toList();
     });
   }
@@ -91,10 +84,11 @@ class GameRepository extends BaseRepository {
       bool hasAnswered = false;
       bool partnerAnswered = false;
       if (existing != null && uid != null) {
-        final List<dynamic> answers = await sbClient
+        final answers = await sbClient
             .from('game_answers')
             .select('user_id')
-            .eq('game_id', existing['id'] as Object);
+            .eq('game_id', existing['id'] as Object)
+            .toList();
 
         hasAnswered = answers.any((a) => a['user_id'] == uid);
         partnerAnswered = answers.any((a) => a['user_id'] != uid);
@@ -112,8 +106,9 @@ class GameRepository extends BaseRepository {
       }
 
       final aiResult = await _api.fetchNewGameQuestion();
-      if (aiResult is Success<GameNewQuestionResponse>) {
-        final generatedText = aiResult.value.question;
+      final aiQuestion = aiResult.valueOrNull;
+      if (aiQuestion != null) {
+        final generatedText = aiQuestion.question;
         final inserted = await sbClient
             .from('game_questions')
             .insert({
@@ -143,10 +138,11 @@ class GameRepository extends BaseRepository {
   Future<ResultWrapper<({bool hasAnswered, bool partnerAnswered, int? userOption, int? partnerOption})>>
       fetchAnswerStatus(int questionId) async {
     return withUser((uid) async {
-      final List<dynamic> answers = await sbClient
+      final answers = await sbClient
           .from('game_answers')
           .select('user_id, selected_option')
-          .eq('game_id', questionId);
+          .eq('game_id', questionId)
+          .toList();
 
       int? userOpt;
       int? partnerOpt;
@@ -210,8 +206,8 @@ class GameRepository extends BaseRepository {
         query = query.eq('user_id', uid);
       }
 
-      final List<dynamic> data =
-          await query.order('created_at', ascending: false);
+      final data =
+          await query.order('created_at', ascending: false).toList();
 
       final Map<int, Map<String, dynamic>> historyMap = {};
 

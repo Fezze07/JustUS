@@ -3,11 +3,8 @@ const express = require("express");
 const router = express.Router();
 const {
   sendNotificationController,
-  createCompositeRateLimit,
-  ipKey,
-  userKey,
-  DEFAULT_WINDOW_MS,
 } = require("../../all_imports");
+const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 const {
   chain,
   authenticated,
@@ -16,13 +13,11 @@ const {
 } = require("../../routes/routeHelpers");
 const { notifySchema, paramsSchema } = require("./notify.schemas");
 
-const notifyRateLimit = createCompositeRateLimit({
+const notifyRateLimit = createIpUserRateLimit({
   name: "notify.send",
   message: "Too many notification requests",
-  rules: [
-    { name: "ip",   windowMs: DEFAULT_WINDOW_MS, max: 30, key: ipKey },
-    { name: "user", windowMs: DEFAULT_WINDOW_MS, max: 12, key: userKey },
-  ],
+  ipMax: 30,
+  userMax: 12,
 });
 
 router.post(

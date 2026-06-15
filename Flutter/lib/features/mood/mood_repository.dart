@@ -32,7 +32,7 @@ class MoodRepository extends BaseRepository {
     var query = sbClient
         .from('moods')
         .select(select)
-        .inFilter('user_id', userIds)
+        .maybeFilterIn('user_id', userIds)
         .order('created_at', ascending: false);
 
     if (limit != null) {
@@ -129,7 +129,7 @@ class MoodRepository extends BaseRepository {
       final data = await sbClient
           .from('moods')
           .select('id, user_id, created_at, emojis(emoji_char)')
-          .inFilter('user_id', ids)
+          .maybeFilterIn('user_id', ids)
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 

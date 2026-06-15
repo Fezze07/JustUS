@@ -138,21 +138,22 @@ class PartnershipRepository extends BaseRepository {
       if (query != null && query.isNotEmpty) {
         q = q.or('email.ilike.%$query%');
       }
-      final List<dynamic> data = await q.limit(20);
+      final data = await q.limit(20).toList();
 
-      return data.map((u) => User.fromJson(u as Map<String, dynamic>)).toList();
+      return data.map((u) => User.fromJson(u)).toList();
     });
   }
 
   Future<ResultWrapper<List<PartnershipInvitation>>>
       getPendingInvitations() async {
     return withUser((uid) async {
-      final List<dynamic> data = await sbClient
+      final data = await sbClient
           .from('partnerships')
           .select(
               '*, user_id_1(id, email, user_profiles(display_name, profile_pic_url)), user_id_2(id, email, user_profiles(display_name, profile_pic_url))')
           .eq('status', 'pending')
-          .or('user_id_1.eq.$uid,user_id_2.eq.$uid');
+          .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
+          .toList();
 
       return data.map((row) {
         final isReceived = row['user_id_2']['id'] == uid;

@@ -5,7 +5,7 @@
 
 import 'package:justus/all_imports.dart';
 
-class DriveState extends BaseState {
+class DriveState extends BaseState with CheckpointMixin {
   DriveState({DriveRepository? repository})
       : _repo = repository ?? DriveRepository();
 
@@ -76,7 +76,6 @@ class DriveState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         if (value.isNotEmpty) {
-          // Merge: replace/add changed items, preserve unchanged ones
           final updatedIds = value.map((e) => e.id).toSet();
           final kept =
               _driveItems.where((e) => !updatedIds.contains(e.id)).toList();
@@ -85,19 +84,11 @@ class DriveState extends BaseState {
           _rebuildFavorites();
           await StorageService.saveDriveItems(_driveItems);
 
-          // Advance timestamp safely using the server's maximum updated_at
-          final latestUpdated = value
-              .map((e) => DateTime.tryParse(e.updatedAt))
-              .whereType<DateTime>()
-              .toList()
-            ..sort((a, b) => b.compareTo(a));
-
-          if (latestUpdated.isNotEmpty) {
-            await CacheService.saveCheckpoint(
-              CacheService.kDriveItems,
-              latestUpdated.first.toUtc().toIso8601String(),
-            );
-          }
+          await saveMaxTimestampCheckpointFromItems(
+            checkpointKey: CacheService.kDriveItems,
+            items: value,
+            timestampField: (item) => (item as DriveItem).updatedAt,
+          );
         } else if (await CacheService.getCheckpoint(CacheService.kDriveItems) ==
             null) {
           await CacheService.saveCheckpoint(
@@ -138,17 +129,10 @@ class DriveState extends BaseState {
   }
 
   Future<void> _updateDriveCheckpointFromItems() async {
-    final latestUpdated = _driveItems
-        .map((item) => DateTime.tryParse(item.updatedAt))
-        .whereType<DateTime>()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
-
-    await CacheService.saveCheckpoint(
-      CacheService.kDriveItems,
-      latestUpdated.isEmpty
-          ? CacheService.kCheckpointEmpty
-          : latestUpdated.first.toUtc().toIso8601String(),
+    await saveMaxTimestampCheckpointFromItems(
+      checkpointKey: CacheService.kDriveItems,
+      items: _driveItems,
+      timestampField: (item) => (item as DriveItem).updatedAt,
     );
   }
 
@@ -169,7 +153,7 @@ class DriveState extends BaseState {
   Future<String?> getSignedUrl(String filename) async {
     final result = await _repo.getMediaDownloadUrl(filename);
 
-    return result is Success<String?> ? result.value : null;
+    return result.valueOrNull;
   }
 
   // ---------------------------------------------------------------------------
@@ -196,12 +180,14 @@ class DriveState extends BaseState {
         mimeType: mimeType,
       );
 
-      await handleResult(result, onSuccess: (value) async {
-        _driveItems = [value, ..._driveItems];
-        _rebuildFavorites();
-        await StorageService.saveDriveItems(_driveItems);
-        setMessage('Upload completato ✓');
-      });
+      await result.handleAsync(
+        onSuccess: (value) async {
+          _driveItems = [value, ..._driveItems];
+          _rebuildFavorites();
+          await StorageService.saveDriveItems(_driveItems);
+          setMessage('Upload completato ✓');
+        },
+      );
     }, showLoading: false);
 
     _isUploading = false;
@@ -221,11 +207,11 @@ class DriveState extends BaseState {
     await runSafe(() async {
       final result = await _repo.deleteDriveItem(id);
 
-      await handleResult(result, onSuccess: (_) {
+      result.handle(onSuccess: (_) {
         setMessage('Eliminato!');
       });
 
-      if (result is! Success) {
+      if (result.isError) {
         _driveItems = currentList;
         _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);
@@ -240,22 +226,23 @@ class DriveState extends BaseState {
     await runSafe(() async {
       final result = await _repo.addReaction(itemId, emoji);
 
-      await handleResult(result, onSuccess: (_) async {
-        _driveItems = _driveItems.map((item) {
-          if (item.id == itemId) {
-            return item.copyWith(reactions: [...item.reactions, emoji]);
+      await result.handleAsync(
+        onSuccess: (_) async {
+          _driveItems = _driveItems.map((item) {
+            if (item.id == itemId) {
+              return item.copyWith(reactions: [...item.reactions, emoji]);
+            }
+            return item;
+          }).toList();
+          _rebuildFavorites();
+          await StorageService.saveDriveItems(_driveItems);
+          if (_singleItem?.id == itemId) {
+            _singleItem = _singleItem!.copyWith(
+              reactions: [..._singleItem!.reactions, emoji],
+            );
           }
-
-          return item;
-        }).toList();
-        _rebuildFavorites();
-        await StorageService.saveDriveItems(_driveItems);
-        if (_singleItem?.id == itemId) {
-          _singleItem = _singleItem!.copyWith(
-            reactions: [..._singleItem!.reactions, emoji],
-          );
-        }
-      });
+        },
+      );
     }, showLoading: false);
   }
 
@@ -279,7 +266,7 @@ class DriveState extends BaseState {
     await runSafe(() async {
       final result = await _repo.toggleFavorite(itemId, !isCurrentlyFavorite);
 
-      if (result is! Success) {
+      if (!result.isSuccess) {
         _driveItems[idx] = item;
         _rebuildFavorites();
         await StorageService.saveDriveItems(_driveItems);

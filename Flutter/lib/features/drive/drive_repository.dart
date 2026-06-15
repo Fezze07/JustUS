@@ -10,13 +10,14 @@ class DriveRepository extends BaseRepository {
 
   Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
     return tryCall(() async {
-      final List<dynamic> data = await sbClient
+      final data = await sbClient
           .from('v_drive_dashboard')
           .select()
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .toList();
 
       return data
-          .map((d) => DriveItem.fromJson(d as Map<String, dynamic>))
+          .map((d) => DriveItem.fromJson(d))
           .toList();
     });
   }
@@ -33,11 +34,11 @@ class DriveRepository extends BaseRepository {
         query = query.gt('updated_at', lastSyncTimestamp);
       }
 
-      final List<dynamic> data =
-          await query.order('created_at', ascending: false);
+      final data =
+          await query.order('created_at', ascending: false).toList();
 
       return data
-          .map((d) => DriveItem.fromJson(d as Map<String, dynamic>))
+          .map((d) => DriveItem.fromJson(d))
           .toList();
     });
   }
@@ -103,13 +104,14 @@ class DriveRepository extends BaseRepository {
   Future<ResultWrapper<DriveItemReactionsListResponse>> fetchReactions(
       int driveItemId) async {
     return tryCall(() async {
-      final List<dynamic> data = await sbClient
+      final data = await sbClient
           .from('drive_item_reactions')
           .select('id, created_at, emojis(emoji_char)')
-          .eq('item_id', driveItemId);
+          .eq('item_id', driveItemId)
+          .toList();
 
       final reactions = data
-          .map((r) => DriveItemReaction.fromJson(r as Map<String, dynamic>))
+          .map((r) => DriveItemReaction.fromJson(r))
           .toList();
 
       return DriveItemReactionsListResponse(

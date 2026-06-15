@@ -42,19 +42,16 @@ class HomepageState extends BaseState {
   Future<void> fetchTotalMissYou() async {
     final result = await _repo.fetchMissYouTotal();
 
-    switch (result) {
-      case Success(:final value):
+    await result.handleAsync(
+      onSuccess: (value) async {
         _totalMissYou = value.total;
         await StorageService.saveTotalMissYou(value.total);
         await CacheService.saveCheckpoint(
           CacheService.kMissYou,
           DateTime.now().toUtc().toIso8601String(),
         );
-      case GenericError():
-        ErrorHandler.handle(result);
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
     notifyListeners();
   }
 
@@ -68,8 +65,8 @@ class HomepageState extends BaseState {
 
     final result = await _repo.sendMissYou();
 
-    switch (result) {
-      case Success():
+    await result.handleAsync(
+      onSuccess: (_) async {
         _totalMissYou += 1;
         await StorageService.saveTotalMissYou(_totalMissYou);
         await CacheService.saveCheckpoint(
@@ -77,11 +74,8 @@ class HomepageState extends BaseState {
           DateTime.now().toUtc().toIso8601String(),
         );
         _message = 'Mi manchi inviato!';
-      case GenericError():
-        ErrorHandler.handle(result);
-      case NetworkError():
-        ErrorHandler.handle(AppError.network());
-    }
+      },
+    );
 
     _isLoading = false;
     notifyListeners();
