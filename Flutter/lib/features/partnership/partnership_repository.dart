@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class PartnershipRepository extends BaseRepository {
@@ -48,7 +50,6 @@ class PartnershipRepository extends BaseRepository {
   PartnershipRepository({super.sbClient, ApiService? api})
       : _api = api ?? ApiService();
 
-
   Future<ResultWrapper<Map<String, dynamic>>> inviteUser(
       String email, String partnershipCode) async {
     return _api.inviteUser({
@@ -83,12 +84,11 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<void>> sendPartnerRequest(
       String email, String partnershipCode) async {
     BaseRepository.clearPartnershipCache();
-    return tryCall(() async {
-      await sbClient.rpc('request_partnership', params: {
-        'partner_email': email.trim(),
-        'partner_code': partnershipCode.trim(),
-      });
+    final result = await _api.requestPartnership({
+      'email': email.trim(),
+      'partnershipCode': partnershipCode.trim(),
     });
+    return result.map((_) {});
   }
 
   Future<ResultWrapper<void>> acceptPartnerRequest(int partnershipId) async {
@@ -97,6 +97,11 @@ class PartnershipRepository extends BaseRepository {
       await sbClient.rpc('accept_partnership', params: {
         'p_partnership_id': partnershipId,
       });
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'requestAccepted',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 

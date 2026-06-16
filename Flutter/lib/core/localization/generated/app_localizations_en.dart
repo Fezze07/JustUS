@@ -837,4 +837,66 @@ class AppLocalizationsEn extends AppLocalizations {
   String bucket_createdOn(String date) {
     return 'Created on: $date';
   }
+
+  @override
+  String get notif_requestAccepted_title => 'Request Accepted';
+
+  @override
+  String notif_requestAccepted_body(String partnerName) {
+    return '$partnerName accepted your request';
+  }
+
+  @override
+  String get notif_missyou_title => 'Miss You';
+
+  @override
+  String notif_missyou_body(String partnerName) {
+    return '$partnerName misses you';
+  }
+
+  @override
+  String get notif_moodUpdated_title => 'New Mood';
+
+  @override
+  String notif_moodUpdated_body(String partnerName) {
+    return '$partnerName updated their mood';
+  }
+
+  @override
+  String get notif_answerSubmitted_title => 'New Answer';
+
+  @override
+  String notif_answerSubmitted_body(String partnerName) {
+    return '$partnerName answered the question';
+  }
+
+  @override
+  String get notif_newQuestion_title => 'New Couple Question';
+
+  @override
+  String get notif_newQuestion_body => 'A new question awaits you!';
+
+  @override
+  String get notif_driveItemAdded_title => 'New Memory Added';
+
+  @override
+  String notif_driveItemAdded_body(String partnerName) {
+    return '$partnerName added a memory';
+  }
+
+  @override
+  String get notif_reactionAdded_title => 'New Reaction to a Memory';
+
+  @override
+  String notif_reactionAdded_body(String partnerName, String emojiChar) {
+    return '$partnerName reacted with $emojiChar';
+  }
+
+  @override
+  String get notif_bucketItemAdded_title => 'New Wish in the Bucket List';
+
+  @override
+  String notif_bucketItemAdded_body(String partnerName) {
+    return '$partnerName added a wish';
+  }
 }

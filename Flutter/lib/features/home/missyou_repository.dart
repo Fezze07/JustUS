@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class MissYouRepository extends BaseRepository {
@@ -6,6 +8,11 @@ class MissYouRepository extends BaseRepository {
   Future<ResultWrapper<void>> sendMissYou() async {
     return tryCall(() async {
       await sbClient.rpc('send_missyou');
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'missyou',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 
@@ -13,7 +20,9 @@ class MissYouRepository extends BaseRepository {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
-      if (partnershipId == null) return MissYouResponse(success: true, total: 0);
+      if (partnershipId == null) {
+        return MissYouResponse(success: true, total: 0);
+      }
 
       final count = await sbClient
           .from('missyou')

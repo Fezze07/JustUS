@@ -1,26 +1,51 @@
 const admin = require("firebase-admin");
+const path = require("path");
 
-let serviceAccount;
-try { serviceAccount = require("../secrets/fcm-key.json"); } catch { /* file missing in test */ }
-if (serviceAccount && admin.credential?.cert && !admin.apps?.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+let initialized = false;
+
+function initializeFirebaseAdmin() {
+  if (admin.apps?.length) {
+    initialized = true;
+    return true;
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = require(path.join(__dirname, "..", "secrets", "fcm-key.json"));
+  } catch (_) {
+    return false;
+  }
+
+  if (!serviceAccount || !admin.credential?.cert) return false;
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+  initialized = true;
+  return true;
 }
-async function sendNotification(deviceToken, title, body) {
-    const message = {
-        token: deviceToken,
-        notification: {
-            title,
-            body,
-        },
+
+function getMessagingClient() {
+  if (!initialized && !initializeFirebaseAdmin()) return null;
+  return admin.messaging();
+}
+
+async function sendMulticastNotification(message, dryRun = false) {
+  const messaging = getMessagingClient();
+  if (!messaging) {
+    return {
+      configured: false,
+      successCount: 0,
+      failureCount: 0,
+      responses: [],
     };
-    try {
-        await admin.messaging().send(message);
-        console.log("Notifica inviata!");
-    } catch (error) {
-        console.error("Errore invio notifica:", error);
-    }
+  }
+
+  const response = await messaging.sendEachForMulticast(message, dryRun);
+  return { configured: true, ...response };
 }
 
-module.exports = { sendNotification };
+module.exports = {
+  initializeFirebaseAdmin,
+  sendMulticastNotification,
+};

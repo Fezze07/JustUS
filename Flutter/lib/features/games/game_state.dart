@@ -168,12 +168,14 @@ class GameState extends BaseState with CheckpointMixin {
           }
         }
         if (!found) {
-          newHistory.insert(0, GameHistoryItem(
-            questionId: _currentQuestion!.id,
-            question: _currentQuestion!.question,
-            userOption: option,
-            createdAt: DateTime.now().toIso8601String(),
-          ));
+          newHistory.insert(
+              0,
+              GameHistoryItem(
+                questionId: _currentQuestion!.id,
+                question: _currentQuestion!.question,
+                userOption: option,
+                createdAt: DateTime.now().toIso8601String(),
+              ));
         }
         _history = newHistory;
         await StorageService.saveGameHistory(_history);
@@ -249,7 +251,8 @@ class GameState extends BaseState with CheckpointMixin {
     for (final item in _history) {
       if (item.questionId == gameId && _currentUserId != null) {
         final newUser = (userId == _currentUserId) ? null : item.userOption;
-        final newPartner = (userId != _currentUserId) ? null : item.partnerOption;
+        final newPartner =
+            (userId != _currentUserId) ? null : item.partnerOption;
         if (newUser == null && newPartner == null) continue;
         newHistory.add(GameHistoryItem(
           questionId: item.questionId,
@@ -284,7 +287,9 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> handleQuestionUpdate(Map<String, dynamic> newRecord) async {
     final id = _rowInt(newRecord, 'id');
-    if (id == null || _currentQuestion == null || _currentQuestion!.id != id) return;
+    if (id == null || _currentQuestion == null || _currentQuestion!.id != id) {
+      return;
+    }
 
     final question = newRecord['question'] as String?;
     final status = newRecord['status'] as String?;
@@ -315,8 +320,10 @@ class GameState extends BaseState with CheckpointMixin {
 
     _currentUserId ??= await StorageService.getUserId();
 
-    final isOwnInsert = _currentUserId != null && userId == _currentUserId &&
-        _currentQuestion != null && _currentQuestion!.id == gameId;
+    final isOwnInsert = _currentUserId != null &&
+        userId == _currentUserId &&
+        _currentQuestion != null &&
+        _currentQuestion!.id == gameId;
     if (isOwnInsert) return;
 
     if (_currentQuestion != null && _currentQuestion!.id == gameId) {
@@ -334,8 +341,10 @@ class GameState extends BaseState with CheckpointMixin {
           newHistory.add(GameHistoryItem(
             questionId: item.questionId,
             question: item.question,
-            userOption: userId == _currentUserId ? selectedOption : item.userOption,
-            partnerOption: userId != _currentUserId ? selectedOption : item.partnerOption,
+            userOption:
+                userId == _currentUserId ? selectedOption : item.userOption,
+            partnerOption:
+                userId != _currentUserId ? selectedOption : item.partnerOption,
             createdAt: item.createdAt,
           ));
         } else {
@@ -348,13 +357,19 @@ class GameState extends BaseState with CheckpointMixin {
 
     if (!found) {
       if (_currentQuestion != null && _currentQuestion!.id == gameId) {
-        newHistory.insert(0, GameHistoryItem(
-          questionId: gameId,
-          question: _currentQuestion!.question,
-          userOption: _currentUserId != null && userId == _currentUserId ? selectedOption : null,
-          partnerOption: _currentUserId != null && userId != _currentUserId ? selectedOption : null,
-          createdAt: DateTime.now().toIso8601String(),
-        ));
+        newHistory.insert(
+            0,
+            GameHistoryItem(
+              questionId: gameId,
+              question: _currentQuestion!.question,
+              userOption: _currentUserId != null && userId == _currentUserId
+                  ? selectedOption
+                  : null,
+              partnerOption: _currentUserId != null && userId != _currentUserId
+                  ? selectedOption
+                  : null,
+              createdAt: DateTime.now().toIso8601String(),
+            ));
         _history = newHistory;
         await StorageService.saveGameHistory(_history);
       } else {
@@ -383,7 +398,11 @@ class GameState extends BaseState with CheckpointMixin {
 
     if (gameId == null) return;
 
-    if (_currentUserId == null || (_currentQuestion?.id != gameId && _history.every((h) => h.questionId != gameId))) return;
+    if (_currentUserId == null ||
+        (_currentQuestion?.id != gameId &&
+            _history.every((h) => h.questionId != gameId))) {
+      return;
+    }
 
     final result = await _repo.fetchAnswerStatus(gameId);
     result.handle(
@@ -419,7 +438,9 @@ class GameState extends BaseState with CheckpointMixin {
           }
         }
 
-        if (!updated && _currentQuestion != null && _currentQuestion!.id == gameId) {
+        if (!updated &&
+            _currentQuestion != null &&
+            _currentQuestion!.id == gameId) {
           newHistory.insert(
             0,
             GameHistoryItem(

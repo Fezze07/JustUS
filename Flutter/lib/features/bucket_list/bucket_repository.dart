@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class BucketRepository extends BaseRepository {
@@ -26,35 +28,34 @@ class BucketRepository extends BaseRepository {
           .order('created_at', ascending: false)
           .toList();
 
-      return data
-          .map((b) => BucketItem.fromJson(b))
-          .toList();
+      return data.map((b) => BucketItem.fromJson(b)).toList();
     });
   }
 
   Future<ResultWrapper<void>> addBucketItem(
       String text, String? category) async {
-    return withPartnership((partnershipId) async {
-      final dataToInsert = {
+    return tryCall(() async {
+      final partnershipData = await getActivePartnership();
+      final partnershipId = partnershipData?['partnership_id'] as int?;
+      if (partnershipId == null) throw Exception('No active partnership');
+
+      await sbClient.from('bucket_items').insert({
         'text': text,
         'done': false,
         'partnership_id': partnershipId,
-      };
+        if (category != null && category.isNotEmpty) 'category': category,
+      });
 
-      if (category != null && category.isNotEmpty) {
-        dataToInsert['category'] = category;
-      }
-
-      await sbClient.from('bucket_items').insert(dataToInsert);
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'bucketItemAdded',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 
   Future<ResultWrapper<void>> toggleBucketItem(int id, bool done) async {
     return tryCall(() async {
-      await sbClient
-          .from('bucket_items')
-          .update({'done': done})
-          .eq('id', id);
+      await sbClient.from('bucket_items').update({'done': done}).eq('id', id);
     });
   }
 
@@ -63,4 +64,5 @@ class BucketRepository extends BaseRepository {
       await sbClient.from('bucket_items').delete().eq('id', id);
     });
   }
+
 }

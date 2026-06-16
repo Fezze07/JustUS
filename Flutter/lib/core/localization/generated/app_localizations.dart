@@ -1681,6 +1681,102 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Creato il: {date}'**
   String bucket_createdOn(String date);
+
+  /// No description provided for @notif_requestAccepted_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiesta accettata'**
+  String get notif_requestAccepted_title;
+
+  /// No description provided for @notif_requestAccepted_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha accettato la tua richiesta'**
+  String notif_requestAccepted_body(String partnerName);
+
+  /// No description provided for @notif_missyou_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Mi manchi'**
+  String get notif_missyou_title;
+
+  /// No description provided for @notif_missyou_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} sente la tua mancanza'**
+  String notif_missyou_body(String partnerName);
+
+  /// No description provided for @notif_moodUpdated_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuovo mood'**
+  String get notif_moodUpdated_title;
+
+  /// No description provided for @notif_moodUpdated_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha aggiornato il mood'**
+  String notif_moodUpdated_body(String partnerName);
+
+  /// No description provided for @notif_answerSubmitted_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuova risposta'**
+  String get notif_answerSubmitted_title;
+
+  /// No description provided for @notif_answerSubmitted_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha risposto alla domanda'**
+  String notif_answerSubmitted_body(String partnerName);
+
+  /// No description provided for @notif_newQuestion_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuova domanda di coppia'**
+  String get notif_newQuestion_title;
+
+  /// No description provided for @notif_newQuestion_body.
+  ///
+  /// In it, this message translates to:
+  /// **'Una nuova domanda ti aspetta!'**
+  String get notif_newQuestion_body;
+
+  /// No description provided for @notif_driveItemAdded_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuovo ricordo aggiunto'**
+  String get notif_driveItemAdded_title;
+
+  /// No description provided for @notif_driveItemAdded_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha aggiunto un ricordo'**
+  String notif_driveItemAdded_body(String partnerName);
+
+  /// No description provided for @notif_reactionAdded_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuova reazione a un ricordo'**
+  String get notif_reactionAdded_title;
+
+  /// No description provided for @notif_reactionAdded_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha reagito con {emojiChar}'**
+  String notif_reactionAdded_body(String partnerName, String emojiChar);
+
+  /// No description provided for @notif_bucketItemAdded_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuovo desiderio nella bucket list'**
+  String get notif_bucketItemAdded_title;
+
+  /// No description provided for @notif_bucketItemAdded_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha aggiunto un desiderio'**
+  String notif_bucketItemAdded_body(String partnerName);
 }
 
 class _AppLocalizationsDelegate

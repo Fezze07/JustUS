@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' as dart_io;
 
 import 'package:justus/all_imports.dart';
@@ -16,9 +17,7 @@ class DriveRepository extends BaseRepository {
           .order('created_at', ascending: false)
           .toList();
 
-      return data
-          .map((d) => DriveItem.fromJson(d))
-          .toList();
+      return data.map((d) => DriveItem.fromJson(d)).toList();
     });
   }
 
@@ -34,12 +33,9 @@ class DriveRepository extends BaseRepository {
         query = query.gt('updated_at', lastSyncTimestamp);
       }
 
-      final data =
-          await query.order('created_at', ascending: false).toList();
+      final data = await query.order('created_at', ascending: false).toList();
 
-      return data
-          .map((d) => DriveItem.fromJson(d))
-          .toList();
+      return data.map((d) => DriveItem.fromJson(d)).toList();
     });
   }
 
@@ -73,6 +69,11 @@ class DriveRepository extends BaseRepository {
       );
 
       if (result == null) throw Exception('Upload failed');
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'driveItemAdded',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
 
       return DriveItem.fromJson(result);
     });
@@ -110,9 +111,7 @@ class DriveRepository extends BaseRepository {
           .eq('item_id', driveItemId)
           .toList();
 
-      final reactions = data
-          .map((r) => DriveItemReaction.fromJson(r))
-          .toList();
+      final reactions = data.map((r) => DriveItemReaction.fromJson(r)).toList();
 
       return DriveItemReactionsListResponse(
           success: true, reactions: reactions);
@@ -121,15 +120,30 @@ class DriveRepository extends BaseRepository {
 
   Future<ResultWrapper<void>> addReaction(
       int driveItemId, String emojiChar) async {
-    return withUser((uid) async {
-      final emojiId = await sbClient
-          .rpc('get_or_create_emoji', params: {'p_emoji_char': emojiChar});
+    final uid = await getUserId();
+    if (uid == null) {
+      return const GenericError(message: 'User not logged in');
+    }
+
+    return tryCall(() async {
+      final emojiId = await sbClient.rpc('get_or_create_emoji', params: {
+        'p_emoji_char': emojiChar,
+      });
 
       await sbClient.from('drive_item_reactions').insert({
         'item_id': driveItemId,
         'user_id': uid,
         'emoji_id': emojiId,
       });
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'reactionAdded',
+        params: {
+          'partnerName': await StorageService.getUsername() ?? '',
+          'emojiChar': emojiChar,
+        },
+      ));
     });
   }
+
 }

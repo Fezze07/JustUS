@@ -58,7 +58,8 @@ class ApiService {
   late final String _clientUserAgent = _buildClientUserAgent();
   late final String _clientUserAgentHash = _sha256(_clientUserAgent);
 
-  ApiService({http.Client? client}) : _client = client ?? LoggingHttpClient(http.Client(), tag: 'ApiService');
+  ApiService({http.Client? client})
+      : _client = client ?? LoggingHttpClient(http.Client(), tag: 'ApiService');
 
   // Flag to prevent concurrent refresh attempts
   bool _isRefreshing = false;
@@ -184,7 +185,8 @@ class ApiService {
         String? errorMessage;
         AppError? appError;
         try {
-          final errorBody = await compute(_isolateDecodeResponse, response.body);
+          final errorBody =
+              await compute(_isolateDecodeResponse, response.body);
           if (errorBody['error'] != null) {
             appError = AppError.fromJson(errorBody);
             errorMessage = appError.message;
@@ -332,6 +334,12 @@ class ApiService {
     return _post(ApiRoutes.authInvite, body: body, label: 'Invite User');
   }
 
+  Future<ResultWrapper<Map<String, dynamic>>> requestPartnership(
+      Map<String, dynamic> body) async {
+    return _post(ApiRoutes.authInvite,
+        body: body, label: 'Request Partnership');
+  }
+
   Future<ResultWrapper<Map<String, dynamic>>> checkLoginRisk(
       Map<String, dynamic> body) async {
     return _post(ApiRoutes.authLoginRiskCheck,
@@ -361,17 +369,34 @@ class ApiService {
         body: body, requireSignature: true, label: 'Complete Media Upload');
   }
 
-  // -------------------- Game --------------------
+  // -------------------- AI Question Generation --------------------
 
-  Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
+  Future<ResultWrapper<Map<String, dynamic>>> generateAiQuestion() async {
     return _post(
       ApiRoutes.aiQuestion,
       body: {},
       requireSignature: true,
       extraHeaders: {'X-Idempotency-Key': _uuid.v4()},
-      fromJson: GameNewQuestionResponse.fromJson,
       timeout: const Duration(seconds: 60),
       label: 'AI Question Generation',
+    );
+  }
+
+  // -------------------- Notifications --------------------
+
+  /// Sends a notification key + params so the receiver's device
+  /// localizes the message into its own language.
+  Future<ResultWrapper<Map<String, dynamic>>> notifyPartner({
+    required String notificationKey,
+    Map<String, String> params = const {},
+  }) {
+    return _post(
+      ApiRoutes.notifyPartner,
+      body: {
+        'notificationKey': notificationKey,
+        'params': params,
+      },
+      label: 'Notify Partner',
     );
   }
 

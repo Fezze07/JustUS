@@ -1,4 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
+
+import 'package:justus/all_imports.dart';
 
 class AppLanguage {
   final String code;
@@ -97,5 +101,25 @@ abstract final class LanguageHelper {
       'styleHint': language.aiTranslationHint,
       'arbTemplate': 'lib/core/localization/intl_it.arb',
     };
+  }
+
+  static AppLocalizations? _appLoc;
+
+  static AppLocalizations get appLoc {
+    _appLoc ??= lookupAppLocalizations(fallbackLocale);
+    return _appLoc!;
+  }
+
+  static void setAppLocale(Locale locale) {
+    _appLoc = lookupAppLocalizations(resolveLocale(locale));
+  }
+
+  /// Initializes [appLoc] from the device system locale.
+  /// Safe to call from background isolates (after
+  /// [WidgetsFlutterBinding.ensureInitialized]).
+  static void initFromSystemLocale() {
+    if (_appLoc != null) return;
+    final locale = ui.PlatformDispatcher.instance.locale;
+    setAppLocale(resolveLocale(locale));
   }
 }

@@ -16,6 +16,7 @@ class AuthState extends BaseState {
   final UserRepository _userRepo;
 
   StreamSubscription<dynamic>? _authSubscription;
+  StreamSubscription<String>? _tokenRefreshSubscription;
 
   AuthState({
     AuthRepository? authRepo,
@@ -116,7 +117,8 @@ class AuthState extends BaseState {
     }
 
     // Sincronizza lo StorageService quando Supabase refresha il token in background
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final evt = data.event;
       final currentSession = data.session;
       if (evt == AuthChangeEvent.tokenRefreshed && currentSession != null) {
@@ -127,6 +129,11 @@ class AuthState extends BaseState {
         _accessToken = currentSession.accessToken;
         _refreshToken = currentSession.refreshToken;
       }
+    });
+    _tokenRefreshSubscription ??=
+        DeviceTokenService.onTokenRefresh.listen((token) async {
+      if (token.isEmpty || !isLoggedIn) return;
+      await _authRepo.updateDeviceToken(token);
     });
 
     notifyListeners();
@@ -359,7 +366,9 @@ class AuthState extends BaseState {
 
       notifyListeners();
     } catch (e) {
-      if (kDebugMode) print('[AuthState] realtime partnership refresh error: $e');
+      if (kDebugMode) {
+        print('[AuthState] realtime partnership refresh error: $e');
+      }
     }
   }
 
@@ -415,6 +424,7 @@ class AuthState extends BaseState {
   @override
   void dispose() {
     unawaited(_authSubscription?.cancel());
+    unawaited(_tokenRefreshSubscription?.cancel());
     super.dispose();
   }
 

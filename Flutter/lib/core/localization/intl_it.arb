@@ -367,5 +367,73 @@
         "type": "String"
       }
     }
+  },
+  "notif_requestAccepted_title": "Richiesta accettata",
+  "notif_requestAccepted_body": "{partnerName} ha accettato la tua richiesta",
+  "@notif_requestAccepted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_missyou_title": "Mi manchi",
+  "notif_missyou_body": "{partnerName} sente la tua mancanza",
+  "@notif_missyou_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_moodUpdated_title": "Nuovo mood",
+  "notif_moodUpdated_body": "{partnerName} ha aggiornato il mood",
+  "@notif_moodUpdated_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_answerSubmitted_title": "Nuova risposta",
+  "notif_answerSubmitted_body": "{partnerName} ha risposto alla domanda",
+  "@notif_answerSubmitted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_newQuestion_title": "Nuova domanda di coppia",
+  "notif_newQuestion_body": "Una nuova domanda ti aspetta!",
+  "notif_driveItemAdded_title": "Nuovo ricordo aggiunto",
+  "notif_driveItemAdded_body": "{partnerName} ha aggiunto un ricordo",
+  "@notif_driveItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_reactionAdded_title": "Nuova reazione a un ricordo",
+  "notif_reactionAdded_body": "{partnerName} ha reagito con {emojiChar}",
+  "@notif_reactionAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      },
+      "emojiChar": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_bucketItemAdded_title": "Nuovo desiderio nella bucket list",
+  "notif_bucketItemAdded_body": "{partnerName} ha aggiunto un desiderio",
+  "@notif_bucketItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
   }
 }

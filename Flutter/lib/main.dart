@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,6 +9,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+    } catch (_) {}
+  }
+
+  LanguageHelper.initFromSystemLocale();
+  await NotificationService().initLocalNotifications();
+  await NotificationService().showRemoteMessage(message);
+}
 
 void main() {
   unawaited(runZonedGuarded(
@@ -17,7 +35,8 @@ void main() {
       // Global Flutter framework error handler
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.presentError(details);
-        ErrorHandler.handleGlobal(details.exception, details.stack ?? StackTrace.current);
+        ErrorHandler.handleGlobal(
+            details.exception, details.stack ?? StackTrace.current);
       };
 
       // Load environment variables
@@ -36,6 +55,8 @@ void main() {
           kIsWeb) {
         try {
           await Firebase.initializeApp();
+          FirebaseMessaging.onBackgroundMessage(
+              _firebaseMessagingBackgroundHandler);
         } catch (e) {
           debugPrint("Firebase init error: $e");
         }
@@ -56,7 +77,9 @@ void main() {
 
 CardThemeData _cardTheme(Brightness brightness) => CardThemeData(
       elevation: 0,
-      color: brightness == Brightness.light ? AppColors.cardLight : AppColors.cardDark,
+      color: brightness == Brightness.light
+          ? AppColors.cardLight
+          : AppColors.cardDark,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: brightness == Brightness.dark
@@ -105,7 +128,8 @@ class JustUsApp extends StatelessWidget {
   );
 
   static final TextTheme _textTheme = GoogleFonts.plusJakartaSansTextTheme();
-  static final TextTheme _darkTextTheme = GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme);
+  static final TextTheme _darkTextTheme =
+      GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme);
 
   const JustUsApp({
     super.key,
@@ -121,7 +145,7 @@ class JustUsApp extends StatelessWidget {
         // Global state
         ChangeNotifierProvider(create: (_) => AuthState()),
         ChangeNotifierProvider(create: (_) => PartnerState()),
-        
+
         // Feature states
         ChangeNotifierProvider(create: (_) => HomepageState()),
         ChangeNotifierProvider(create: (_) => MoodState()),

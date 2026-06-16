@@ -155,4 +155,18 @@ abstract class BaseRepository {
       return await action(uid, partnerId);
     });
   }
+
+  /// Fire-and-forget notification to partner via backend FCM.
+  /// Sends [notificationKey] and [params] so the receiver's device localizes
+  /// the notification into its own language.
+  /// Creates a transient [ApiService] — safe for infrequent calls.
+  Future<void> notifyPartnerOnce({
+    required String notificationKey,
+    Map<String, String> params = const {},
+  }) async {
+    final api = ApiService();
+    try {
+      await api.notifyPartner(notificationKey: notificationKey, params: params);
+    } catch (_) {}
+  }
 }

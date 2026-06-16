@@ -1,18 +1,30 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class MoodRepository extends BaseRepository {
   MoodRepository({super.sbClient});
 
   Future<ResultWrapper<MoodEntry>> updateMood(String emojiChar) async {
-    return withUser((uid) async {
+    final uid = await getUserId();
+    if (uid == null) return const GenericError(message: 'User not logged in');
+
+    return tryCall(() async {
       await sbClient.rpc('set_mood', params: {'p_emoji_char': emojiChar});
 
-      return MoodEntry(
-        id: 0,
-        userId: uid,
-        emoji: emojiChar,
-        createdAt: DateTime.now().toIso8601String(),
-      );
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'moodUpdated',
+        params: {
+          'partnerName': await StorageService.getUsername() ?? '',
+          'emojiChar': emojiChar,
+        },
+      ));
+
+      return MoodEntry.fromJson({
+        'user_id': uid,
+        'emoji': emojiChar,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      }, currentUserId: uid);
     });
   }
 

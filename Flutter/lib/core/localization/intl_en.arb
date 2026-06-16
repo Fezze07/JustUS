@@ -319,5 +319,73 @@
         "type": "String"
       }
     }
+  },
+  "notif_requestAccepted_title": "Request Accepted",
+  "notif_requestAccepted_body": "{partnerName} accepted your request",
+  "@notif_requestAccepted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_missyou_title": "Miss You",
+  "notif_missyou_body": "{partnerName} misses you",
+  "@notif_missyou_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_moodUpdated_title": "New Mood",
+  "notif_moodUpdated_body": "{partnerName} updated their mood",
+  "@notif_moodUpdated_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_answerSubmitted_title": "New Answer",
+  "notif_answerSubmitted_body": "{partnerName} answered the question",
+  "@notif_answerSubmitted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_newQuestion_title": "New Couple Question",
+  "notif_newQuestion_body": "A new question awaits you!",
+  "notif_driveItemAdded_title": "New Memory Added",
+  "notif_driveItemAdded_body": "{partnerName} added a memory",
+  "@notif_driveItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_reactionAdded_title": "New Reaction to a Memory",
+  "notif_reactionAdded_body": "{partnerName} reacted with {emojiChar}",
+  "@notif_reactionAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      },
+      "emojiChar": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_bucketItemAdded_title": "New Wish in the Bucket List",
+  "notif_bucketItemAdded_body": "{partnerName} added a wish",
+  "@notif_bucketItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
   }
 }

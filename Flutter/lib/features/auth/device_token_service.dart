@@ -3,14 +3,22 @@ import 'package:flutter/foundation.dart';
 import 'package:justus/all_imports.dart';
 
 class DeviceTokenService {
+  static bool get supportsFcm =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      kIsWeb;
+
+  static Stream<String> get onTokenRefresh {
+    if (!supportsFcm) return const Stream.empty();
+    return FirebaseMessaging.instance.onTokenRefresh;
+  }
+
   /// Retrieves the device token.
   /// - On Android/iOS/Web: Returns the FCM token.
   /// - On Windows (unsupported by FCM): Returns a persistent UUID.
   static Future<String> getDeviceToken() async {
     try {
-      if (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS ||
-          kIsWeb) {
+      if (supportsFcm) {
         // FCM for supported platforms
         final fcmToken = await FirebaseMessaging.instance.getToken();
         if (fcmToken != null) {

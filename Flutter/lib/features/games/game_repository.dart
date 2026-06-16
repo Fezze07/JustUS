@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class GameRepository extends BaseRepository {
@@ -34,109 +36,121 @@ class GameRepository extends BaseRepository {
           .eq('game_id', questionId)
           .toList();
 
-      return data
-          .map((a) => GameAnswer.fromJson(a))
-          .toList();
+      return data.map((a) => GameAnswer.fromJson(a)).toList();
     });
   }
 
   Future<ResultWrapper<void>> submitAnswer(
       int questionId, int selectedOption) async {
-    return withUser((uid) async {
-      await sbClient.from('game_answers').insert({
+    final uid = await getUserId();
+    if (uid == null) {
+      return const GenericError(message: 'User not logged in');
+    }
+
+    return tryCall(() async {
+      await sbClient.from('game_answers').upsert([{
         'game_id': questionId,
         'user_id': uid,
         'selected_option': selectedOption,
-      });
-    });
-  }
+      }], onConflict: 'game_id,user_id');
 
-  Future<ResultWrapper<void>> updateQuestionStatus(int questionId, String status) {
-    return tryCall(() async {
-      await sbClient
-          .from('game_questions')
-          .update({'status': status})
-          .eq('id', questionId);
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'answerSubmitted',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 
   Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
+    final uid = await getUserId();
+    if (uid == null) {
+      return const GenericError(message: 'User not logged in');
+    }
+
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
-      if (partnershipId == null) {
-        throw Exception('Nessuna partnership attiva trovata');
+      final partnerId = partnershipData?['partner_id'] as int?;
+      if (partnershipId == null || partnerId == null) {
+        throw Exception('No active partnership');
       }
-
-      final nameA = partnershipData?['user_a_name'] ?? 'Partner A';
-      final nameB = partnershipData?['user_b_name'] ?? 'Partner B';
 
       final existing = await sbClient
           .from('game_questions')
-          .select('id, question, status, user_id_a, user_id_b')
+          .select('id, question, status, user_id_a, user_id_b, created_at')
           .eq('partnership_id', partnershipId)
           .neq('status', 'both_answered')
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
-      final uid = await getUserId();
-      bool hasAnswered = false;
-      bool partnerAnswered = false;
-      if (existing != null && uid != null) {
+      if (existing != null) {
         final answers = await sbClient
             .from('game_answers')
             .select('user_id')
-            .eq('game_id', existing['id'] as Object)
+            .eq('game_id', existing['id'] as int)
             .toList();
+        final hasAnswered = answers.any((a) => a['user_id'] == uid);
+        final partnerAnswered = answers.any((a) => a['user_id'] == partnerId);
 
-        hasAnswered = answers.any((a) => a['user_id'] == uid);
-        partnerAnswered = answers.any((a) => a['user_id'] != uid);
+        return GameNewQuestionResponse(
+          success: true,
+          id: existing['id'] as int,
+          question: existing['question'] as String,
+          status: existing['status'] as String?,
+          userIdA: existing['user_id_a'] as int?,
+          userIdB: existing['user_id_b'] as int?,
+          optionA: 'Partner A',
+          optionB: 'Partner B',
+          hasAnswered: hasAnswered,
+          partnerAnswered: partnerAnswered,
+        );
       }
 
-      if (existing != null) {
-        return GameNewQuestionResponse.fromJson({
-          ...existing,
-          'success': true,
-          'option_a': nameA,
-          'option_b': nameB,
-          'has_answered': hasAnswered,
-          'partner_answered': partnerAnswered,
-        });
+      final aiResponse = await _api.generateAiQuestion();
+
+      final aiResult = aiResponse.valueOrNull;
+      if (aiResult == null) throw Exception('Failed to generate question');
+
+      final questionText = aiResult['question'] as String?;
+      if (questionText == null || questionText.isEmpty) {
+        throw Exception('Invalid AI response');
       }
 
-      final aiResult = await _api.fetchNewGameQuestion();
-      final aiQuestion = aiResult.valueOrNull;
-      if (aiQuestion != null) {
-        final generatedText = aiQuestion.question;
-        final inserted = await sbClient
-            .from('game_questions')
-            .insert({
-              'partnership_id': partnershipId,
-              'question': generatedText,
-              'status': 'pending',
-              'user_id_a': partnershipData?['user_id_a'],
-              'user_id_b': partnershipData?['user_id_b'],
-            })
-            .select('id, question, status, user_id_a, user_id_b')
-            .single();
+      final inserted = await sbClient.from('game_questions').insert({
+        'partnership_id': partnershipId,
+        'question': questionText,
+        'status': 'pending',
+        'user_id_a': uid,
+        'user_id_b': partnerId,
+      }).select('id, question, status, user_id_a, user_id_b, created_at').single();
 
-        return GameNewQuestionResponse.fromJson({
-          ...inserted,
-          'success': true,
-          'option_a': nameA,
-          'option_b': nameB,
-          'has_answered': false,
-          'partner_answered': false,
-        });
-      } else {
-        throw Exception('Errore generazione AI');
-      }
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'newQuestion',
+        params: {},
+      ));
+
+      return GameNewQuestionResponse(
+        success: true,
+        id: inserted['id'] as int,
+        question: inserted['question'] as String,
+        status: inserted['status'] as String?,
+        userIdA: inserted['user_id_a'] as int?,
+        userIdB: inserted['user_id_b'] as int?,
+        optionA: 'Partner A',
+        optionB: 'Partner B',
+      );
     });
   }
 
-  Future<ResultWrapper<({bool hasAnswered, bool partnerAnswered, int? userOption, int? partnerOption})>>
-      fetchAnswerStatus(int questionId) async {
+  Future<
+      ResultWrapper<
+          ({
+            bool hasAnswered,
+            bool partnerAnswered,
+            int? userOption,
+            int? partnerOption
+          })>> fetchAnswerStatus(int questionId) async {
     return withUser((uid) async {
       final answers = await sbClient
           .from('game_answers')
@@ -206,8 +220,7 @@ class GameRepository extends BaseRepository {
         query = query.eq('user_id', uid);
       }
 
-      final data =
-          await query.order('created_at', ascending: false).toList();
+      final data = await query.order('created_at', ascending: false).toList();
 
       final Map<int, Map<String, dynamic>> historyMap = {};
 
@@ -243,4 +256,14 @@ class GameRepository extends BaseRepository {
       return history;
     });
   }
+
+  Future<ResultWrapper<void>> updateQuestionStatus(int questionId, String status) {
+    return tryCall(() async {
+      await sbClient
+          .from('game_questions')
+          .update({'status': status})
+          .eq('id', questionId);
+    });
+  }
+
 }

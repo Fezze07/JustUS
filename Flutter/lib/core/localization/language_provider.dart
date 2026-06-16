@@ -17,6 +17,7 @@ class LanguageProvider extends ChangeNotifier {
     final savedLanguageCode = prefs.getString(LanguageHelper.storageKey);
 
     _locale = LanguageHelper.resolveLanguageCode(savedLanguageCode);
+    LanguageHelper.setAppLocale(_locale);
     _isLoaded = true;
     notifyListeners();
   }
@@ -33,6 +34,7 @@ class LanguageProvider extends ChangeNotifier {
     }
 
     _locale = resolvedLocale;
+    LanguageHelper.setAppLocale(resolvedLocale);
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();

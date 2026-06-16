@@ -1,8 +1,8 @@
 const { z } = require("zod");
 
 const notifySchema = z.object({
-  title: z.string().min(1).max(120),
-  body: z.string().min(1).max(500),
+  notificationKey: z.string().min(1).max(80),
+  params: z.record(z.string()).optional(),
   receiverId: z.number().int().positive().optional(),
 });
 

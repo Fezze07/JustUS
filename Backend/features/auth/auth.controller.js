@@ -11,8 +11,8 @@ const {
   trackSession,
   AppError,
   assertDbSuccess,
-  wrapRpc,
   asyncHandler,
+  wrapRpc,
 } = require("../../all_imports");
 
 const updateDeviceToken = asyncHandler(async (req, res) => {
@@ -121,15 +121,51 @@ const syncSessionController = asyncHandler(async (req, res) => {
   });
 });
 
-// Legacy invite routes migrated to Supabase RPCs
+async function resolveRequestedPartnerOrNull(email, partnershipCode) {
+  try {
+    const user = assertDbSuccess(
+      await adminSupabase
+        .from("users")
+        .select("id, email")
+        .ilike("email", email.trim())
+        .maybeSingle(),
+      "DB_READ_001"
+    );
+
+    if (!user) return null;
+
+    const profile = assertDbSuccess(
+      await adminSupabase
+        .from("user_profiles")
+        .select("user_id, display_name, partnership_code")
+        .eq("user_id", user.id)
+        .eq("partnership_code", partnershipCode.trim())
+        .maybeSingle(),
+      "DB_READ_001"
+    );
+
+    if (!profile) return null;
+
+    return { ...user, displayName: profile.display_name };
+  } catch (_) {
+    return null;
+  }
+}
+
 const invitePartnerController = asyncHandler(async (req, res) => {
   const { email, partnershipCode } = req.body;
-  // We proxy the request to Supabase RPC, but through the backend for extra validation/logging
+  const user = req.user;
+
+  const recipient = await resolveRequestedPartnerOrNull(email, partnershipCode);
+  if (recipient && Number(recipient.id) === Number(user.profileId)) {
+    throw new AppError({ errorKey: "API_VALIDATION_001", message: "Non puoi invitare te stesso" });
+  }
+
   const data = wrapRpc(
     await adminSupabase.rpc("request_partnership", {
       partner_email: email,
       partner_code: partnershipCode,
-      override_sender_id: req.user.profileId,
+      override_sender_id: user.profileId,
     })
   );
 
