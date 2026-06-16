@@ -7,6 +7,9 @@ const CORS_ALLOWED_HEADERS = [
   "X-Request-Signature",
   "X-Idempotency-Key",
   "Idempotency-Key",
+  "X-Device-Fingerprint",
+  "X-Client-User-Agent",
+  "X-Client-User-Agent-Hash",
 ].join(", ");
 
 const CORS_ALLOWED_METHODS = "GET,POST,PATCH,DELETE,OPTIONS";
