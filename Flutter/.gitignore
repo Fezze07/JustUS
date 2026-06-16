@@ -43,14 +43,6 @@ app.*.map.json
 .env
 .env.*
 !.env.example
-
-android/app/google-services.json
-android/key.properties
-android/app/*.jks
-android/app/*.keystore
-ios/Runner/GoogleService-Info.plist
-ios/Flutter/Generated.xcconfig
-ios/Flutter/flutter_export_environment.sh
 *.pem
 
 /test/
