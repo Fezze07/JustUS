@@ -15,12 +15,12 @@ function handleCors(req, res, next, allowedOrigins) {
     return next();
   }
 
-  if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+  if (_isOriginAllowed(origin, allowedOrigins)) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Vary", "Origin");
     res.header("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
     res.header("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
-    
+
     if (req.method === "OPTIONS") {
       return res.status(204).end();
     }
@@ -30,6 +30,40 @@ function handleCors(req, res, next, allowedOrigins) {
   return next(
     new AppError({ errorKey: "SEC_AUTH_001", message: "Origin not allowed" })
   );
+}
+
+/** Verifica se un'origine è consentita, supportando wildcard `://*` e IP privati in dev */
+function _isOriginAllowed(origin, allowedOrigins) {
+  if (allowedOrigins.length === 0) return true;
+  if (allowedOrigins.includes("*")) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  for (const allowed of allowedOrigins) {
+    if (allowed.endsWith("://*")) {
+      const prefix = allowed.slice(0, -4);
+      if (origin.startsWith(prefix)) return true;
+    }
+  }
+
+  if (process.env.NODE_ENV === "development" && _isPrivateOrigin(origin)) {
+    return true;
+  }
+
+  return false;
+}
+
+/** Verifica se un'origine è su localhost o IP privato */
+function _isPrivateOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+    return (
+      host.startsWith("192.168.")
+    );
+  } catch (_) {
+    return false;
+  }
 }
 
 module.exports = { handleCors };

@@ -18,7 +18,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       defaultTargetPlatform == TargetPlatform.iOS ||
       kIsWeb) {
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     } catch (_) {}
   }
 
@@ -54,7 +56,9 @@ void main() {
           defaultTargetPlatform == TargetPlatform.iOS ||
           kIsWeb) {
         try {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
           FirebaseMessaging.onBackgroundMessage(
               _firebaseMessagingBackgroundHandler);
         } catch (e) {
