@@ -11,7 +11,7 @@
     "scan:duplicates": "npm run scan:duplicates:global",
     "scan:duplicates:global": "echo '--- Token Duplication Check (Global) ---' && jscpd . --config .jscpd.json",
     "validate": "bash ./scripts/test-all.sh",
-    "prepare": "husky"
+    "prepare": "npx --no-install husky || echo \"husky not found, skipping prepare\""
   },
   "repository": {
     "type": "git",
