@@ -40,11 +40,13 @@ class NotificationService {
     }
 
     if (registerForegroundHandler && _foregroundSubscription == null) {
-      _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+      _foregroundSubscription =
+          FirebaseMessaging.onMessage.listen((message) async {
         if (kDebugMode) {
-          debugPrint('[NotificationService] onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}');
+          debugPrint(
+              '[NotificationService] onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}');
         }
-        showRemoteMessage(message);
+        await showRemoteMessage(message);
       });
     }
   }
@@ -59,13 +61,7 @@ class NotificationService {
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const darwinSettings = DarwinInitializationSettings(
-      defaultPresentAlert: true,
-      defaultPresentBadge: true,
-      defaultPresentBanner: true,
-      defaultPresentList: true,
-      defaultPresentSound: true,
-    );
+    const darwinSettings = DarwinInitializationSettings();
     const linuxSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
     const windowsSettings = WindowsInitializationSettings(

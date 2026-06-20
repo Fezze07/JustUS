@@ -17,6 +17,9 @@ function initializeFirebaseAdmin() {
     return false;
   }
 
+  console.log("[FCM] firebase-admin keys:", Object.keys(admin || {}));
+  console.log("[FCM] admin.credential keys:", Object.keys(admin?.credential || {}));
+
   if (!serviceAccount || !admin.credential?.cert) {
     console.error("[FCM] Invalid service account object or credential.cert missing");
     return false;
