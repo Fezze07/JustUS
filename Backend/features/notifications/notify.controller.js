@@ -1,4 +1,4 @@
-const { asyncHandler, dispatchNotification } = require("../../all_imports");
+const { asyncHandler, dispatchNotification, AppError } = require("../../all_imports");
 
 const sendNotificationController = asyncHandler(async (req, res) => {
   const result = await dispatchNotification({
@@ -7,9 +7,15 @@ const sendNotificationController = asyncHandler(async (req, res) => {
     payload: req.body,
   });
 
-  // 202 = accepted but not delivered (no registered devices)
-  const status = result.deviceCount === 0 ? 202 : 200;
-  res.status(status).json(result);
+  if (result.deviceCount === 0) {
+    throw new AppError({
+      errorKey: "DB_NOT_FOUND_001",
+      message: "Partner not found or without a valid token",
+    });
+  }
+
+  console.log(`[notify] Dispatch result:`, JSON.stringify(result));
+  res.status(200).json(result);
 });
 
 module.exports = { sendNotificationController };

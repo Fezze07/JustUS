@@ -12,17 +12,26 @@ function initializeFirebaseAdmin() {
   let serviceAccount;
   try {
     serviceAccount = require(path.join(__dirname, "..", "secrets", "fcm-key.json"));
-  } catch (_) {
+  } catch (err) {
+    console.error("[FCM] Error loading secrets/fcm-key.json:", err.message);
     return false;
   }
 
-  if (!serviceAccount || !admin.credential?.cert) return false;
+  if (!serviceAccount || !admin.credential?.cert) {
+    console.error("[FCM] Invalid service account object or credential.cert missing");
+    return false;
+  }
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  initialized = true;
-  return true;
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    initialized = true;
+    return true;
+  } catch (err) {
+    console.error("[FCM] Error initializing firebase-admin app:", err.message);
+    return false;
+  }
 }
 
 function getMessagingClient() {
