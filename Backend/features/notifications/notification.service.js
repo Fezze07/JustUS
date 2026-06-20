@@ -226,6 +226,7 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
 
   for (const batchTokens of chunk(tokens, FCM_BATCH_SIZE)) {
     try {
+      console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} — tokens: ${batchTokens.map(t => t.slice(0, 12) + '…').join(', ')}`);
       const response = await sendMulticastNotification(
         buildFcmMessage({ tokens: batchTokens, type, title, body, data })
       );
@@ -233,6 +234,16 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
       configured = response.configured !== false;
       delivered += response.successCount ?? 0;
       failed += response.failureCount ?? 0;
+
+      // Log per-token errors for diagnosis
+      if (response.responses) {
+        response.responses.forEach((r, i) => {
+          if (r.error) {
+            console.warn(`[notify] FCM token[${i}] (${batchTokens[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
+          }
+        });
+      }
+
       invalidTokens.push(...collectInvalidTokens(batchTokens, response.responses));
     } catch (error) {
       failed += batchTokens.length;

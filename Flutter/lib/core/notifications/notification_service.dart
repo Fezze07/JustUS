@@ -42,7 +42,9 @@ class NotificationService {
     if (registerForegroundHandler && _foregroundSubscription == null) {
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
-        AnsiLogger.notification('onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}', tag: 'NotificationService');
+        AnsiLogger.notification(
+            'onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}',
+            tag: 'NotificationService');
         await showRemoteMessage(message);
       });
     }
@@ -86,6 +88,15 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
+
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'justus_channel',
+          'JustUs Notifications',
+          description: 'Main channel for JustUs app notifications',
+          importance: Importance.high,
+        ),
+      );
     }
 
     _localInitialized = true;

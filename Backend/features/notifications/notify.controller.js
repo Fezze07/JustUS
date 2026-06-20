@@ -7,6 +7,9 @@ const sendNotificationController = asyncHandler(async (req, res) => {
     payload: req.body,
   });
 
+  // Verbose log for debugging background-notification issues
+  console.log(`[notify] Dispatch result: delivered=${result.delivered} failed=${result.failed} devices=${result.deviceCount} invalidRemoved=${result.invalidTokensRemoved} configured=${result.configured ?? true}`);
+
   if (result.deviceCount === 0) {
     throw new AppError({
       errorKey: "DB_NOT_FOUND_001",
@@ -14,8 +17,8 @@ const sendNotificationController = asyncHandler(async (req, res) => {
     });
   }
 
-  console.log(`[notify] Dispatch result:`, JSON.stringify(result));
   res.status(200).json(result);
 });
 
 module.exports = { sendNotificationController };
+

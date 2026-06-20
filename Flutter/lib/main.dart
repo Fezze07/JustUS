@@ -12,6 +12,12 @@ import 'package:justus/all_imports.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (message.notification != null) {
+    // Already shown natively by the OS — nothing to do.
+    return;
+  }
+
+  // Data-only message: we must show it manually even when closed.
   WidgetsFlutterBinding.ensureInitialized();
 
   if (defaultTargetPlatform == TargetPlatform.android ||
