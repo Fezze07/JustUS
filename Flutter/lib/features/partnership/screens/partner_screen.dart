@@ -71,10 +71,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   final partner = profileState.partnerProfile;
                   final sentInvitations = authState.sentInvitations;
                   final receivedInvitations = authState.receivedInvitations;
-                  if (kDebugMode) {
-                    print(
-                        '[PartnerScreen] Building with ${sentInvitations.length} sent, ${receivedInvitations.length} received');
-                  }
+                  AnsiLogger.auth('Building with ${sentInvitations.length} sent, ${receivedInvitations.length} received', tag: 'PartnerScreen');
 
                   return RefreshIndicator(
                     onRefresh: () async {
@@ -345,11 +342,10 @@ class _PartnerScreenState extends State<PartnerScreen> {
               invite: invite,
               isReceived: isReceived,
               onAccept: () async {
-                debugPrint(
-                    '[PartnerScreen] Accepting invitation ${invite.id}...');
+                AnsiLogger.auth('Accepting invitation ${invite.id}...', tag: 'PartnerScreen');
                 final success =
                     await context.read<AuthState>().acceptInvitation(invite.id);
-                debugPrint('[PartnerScreen] Acceptance success: $success');
+                AnsiLogger.auth('Acceptance success: $success', tag: 'PartnerScreen');
 
                 if (success && mounted) {
                   if (mounted) {

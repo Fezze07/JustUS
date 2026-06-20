@@ -70,7 +70,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
             setState(() => _hasError = false);
           }
         } catch (error) {
-          debugPrint("Video Init Error: $error");
+          AnsiLogger.error('Video Init Error: $error', tag: 'DriveItemScreen');
           if (mounted) {
             setState(() {
               _hasError = true;
@@ -122,7 +122,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
       try {
         await _audioPlayer.setSourceUrl(url);
       } catch (e) {
-        debugPrint("Audio Source Error: $e");
+        AnsiLogger.error('Audio Source Error: $e', tag: 'DriveItemScreen');
         if (mounted) {
           setState(() {
             _hasError = true;
@@ -145,7 +145,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Audio Player Error: $e");
+      AnsiLogger.error('Audio Player Error: $e', tag: 'DriveItemScreen');
     }
   }
 

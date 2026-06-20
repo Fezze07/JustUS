@@ -118,19 +118,19 @@ class ErrorHandler {
   // ---------------------------------------------------------------------------
 
   static void _log(AppError err, StackTrace? stackTrace) {
-    if (kDebugMode) {
-      // In debug: log completo con codice, messaggio, dettagli e stack
-      debugPrint('┌── AppError ──────────────────────────────');
-      debugPrint('│  code:     ${err.code}');
-      debugPrint('│  message:  ${err.message}');
-      if (err.requestId != null) debugPrint('│  req_id:   ${err.requestId}');
-      if (err.details != null)   debugPrint('│  details:  ${err.details}');
-      if (stackTrace != null)    debugPrint('│  stack:\n$stackTrace');
-      debugPrint('└──────────────────────────────────────────');
-    } else {
-      // In produzione: log minimo (nessun dato sensibile o stack)
-      debugPrint('[ERROR] ${err.code}: ${err.message}');
+    AnsiLogger.error('┌── AppError ──────────────────────────────', tag: 'ErrorHandler');
+    AnsiLogger.error('│  code:     ${err.code}', tag: 'ErrorHandler');
+    AnsiLogger.error('│  message:  ${err.message}', tag: 'ErrorHandler');
+    if (err.requestId != null) {
+      AnsiLogger.error('│  req_id:   ${err.requestId}', tag: 'ErrorHandler');
     }
+    if (err.details != null) {
+      AnsiLogger.error('│  details:  ${err.details}', tag: 'ErrorHandler');
+    }
+    if (stackTrace != null) {
+      AnsiLogger.error('│  stack:\n$stackTrace', tag: 'ErrorHandler');
+    }
+    AnsiLogger.error('└──────────────────────────────────────────', tag: 'ErrorHandler');
   }
 
   // ---------------------------------------------------------------------------

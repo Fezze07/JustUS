@@ -29,9 +29,7 @@ class DeviceTokenService {
         return await getDeviceFingerprint();
       }
     } catch (e) {
-      if (kDebugMode) {
-        print("Error getting device token: $e");
-      }
+      AnsiLogger.error('Error getting device token: $e', tag: 'DeviceTokenService');
     }
 
     // Fallback if everything fails

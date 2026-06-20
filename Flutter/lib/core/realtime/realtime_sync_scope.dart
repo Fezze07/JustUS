@@ -30,7 +30,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
       gameState: context.read<GameState>(),
       driveState: context.read<DriveState>(),
     )..start();
-    debugPrint('[RealtimeSync] RealtimeSyncScope created');
+    AnsiLogger.realtime('RealtimeSyncScope created');
   }
 
   @override
@@ -45,7 +45,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
 
             final resolvedPartnershipId = authState.partnershipId ??
                 partnerState.partnershipInfo?.partnershipId;
-            debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=$resolvedPartnershipId');
+            AnsiLogger.realtime('configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=$resolvedPartnershipId');
             _service?.configure(
               userId: authState.userId,
               partnerId: authState.partnerId ??

@@ -1,5 +1,4 @@
 import 'package:cloudflare_turnstile/cloudflare_turnstile.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -13,9 +12,8 @@ class CaptchaService {
     if (siteKey == null || siteKey.isEmpty) {
       throw AppError(
         code: ErrorCodes.apiValidation001,
-        message: ErrorHandler.navigatorKey.currentContext
-                ?.loc
-                .auth_captchaMissingConfig ??
+        message: ErrorHandler
+                .navigatorKey.currentContext?.loc.auth_captchaMissingConfig ??
             'Missing security configuration',
       );
     }
@@ -26,9 +24,8 @@ class CaptchaService {
     try {
       final String currentBaseUrl = '${ApiConfig.appOrigin}/';
 
-      if (kDebugMode) {
-        print('[CaptchaService] Avvio verifica Managed per $currentBaseUrl...');
-      }
+      AnsiLogger.auth('Avvio verifica Managed per $currentBaseUrl...',
+          tag: 'CaptchaService');
 
       String? captchaToken;
 
@@ -57,7 +54,7 @@ class CaptchaService {
                       Navigator.of(context).pop();
                     },
                     onError: (error) {
-                      if (kDebugMode) print('[Turnstile] Errore: $error');
+                      AnsiLogger.error('Errore: $error', tag: 'Turnstile');
                       captchaToken = null;
                       Navigator.of(context).pop();
                     },
@@ -80,7 +77,7 @@ class CaptchaService {
 
       return captchaToken;
     } catch (e) {
-      if (kDebugMode) print('[CaptchaService] Errore durante Turnstile: $e');
+      AnsiLogger.error('Errore durante Turnstile: $e', tag: 'CaptchaService');
 
       return null;
     }

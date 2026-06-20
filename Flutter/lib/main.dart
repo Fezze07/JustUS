@@ -62,7 +62,7 @@ void main() {
           FirebaseMessaging.onBackgroundMessage(
               _firebaseMessagingBackgroundHandler);
         } catch (e) {
-          debugPrint("Firebase init error: $e");
+          AnsiLogger.error('Firebase init error: $e', tag: 'Firebase');
         }
       }
 

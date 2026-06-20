@@ -5,7 +5,6 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -144,7 +143,7 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
         setState(() => _initialized = true);
       }
     } catch (e) {
-      if (kDebugMode) print('[VideoThumbnail] Error initializing video: $e');
+      AnsiLogger.error('Error initializing video: $e', tag: 'VideoThumbnail');
     }
   }
 

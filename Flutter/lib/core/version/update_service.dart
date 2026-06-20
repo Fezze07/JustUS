@@ -56,7 +56,7 @@ class UpdateService {
 
       return false; // Equal
     } catch (e) {
-      debugPrint('Error parsing versions: $e');
+      AnsiLogger.error('Error parsing versions: $e', tag: 'UpdateService');
 
       return false;
     }
@@ -118,7 +118,7 @@ class UpdateService {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      debugPrint('Could not launch $url');
+      AnsiLogger.error('Could not launch $url', tag: 'UpdateService');
     }
   }
 }

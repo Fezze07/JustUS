@@ -42,10 +42,7 @@ class NotificationService {
     if (registerForegroundHandler && _foregroundSubscription == null) {
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
-        if (kDebugMode) {
-          debugPrint(
-              '[NotificationService] onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}');
-        }
+        AnsiLogger.notification('onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}', tag: 'NotificationService');
         await showRemoteMessage(message);
       });
     }

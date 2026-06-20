@@ -74,10 +74,9 @@ class AuthState extends BaseState {
 
   Future<void> init() async {
     ApiService.onSessionExpired = () async {
-      if (kDebugMode) {
-        print(
-            '[AuthState] Session expired signal received from ApiService. Forcing logout.');
-      }
+      AnsiLogger.auth(
+          'Session expired signal received from ApiService. Forcing logout.',
+          tag: 'AuthState');
       await logout();
     };
     // 1. Get local data parallelized
@@ -122,13 +121,14 @@ class AuthState extends BaseState {
       // Register (or refresh) the FCM device token on every app start
       if (DeviceTokenService.supportsFcm) {
         final fcmToken = await DeviceTokenService.getDeviceToken();
-        if (kDebugMode) print('[AuthState] FCM token (init): $fcmToken');
         if (fcmToken != 'UNKNOWN_DEVICE_TOKEN') {
           try {
             final result = await _authRepo.updateDeviceToken(fcmToken);
-            if (kDebugMode) print('[AuthState] updateDeviceToken (init): $result');
+            AnsiLogger.auth('updateDeviceToken (init): $result',
+                tag: 'AuthState');
           } catch (e) {
-            if (kDebugMode) print('[AuthState] updateDeviceToken (init) ERROR: $e');
+            AnsiLogger.error('updateDeviceToken (init) ERROR: $e',
+                tag: 'AuthState');
           }
         }
       }
@@ -202,12 +202,14 @@ class AuthState extends BaseState {
       // Step 4: Sync session and register the device token through the backend
       await _syncBackendSession();
       final fcmToken = await DeviceTokenService.getDeviceToken();
-      if (kDebugMode) print('[AuthState] FCM token (login): $fcmToken');
+      AnsiLogger.auth('FCM token (login): $fcmToken', tag: 'AuthState');
       try {
         final tokenResult = await _authRepo.updateDeviceToken(fcmToken);
-        if (kDebugMode) print('[AuthState] updateDeviceToken (login): $tokenResult');
+        AnsiLogger.auth('updateDeviceToken (login): $tokenResult',
+            tag: 'AuthState');
       } catch (e) {
-        if (kDebugMode) print('[AuthState] updateDeviceToken (login) ERROR: $e');
+        AnsiLogger.error('updateDeviceToken (login) ERROR: $e',
+            tag: 'AuthState');
       }
 
       // Step 5: Fetch partner info via v_active_partnership (single source of truth)
@@ -253,10 +255,8 @@ class AuthState extends BaseState {
             message: 'Registrazione fallita: utente non creato');
       }
 
-      if (kDebugMode) {
-        print('[Register] Auth user creato: ${res.user!.id}');
-        print('[Register] Email di conferma inviata a $email');
-      }
+      AnsiLogger.auth('Auth user creato: ${res.user!.id}', tag: 'Register');
+      AnsiLogger.auth('Email di conferma inviata a $email', tag: 'Register');
     });
   }
 
@@ -303,21 +303,21 @@ class AuthState extends BaseState {
         notifyListeners();
       }
     } catch (e) {
-      if (kDebugMode) print('[AuthState] _fetchInvitations error: $e');
+      AnsiLogger.error('_fetchInvitations error: $e', tag: 'AuthState');
     }
   }
 
   Future<bool> acceptInvitation(int invitationId) async {
     return runSafe(() async {
       await _partnershipRepo.acceptPartnerRequest(invitationId);
-      if (kDebugMode) print('[AuthState] RPC accept_partnership success');
+      AnsiLogger.auth('RPC accept_partnership success', tag: 'AuthState');
       await fetchSentInvitations();
       await fetchReceivedInvitations();
 
-      if (kDebugMode) print('[AuthState] Fetching active partnership info...');
+      AnsiLogger.auth('Fetching active partnership info...', tag: 'AuthState');
       final partnershipResult = await _partnershipRepo.getPartnership();
 
-      if (kDebugMode) print('[AuthState] Partnership data: $partnershipResult');
+      AnsiLogger.auth('Partnership data: $partnershipResult', tag: 'AuthState');
 
       final partner = partnershipResult.valueOrNull?.partner;
       if (partner != null) {
@@ -325,7 +325,7 @@ class AuthState extends BaseState {
           partnerId: partner.id,
           displayName: partner.username,
         );
-        if (kDebugMode) print('[AuthState] Partner set successfully');
+        AnsiLogger.auth('Partner set successfully', tag: 'AuthState');
       }
     });
   }
@@ -399,9 +399,8 @@ class AuthState extends BaseState {
 
       notifyListeners();
     } catch (e) {
-      if (kDebugMode) {
-        print('[AuthState] realtime partnership refresh error: $e');
-      }
+      AnsiLogger.error('realtime partnership refresh error: $e',
+          tag: 'AuthState');
     }
   }
 
@@ -438,17 +437,14 @@ class AuthState extends BaseState {
         final bindingSecret = value['bindingSecret'];
         if (bindingSecret is String && bindingSecret.isNotEmpty) {
           await StorageService.saveRequestBindingSecret(bindingSecret);
-          if (kDebugMode) {
-            print('[AuthState] Session synced, binding secret saved.');
-          }
+          AnsiLogger.auth('Session synced, binding secret saved.',
+              tag: 'AuthState');
         }
       } else if (result.isError) {
-        if (kDebugMode) {
-          print('[AuthState] Session sync network error');
-        }
+        AnsiLogger.error('Session sync network error', tag: 'AuthState');
       }
     } catch (e) {
-      if (kDebugMode) print('[AuthState] _syncBackendSession exception: $e');
+      AnsiLogger.error('_syncBackendSession exception: $e', tag: 'AuthState');
     }
   }
 

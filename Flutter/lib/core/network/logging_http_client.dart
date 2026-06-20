@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:justus/all_imports.dart';
 
 class LoggingHttpClient extends http.BaseClient {
   final http.Client _inner;
@@ -81,26 +81,48 @@ class LoggingHttpClient extends http.BaseClient {
     final stopwatch = Stopwatch()..start();
     final description = _formatRequestDescription(request);
 
-    if (kDebugMode) {
-      print('[$_tag] ---> $description started...');
-    }
+    _logRequest('---> $description started...');
 
     try {
       final response = await _inner.send(request);
       stopwatch.stop();
 
-      if (kDebugMode) {
-        print(
-            '[$_tag] <----- ${response.statusCode} - (${stopwatch.elapsedMilliseconds}ms) $description');
-      }
+      _logResponse(
+          '<----- ${response.statusCode} - (${stopwatch.elapsedMilliseconds}ms) $description');
       return response;
     } catch (e) {
       stopwatch.stop();
-      if (kDebugMode) {
-        print(
-            '[$_tag] <----- $description failed (${stopwatch.elapsedMilliseconds}ms): $e');
-      }
+      _logError(
+          '<----- $description failed (${stopwatch.elapsedMilliseconds}ms): $e');
       rethrow;
     }
+  }
+
+  void _logRequest(String message) {
+    if (_tag == 'SupabaseService') {
+      AnsiLogger.supabase(message, tag: _tag);
+    } else if (_tag == 'ApiService') {
+      AnsiLogger.api(message, tag: _tag);
+    } else if (_tag == 'Auth') {
+      AnsiLogger.auth(message, tag: _tag);
+    } else {
+      AnsiLogger.log(message, color: AnsiLogger.white, tag: _tag);
+    }
+  }
+
+  void _logResponse(String message) {
+    if (_tag == 'SupabaseService') {
+      AnsiLogger.supabase(message, tag: _tag);
+    } else if (_tag == 'ApiService') {
+      AnsiLogger.api(message, tag: _tag);
+    } else if (_tag == 'Auth') {
+      AnsiLogger.auth(message, tag: _tag);
+    } else {
+      AnsiLogger.log(message, color: AnsiLogger.white, tag: _tag);
+    }
+  }
+
+  void _logError(String message) {
+    AnsiLogger.error(message, tag: _tag);
   }
 }

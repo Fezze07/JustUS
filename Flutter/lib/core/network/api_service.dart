@@ -159,10 +159,8 @@ class ApiService {
     try {
       final response = await call().timeout(timeout);
 
-      if (kDebugMode) {
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          print('[ApiService] ⇠ Body: ${response.body}');
-        }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        AnsiLogger.api('⇠ Body: ${response.body}');
       }
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = await compute(_isolateDecodeResponse, response.body);
@@ -209,15 +207,15 @@ class ApiService {
       return const NetworkError(
           message: 'Richiesta scaduta (timeout). Controlla la connessione.');
     } on SocketException catch (e) {
-      if (kDebugMode) print('[ApiService] SocketException: $e');
+      AnsiLogger.error('SocketException: $e', tag: 'ApiService');
 
       return NetworkError(message: 'Errore di connessione: ${e.message}');
     } on HttpException catch (e) {
-      if (kDebugMode) print('[ApiService] HttpException: $e');
+      AnsiLogger.error('HttpException: $e', tag: 'ApiService');
 
       return NetworkError(message: e.message);
     } catch (e) {
-      if (kDebugMode) print('[ApiService] Unknown error: $e');
+      AnsiLogger.error('Unknown error: $e', tag: 'ApiService');
 
       return GenericError(message: e.toString());
     }
