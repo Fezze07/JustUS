@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const path = require("path");
+const { getMessaging } = require("firebase-admin/messaging");
 
 let initialized = false;
 
@@ -36,7 +37,7 @@ function initializeFirebaseAdmin() {
 
 function getMessagingClient() {
   if (!initialized && !initializeFirebaseAdmin()) return null;
-  return admin.messaging();
+  return getMessaging();
 }
 
 async function sendMulticastNotification(message, dryRun = false) {
