@@ -7,7 +7,9 @@ const sendNotificationController = asyncHandler(async (req, res) => {
     payload: req.body,
   });
 
-  res.json(result);
+  // 202 = accepted but not delivered (no registered devices)
+  const status = result.deviceCount === 0 ? 202 : 200;
+  res.status(status).json(result);
 });
 
 module.exports = { sendNotificationController };

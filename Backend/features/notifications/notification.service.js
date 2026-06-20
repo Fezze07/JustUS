@@ -208,6 +208,7 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
   const tokens = [...new Set(devices.map((device) => device.device_token))];
 
   if (tokens.length === 0) {
+    console.warn(`[notify] No devices for userId=${userId} type=${type} — token not registered`);
     await safeLogNotification({ user_id: userId, type, status: "no_devices" });
     return {
       success: true,

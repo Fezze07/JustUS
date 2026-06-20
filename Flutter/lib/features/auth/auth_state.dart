@@ -118,6 +118,20 @@ class AuthState extends BaseState {
         }
       }
       await _syncBackendSession();
+
+      // Register (or refresh) the FCM device token on every app start
+      if (DeviceTokenService.supportsFcm) {
+        final fcmToken = await DeviceTokenService.getDeviceToken();
+        if (kDebugMode) print('[AuthState] FCM token (init): $fcmToken');
+        if (fcmToken != 'UNKNOWN_DEVICE_TOKEN') {
+          try {
+            final result = await _authRepo.updateDeviceToken(fcmToken);
+            if (kDebugMode) print('[AuthState] updateDeviceToken (init): $result');
+          } catch (e) {
+            if (kDebugMode) print('[AuthState] updateDeviceToken (init) ERROR: $e');
+          }
+        }
+      }
     }
 
     // Sincronizza lo StorageService quando Supabase refresha il token in background
@@ -188,9 +202,13 @@ class AuthState extends BaseState {
       // Step 4: Sync session and register the device token through the backend
       await _syncBackendSession();
       final fcmToken = await DeviceTokenService.getDeviceToken();
+      if (kDebugMode) print('[AuthState] FCM token (login): $fcmToken');
       try {
-        await _authRepo.updateDeviceToken(fcmToken);
-      } catch (_) {}
+        final tokenResult = await _authRepo.updateDeviceToken(fcmToken);
+        if (kDebugMode) print('[AuthState] updateDeviceToken (login): $tokenResult');
+      } catch (e) {
+        if (kDebugMode) print('[AuthState] updateDeviceToken (login) ERROR: $e');
+      }
 
       // Step 5: Fetch partner info via v_active_partnership (single source of truth)
       try {

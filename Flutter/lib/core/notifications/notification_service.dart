@@ -26,8 +26,24 @@ class NotificationService {
     await _requestRemoteNotificationPermission();
     await initLocalNotifications();
 
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      try {
+        await FirebaseMessaging.instance
+            .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (_) {}
+    }
+
     if (registerForegroundHandler && _foregroundSubscription == null) {
       _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+        if (kDebugMode) {
+          debugPrint('[NotificationService] onMessage fired — key=${message.data["notificationKey"]} id=${message.messageId}');
+        }
         showRemoteMessage(message);
       });
     }
@@ -44,11 +60,11 @@ class NotificationService {
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
-      defaultPresentAlert: false,
-      defaultPresentBadge: false,
-      defaultPresentBanner: false,
-      defaultPresentList: false,
-      defaultPresentSound: false,
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentBanner: true,
+      defaultPresentList: true,
+      defaultPresentSound: true,
     );
     const linuxSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
@@ -104,7 +120,10 @@ class NotificationService {
           (message.data['title'] ?? message.notification?.title)?.toString();
       final rawBody =
           (message.data['body'] ?? message.notification?.body)?.toString();
-      if (rawTitle == null || rawTitle.isEmpty || rawBody == null || rawBody.isEmpty) {
+      if (rawTitle == null ||
+          rawTitle.isEmpty ||
+          rawBody == null ||
+          rawBody.isEmpty) {
         return;
       }
       title = rawTitle;
@@ -123,23 +142,50 @@ class NotificationService {
       String key, Map<String, dynamic> params) {
     LanguageHelper.initFromSystemLocale();
     final loc = LanguageHelper.appLoc;
+    final partnerName = (params['partnerName'] as String?) ?? 'Your partner';
+    final emojiChar = (params['emojiChar'] as String?) ?? '❤️';
+
     switch (key) {
       case 'requestAccepted':
-        return (title: loc.notif_requestAccepted_title, body: loc.notif_requestAccepted_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_requestAccepted_title,
+          body: loc.notif_requestAccepted_body(partnerName)
+        );
       case 'missyou':
-        return (title: loc.notif_missyou_title, body: loc.notif_missyou_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_missyou_title,
+          body: loc.notif_missyou_body(partnerName)
+        );
       case 'moodUpdated':
-        return (title: loc.notif_moodUpdated_title, body: loc.notif_moodUpdated_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_moodUpdated_title,
+          body: loc.notif_moodUpdated_body(partnerName)
+        );
       case 'answerSubmitted':
-        return (title: loc.notif_answerSubmitted_title, body: loc.notif_answerSubmitted_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_answerSubmitted_title,
+          body: loc.notif_answerSubmitted_body(partnerName)
+        );
       case 'newQuestion':
-        return (title: loc.notif_newQuestion_title, body: loc.notif_newQuestion_body);
+        return (
+          title: loc.notif_newQuestion_title,
+          body: loc.notif_newQuestion_body
+        );
       case 'driveItemAdded':
-        return (title: loc.notif_driveItemAdded_title, body: loc.notif_driveItemAdded_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_driveItemAdded_title,
+          body: loc.notif_driveItemAdded_body(partnerName)
+        );
       case 'reactionAdded':
-        return (title: loc.notif_reactionAdded_title, body: loc.notif_reactionAdded_body(params['partnerName'] as String, params['emojiChar'] as String));
+        return (
+          title: loc.notif_reactionAdded_title,
+          body: loc.notif_reactionAdded_body(partnerName, emojiChar)
+        );
       case 'bucketItemAdded':
-        return (title: loc.notif_bucketItemAdded_title, body: loc.notif_bucketItemAdded_body(params['partnerName'] as String));
+        return (
+          title: loc.notif_bucketItemAdded_title,
+          body: loc.notif_bucketItemAdded_body(partnerName)
+        );
       default:
         return (title: 'JustUS', body: '');
     }
