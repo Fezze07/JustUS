@@ -31,8 +31,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   LanguageHelper.initFromSystemLocale();
-  await NotificationService().initLocalNotifications();
-  await NotificationService().showRemoteMessage(message);
+  await NotificationService().initLocalNotifications(isBackground: true);
+  await NotificationService().showRemoteMessage(message, isBackground: true);
 }
 
 void main() {

@@ -55,11 +55,11 @@ class NotificationService {
     _foregroundSubscription = null;
   }
 
-  Future<void> initLocalNotifications() async {
+  Future<void> initLocalNotifications({bool isBackground = false}) async {
     if (_localInitialized || kIsWeb) return;
 
     const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('ic_notification');
     const darwinSettings = DarwinInitializationSettings();
     const linuxSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
@@ -83,29 +83,35 @@ class NotificationService {
       },
     );
 
-    final androidImplementation =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    if (androidImplementation != null) {
-      await androidImplementation.requestNotificationsPermission();
+    // These calls require a live Android Context and MUST NOT run from a
+    // background isolate (spawned by FirebaseMessaging.onBackgroundMessage).
+    // In the background the Context is null, causing NullPointerException.
+    if (!isBackground) {
+      final androidImplementation =
+          _notifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        await androidImplementation.requestNotificationsPermission();
 
-      await androidImplementation.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'justus_channel',
-          'JustUs Notifications',
-          description: 'Main channel for JustUs app notifications',
-          importance: Importance.high,
-        ),
-      );
+        await androidImplementation.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'justus_channel',
+            'JustUs Notifications',
+            description: 'Main channel for JustUs app notifications',
+            importance: Importance.high,
+          ),
+        );
+      }
     }
 
     _localInitialized = true;
   }
 
-  Future<void> showRemoteMessage(RemoteMessage message) async {
+  Future<void> showRemoteMessage(RemoteMessage message,
+      {bool isBackground = false}) async {
     if (kIsWeb) return;
 
-    await initLocalNotifications();
+    await initLocalNotifications(isBackground: isBackground);
 
     String title;
     String body;
