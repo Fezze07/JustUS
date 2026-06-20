@@ -53,36 +53,109 @@ function chunk(values, size) {
   return chunks;
 }
 
+function localizeNotificationText(key, paramsInput = {}) {
+  let params = paramsInput;
+  if (typeof params === "string") {
+    try {
+      params = JSON.parse(params);
+    } catch (_) {
+      params = {};
+    }
+  }
+  const partnerName = params.partnerName || "Your partner";
+  const emojiChar = params.emojiChar || "❤️";
+
+  switch (key) {
+    case "requestAccepted":
+      return {
+        title: "Request Accepted",
+        body: `${partnerName} accepted your request`,
+      };
+    case "missyou":
+      return {
+        title: "Miss You",
+        body: `${partnerName} misses you`,
+      };
+    case "moodUpdated":
+      return {
+        title: "New Mood",
+        body: `${partnerName} updated their mood`,
+      };
+    case "answerSubmitted":
+      return {
+        title: "New Answer",
+        body: `${partnerName} answered the question`,
+      };
+    case "newQuestion":
+      return {
+        title: "New Couple Question",
+        body: "A new question awaits you!",
+      };
+    case "driveItemAdded":
+      return {
+        title: "New Memory Added",
+        body: `${partnerName} added a memory`,
+      };
+    case "reactionAdded":
+      return {
+        title: "New Reaction to a Memory",
+        body: `${partnerName} reacted with ${emojiChar}`,
+      };
+    case "bucketItemAdded":
+      return {
+        title: "New Wish in the Bucket List",
+        body: `${partnerName} added a wish`,
+      };
+    default:
+      return {
+        title: "JustUS",
+        body: "You have a new notification",
+      };
+  }
+}
+
 function buildFcmMessage({ tokens, type, title, body, data }) {
+  const notificationKey = data?.notificationKey || title;
+  const localized = localizeNotificationText(notificationKey, data?.params);
+
   const payload = normalizeDataPayload({
     ...data,
     type,
-    title,
-    body,
+    title: localized.title,
+    body: localized.body,
     source: "justus-backend",
     notificationId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
 
   return {
     tokens,
+    notification: {
+      title: localized.title,
+      body: localized.body,
+    },
     data: payload,
     android: {
       priority: "high",
     },
     apns: {
       headers: {
-        "apns-priority": "5",
+        "apns-priority": "10",
       },
       payload: {
         aps: {
-          "content-available": 1,
+          alert: {
+            title: localized.title,
+            body: localized.body,
+          },
+          sound: "default",
+          badge: 1,
         },
       },
     },
     webpush: {
       notification: {
-        title,
-        body,
+        title: localized.title,
+        body: localized.body,
       },
       data: payload,
     },

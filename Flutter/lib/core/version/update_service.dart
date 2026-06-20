@@ -3,8 +3,8 @@
 // =============================================================================
 
 import 'dart:async';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,6 +17,7 @@ class UpdateService {
 
   Future<void> checkVersion(BuildContext context) async {
     if (_isDialogShowing) return;
+    if (kIsWeb) return;
 
     // Get local version
     final packageInfo = await PackageInfo.fromPlatform();
@@ -87,7 +88,7 @@ class UpdateService {
             ],
           ),
           actions: [
-            if (Platform.isAndroid || Platform.isWindows) // Allow skip on these, force on others?
+            if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.windows)) // Allow skip on these, force on others?
               TextButton(
                 onPressed: () {
                   _isDialogShowing = false;

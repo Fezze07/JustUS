@@ -27,9 +27,8 @@ class NotificationService {
     await initLocalNotifications();
 
     if (registerForegroundHandler && _foregroundSubscription == null) {
-      _foregroundSubscription = FirebaseMessaging.onMessage.listen((_) {
-        // Foreground app state is synchronized by Supabase Realtime.
-        // Push payloads are intentionally not rendered here.
+      _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+        showRemoteMessage(message);
       });
     }
   }

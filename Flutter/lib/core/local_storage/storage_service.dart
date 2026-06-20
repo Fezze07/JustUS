@@ -30,6 +30,7 @@ class StorageService {
   static const String _keyAccessToken = 'access_token';
   static const String _keyRefreshToken = 'refresh_token';
   static const String _keyPartnerId = 'partner_id';
+  static const String _keyPartnershipId = 'partnership_id';
   static const String _keyPartnerDisplayName = 'partner_display_name';
   static const String _keyMissYouTotal = 'miss_you';
   static const String _keyBucketList = 'bucket_list';
@@ -212,6 +213,17 @@ class StorageService {
     return p.getString(_keyPartnerDisplayName);
   }
 
+  static Future<void> savePartnershipId(int partnershipId) async {
+    await _secureStorage.write(key: _keyPartnershipId, value: partnershipId.toString());
+  }
+
+  static Future<int?> getPartnershipId() async {
+    final val = await _secureStorage.read(key: _keyPartnershipId);
+    final id = val != null ? int.tryParse(val) : null;
+
+    return id != null && id != -1 ? id : null;
+  }
+
   // -------------------- Miss You --------------------
 
   static Future<void> saveTotalMissYou(int total) async {
@@ -347,6 +359,7 @@ class StorageService {
   static Future<void> clearPartner() async {
     final p = await prefs;
     await _secureStorage.delete(key: _keyPartnerId);
+    await _secureStorage.delete(key: _keyPartnershipId);
     await p.remove(_keyPartnerDisplayName);
   }
 

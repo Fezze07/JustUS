@@ -34,6 +34,7 @@ class AuthState extends BaseState {
   String? _username;
   int? _userId;
   int? _partnerId;
+  int? _partnershipId;
   String? _partnerDisplayName;
   List<PartnershipInvitation> _sentInvitations = [];
   List<PartnershipInvitation> _receivedInvitations = [];
@@ -45,6 +46,7 @@ class AuthState extends BaseState {
   String? get username => _username;
   int? get userId => _userId;
   int? get partnerId => _partnerId;
+  int? get partnershipId => _partnershipId;
   String? get partnerDisplayName => _partnerDisplayName;
   List<PartnershipInvitation> get sentInvitations => _sentInvitations;
   List<PartnershipInvitation> get receivedInvitations => _receivedInvitations;
@@ -86,6 +88,7 @@ class AuthState extends BaseState {
       StorageService.getUserId(),
       StorageService.getPartnerId(),
       StorageService.getPartnerDisplayName(),
+      StorageService.getPartnershipId(),
     ]);
 
     _accessToken = results[0] as String?;
@@ -94,6 +97,7 @@ class AuthState extends BaseState {
     _userId = results[3] as int?;
     _partnerId = results[4] as int?;
     _partnerDisplayName = results[5] as String?;
+    _partnershipId = results[6] as int?;
 
     // 2. Check Supabase session
     final session = _authRepo.currentSession;
@@ -191,12 +195,13 @@ class AuthState extends BaseState {
       // Step 5: Fetch partner info via v_active_partnership (single source of truth)
       try {
         final partnershipResult = await _partnershipRepo.getPartnership();
+        final partnership = partnershipResult.valueOrNull;
 
-        final partner = partnershipResult.valueOrNull?.partner;
-        if (partner != null) {
+        if (partnership?.partner != null) {
           await setPartner(
-            partnerId: partner.id,
-            displayName: partner.username,
+            partnerId: partnership!.partner!.id,
+            displayName: partnership.partner!.username,
+            partnershipId: partnership.partnershipId,
           );
         }
       } catch (_) {}
@@ -336,11 +341,16 @@ class AuthState extends BaseState {
   Future<void> setPartner({
     required int partnerId,
     required String displayName,
+    int? partnershipId,
   }) async {
     _partnerId = partnerId;
     _partnerDisplayName = displayName;
+    _partnershipId = partnershipId;
 
     await StorageService.savePartner(partnerId, displayName);
+    if (partnershipId != null) {
+      await StorageService.savePartnershipId(partnershipId);
+    }
     notifyListeners();
   }
 
@@ -356,10 +366,15 @@ class AuthState extends BaseState {
       final partner = partnership.partner;
       if (partner != null && partnership.status == 'accepted') {
         _partnerId = partner.id;
+        _partnershipId = partnership.partnershipId;
         _partnerDisplayName = partner.username;
         await StorageService.savePartner(partner.id, partner.username);
+        if (partnership.partnershipId != null) {
+          await StorageService.savePartnershipId(partnership.partnershipId!);
+        }
       } else {
         _partnerId = null;
+        _partnershipId = null;
         _partnerDisplayName = null;
         await StorageService.clearPartner();
       }
@@ -438,6 +453,7 @@ class AuthState extends BaseState {
     _username = null;
     _userId = null;
     _partnerId = null;
+    _partnershipId = null;
     _partnerDisplayName = null;
     _sentInvitations = [];
     user = null;

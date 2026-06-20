@@ -43,12 +43,14 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
             _configureScheduled = false;
             if (!mounted) return;
 
-            debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=${partnerState.partnershipInfo?.partnershipId}');
+            final resolvedPartnershipId = authState.partnershipId ??
+                partnerState.partnershipInfo?.partnershipId;
+            debugPrint('[RealtimeSync] configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=$resolvedPartnershipId');
             _service?.configure(
               userId: authState.userId,
               partnerId: authState.partnerId ??
                   partnerState.partnershipInfo?.partner?.id,
-              partnershipId: partnerState.partnershipInfo?.partnershipId,
+              partnershipId: resolvedPartnershipId,
             );
           });
         }

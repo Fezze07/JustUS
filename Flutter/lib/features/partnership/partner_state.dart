@@ -79,6 +79,9 @@ class PartnerState extends BaseState {
         value.partner!.username,
       );
     }
+    if (value.partnershipId != null) {
+      await StorageService.savePartnershipId(value.partnershipId!);
+    }
   }
 
   /// Sends a partnership request via email and code (maps to request_partnership RPC).

@@ -135,18 +135,21 @@ class RealtimeSyncService with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_disposed) return;
 
+    debugPrint('[RealtimeSync] lifecycle state=$state foreground=$_foreground userId=$_userId');
+
     switch (state) {
       case AppLifecycleState.resumed:
         _foreground = true;
         if (_userId != null) {
           _scheduleReconnect(refreshAfterSubscribe: true);
         }
-      case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _foreground = false;
         unawaited(_unsubscribe());
+      case AppLifecycleState.inactive:
+        break;
     }
   }
 
