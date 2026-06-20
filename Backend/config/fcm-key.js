@@ -17,17 +17,14 @@ function initializeFirebaseAdmin() {
     return false;
   }
 
-  console.log("[FCM] firebase-admin keys:", Object.keys(admin || {}));
-  console.log("[FCM] admin.credential keys:", Object.keys(admin?.credential || {}));
-
-  if (!serviceAccount || !admin.credential?.cert) {
-    console.error("[FCM] Invalid service account object or credential.cert missing");
+  if (!serviceAccount || !admin.cert) {
+    console.error("[FCM] Invalid service account object or admin.cert missing");
     return false;
   }
 
   try {
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+      credential: admin.cert(serviceAccount),
     });
     initialized = true;
     return true;
