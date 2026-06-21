@@ -54,10 +54,14 @@ class AuthRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<void>> updateDeviceToken(String deviceToken) async {
+  Future<ResultWrapper<void>> updateDeviceToken(
+    String deviceToken, {
+    String? locale,
+  }) async {
     final result = await _api.updateDeviceToken(UpdateTokenRequest(
       deviceToken: deviceToken,
       deviceType: defaultTargetPlatform.name,
+      locale: locale,
     ));
     if (result is GenericError<UpdateTokenResponse>) {
       return GenericError(message: result.message, code: result.code);

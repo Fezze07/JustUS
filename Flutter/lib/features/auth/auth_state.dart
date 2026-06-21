@@ -4,6 +4,7 @@
 // =============================================================================
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -119,11 +120,14 @@ class AuthState extends BaseState {
       await _syncBackendSession();
 
       // Register (or refresh) the FCM device token on every app start
-      if (DeviceTokenService.supportsFcm) {
+      if (isLoggedIn && DeviceTokenService.supportsFcm) {
         final fcmToken = await DeviceTokenService.getDeviceToken();
         if (fcmToken != 'UNKNOWN_DEVICE_TOKEN') {
           try {
-            final result = await _authRepo.updateDeviceToken(fcmToken);
+            final result = await _authRepo.updateDeviceToken(
+              fcmToken,
+              locale: ui.PlatformDispatcher.instance.locale.languageCode,
+            );
             AnsiLogger.auth('updateDeviceToken (init): $result',
                 tag: 'AuthState');
           } catch (e) {
@@ -151,7 +155,10 @@ class AuthState extends BaseState {
     _tokenRefreshSubscription ??=
         DeviceTokenService.onTokenRefresh.listen((token) async {
       if (token.isEmpty || !isLoggedIn) return;
-      await _authRepo.updateDeviceToken(token);
+      await _authRepo.updateDeviceToken(
+        token,
+        locale: ui.PlatformDispatcher.instance.locale.languageCode,
+      );
     });
 
     notifyListeners();
@@ -204,7 +211,10 @@ class AuthState extends BaseState {
       final fcmToken = await DeviceTokenService.getDeviceToken();
       AnsiLogger.auth('FCM token (login): $fcmToken', tag: 'AuthState');
       try {
-        final tokenResult = await _authRepo.updateDeviceToken(fcmToken);
+        final tokenResult = await _authRepo.updateDeviceToken(
+          fcmToken,
+          locale: ui.PlatformDispatcher.instance.locale.languageCode,
+        );
         AnsiLogger.auth('updateDeviceToken (login): $tokenResult',
             tag: 'AuthState');
       } catch (e) {

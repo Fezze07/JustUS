@@ -81,3 +81,6 @@ flutter_launcher_icons:
   linux:
     generate: true
     image_path: "F:/JustUS/JustUs.png"
+
+dependency_overrides:
+  flutter_inappwebview_android: 1.1.3

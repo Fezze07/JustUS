@@ -53,7 +53,86 @@ function chunk(values, size) {
   return chunks;
 }
 
-function localizeNotificationText(key, paramsInput = {}) {
+const LOCALIZATIONS = {
+  it: {
+    requestAccepted: (p) => ({
+      title: "Richiesta Accettata",
+      body: `${p.partnerName} ha accettato la tua richiesta`,
+    }),
+    missyou: (p) => ({
+      title: "Mi manchi",
+      body: `${p.partnerName} sente la tua mancanza`,
+    }),
+    moodUpdated: (p) => ({
+      title: "Nuovo Umore",
+      body: `${p.partnerName} ha aggiornato il suo umore`,
+    }),
+    answerSubmitted: (p) => ({
+      title: "Nuova Risposta",
+      body: `${p.partnerName} ha risposto alla domanda`,
+    }),
+    newQuestion: () => ({
+      title: "Nuova Domanda di Coppia",
+      body: "Una nuova domanda ti aspetta!",
+    }),
+    driveItemAdded: (p) => ({
+      title: "Nuovo Ricordo Aggiunto",
+      body: `${p.partnerName} ha aggiunto un ricordo`,
+    }),
+    reactionAdded: (p) => ({
+      title: "Nuova Reazione a un Ricordo",
+      body: `${p.partnerName} ha reagito con ${p.emojiChar}`,
+    }),
+    bucketItemAdded: (p) => ({
+      title: "Nuovo Desiderio nella Lista",
+      body: `${p.partnerName} ha aggiunto un desiderio`,
+    }),
+    default: () => ({
+      title: "JustUS",
+      body: "Hai una nuova notifica",
+    }),
+  },
+  en: {
+    requestAccepted: (p) => ({
+      title: "Request Accepted",
+      body: `${p.partnerName} accepted your request`,
+    }),
+    missyou: (p) => ({
+      title: "Miss You",
+      body: `${p.partnerName} misses you`,
+    }),
+    moodUpdated: (p) => ({
+      title: "New Mood",
+      body: `${p.partnerName} updated their mood`,
+    }),
+    answerSubmitted: (p) => ({
+      title: "New Answer",
+      body: `${p.partnerName} answered the question`,
+    }),
+    newQuestion: () => ({
+      title: "New Couple Question",
+      body: "A new question awaits you!",
+    }),
+    driveItemAdded: (p) => ({
+      title: "New Memory Added",
+      body: `${p.partnerName} added a memory`,
+    }),
+    reactionAdded: (p) => ({
+      title: "New Reaction to a Memory",
+      body: `${p.partnerName} reacted with ${p.emojiChar}`,
+    }),
+    bucketItemAdded: (p) => ({
+      title: "New Wish in the Bucket List",
+      body: `${p.partnerName} added a wish`,
+    }),
+    default: () => ({
+      title: "JustUS",
+      body: "You have a new notification",
+    }),
+  },
+};
+
+function localizeNotificationText(key, paramsInput = {}, locale = "en") {
   let params = paramsInput;
   if (typeof params === "string") {
     try {
@@ -62,61 +141,20 @@ function localizeNotificationText(key, paramsInput = {}) {
       params = {};
     }
   }
-  const partnerName = params.partnerName || "Your partner";
-  const emojiChar = params.emojiChar || "❤️";
 
-  switch (key) {
-    case "requestAccepted":
-      return {
-        title: "Request Accepted",
-        body: `${partnerName} accepted your request`,
-      };
-    case "missyou":
-      return {
-        title: "Miss You",
-        body: `${partnerName} misses you`,
-      };
-    case "moodUpdated":
-      return {
-        title: "New Mood",
-        body: `${partnerName} updated their mood`,
-      };
-    case "answerSubmitted":
-      return {
-        title: "New Answer",
-        body: `${partnerName} answered the question`,
-      };
-    case "newQuestion":
-      return {
-        title: "New Couple Question",
-        body: "A new question awaits you!",
-      };
-    case "driveItemAdded":
-      return {
-        title: "New Memory Added",
-        body: `${partnerName} added a memory`,
-      };
-    case "reactionAdded":
-      return {
-        title: "New Reaction to a Memory",
-        body: `${partnerName} reacted with ${emojiChar}`,
-      };
-    case "bucketItemAdded":
-      return {
-        title: "New Wish in the Bucket List",
-        body: `${partnerName} added a wish`,
-      };
-    default:
-      return {
-        title: "JustUS",
-        body: "You have a new notification",
-      };
-  }
+  const langCode = LOCALIZATIONS[locale] ? locale : "en";
+  const lang = LOCALIZATIONS[langCode];
+
+  params.partnerName = params.partnerName || "Your partner";
+  params.emojiChar = params.emojiChar || "❤️";
+
+  const localizedFn = lang[key] || lang.default;
+  return localizedFn(params);
 }
 
-function buildFcmMessage({ tokens, type, title, body, data }) {
+function buildFcmMessage({ tokens, type, title, body, data, locale = "en" }) {
   const notificationKey = data?.notificationKey || title;
-  const localized = localizeNotificationText(notificationKey, data?.params);
+  const localized = localizeNotificationText(notificationKey, data?.params, locale);
 
   const payload = normalizeDataPayload({
     ...data,
@@ -166,7 +204,7 @@ async function fetchUserDevices(userId) {
   const rows = assertDbSuccess(
     await adminSupabase
       .from("user_devices")
-      .select("id, device_token, device_type")
+      .select("id, device_token, device_type, locale")
       .eq("user_id", userId)
       .not("device_token", "is", null),
     "DB_READ_001"
@@ -219,6 +257,9 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     };
   }
 
+  // Determine receiver locale from their first device (fallback to "en")
+  const receiverLocale = devices.find(d => d.locale)?.locale || "en";
+
   let delivered = 0;
   let failed = 0;
   const invalidTokens = [];
@@ -226,9 +267,9 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
 
   for (const batchTokens of chunk(tokens, FCM_BATCH_SIZE)) {
     try {
-      console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} — tokens: ${batchTokens.map(t => t.slice(0, 12) + '…').join(', ')}`);
+      console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} locale=${receiverLocale} — tokens: ${batchTokens.map(t => t.slice(0, 12) + '\u2026').join(', ')}`);
       const response = await sendMulticastNotification(
-        buildFcmMessage({ tokens: batchTokens, type, title, body, data })
+        buildFcmMessage({ tokens: batchTokens, type, title, body, data, locale: receiverLocale })
       );
 
       configured = response.configured !== false;

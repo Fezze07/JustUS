@@ -16,7 +16,7 @@ const {
 } = require("../../all_imports");
 
 const updateDeviceToken = asyncHandler(async (req, res) => {
-  const { deviceToken } = req.body;
+  const { deviceToken, locale } = req.body;
   const userId = req.user.profileId;
   const clientUserAgent =
     req.get("x-client-user-agent") || req.get("user-agent") || null;
@@ -36,6 +36,7 @@ const updateDeviceToken = asyncHandler(async (req, res) => {
         user_agent: clientUserAgent,
         device_type: deviceType,
         last_ip: lastIp,
+        ...(locale && { locale }),
       },
       { onConflict: "device_token" }
     ),

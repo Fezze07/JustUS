@@ -3,6 +3,7 @@ const { z } = require("zod");
 const updateDeviceTokenSchema = z.object({
   deviceToken: z.string().min(16).max(512),
   deviceType: z.string().max(50).optional(),
+  locale: z.string().max(10).optional(),
 });
 
 const loginRiskSchema = z.object({

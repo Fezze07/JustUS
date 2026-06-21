@@ -88,12 +88,14 @@ class User {
 class UpdateTokenRequest {
   final String deviceToken;
   final String? deviceType;
+  final String? locale;
 
-  UpdateTokenRequest({required this.deviceToken, this.deviceType});
+  UpdateTokenRequest({required this.deviceToken, this.deviceType, this.locale});
 
   Map<String, dynamic> toJson() => {
         'deviceToken': deviceToken,
-        'deviceType': deviceType,
+        if (deviceType != null) 'deviceType': deviceType,
+        if (locale != null) 'locale': locale,
       };
 }
 
