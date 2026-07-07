@@ -623,7 +623,7 @@ abstract class AppLocalizations {
   /// No description provided for @home_bucketListTitle.
   ///
   /// In it, this message translates to:
-  /// **'Bucket List'**
+  /// **'Sogni da vivere'**
   String get home_bucketListTitle;
 
   /// No description provided for @home_bucketListSubtitleDynamic.
@@ -1139,7 +1139,7 @@ abstract class AppLocalizations {
   /// No description provided for @bucket_title.
   ///
   /// In it, this message translates to:
-  /// **'I nostri obiettivi'**
+  /// **'I nostri sogni'**
   String get bucket_title;
 
   /// No description provided for @bucket_emptyAll.

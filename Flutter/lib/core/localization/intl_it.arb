@@ -135,7 +135,7 @@
   "home_gamesSubtitle": "Gioca a un quiz di coppia",
   "home_photosTitle": "Foto",
   "home_photosSubtitle": "La nostra galleria condivisa",
-  "home_bucketListTitle": "Bucket List",
+  "home_bucketListTitle": "Sogni da vivere",
   "home_bucketListSubtitleDynamic": "{count} attività in sospeso",
   "@home_bucketListSubtitleDynamic": {
     "placeholders": {
@@ -228,7 +228,7 @@
   "bucket_goalHint": "Cosa vuoi fare insieme?",
   "bucket_categoryLabel": "Categoria:",
   "bucket_add": "Aggiungi",
-  "bucket_title": "I nostri obiettivi",
+  "bucket_title": "I nostri sogni",
   "bucket_emptyAll": "Nessun obiettivo creato ancora...\nAggiungine uno!",
   "bucket_emptyCategory": "Nessun obiettivo in questa categoria.",
   "bucket_enterText": "Inserisci del testo",

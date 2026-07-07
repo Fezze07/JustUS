@@ -282,7 +282,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_photosSubtitle => 'La nostra galleria condivisa';
 
   @override
-  String get home_bucketListTitle => 'Bucket List';
+  String get home_bucketListTitle => 'Sogni da vivere';
 
   @override
   String home_bucketListSubtitleDynamic(int count) {
@@ -548,7 +548,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_add => 'Aggiungi';
 
   @override
-  String get bucket_title => 'I nostri obiettivi';
+  String get bucket_title => 'I nostri sogni';
 
   @override
   String get bucket_emptyAll =>
