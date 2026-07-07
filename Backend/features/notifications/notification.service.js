@@ -57,19 +57,19 @@ const LOCALIZATIONS = {
   it: {
     requestAccepted: (p) => ({
       title: "Richiesta Accettata",
-      body: `${p.partnerName} ha accettato la tua richiesta`,
+      body: `${p.partnerName || "Il tuo partner"} ha accettato la tua richiesta`,
     }),
     missyou: (p) => ({
       title: "Mi manchi",
-      body: `${p.partnerName} sente la tua mancanza`,
+      body: `${p.partnerName || "Il tuo partner"} sente la tua mancanza`,
     }),
     moodUpdated: (p) => ({
       title: "Nuovo Umore",
-      body: `${p.partnerName} ha aggiornato il suo umore`,
+      body: `${p.partnerName || "Il tuo partner"} ha aggiornato il suo umore`,
     }),
     answerSubmitted: (p) => ({
       title: "Nuova Risposta",
-      body: `${p.partnerName} ha risposto alla domanda`,
+      body: `${p.partnerName || "Il tuo partner"} ha risposto alla domanda`,
     }),
     newQuestion: () => ({
       title: "Nuova Domanda di Coppia",
@@ -77,15 +77,15 @@ const LOCALIZATIONS = {
     }),
     driveItemAdded: (p) => ({
       title: "Nuovo Ricordo Aggiunto",
-      body: `${p.partnerName} ha aggiunto un ricordo`,
+      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un ricordo`,
     }),
     reactionAdded: (p) => ({
       title: "Nuova Reazione a un Ricordo",
-      body: `${p.partnerName} ha reagito con ${p.emojiChar}`,
+      body: `${p.partnerName || "Il tuo partner"} ha reagito con ${p.emojiChar || "❤️"}`,
     }),
     bucketItemAdded: (p) => ({
       title: "Nuovo Desiderio nella Lista",
-      body: `${p.partnerName} ha aggiunto un desiderio`,
+      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un desiderio`,
     }),
     default: () => ({
       title: "JustUS",
@@ -95,19 +95,19 @@ const LOCALIZATIONS = {
   en: {
     requestAccepted: (p) => ({
       title: "Request Accepted",
-      body: `${p.partnerName} accepted your request`,
+      body: `${p.partnerName || "Your partner"} accepted your request`,
     }),
     missyou: (p) => ({
       title: "Miss You",
-      body: `${p.partnerName} misses you`,
+      body: `${p.partnerName || "Your partner"} misses you`,
     }),
     moodUpdated: (p) => ({
       title: "New Mood",
-      body: `${p.partnerName} updated their mood`,
+      body: `${p.partnerName || "Your partner"} updated their mood`,
     }),
     answerSubmitted: (p) => ({
       title: "New Answer",
-      body: `${p.partnerName} answered the question`,
+      body: `${p.partnerName || "Your partner"} answered the question`,
     }),
     newQuestion: () => ({
       title: "New Couple Question",
@@ -115,15 +115,15 @@ const LOCALIZATIONS = {
     }),
     driveItemAdded: (p) => ({
       title: "New Memory Added",
-      body: `${p.partnerName} added a memory`,
+      body: `${p.partnerName || "Your partner"} added a memory`,
     }),
     reactionAdded: (p) => ({
       title: "New Reaction to a Memory",
-      body: `${p.partnerName} reacted with ${p.emojiChar}`,
+      body: `${p.partnerName || "Your partner"} reacted with ${p.emojiChar || "❤️"}`,
     }),
     bucketItemAdded: (p) => ({
       title: "New Wish in the Bucket List",
-      body: `${p.partnerName} added a wish`,
+      body: `${p.partnerName || "Your partner"} added a wish`,
     }),
     default: () => ({
       title: "JustUS",
@@ -144,9 +144,6 @@ function localizeNotificationText(key, paramsInput = {}, locale = "en") {
 
   const langCode = LOCALIZATIONS[locale] ? locale : "en";
   const lang = LOCALIZATIONS[langCode];
-
-  params.partnerName = params.partnerName || "Your partner";
-  params.emojiChar = params.emojiChar || "❤️";
 
   const localizedFn = lang[key] || lang.default;
   return localizedFn(params);
@@ -257,42 +254,78 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     };
   }
 
-  // Determine receiver locale from their first device (fallback to "en")
-  const receiverLocale = devices.find(d => d.locale)?.locale || "en";
+  // Group devices by locale (S1)
+  const devicesByLocale = {};
+  for (const device of devices) {
+    const locale = device.locale || "en";
+    if (!devicesByLocale[locale]) {
+      devicesByLocale[locale] = [];
+    }
+    devicesByLocale[locale].push(device.device_token);
+  }
 
   let delivered = 0;
   let failed = 0;
   const invalidTokens = [];
   let configured = true;
 
-  for (const batchTokens of chunk(tokens, FCM_BATCH_SIZE)) {
-    try {
-      console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} locale=${receiverLocale} — tokens: ${batchTokens.map(t => t.slice(0, 12) + '\u2026').join(', ')}`);
-      const response = await sendMulticastNotification(
-        buildFcmMessage({ tokens: batchTokens, type, title, body, data, locale: receiverLocale })
-      );
+  localeLoop:
+  for (const [locale, localeTokens] of Object.entries(devicesByLocale)) {
+    const uniqueLocaleTokens = [...new Set(localeTokens)];
+    for (const batchTokens of chunk(uniqueLocaleTokens, FCM_BATCH_SIZE)) {
+      try {
+        let attempts = 0;
+        const maxAttempts = 3;
+        let success = false;
+        let response;
 
-      configured = response.configured !== false;
-      delivered += response.successCount ?? 0;
-      failed += response.failureCount ?? 0;
-
-      // Log per-token errors for diagnosis
-      if (response.responses) {
-        response.responses.forEach((r, i) => {
-          if (r.error) {
-            console.warn(`[notify] FCM token[${i}] (${batchTokens[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
+        while (attempts < maxAttempts && !success) {
+          try {
+            attempts++;
+            console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} locale=${locale} (attempt ${attempts}) — tokens: ${batchTokens.map(t => t.slice(0, 12) + '…').join(', ')}`);
+            response = await sendMulticastNotification(
+              buildFcmMessage({ tokens: batchTokens, type, title, body, data, locale })
+            );
+            success = true;
+          } catch (error) {
+            const isTransient = !error.code || !INVALID_FCM_TOKEN_CODES.has(error.code);
+            if (isTransient && attempts < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
+              continue;
+            }
+            throw error;
           }
+        }
+
+        configured = response.configured !== false;
+        if (!configured) {
+          console.warn(`[notify] FCM is not configured — aborting further sends for userId=${userId}`);
+          break localeLoop;
+        }
+        delivered += response.successCount ?? 0;
+        failed += response.failureCount ?? 0;
+
+        // Log per-token errors for diagnosis
+        if (response.responses) {
+          response.responses.forEach((r, i) => {
+            if (r.error) {
+              console.warn(`[notify] FCM token[${i}] (${batchTokens[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
+            }
+          });
+        }
+
+        invalidTokens.push(...collectInvalidTokens(batchTokens, response.responses));
+      } catch (error) {
+        failed += batchTokens.length;
+        if (error.code && INVALID_FCM_TOKEN_CODES.has(error.code)) {
+          invalidTokens.push(...batchTokens);
+        }
+        await safeLogInfo("notification.fcm_batch_failed", {
+          user_id: userId,
+          type,
+          error: typeof serializeError === "function" ? serializeError(error) : error?.message,
         });
       }
-
-      invalidTokens.push(...collectInvalidTokens(batchTokens, response.responses));
-    } catch (error) {
-      failed += batchTokens.length;
-      await safeLogInfo("notification.fcm_batch_failed", {
-        user_id: userId,
-        type,
-        error: typeof serializeError === "function" ? serializeError(error) : error?.message,
-      });
     }
   }
 
@@ -311,21 +344,29 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
   });
 
   return {
-    success: true,
+    success: delivered > 0 || (tokens.length === 0 && failed === 0),
     delivered,
     failed,
     invalidTokensRemoved,
     deviceCount: tokens.length,
+    configured,
   };
 }
 
 async function sendNotificationToUsers({ userIds, type, title, body, data = {} }) {
   const uniqueUserIds = [...new Set(userIds.filter(Boolean).map(Number))];
-  const results = [];
 
-  for (const userId of uniqueUserIds) {
-    results.push(await sendNotificationToUser({ userId, type, title, body, data }));
-  }
+  const settled = await Promise.allSettled(
+    uniqueUserIds.map(userId =>
+      sendNotificationToUser({ userId, type, title, body, data })
+    )
+  );
+
+  const results = settled.map(r =>
+    r.status === "fulfilled"
+      ? r.value
+      : { success: false, delivered: 0, failed: 0, invalidTokensRemoved: 0, deviceCount: 0 }
+  );
 
   return {
     success: true,

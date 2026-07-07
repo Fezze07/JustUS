@@ -11,9 +11,12 @@ const sendNotificationController = asyncHandler(async (req, res) => {
   console.log(`[notify] Dispatch result: delivered=${result.delivered} failed=${result.failed} devices=${result.deviceCount} invalidRemoved=${result.invalidTokensRemoved} configured=${result.configured ?? true}`);
 
   if (result.deviceCount === 0) {
+    const isPartner = (req.params.type || "partner") === "partner";
     throw new AppError({
       errorKey: "DB_NOT_FOUND_001",
-      message: "Partner not found or without a valid token",
+      message: isPartner
+        ? "Partner not found or without a valid token"
+        : "Recipient not found or without a valid token",
     });
   }
 
