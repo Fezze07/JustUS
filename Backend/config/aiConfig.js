@@ -24,56 +24,65 @@ function estimateTokenCount(text) {
     return Math.max(1, Math.ceil((text ?? "").length / 4));
 }
 
+const MODELS = [
+  "qwen/qwen3-coder:free",
+  "deepseek/deepseek-chat:free",
+  "openrouter/free"
+];
+
 async function generateAIQuestion(tipo, partnerNames = { name1: "Partner 1", name2: "Partner 2" }) {
-    const headers = {};
-    if (env.aiInternalApiKey) {
-        headers[env.aiInternalApiHeader] = env.aiInternalApiKey;
+    const prompt = buildAiPrompt(tipo, partnerNames);
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    const url = "https://openrouter.ai/api/v1/chat/completions";
+
+    let lastError = null;
+
+    for (const model of MODELS) {
+        try {
+            const response = await axios.post(
+                url,
+                {
+                    model: model,
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ]
+                },
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${apiKey || ""}`
+                    },
+                    timeout: env.aiTimeoutMs || 12000
+                }
+            );
+
+            const content = response.data?.choices?.[0]?.message?.content;
+            if (!content) {
+                throw new Error(`Empty response content from model ${model}`);
+            }
+
+            const cleaned = cleanAiResponse(content);
+            const parsed = parseAiQuestion(cleaned, env.aiMaxTokens || 160);
+            return parsed;
+        } catch (error) {
+            lastError = error;
+            logError({
+                error: {
+                    message: error.message,
+                    name: error.name,
+                    status: error.response?.status,
+                    data: error.response?.data
+                },
+                event: "ai.model_failed",
+                model: model
+            });
+        }
     }
 
-    const prompt = buildAiPrompt(tipo, partnerNames);
-    const r = await axios.post(
-        env.aiEndpoint,
-        {
-            model: env.aiModel,
-            prompt,
-            stream: true,
-            options: {
-                num_predict: env.aiMaxTokens,
-                temperature: 0.9,
-            },
-        },
-        {
-            responseType: "stream",
-            timeout: env.aiTimeoutMs,
-            headers,
-        }
-    );
-    return new Promise((resolve, reject) => {
-        let jsonText = "";
-        r.data.on("data", chunk => {
-            try {
-                const obj = JSON.parse(chunk.toString());
-                if (obj.response) {
-                    jsonText += obj.response;
-                }
-            } catch {
-                // Ignora chunk incompleti durante lo stream
-            }
-        });
-        r.data.on("end", () => {
-            const cleaned = cleanAiResponse(jsonText);
-            try {
-                resolve(parseAiQuestion(cleaned, env.aiMaxTokens));
-            } catch (e) {
-                logError({ error: { message: e.message, name: e.name }, event: "ai.parse_failed", rawText: jsonText });
-                reject(e);
-            }
-        });
-        r.data.on("error", err => {
-            logError({ error: { message: err.message, name: err.name }, event: "ai.stream_error" });
-            reject(err);
-        });
-    });
+    throw lastError || new Error("All AI models failed");
 }
 
 /**
