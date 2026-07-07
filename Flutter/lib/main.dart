@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -49,6 +50,7 @@ void main() {
 
       await SupabaseService.initialize();
 
+      FirebaseAnalytics? analytics;
       if (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS ||
           kIsWeb) {
@@ -58,6 +60,7 @@ void main() {
           );
           FirebaseMessaging.onBackgroundMessage(
               _firebaseMessagingBackgroundHandler);
+          analytics = FirebaseAnalytics.instance;
         } catch (e) {
           AnsiLogger.error('Firebase init error: $e', tag: 'Firebase');
         }
@@ -69,7 +72,10 @@ void main() {
       final languageProvider = LanguageProvider();
       await languageProvider.loadSavedLocale();
 
-      runApp(JustUsApp(languageProvider: languageProvider));
+      runApp(JustUsApp(
+        languageProvider: languageProvider,
+        analytics: analytics,
+      ));
     },
     (error, stackTrace) => ErrorHandler.handleGlobal(error, stackTrace),
   ));
@@ -77,10 +83,12 @@ void main() {
 
 class JustUsApp extends StatelessWidget {
   final LanguageProvider languageProvider;
+  final FirebaseAnalytics? analytics;
 
   const JustUsApp({
     super.key,
     required this.languageProvider,
+    this.analytics,
   });
 
   @override
@@ -113,6 +121,10 @@ class JustUsApp extends StatelessWidget {
               onGenerateTitle: (context) => context.loc.appTitle,
               debugShowCheckedModeBanner: false,
               navigatorKey: ErrorHandler.navigatorKey,
+              navigatorObservers: [
+                if (analytics != null)
+                  FirebaseAnalyticsObserver(analytics: analytics!),
+              ],
               themeMode: data.themeMode,
               locale: data.locale,
               supportedLocales: AppLocalizations.supportedLocales,

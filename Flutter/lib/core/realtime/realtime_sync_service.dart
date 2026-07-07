@@ -238,8 +238,15 @@ class RealtimeSyncService with WidgetsBindingObserver {
           );
 
       _channel = channel;
+      final int subscribedGeneration = _generation;
       channel.subscribe((status, error) {
         if (_disposed) return;
+
+        if (subscribedGeneration != _generation) {
+          AnsiLogger.realtime(
+              'channel status=$status (stale gen=$subscribedGeneration, current=$_generation) - ignoring');
+          return;
+        }
 
         AnsiLogger.realtime(
             'channel status=$status${error != null ? ' error=$error' : ''}');

@@ -32,8 +32,9 @@ class UIUtils {
           : null,
     );
 
-    // Pulisce eventuali snackbar precedenti e mostra la nuova
-    messenger.hideCurrentSnackBar();
+    // Rimuove immediatamente eventuali snackbar precedenti per evitare
+    // conflitti di Hero tag (hideCurrentSnackBar lascia l'Hero in fade-out)
+    messenger.clearSnackBars();
     messenger.showSnackBar(snackBar);
   }
 }
