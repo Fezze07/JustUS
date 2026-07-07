@@ -110,6 +110,8 @@ abstract final class LanguageHelper {
     return _appLoc!;
   }
 
+  static bool get isLocaleInitialized => _appLoc != null;
+
   static void setAppLocale(Locale locale) {
     _appLoc = lookupAppLocalizations(resolveLocale(locale));
   }
@@ -117,8 +119,8 @@ abstract final class LanguageHelper {
   /// Initializes [appLoc] from the device system locale.
   /// Safe to call from background isolates (after
   /// [WidgetsFlutterBinding.ensureInitialized]).
+  /// Always refreshes so runtime locale changes are picked up.
   static void initFromSystemLocale() {
-    if (_appLoc != null) return;
     final locale = ui.PlatformDispatcher.instance.locale;
     setAppLocale(resolveLocale(locale));
   }

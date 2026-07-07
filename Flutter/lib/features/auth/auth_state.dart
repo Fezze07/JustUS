@@ -7,17 +7,20 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import 'package:justus/all_imports.dart';
 
-class AuthState extends BaseState {
+class AuthState extends BaseState with WidgetsBindingObserver {
   final AuthRepository _authRepo;
   final PartnershipRepository _partnershipRepo;
   final UserRepository _userRepo;
 
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
+  String? _lastSyncedLocale;
+  bool _isSyncingLocale = false;
 
   AuthState({
     AuthRepository? authRepo,
@@ -80,6 +83,13 @@ class AuthState extends BaseState {
           tag: 'AuthState');
       await logout();
     };
+
+    // Make init idempotent (A3)
+    await _authSubscription?.cancel();
+    _authSubscription = null;
+    await _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = null;
+
     // 1. Get local data parallelized
     final results = await Future.wait([
       StorageService.getAccessToken(),
@@ -152,7 +162,7 @@ class AuthState extends BaseState {
         _refreshToken = currentSession.refreshToken;
       }
     });
-    _tokenRefreshSubscription ??=
+    _tokenRefreshSubscription =
         DeviceTokenService.onTokenRefresh.listen((token) async {
       if (token.isEmpty || !isLoggedIn) return;
       await _authRepo.updateDeviceToken(
@@ -161,7 +171,54 @@ class AuthState extends BaseState {
       );
     });
 
+    // Observe app lifecycle to sync locale changes at runtime
+    WidgetsBinding.instance.addObserver(this);
+
     notifyListeners();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && isLoggedIn) {
+      unawaited(_syncDeviceLocale());
+    }
+  }
+
+  @override
+  void didChangeLocales(List<ui.Locale>? locales) {
+    if (isLoggedIn && locales != null && locales.isNotEmpty) {
+      unawaited(_syncDeviceLocale(locales.first));
+    }
+  }
+
+  Future<void> _syncDeviceLocale([ui.Locale? locale]) async {
+    if (_isSyncingLocale) return;
+    _isSyncingLocale = true;
+    try {
+      final currentLocale =
+          (locale ?? ui.PlatformDispatcher.instance.locale).languageCode;
+      if (currentLocale == _lastSyncedLocale) return;
+
+      if (!DeviceTokenService.supportsFcm) return;
+      final token = await DeviceTokenService.getDeviceToken();
+      if (token.isEmpty || token == 'UNKNOWN_DEVICE_TOKEN') return;
+
+      final result = await _authRepo.updateDeviceToken(
+        token,
+        locale: currentLocale,
+      );
+      if (result is Success<void>) {
+        _lastSyncedLocale = currentLocale;
+        AnsiLogger.notification('Locale synced: $currentLocale',
+            tag: 'AuthState');
+      } else {
+        AnsiLogger.error('Locale sync failed: $result', tag: 'AuthState');
+      }
+    } catch (e) {
+      AnsiLogger.error('Locale sync error: $e', tag: 'AuthState');
+    } finally {
+      _isSyncingLocale = false;
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -462,6 +519,7 @@ class AuthState extends BaseState {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_authSubscription?.cancel());
     unawaited(_tokenRefreshSubscription?.cancel());
     super.dispose();
