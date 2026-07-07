@@ -7,7 +7,9 @@ import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:justus/all_imports.dart';
 
@@ -20,7 +22,13 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _localInitialized = false;
+  bool _channelCreated = false;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
+
+  // Stream for notification taps (N7)
+  final StreamController<String?> _onNotificationTapController =
+      StreamController<String?>.broadcast();
+  Stream<String?> get onNotificationTap => _onNotificationTapController.stream;
 
   Future<void> init({bool registerForegroundHandler = true}) async {
     await _requestRemoteNotificationPermission();
@@ -37,6 +45,23 @@ class NotificationService {
           sound: true,
         );
       } catch (_) {}
+
+      // Handle notification launch payload (N7)
+      try {
+        final launchDetails =
+            await _notifications.getNotificationAppLaunchDetails();
+        if (launchDetails != null && launchDetails.didNotificationLaunchApp) {
+          final response = launchDetails.notificationResponse;
+          if (response != null) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              _onNotificationTapController.add(response.payload);
+            });
+          }
+        }
+      } catch (e) {
+        AnsiLogger.error('Failed to get launch details: $e',
+            tag: 'NotificationService');
+      }
     }
 
     if (registerForegroundHandler && _foregroundSubscription == null) {
@@ -56,72 +81,101 @@ class NotificationService {
   }
 
   Future<void> initLocalNotifications({bool isBackground = false}) async {
-    if (_localInitialized || kIsWeb) return;
+    if (kIsWeb) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('ic_notification');
-    const darwinSettings = DarwinInitializationSettings();
-    const linuxSettings =
-        LinuxInitializationSettings(defaultActionName: 'Open notification');
-    const windowsSettings = WindowsInitializationSettings(
-      appName: 'JustUs',
-      appUserModelId: 'com.justus.app',
-      guid: '09cd7eb2-30eb-4a5d-a8b9-c84f6ad53c8a',
-    );
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: darwinSettings,
-      macOS: darwinSettings,
-      linux: linuxSettings,
-      windows: windowsSettings,
-    );
+    if (!_localInitialized) {
+      const androidSettings = AndroidInitializationSettings('ic_notification');
+      const darwinSettings = DarwinInitializationSettings();
+      const linuxSettings =
+          LinuxInitializationSettings(defaultActionName: 'Open notification');
+      const windowsSettings = WindowsInitializationSettings(
+        appName: 'JustUs',
+        appUserModelId: 'com.justus.app',
+        guid: '09cd7eb2-30eb-4a5d-a8b9-c84f6ad53c8a',
+      );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: darwinSettings,
+        macOS: darwinSettings,
+        linux: linuxSettings,
+        windows: windowsSettings,
+      );
 
-    await _notifications.initialize(
-      settings: initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        // Navigation on tap can be wired here once deep-link targets exist.
-      },
-    );
-
-    // These calls require a live Android Context and MUST NOT run from a
-    // background isolate (spawned by FirebaseMessaging.onBackgroundMessage).
-    // In the background the Context is null, causing NullPointerException.
-    if (!isBackground) {
-      final androidImplementation =
-          _notifications.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      if (androidImplementation != null) {
-        await androidImplementation.requestNotificationsPermission();
-
-        await androidImplementation.createNotificationChannel(
-          const AndroidNotificationChannel(
-            'justus_channel',
-            'JustUs Notifications',
-            description: 'Main channel for JustUs app notifications',
-            importance: Importance.high,
-          ),
+      try {
+        await _notifications.initialize(
+          settings: initSettings,
+          onDidReceiveNotificationResponse: (response) {
+            _onNotificationTapController.add(response.payload);
+          },
         );
+        _localInitialized = true;
+      } catch (e) {
+        AnsiLogger.error('Local notifications initialization failed: $e',
+            tag: 'NotificationService');
       }
     }
 
-    _localInitialized = true;
+    // Android channel creation (N3)
+    if (!isBackground && !_channelCreated && _localInitialized) {
+      try {
+        final androidImplementation =
+            _notifications.resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        if (androidImplementation != null) {
+          await androidImplementation.requestNotificationsPermission();
+
+          await androidImplementation.createNotificationChannel(
+            const AndroidNotificationChannel(
+              'justus_channel',
+              'JustUs Notifications',
+              description: 'Main channel for JustUs app notifications',
+              importance: Importance.high,
+            ),
+          );
+          _channelCreated = true;
+        }
+      } catch (e) {
+        AnsiLogger.error('Failed to create Android notification channel: $e',
+            tag: 'NotificationService');
+      }
+    }
   }
 
   Future<void> showRemoteMessage(RemoteMessage message,
       {bool isBackground = false}) async {
     if (kIsWeb) return;
 
-    await initLocalNotifications(isBackground: isBackground);
+    if (!_localInitialized) {
+      await initLocalNotifications(isBackground: isBackground);
+    }
+
+    // Load the user's saved locale (N1)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedLanguageCode = prefs.getString(LanguageHelper.storageKey);
+      if (savedLanguageCode != null && savedLanguageCode.isNotEmpty) {
+        LanguageHelper.setAppLocale(Locale(savedLanguageCode));
+      } else {
+        LanguageHelper.initFromSystemLocale();
+      }
+    } catch (_) {
+      LanguageHelper.initFromSystemLocale();
+    }
 
     String title;
     String body;
 
     final notificationKey = message.data['notificationKey'] as String?;
     if (notificationKey != null && notificationKey.isNotEmpty) {
-      final paramsJson = message.data['params'] as String?;
-      final params = paramsJson != null && paramsJson.isNotEmpty
-          ? jsonDecode(paramsJson) as Map<String, dynamic>
-          : <String, dynamic>{};
+      final dynamic rawParams = message.data['params'];
+      Map<String, dynamic> params = <String, dynamic>{};
+      if (rawParams is Map) {
+        params = Map<String, dynamic>.from(rawParams);
+      } else if (rawParams is String && rawParams.isNotEmpty) {
+        try {
+          params = jsonDecode(rawParams) as Map<String, dynamic>;
+        } catch (_) {}
+      }
       final localized = _localizeNotification(notificationKey, params);
       title = localized.title;
       body = localized.body;
@@ -150,7 +204,9 @@ class NotificationService {
 
   ({String title, String body}) _localizeNotification(
       String key, Map<String, dynamic> params) {
-    LanguageHelper.initFromSystemLocale();
+    if (!LanguageHelper.isLocaleInitialized) {
+      LanguageHelper.initFromSystemLocale();
+    }
     final loc = LanguageHelper.appLoc;
     final partnerName = (params['partnerName'] as String?) ?? 'Your partner';
     final emojiChar = (params['emojiChar'] as String?) ?? '❤️';
@@ -256,12 +312,25 @@ class NotificationService {
     }
   }
 
+  int _stableStringHash(String input) {
+    int hash = 5381;
+    for (int i = 0; i < input.length; i++) {
+      hash = ((hash << 5) + hash) + input.codeUnitAt(i);
+      hash = hash & 0xffffffff;
+    }
+    return hash & 0x7fffffff;
+  }
+
+  static int _nextNotificationId = DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
+
   int _notificationId(RemoteMessage message) {
     final raw =
         (message.data['notificationId'] ?? message.messageId)?.toString();
     if (raw == null || raw.isEmpty) {
-      return DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
+      _nextNotificationId = (_nextNotificationId + 1) & 0x7fffffff;
+      if (_nextNotificationId == 0) _nextNotificationId = 1;
+      return _nextNotificationId;
     }
-    return raw.hashCode & 0x7fffffff;
+    return _stableStringHash(raw);
   }
 }

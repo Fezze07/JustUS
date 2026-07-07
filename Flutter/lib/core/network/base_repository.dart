@@ -167,6 +167,9 @@ abstract class BaseRepository {
     final api = ApiService();
     try {
       await api.notifyPartner(notificationKey: notificationKey, params: params);
-    } catch (_) {}
+    } catch (e) {
+      AnsiLogger.error('notifyPartnerOnce failed ($notificationKey): $e',
+          tag: 'Notification');
+    }
   }
 }
