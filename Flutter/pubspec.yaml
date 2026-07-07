@@ -42,7 +42,7 @@ dependencies:
   # Utilities
   package_info_plus: ^10.1.0
   url_launcher: ^6.2.4
-  flutter_local_notifications: ^21.0.0
+  flutter_local_notifications: ^22.0.1
   firebase_core: ^4.4.0
   firebase_messaging: ^16.1.1
   uuid: ^4.3.3
@@ -60,7 +60,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   mocktail: ^1.0.3
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   generate: true
