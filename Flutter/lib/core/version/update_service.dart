@@ -69,8 +69,8 @@ class UpdateService {
       await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text(context.loc.update_availableTitle),
+        builder: (context) => VPDialog(
+          title: context.loc.update_availableTitle,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,7 +88,7 @@ class UpdateService {
             ],
           ),
           actions: [
-            if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.windows)) // Allow skip on these, force on others?
+            if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.windows))
               TextButton(
                 onPressed: () {
                   _isDialogShowing = false;
@@ -99,8 +99,6 @@ class UpdateService {
             FilledButton(
               onPressed: () {
                 unawaited(_launchUpdateUrl(apkUrl));
-                // Don't close dialog immediately on click if we want to show progress
-                // But for simple URL launch, we can close or keep open
                 _isDialogShowing = false;
                 Navigator.pop(context);
               },

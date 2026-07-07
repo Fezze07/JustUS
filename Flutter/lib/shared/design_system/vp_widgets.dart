@@ -625,19 +625,21 @@ class VPDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.cardDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: Text(
-        title,
-        style: VpWidgets.googleFont(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
+    return Theme(
+      data: ThemeData(brightness: Brightness.dark),
+      child: AlertDialog(
+        backgroundColor: AppColors.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          title,
+          style: VpWidgets.googleFont(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
+        content: content,
+        actions: actions,
       ),
-      content: content,
-      actions: actions,
     );
   }
 }
