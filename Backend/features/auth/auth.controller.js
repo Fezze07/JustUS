@@ -21,11 +21,19 @@ const updateDeviceToken = asyncHandler(async (req, res) => {
   const clientUserAgent =
     req.get("x-client-user-agent") || req.get("user-agent") || null;
 
-  const deviceType =
-    req.body.deviceType ||
-    (clientUserAgent?.includes("justus/flutter/")
-      ? clientUserAgent.split("/").pop()?.toLowerCase()
-      : null);
+  let deviceType = req.body.deviceType;
+  if (!deviceType && clientUserAgent) {
+    const ua = clientUserAgent.toLowerCase();
+    if (ua.includes("android")) {
+      deviceType = "android";
+    } else if (ua.includes("ios") || ua.includes("iphone") || ua.includes("ipad")) {
+      deviceType = "ios";
+    } else if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("macos") || ua.includes("darwin")) {
+      deviceType = "macos";
+    } else if (ua.includes("web") || ua.includes("browser")) {
+      deviceType = "web";
+    }
+  }
   const lastIp = req.ip;
 
   assertDbSuccess(
