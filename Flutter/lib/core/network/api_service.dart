@@ -171,7 +171,7 @@ class ApiService {
         final refreshResult = await _tryRefreshToken();
         if (refreshResult) {
           // Retry the original call
-          return _safeCall(call, fromJson,
+          return await _safeCall(call, fromJson,
               isRetry: true, timeout: timeout, label: label);
         }
         // Refresh failed

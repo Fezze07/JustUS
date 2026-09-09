@@ -32,6 +32,11 @@ analyzer:
     - "lib/all_imports.dart"
     - "tool/**"
     - "build/**"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
 
 linter:
   rules:
