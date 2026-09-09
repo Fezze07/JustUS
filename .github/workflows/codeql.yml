@@ -55,14 +55,9 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        echo "Creating dummy google-services.json for Flutter..."
-        mkdir -p Flutter/android/app
-        echo '{"project_info":{"project_number":"123","project_id":"fake"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.fezze.justus"}},"api_key":[{"current_key":"fake"}]}]}' > Flutter/android/app/google-services.json
-        
-        # Build del progetto Flutter
         echo "Building Flutter App..."
         cd Flutter
-        flutter pub get 
+        flutter pub get
         flutter build apk --debug
         cd ..
 
