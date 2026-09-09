@@ -8,7 +8,6 @@ const {
   onSuccess,
   logSecurity,
   AppError,
-  adminSupabase,
 } = require("../../all_imports");
 
 async function createAiQuestion({ user, type, ipAddress, endpointPath }) {
@@ -44,8 +43,7 @@ async function createAiQuestion({ user, type, ipAddress, endpointPath }) {
     });
   }
 
-  const partnerNames = await getPartnerNames(user.profileId);
-  const payload = await generateAIQuestion(chosenType, partnerNames);
+  const payload = await generateAIQuestion(chosenType);
   const usedTokens = estimateTokenCount(payload.question);
   onSuccess("ai-question");
 
@@ -57,33 +55,7 @@ async function createAiQuestion({ user, type, ipAddress, endpointPath }) {
   };
 }
 
-/**
- * Ottiene i nomi dei partner per un dato profilo.
- * @param {number} profileId - L'ID del profilo dell'utente.
- * @returns {Promise<{name1: string, name2: string}>} I nomi dei due partner.
- */
-async function getPartnerNames(profileId) {
-  try {
-    // Utilizza la funzione PostgreSQL centralizzata via RPC
-    const { data, error } = await adminSupabase.rpc("get_partnership_names", {
-      p_user_id: profileId,
-    });
-
-    if (error || !data) {
-      return { name1: "Partner 1", name2: "Partner 2" };
-    }
-
-    return {
-      name1: data.name1,
-      name2: data.name2,
-    };
-  } catch (_error) {
-    return { name1: "Partner 1", name2: "Partner 2" };
-  }
-}
-
 module.exports = {
   createAiQuestion,
-  getPartnerNames,
   onAiQuestionFailure: onFailure,
 };

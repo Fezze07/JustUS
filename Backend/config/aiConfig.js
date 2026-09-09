@@ -25,13 +25,13 @@ function estimateTokenCount(text) {
 }
 
 const MODELS = [
-  "qwen/qwen3-coder:free",
-  "deepseek/deepseek-chat:free",
-  "openrouter/free"
+  "openrouter/free",
+  "openai/gpt-oss-120b:free",
+  "nvidia/nemotron-3-super:free"
 ];
 
-async function generateAIQuestion(tipo, partnerNames = { name1: "Partner 1", name2: "Partner 2" }) {
-    const prompt = buildAiPrompt(tipo, partnerNames);
+async function generateAIQuestion(tipo) {
+    const messages = buildAiPrompt(tipo);
     const apiKey = process.env.OPENROUTER_API_KEY;
     const url = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -43,12 +43,7 @@ async function generateAIQuestion(tipo, partnerNames = { name1: "Partner 1", nam
                 url,
                 {
                     model: model,
-                    messages: [
-                        {
-                            role: "user",
-                            content: prompt
-                        }
-                    ]
+                    messages,
                 },
                 {
                     headers: {
@@ -91,21 +86,28 @@ async function generateAIQuestion(tipo, partnerNames = { name1: "Partner 1", nam
  * @param {object} partnerNames - I nomi dei partner.
  * @returns {string} Il prompt formattato.
  */
-function buildAiPrompt(tipo, partnerNames) {
-  const { name1, name2 } = partnerNames;
-  return `
-    Rispondi SOLO con JSON valido.
-    Formato ESATTO:
-    {"question":"TESTO DELLA DOMANDA?"}
-    Regole:
-    - Un solo campo: question
-    - Deve iniziare con: ${tipo}
-    - Domanda per una coppia (${name1} e ${name2})
-    - NON fare domande a cui non si puo rispondere con ${name1} o ${name2}
-    - NON scrivere mai i 3 puntini a fine frase, usa il punto di domanda = ?
-    - NIENTE spiegazioni
-    - NIENTE testo fuori dal JSON
-    `;
+function buildAiPrompt(tipo) {
+  return [
+    {
+      role: "system",
+      content: `Genera una domanda divertente per una coppia.
+Regole:
+- Rispondi SOLO con JSON valido: {"question":"TESTO DELLA DOMANDA?"}
+- La domanda deve iniziare ESATTAMENTE con il tipo fornito.
+- Deve avere senso grammaticale in italiano.
+- NON usare i 3 puntini (...), usa sempre ?.
+- NON inserire nomi di persone nella domanda.
+- NIENTE spiegazioni, niente testo fuori dal JSON.
+
+Esempio:
+Input: "Chi è più romantico…"
+Output: {"question":"Chi è più romantico tra i due?"}`
+    },
+    {
+      role: "user",
+      content: tipo
+    }
+  ];
 }
 
 module.exports = { tipiDomanda, generateAIQuestion, estimateTokenCount };
