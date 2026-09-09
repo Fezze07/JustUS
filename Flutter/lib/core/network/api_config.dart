@@ -5,23 +5,11 @@ import 'package:justus/core/network/api_routes.dart';
 class ApiConfig {
   ApiConfig._();
 
-  static const String _defaultAppOrigin = 'https://justus.serverfede.eu';
+  static const String _defaultServerOrigin = 'https://justus.serverfede.eu';
 
   static bool get isDebug => dotenv.env['IS_DEBUG']?.toLowerCase() == 'true';
 
-  static String get appOrigin {
-    final configured = isDebug
-        ? dotenv.env['APP_DEBUG_BASE_URL']
-        : dotenv.env['APP_RELEASE_BASE_URL'];
-
-    if (configured != null && configured.trim().isNotEmpty) {
-      return _normalizeOrigin(configured);
-    }
-
-    return _defaultAppOrigin;
-  }
-
-  static String get apiOrigin {
+  static String get serverOrigin {
     final configured = isDebug
         ? dotenv.env['API_DEBUG_BASE_URL']
         : dotenv.env['API_RELEASE_BASE_URL'];
@@ -30,8 +18,12 @@ class ApiConfig {
       return _normalizeOrigin(configured);
     }
 
-    return appOrigin;
+    return _defaultServerOrigin;
   }
+
+  static String get apiOrigin => serverOrigin;
+
+  static String get appOrigin => serverOrigin;
 
   static Uri apiUri(
     String path, {
