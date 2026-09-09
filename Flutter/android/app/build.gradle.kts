@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.fezze.justus"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.fezze.justus"
         minSdk = flutter.minSdkVersion
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 18
         versionName = "1.3.6"
     }
