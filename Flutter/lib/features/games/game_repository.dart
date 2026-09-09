@@ -75,6 +75,12 @@ class GameRepository extends BaseRepository {
         throw Exception('No active partnership');
       }
 
+      final myName = await StorageService.getUsername();
+      final partnerName = partnershipData?['partner_display_name'] as String?;
+
+      String nameFor(int userId) =>
+          userId == uid ? (myName ?? 'Tu') : (partnerName ?? 'Partner');
+
       final existing = await sbClient
           .from('game_questions')
           .select('id, question, status, user_id_a, user_id_b, created_at')
@@ -93,15 +99,18 @@ class GameRepository extends BaseRepository {
         final hasAnswered = answers.any((a) => a['user_id'] == uid);
         final partnerAnswered = answers.any((a) => a['user_id'] == partnerId);
 
+        final userIdA = existing['user_id_a'] as int?;
+        final userIdB = existing['user_id_b'] as int?;
+
         return GameNewQuestionResponse(
           success: true,
           id: existing['id'] as int,
           question: existing['question'] as String,
           status: existing['status'] as String?,
-          userIdA: existing['user_id_a'] as int?,
-          userIdB: existing['user_id_b'] as int?,
-          optionA: 'Partner A',
-          optionB: 'Partner B',
+          userIdA: userIdA,
+          userIdB: userIdB,
+          optionA: userIdA != null ? nameFor(userIdA) : 'Opzione A',
+          optionB: userIdB != null ? nameFor(userIdB) : 'Opzione B',
           hasAnswered: hasAnswered,
           partnerAnswered: partnerAnswered,
         );
@@ -130,15 +139,18 @@ class GameRepository extends BaseRepository {
         params: {},
       ));
 
+      final userIdA = inserted['user_id_a'] as int?;
+      final userIdB = inserted['user_id_b'] as int?;
+
       return GameNewQuestionResponse(
         success: true,
         id: inserted['id'] as int,
         question: inserted['question'] as String,
         status: inserted['status'] as String?,
-        userIdA: inserted['user_id_a'] as int?,
-        userIdB: inserted['user_id_b'] as int?,
-        optionA: 'Partner A',
-        optionB: 'Partner B',
+        userIdA: userIdA,
+        userIdB: userIdB,
+        optionA: userIdA != null ? nameFor(userIdA) : 'Opzione A',
+        optionB: userIdB != null ? nameFor(userIdB) : 'Opzione B',
       );
     });
   }

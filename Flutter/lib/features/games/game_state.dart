@@ -41,11 +41,32 @@ class GameState extends BaseState with CheckpointMixin {
     _currentUserId ??= await StorageService.getUserId();
     final cached = await StorageService.getCachedGameQuestion();
     if (cached != null) {
-      _currentQuestion = cached;
+      _currentQuestion = await _resolveCachedNames(cached);
     }
     _gameStats = await StorageService.getGameMatches();
     _history = await StorageService.getGameHistory();
     notifyListeners();
+  }
+
+  Future<GameNewQuestionResponse> _resolveCachedNames(GameNewQuestionResponse q) async {
+    final uid = _currentUserId;
+    if (uid == null) return q;
+
+    final results = await Future.wait([
+      StorageService.getUsername(),
+      _repo.getActivePartnership(),
+    ]);
+    final myName = results[0] as String?;
+    final partnershipData = results[1] as Map<String, dynamic>?;
+    final partnerName = partnershipData?['partner_display_name'] as String?;
+
+    String name(int userId) =>
+        userId == uid ? (myName ?? 'Tu') : (partnerName ?? 'Partner');
+
+    return q.copyWith(
+      optionA: q.userIdA != null ? name(q.userIdA!) : 'Opzione A',
+      optionB: q.userIdB != null ? name(q.userIdB!) : 'Opzione B',
+    );
   }
 
   Future<bool> _hasGameChanges() async {
@@ -269,6 +290,10 @@ class GameState extends BaseState with CheckpointMixin {
     _history = newHistory;
     await StorageService.saveGameHistory(_history);
     notifyListeners();
+  }
+
+  Future<void> handleQuestionInsert(Map<String, dynamic> newRecord) async {
+    await fetchNewQuestion(showLoading: false);
   }
 
   Future<void> handleQuestionDelete(Map<String, dynamic> oldRecord) async {
