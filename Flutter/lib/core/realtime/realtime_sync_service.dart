@@ -42,13 +42,18 @@ class RealtimeSyncService with WidgetsBindingObserver {
   Timer? _bucketRefreshTimer;
   Timer? _gameRefreshTimer;
   Timer? _driveRefreshTimer;
+  Timer? _lifecycleDebounceTimer;
+  Timer? _pollingFallbackTimer;
 
   bool _started = false;
   bool _disposed = false;
   bool _foreground = true;
   bool _subscribing = false;
   bool _suppressProcessing = false;
+  bool _usePollingFallback = false;
   int _generation = 0;
+  int _reconnectAttempt = 0;
+  int _consecutiveFailures = 0;
   int? _userId;
   int? _partnerId;
   int? _partnershipId;
@@ -118,6 +123,11 @@ class RealtimeSyncService with WidgetsBindingObserver {
         _partnershipId != partnershipId;
     AnsiLogger.realtime(
         'configure() - userId=$userId partnerId=$partnerId partnershipId=$partnershipId changed=$changed foreground=$_foreground');
+    _reconnectAttempt = 0;
+    _consecutiveFailures = 0;
+    if (_usePollingFallback) {
+      _deactivatePollingFallback();
+    }
     _userId = userId;
     _partnerId = partnerId;
     _partnershipId = partnershipId;
@@ -145,29 +155,95 @@ class RealtimeSyncService with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         _foreground = true;
         if (_userId != null) {
-          _scheduleReconnect(refreshAfterSubscribe: true);
+          _lifecycleDebounceTimer?.cancel();
+          _lifecycleDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+            _lifecycleDebounceTimer = null;
+            _reconnectAttempt = 0;
+            _scheduleReconnect(refreshAfterSubscribe: true);
+          });
         }
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _foreground = false;
+        _lifecycleDebounceTimer?.cancel();
+        _lifecycleDebounceTimer = null;
         unawaited(_unsubscribe());
       case AppLifecycleState.inactive:
         break;
     }
   }
 
-  void _scheduleReconnect({bool refreshAfterSubscribe = false}) {
-    if (_disposed || !_foreground || _userId == null || _subscribing) return;
+  void _scheduleReconnect(
+      {bool refreshAfterSubscribe = false,
+      sb.RealtimeCloseEvent? closeEvent}) {
+    if (_disposed || !_foreground || _userId == null) return;
+
+    _reconnectAttempt++;
+    _consecutiveFailures++;
+
+    if (_consecutiveFailures >= 3 && !_usePollingFallback) {
+      _activatePollingFallback();
+    }
+
+    if (_reconnectAttempt > 20) {
+      AnsiLogger.realtime(
+          '_scheduleReconnect() - max retries (20) reached, giving up (will reset on next configure)');
+      _reconnectAttempt = 0;
+      return;
+    }
+
+    final shift = (_reconnectAttempt - 1).clamp(0, 7);
+
+    var baseDelayMs = 1000;
+    if (closeEvent != null && closeEvent.code == 1002) {
+      baseDelayMs = 3000;
+    }
+
+    final delayMs =
+        (baseDelayMs * (1 << shift)).clamp(1000, 60000);
+
+    final jitter = (delayMs * 0.25).round();
+    final finalDelay = delayMs +
+        (DateTime.now().microsecondsSinceEpoch % (jitter * 2 + 1) - jitter);
 
     AnsiLogger.realtime(
-        '_scheduleReconnect() - refreshAfterSubscribe=$refreshAfterSubscribe');
+        '_scheduleReconnect() - attempt=$_reconnectAttempt delay=${finalDelay}ms refreshAfterSubscribe=$refreshAfterSubscribe');
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(milliseconds: 250), () {
+    _reconnectTimer = Timer(Duration(milliseconds: finalDelay), () {
       AnsiLogger.realtime(
           '_scheduleReconnect() - timer fired, calling _subscribe');
       unawaited(_subscribe(refreshAfterSubscribe: refreshAfterSubscribe));
     });
+  }
+
+  void _activatePollingFallback() {
+    if (_usePollingFallback || _disposed) return;
+    _usePollingFallback = true;
+    AnsiLogger.realtime(
+        '_activatePollingFallback() - Realtime unstable, switching to polling');
+    _pollingFallbackTimer?.cancel();
+    _pollingFallbackTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) {
+        if (_disposed || !_foreground) {
+          _pollingFallbackTimer?.cancel();
+          return;
+        }
+        AnsiLogger.realtime('polling fallback: _refreshAll()');
+        unawaited(_refreshAll());
+      },
+    );
+    unawaited(_refreshAll());
+  }
+
+  void _deactivatePollingFallback() {
+    if (!_usePollingFallback) return;
+    _usePollingFallback = false;
+    _pollingFallbackTimer?.cancel();
+    _pollingFallbackTimer = null;
+    AnsiLogger.realtime(
+        '_deactivatePollingFallback() - Realtime recovered, polling stopped');
   }
 
   Future<void> _subscribe({required bool refreshAfterSubscribe}) async {
@@ -177,15 +253,18 @@ class RealtimeSyncService with WidgetsBindingObserver {
       return;
     }
 
+    _lifecycleDebounceTimer?.cancel();
+    _lifecycleDebounceTimer = null;
+
     _subscribing = true;
     _suppressProcessing = false;
-    AnsiLogger.realtime(
-        '_subscribe() - subscribing generation=${_generation + 1} userId=$_userId refreshAfterSubscribe=$refreshAfterSubscribe');
     try {
+      _generation += 1;
+      AnsiLogger.realtime(
+          '_subscribe() - subscribing generation=$_generation userId=$_userId refreshAfterSubscribe=$refreshAfterSubscribe');
       await _unsubscribe();
       if (_disposed || !_foreground || _userId == null) return;
 
-      _generation += 1;
       final channel = _client
           .channel('justus-sync-$_userId-$_generation')
           .onPostgresChanges(
@@ -239,35 +318,58 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
       _channel = channel;
       final int subscribedGeneration = _generation;
-      channel.subscribe((status, error) {
-        if (_disposed) return;
+      try {
+        channel.subscribe((status, error) {
+          if (_disposed) return;
 
-        if (subscribedGeneration != _generation) {
+          if (subscribedGeneration != _generation) {
+            AnsiLogger.realtime(
+                'channel status=$status (stale gen=$subscribedGeneration, current=$_generation) - ignoring');
+            return;
+          }
+
           AnsiLogger.realtime(
-              'channel status=$status (stale gen=$subscribedGeneration, current=$_generation) - ignoring');
-          return;
-        }
+              'channel status=$status${error != null ? ' error=$error' : ''}');
 
-        AnsiLogger.realtime(
-            'channel status=$status${error != null ? ' error=$error' : ''}');
-
-        if (status == sb.RealtimeSubscribeStatus.subscribed) {
-          if (refreshAfterSubscribe) {
-            unawaited(_refreshAll());
+          if (status == sb.RealtimeSubscribeStatus.subscribed) {
+            _reconnectAttempt = 0;
+            _consecutiveFailures = 0;
+            if (_usePollingFallback) {
+              _deactivatePollingFallback();
+            }
+            if (refreshAfterSubscribe) {
+              unawaited(_refreshAll());
+            }
+            return;
           }
-          return;
-        }
 
-        if (status == sb.RealtimeSubscribeStatus.closed ||
-            status == sb.RealtimeSubscribeStatus.channelError ||
-            status == sb.RealtimeSubscribeStatus.timedOut) {
-          if (error != null) {
-            AnsiLogger.error('channel status $status: $error',
+          if (status == sb.RealtimeSubscribeStatus.channelError &&
+              error is sb.RealtimeCloseEvent) {
+            AnsiLogger.error(
+                'channel status $status: code=${error.code} reason=${error.reason}',
                 tag: 'RealtimeSync');
+            _scheduleReconnect(closeEvent: error);
+          } else if (status == sb.RealtimeSubscribeStatus.closed ||
+              status == sb.RealtimeSubscribeStatus.channelError ||
+              status == sb.RealtimeSubscribeStatus.timedOut) {
+            if (error != null) {
+              AnsiLogger.error('channel status $status: $error',
+                  tag: 'RealtimeSync');
+            }
+            _scheduleReconnect();
           }
+        });
+      } catch (e) {
+        AnsiLogger.error('channel.subscribe() threw: $e', tag: 'RealtimeSync');
+        if (!_disposed && _foreground) {
           _scheduleReconnect();
         }
-      });
+      }
+    } catch (e) {
+      AnsiLogger.error('_subscribe() failed: $e', tag: 'RealtimeSync');
+      if (!_disposed && _foreground) {
+        _scheduleReconnect();
+      }
     } finally {
       _subscribing = false;
     }
@@ -330,7 +432,11 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_suppressProcessing) return;
     if (!_isRelevantMissYou(payload) || !_markSeen(payload)) return;
 
-    _homepageState.addMissYou();
+    if (payload.eventType.name == 'insert') {
+      _homepageState.addMissYou();
+    } else if (payload.eventType.name == 'delete') {
+      unawaited(_homepageState.refreshFromRealtime());
+    }
   }
 
   void _handleBucketPayload(sb.PostgresChangePayload payload) {
@@ -353,18 +459,27 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_suppressProcessing) return;
     if (!_isRelevantGame(payload) || !_markSeen(payload)) return;
 
+    final table = payload.table;
+    final eventType = payload.eventType.name;
+    final newRecord = payload.newRecord;
+
+    // Process insert/delete immediately so events aren't dropped by debounce
+    if (table == 'game_questions' && eventType == 'insert') {
+      AnsiLogger.realtime('_handleGamePayload -> handleQuestionInsert()');
+      unawaited(_gameState.handleQuestionInsert(newRecord));
+      return;
+    }
+    if (table == 'game_questions' && eventType == 'delete') {
+      AnsiLogger.realtime('_handleGamePayload -> handleQuestionDelete()');
+      unawaited(_gameState.handleQuestionDelete(payload.oldRecord));
+      return;
+    }
+
     _gameRefreshTimer?.cancel();
     _gameRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      final table = payload.table;
-      final eventType = payload.eventType.name;
-      final newRecord = payload.newRecord;
-
       if (table == 'game_questions' && eventType == 'update') {
         AnsiLogger.realtime('_handleGamePayload -> handleQuestionUpdate()');
         unawaited(_gameState.handleQuestionUpdate(newRecord));
-      } else if (table == 'game_questions' && eventType == 'delete') {
-        AnsiLogger.realtime('_handleGamePayload -> handleQuestionDelete()');
-        unawaited(_gameState.handleQuestionDelete(payload.oldRecord));
       } else if (table == 'game_answers' && eventType == 'insert') {
         AnsiLogger.realtime('_handleGamePayload -> handleAnswerInsert()');
         unawaited(_gameState.handleAnswerInsert(newRecord));
@@ -511,7 +626,9 @@ class RealtimeSyncService with WidgetsBindingObserver {
 
     _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
+    _lifecycleDebounceTimer?.cancel();
     _reconnectTimer?.cancel();
+    _pollingFallbackTimer?.cancel();
     _moodRefreshTimer?.cancel();
     _partnershipRefreshTimer?.cancel();
     _missYouRefreshTimer?.cancel();

@@ -21,6 +21,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   StreamSubscription<String>? _tokenRefreshSubscription;
   String? _lastSyncedLocale;
   bool _isSyncingLocale = false;
+  Timer? _localeSyncDebounceTimer;
 
   AuthState({
     AuthRepository? authRepo,
@@ -180,7 +181,11 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && isLoggedIn) {
-      unawaited(_syncDeviceLocale());
+      _localeSyncDebounceTimer?.cancel();
+      _localeSyncDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        _localeSyncDebounceTimer = null;
+        unawaited(_syncDeviceLocale());
+      });
     }
   }
 
@@ -520,6 +525,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _localeSyncDebounceTimer?.cancel();
     unawaited(_authSubscription?.cancel());
     unawaited(_tokenRefreshSubscription?.cancel());
     super.dispose();
