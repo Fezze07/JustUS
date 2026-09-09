@@ -1,51 +1,50 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "INIT: Flutter environment (SDK, imports, setup scripts)",
-            "type": "shell",
-            "command": "powershell",
-            "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "F:\\JustUS\\scripts\\init_flutter.ps1"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Partner Device - emulator-5554",
-            "type": "shell",
-            "command": "flutter run -d emulator-5554",
-            "options": {
-                "cwd": "F:\\JustUS\\Flutter"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "User Device - emulator-5556",
-            "type": "shell",
-            "command": "flutter run -d emulator-5556",
-            "options": {
-                "cwd": "F:\\JustUS\\Flutter"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "RUN: Flutter on both devices (parallel)",
-            "dependsOn": [
-                "Partner Device - emulator-5554",
-                "User Device - emulator-5556"
-            ],
-            "dependsOrder": "parallel"
-        },
-        {
-            "label": "FULL START (Init → Build → Run devices)",
-            "dependsOn": [
-                "INIT: Flutter environment (SDK, imports, setup scripts)",
-                "RUN: Flutter on both devices (parallel)"
-            ],
-            "dependsOrder": "sequence"
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Telefono Fede (69NRV4HMY5NN6PAA)",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoExit",
+        "-Command",
+        "Start-Process powershell -ArgumentList @('-NoExit', '-Command', 'cd F:\\JustUS\\Flutter; flutter run -d 69NRV4HMY5NN6PAA')"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "2. Partner Emulatore (emulator-5554)",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoExit",
+        "-Command",
+        "Start-Process powershell -ArgumentList @('-NoExit', '-Command', 'cd F:\\JustUS\\Flutter; flutter run -d emulator-5554')"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "▶ Avvia entrambi (Telefono + Emulatore)",
+      "dependsOn": [
+        "1. Telefono Fede (69NRV4HMY5NN6PAA)",
+        "2. Partner Emulatore (emulator-5554)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
 }
