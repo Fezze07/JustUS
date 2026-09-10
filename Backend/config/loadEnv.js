@@ -21,10 +21,14 @@ function loadEnv() {
   }
 
   const envFile = resolveEnvFile();
+
   dotenv.config({
-    path: path.join(__dirname, "../../", envFile),
+    path: path.isAbsolute(envFile)
+      ? envFile
+      : path.join(__dirname, "../../", envFile),
     quiet: true,
   });
+
   loaded = true;
 }
 

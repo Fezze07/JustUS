@@ -5,7 +5,7 @@ const app = createApp();
 
 if (require.main === module) {
   app.listen(env.port, "0.0.0.0", () => {
-    console.log(`Server debug attivo su ${env.port}`);
+    console.log(`Server ${env.nodeEnv} attivo su ${env.port}`);
     startRetentionJobs();
   });
 }
