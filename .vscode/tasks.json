@@ -8,7 +8,7 @@
       "args": [
         "-NoExit",
         "-Command",
-        "Start-Process powershell -ArgumentList @('-NoExit', '-Command', 'cd F:\\JustUS\\Flutter; flutter run -d 69NRV4HMY5NN6PAA')"
+        "cd F:\\JustUS\\Flutter; flutter run -d 69NRV4HMY5NN6PAA"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -24,7 +24,7 @@
       "args": [
         "-NoExit",
         "-Command",
-        "Start-Process powershell -ArgumentList @('-NoExit', '-Command', 'cd F:\\JustUS\\Flutter; flutter run -d emulator-5554')"
+        "& 'F:\\JustUS\\scripts\\init_flutter.ps1'; Set-Location 'F:\\JustUS\\Flutter'; flutter run -d emulator-5554"
       ],
       "problemMatcher": [],
       "presentation": {
