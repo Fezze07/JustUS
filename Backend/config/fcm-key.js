@@ -1,7 +1,5 @@
 const admin = require("firebase-admin");
-const path = require("path");
 const { getMessaging } = require("firebase-admin/messaging");
-
 let initialized = false;
 
 function initializeFirebaseAdmin() {
@@ -9,12 +7,19 @@ function initializeFirebaseAdmin() {
     initialized = true;
     return true;
   }
+  const serviceAccountPath = process.env.FCM_SERVICE_ACCOUNT_PATH;
+
+  if (!serviceAccountPath) {
+    console.error("[FCM] FCM_SERVICE_ACCOUNT_PATH is not configured");
+    return false;
+  }
 
   let serviceAccount;
+
   try {
-    serviceAccount = require(path.join(__dirname, "..", "secrets", "fcm-key.json"));
+    serviceAccount = require(serviceAccountPath);
   } catch (err) {
-    console.error("[FCM] Error loading secrets/fcm-key.json:", err.message);
+    console.error("[FCM] Error loading Firebase service account:", err.message);
     return false;
   }
 
@@ -27,6 +32,7 @@ function initializeFirebaseAdmin() {
     admin.initializeApp({
       credential: admin.cert(serviceAccount),
     });
+
     initialized = true;
     return true;
   } catch (err) {
