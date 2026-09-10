@@ -1,25 +1,15 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-import 'package:justus/core/network/api_routes.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   ApiConfig._();
 
-  static const String _defaultServerOrigin = 'https://justus.serverfede.eu';
+  static const String _devServerOrigin = 'https://justus-dev.serverfede.eu';
+  static const String _prodServerOrigin = 'https://justus.serverfede.eu';
 
-  static bool get isDebug => dotenv.env['IS_DEBUG']?.toLowerCase() == 'true';
+  static bool get isDebug => kDebugMode;
 
-  static String get serverOrigin {
-    final configured = isDebug
-        ? dotenv.env['API_DEBUG_BASE_URL']
-        : dotenv.env['API_RELEASE_BASE_URL'];
-
-    if (configured != null && configured.trim().isNotEmpty) {
-      return _normalizeOrigin(configured);
-    }
-
-    return _defaultServerOrigin;
-  }
+  static String get serverOrigin =>
+      isDebug ? _devServerOrigin : _prodServerOrigin;
 
   static String get apiOrigin => serverOrigin;
 
@@ -45,16 +35,5 @@ class ApiConfig {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
 
     return '$appOrigin$normalizedPath';
-  }
-
-  static String _normalizeOrigin(String value) {
-    var normalized = value.trim();
-    normalized = normalized.replaceFirst(RegExp(r'/$'), '');
-    normalized = normalized.replaceFirst(
-      RegExp('${ApiRoutes.apiPrefix}\$'),
-      '',
-    );
-
-    return normalized;
   }
 }
