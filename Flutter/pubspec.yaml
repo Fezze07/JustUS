@@ -1,7 +1,7 @@
 name: justus
 description: A private couples app for sharing emotions, media, and interactive games.
 publish_to: 'none'
-version: 1.3.6+18
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

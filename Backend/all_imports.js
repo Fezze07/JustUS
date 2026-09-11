@@ -54,7 +54,6 @@ module.exports = {
   get generateQuestionController() { return require('./features/ai/ai.controller').generateQuestionController; },
   get getEntry() { return require('./core/infra/idempotencyStore').getEntry; },
   get getLatestAppVersion() { return require('./services/versionService').getLatestAppVersion; },
-  get getLatestAppApk() { return require("./services/versionService").getLatestAppApk; },
   get getPartnerId() { return require('./utils/misc/partnershipUtils').getPartnerId; },
   get getReceiverDeviceToken() { return require('./features/notifications/notification.service').getReceiverDeviceToken; },
   get getSignedDownloadUrl() { return require('./features/media/mediaWorkflow.service').getSignedDownloadUrl; },

@@ -19,56 +19,37 @@ class UpdateService {
     if (_isDialogShowing) return;
     if (kIsWeb) return;
 
-    // Get local version
     final packageInfo = await PackageInfo.fromPlatform();
-    final localVersion = packageInfo.version;
+    final localBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-    // Get server version
     final result = await _repo.checkAppVersion();
 
     final versionInfo = result.valueOrNull;
-    if (versionInfo != null) {
-      final serverVersion = versionInfo.version;
-      final apkUrl = versionInfo.apkUrl;
-      final changelog = versionInfo.changelog;
+    if (versionInfo == null) return;
 
-      if (_isUpdateAvailable(localVersion, serverVersion)) {
-        if (context.mounted) {
-          _showUpdateDialog(context, apkUrl, changelog);
-        }
-      }
+    final serverBuild = versionInfo.build;
+
+    if (localBuild >= serverBuild) return;
+
+    final bool mandatory = versionInfo.forceUpdate ||
+        localBuild < versionInfo.minBuild;
+
+    if (context.mounted) {
+      _showUpdateDialog(context, versionInfo, mandatory);
     }
   }
 
-  bool _isUpdateAvailable(String local, String server) {
-    // Simple semantic version check
-    // Assumes format x.y.z
-    try {
-      final localParts = local.split('.').map(int.parse).toList();
-      final serverParts = server.split('.').map(int.parse).toList();
-
-      for (var i = 0; i < serverParts.length; i++) {
-        if (i >= localParts.length) return true; // Server has more parts (e.g. 1.0.1 vs 1.0)
-        
-        if (serverParts[i] > localParts[i]) return true;
-        if (serverParts[i] < localParts[i]) return false;
-      }
-
-      return false; // Equal
-    } catch (e) {
-      AnsiLogger.error('Error parsing versions: $e', tag: 'UpdateService');
-
-      return false;
-    }
-  }
-
-  void _showUpdateDialog(BuildContext context, String apkUrl, String? changelog) {
+  void _showUpdateDialog(
+    BuildContext context,
+    AppVersionResponse versionInfo,
+    bool mandatory,
+  ) {
     _isDialogShowing = true;
-    
+
     unawaited(() async {
       await showDialog(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: !mandatory,
         builder: (context) => VPDialog(
           title: context.loc.update_availableTitle,
           content: Column(
@@ -76,19 +57,22 @@ class UpdateService {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(context.loc.update_newVersion),
-              if (changelog != null && changelog.isNotEmpty) ...[
+              if (versionInfo.changelog.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
                   context.loc.update_changelogTitle,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(changelog),
+                Text(versionInfo.changelog),
               ],
             ],
           ),
           actions: [
-            if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.windows))
+            if (!mandatory &&
+                !kIsWeb &&
+                (defaultTargetPlatform == TargetPlatform.android ||
+                    defaultTargetPlatform == TargetPlatform.windows))
               TextButton(
                 onPressed: () {
                   _isDialogShowing = false;
@@ -98,7 +82,7 @@ class UpdateService {
               ),
             FilledButton(
               onPressed: () {
-                unawaited(_launchUpdateUrl(apkUrl));
+                unawaited(_launchUpdateUrl(versionInfo.apkUrl));
                 _isDialogShowing = false;
                 Navigator.pop(context);
               },
