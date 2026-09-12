@@ -57,5 +57,4 @@ async function getLatestAppVersion() {
 
 module.exports = {
   getLatestAppVersion,
-  getLatestAppApk,
 };
