@@ -13,6 +13,8 @@ android {
         applicationId = "com.fezze.justus"
         minSdk = flutter.minSdkVersion
         targetSdk = 37
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     compileOptions {

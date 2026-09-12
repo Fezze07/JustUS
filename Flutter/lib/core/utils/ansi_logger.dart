@@ -11,6 +11,8 @@ class AnsiLogger {
   static const String purple = '\x1B[35m';
   static const String cyan = '\x1B[36m';
   static const String white = '\x1B[37m';
+  static const String pink = '\x1B[95m';
+  static const String orange = '\x1B[93m';
 
   // Helper method to log with a specific color
   static void log(String message, {required String color, String? tag}) {

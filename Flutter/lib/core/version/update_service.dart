@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // UpdateService - App update checker and downloader
 // =============================================================================
 
@@ -21,11 +21,23 @@ class UpdateService {
 
     final packageInfo = await PackageInfo.fromPlatform();
     final localBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+    AnsiLogger.log(
+      'App locale: version=${packageInfo.version} build=$localBuild',
+      color: AnsiLogger.orange,
+      tag: 'UpdateService',
+    );
 
     final result = await _repo.checkAppVersion();
 
     final versionInfo = result.valueOrNull;
     if (versionInfo == null) return;
+
+    AnsiLogger.log(
+      'Server: version=${versionInfo.version} build=${versionInfo.build} '
+      'min_build=${versionInfo.minBuild}',
+      color: AnsiLogger.orange,
+      tag: 'UpdateService',
+    );
 
     final serverBuild = versionInfo.build;
 
