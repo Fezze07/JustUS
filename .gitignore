@@ -11,7 +11,6 @@ Backend/versions/
 #Documentation
 /graphify-out/
 .graphifyignore
-/docs
 
 #ENV files
 .env

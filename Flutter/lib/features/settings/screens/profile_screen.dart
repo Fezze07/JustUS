@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _imagePicker = ImagePicker();
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -28,7 +30,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Fix: Call loadProfile after the first frame to avoid setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(context.read<ProfileState>().loadProfile());
+      unawaited(_loadAppVersion());
     });
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = 'v${info.version}';
+      });
+    }
   }
 
   Future<void> _pickProfilePhoto() async {
@@ -402,7 +414,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 32),
                   Text(
-                    context.loc.profile_appVersion('v2.4.0-REV'),
+                    context.loc.profile_appVersion(_appVersion),
                     style: VpWidgets.googleFont(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,

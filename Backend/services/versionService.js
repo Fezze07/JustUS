@@ -31,35 +31,28 @@ async function getLatestAppVersion() {
     });
   }
 
-  if (!parsed?.version) {
+  if (!parsed?.version || !parsed?.apk_url) {
     throw new AppError({
       errorKey: "DB_NOT_FOUND_001",
-      message: "Versione app non trovata",
+      message: "Metadati versione app incompleti",
+    });
+  }
+
+  if (typeof parsed.build !== "number") {
+    throw new AppError({
+      errorKey: "DB_NOT_FOUND_001",
+      message: "Build versione app non valida",
     });
   }
 
   return {
     version: parsed.version,
     build: parsed.build,
+    min_build: typeof parsed.min_build === "number" ? parsed.min_build : 0,
+    force_update: parsed.force_update === true,
     apk_url: parsed.apk_url,
-    changelog: parsed.changelog,
+    changelog: parsed.changelog || "",
   };
-}
-
-async function getLatestAppApk() {
-  const apkPath = path.join(DATA_DIR, "versions", "apk", "justus.apk");
-
-  try {
-    await fs.access(apkPath);
-  } catch (error) {
-    throw new AppError({
-      errorKey: "SYS_FAIL_001",
-      message: "APK non disponibile",
-      cause: error,
-    });
-  }
-
-  return apkPath;
 }
 
 module.exports = {

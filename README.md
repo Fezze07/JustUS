@@ -139,7 +139,7 @@ Test environment highlights:
 ---
 
 ## 🔔 Auto-Update System
-The application includes a built-in update mechanism. New APKs placed in `Backend/versions/apk/` with an updated `app_version.json` will trigger a notification in the app, allowing users to download the latest version directly.
+The application includes a built-in update mechanism. The latest release metadata is defined in `app_version.json` (on the backend's data directory, `$JUSTUS_DATA_DIR/versions/app_version.json`) and served via `GET /api/v1/app-version`. The APK is distributed exclusively through GitHub Releases; the `apk_url` field points to the release asset URL. When a newer build is available, the app prompts the user to download it from the GitHub Release.
 
 ---
 
