@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION public.request_partnership (
 )
   RETURNS integer
   LANGUAGE plpgsql
-  SECURITY DEFINER
+  SECURITY INVOKER
   SET search_path TO 'public'
   AS $function$
 DECLARE
@@ -48,6 +48,6 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION "public"."request_partnership"(text, text, integer) FROM PUBLIC, "anon";
 GRANT EXECUTE ON FUNCTION "public"."request_partnership"(text, text, integer) TO "authenticated", "postgres", "service_role";
 
-REVOKE ALL ON FUNCTION "public"."request_partnership"(text, text, integer) FROM PUBLIC;

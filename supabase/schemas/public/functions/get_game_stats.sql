@@ -5,7 +5,8 @@ CREATE OR REPLACE FUNCTION public.get_game_stats (
   RETURNS integer
   LANGUAGE sql
   STABLE
-  SECURITY DEFINER
+  SECURITY INVOKER
+  SET search_path TO 'public'
   AS $function$
   SELECT COUNT(*)::integer
   FROM (
@@ -19,4 +20,6 @@ CREATE OR REPLACE FUNCTION public.get_game_stats (
   ) matched_games;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."get_game_stats"(bigint, bigint) TO PUBLIC, "anon", "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."get_game_stats"(bigint, bigint) FROM PUBLIC, "anon";
+GRANT EXECUTE ON FUNCTION "public"."get_game_stats"(bigint, bigint) TO "authenticated", "postgres", "service_role";
+
