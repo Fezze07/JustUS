@@ -183,7 +183,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - Wraps `http.Client` in `LoggingHttpClient` (logs REST/RPC/Auth/Storage requests).
 - **Headers**: `Authorization: Bearer <supabase access token>` (from `Supabase.instance.client.auth.currentSession`), `X-Device-Fingerprint` (cached static within the process after first read), `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
 - **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the binding secret is unavailable and `requireSignature: true`, it throws `HttpException('Missing request binding secret')` - surfaced to callers as `NetworkError` (hidden init requirement, see Findings).
-- **Response handling** (`_safeCall`): default timeout 10s (AI question has 60s); 2xx -> decode via `compute()` isolate; 401 -> `_tryRefreshToken()` (backend `/auth/refresh` proxy with the stored refresh token) then a single retry; refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`. Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`.
+- **Response handling** (`_safeCall`): default timeout 10s (AI question has 60s); 2xx -> decode via `compute()` isolate; 401 -> `_tryRefreshToken()` (backend `/auth/refresh` proxy with the stored refresh token) then a single retry; on refresh success both tokens are persisted to secure storage **and** pushed into the Supabase SDK session via `auth.setSession(refreshToken, accessToken:)` so the retry uses the new token (todo# 1.1); refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`. Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`.
 - **Static mutable state**: `ApiService.onSessionExpired`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret` (see Findings).
 - `resolveProtectedMediaUrl(url)` rewrites raw R2 object keys into `GET /api/v1/media/file?filename=...` URLs (used by avatar widgets).
 - `authHeaders` static getter - used by `ProtectedNetworkImage` for authenticated image downloads.
@@ -195,9 +195,9 @@ Sealed: `Success<T>` / `GenericError<T>(code, message, details)` / `NetworkError
 ### Dual token-refresh mechanisms
 
 1. **Supabase client built-in**: `AuthState` listens `auth.onAuthStateChange` -> `tokenRefreshed` -> persists new access/refresh tokens to secure storage.
-2. **Backend-proxy manual refresh**: `ApiService._tryRefreshToken()` calls `POST /auth/refresh`, stores tokens, retries the original request.
+2. **Backend-proxy manual refresh**: `ApiService._tryRefreshToken()` calls `POST /auth/refresh`, stores tokens, then pushes them into the Supabase session via `setSession` (todo# 1.1), and retries the original request.
 
-Both write to the same secure-storage keys (`access_token`, `refresh_token`), so they are complementary but can race. There is no central "token owner"; `ApiService` reads the token from the live Supabase session while `AuthState` maintains its own `_accessToken` copies.
+Both write to the same secure-storage keys (`access_token`, `refresh_token`), so they are complementary but can race. Since 1.1 the manual path also updates the live Supabase session (`setSession`), so **both paths converge on the same live session state**; the inherent concurrency race between them is tracked in todo# 1.6. There is no central "token owner"; `ApiService` reads the token from the live Supabase session while `AuthState` maintains its own `_accessToken` copies.
 
 ---
 
@@ -476,13 +476,13 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F8: Dual token-refresh can race
 
-**Evidence**: Supabase client's built-in token refresh fires `onAuthStateChange(tokenRefreshed)` (auth_state.dart:322-331), which saves to `StorageService`. Separately, `ApiService._tryRefreshToken()` (api_service.dart:307-338) calls the backend `/auth/refresh` proxy and also saves to `StorageService` (same keys). Both can fire concurrently.
+**Evidence**: Supabase client's built-in token refresh fires `onAuthStateChange(tokenRefreshed)` (auth_state.dart:154-165), which saves to `StorageService`. Separately, `ApiService._tryRefreshToken()` (api_service.dart:279-317) calls the backend `/auth/refresh` proxy, saves to `StorageService` (same keys) and pushes the pair into the live Supabase session via `setSession`. Both can fire concurrently.
 
 **What**: If Supabase refreshes the token and simultaneously `ApiService` gets a 401 and triggers `_tryRefreshToken`, two refresh requests may fire in parallel, and one may overwrite the other's tokens (the refresh token from the Supabase response may differ from the backend-proxied refresh token, or vice versa).
 
-**Impact**: Possible token inconsistency. In practice, the `_isRefreshing` flag in `ApiService` prevents concurrent refresh attempts, but does not prevent the Supabase client from refreshing independently.
+**Impact**: Possible token inconsistency. Since todo# 1.1 both paths converge on the same live session, so the *desync* (retry with a stale token) is fixed; what remains is the *concurrency* window itself. In practice, the `_isRefreshing` flag in `ApiService` prevents concurrent manual refreshes, but does not prevent the Supabase client from refreshing independently.
 
-**Confidence**: MEDIUM.
+**Confidence**: MEDIUM. Tracked as todo# 1.6 (single refresh coordinator / mutex).
 
 ### F9: `ProfileState.loadProfile()` silently skips when already loading
 

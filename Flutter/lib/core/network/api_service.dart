@@ -295,13 +295,18 @@ class ApiService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
         final newAccessToken = body['accessToken'] as String?;
-        if (newAccessToken != null) {
+        final newRefreshToken = body['refreshToken'] as String?;
+        if (newAccessToken != null &&
+            newAccessToken.isNotEmpty &&
+            newRefreshToken != null &&
+            newRefreshToken.isNotEmpty) {
           await StorageService.saveAccessToken(newAccessToken);
-          // Also save new refresh token if provided
-          final newRefreshToken = body['refreshToken'] as String?;
-          if (newRefreshToken != null) {
-            await StorageService.saveRefreshToken(newRefreshToken);
-          }
+          await StorageService.saveRefreshToken(newRefreshToken);
+
+          await Supabase.instance.client.auth.setSession(
+            newRefreshToken,
+            accessToken: newAccessToken,
+          );
 
           return true;
         }
@@ -309,6 +314,8 @@ class ApiService {
 
       return false;
     } catch (e) {
+      AnsiLogger.error('_tryRefreshToken error: $e', tag: 'ApiService');
+
       return false;
     } finally {
       _isRefreshing = false;
