@@ -293,6 +293,7 @@
   "error_authFail004": "Accesso non consentito.",
   "error_authFail005": "Profilo utente non trovato.",
   "error_authFail006": "Dispositivo non riconosciuto. Accedi di nuovo.",
+  "error_authFailCred": "Email o password non corretti.",
   "error_authPermission001": "Non hai i permessi per questa operazione.",
   "error_dbRead001": "Errore durante il caricamento dei dati.",
   "error_dbWrite001": "Errore durante il salvataggio.",

@@ -240,15 +240,23 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       }
 
       // Step 1: Login to Supabase Auth
-      final AuthResponse res = await _authRepo.signInWithPassword(
-        email: email,
-        password: password,
-        captchaToken: captchaToken,
-      );
+      final AuthResponse res;
+      try {
+        res = await _authRepo.signInWithPassword(
+          email: email,
+          password: password,
+          captchaToken: captchaToken,
+        );
+      } on AuthException catch (e) {
+        throw AppError(
+            code: ErrorCodes.authFailCred,
+            message: e.message,
+            severity: ErrorSeverity.high);
+      }
 
       if (res.user == null || res.session == null) {
         throw const AppError(
-            code: ErrorCodes.authFail001,
+            code: ErrorCodes.authFailCred,
             message: 'Login failed: no user data');
       }
 
@@ -312,19 +320,27 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       }
 
       // 1. Supabase Auth Registration
-      final AuthResponse res = await _authRepo.signUp(
-        email: email,
-        password: password,
-        data: {
-          'username': name,
-        },
-        emailRedirectTo: _emailRedirectTo,
-        captchaToken: captchaToken,
-      );
+      final AuthResponse res;
+      try {
+        res = await _authRepo.signUp(
+          email: email,
+          password: password,
+          data: {
+            'username': name,
+          },
+          emailRedirectTo: _emailRedirectTo,
+          captchaToken: captchaToken,
+        );
+      } on AuthException catch (e) {
+        throw AppError(
+            code: ErrorCodes.authFailCred,
+            message: e.message,
+            severity: ErrorSeverity.high);
+      }
 
       if (res.user == null) {
         throw const AppError(
-            code: ErrorCodes.authFail001,
+            code: ErrorCodes.authFailCred,
             message: 'Registrazione fallita: utente non creato');
       }
 

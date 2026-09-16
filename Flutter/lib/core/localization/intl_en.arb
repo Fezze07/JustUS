@@ -245,6 +245,7 @@
   "error_authFail004": "Access not allowed.",
   "error_authFail005": "User profile not found.",
   "error_authFail006": "Unrecognized device. Please login again.",
+  "error_authFailCred": "Incorrect email or password.",
   "error_authPermission001": "You do not have permission for this action.",
   "error_dbRead001": "Error loading data.",
   "error_dbWrite001": "Error while saving.",

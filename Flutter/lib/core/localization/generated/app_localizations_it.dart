@@ -754,6 +754,9 @@ class AppLocalizationsIt extends AppLocalizations {
       'Dispositivo non riconosciuto. Accedi di nuovo.';
 
   @override
+  String get error_authFailCred => 'Email o password non corretti.';
+
+  @override
   String get error_authPermission001 =>
       'Non hai i permessi per questa operazione.';
 

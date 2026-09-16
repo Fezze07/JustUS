@@ -87,7 +87,7 @@ Flutter UI (RegisterScreen)
 
 6. **Frontend State & Navigation Post-Registration**
    - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L303-L333)
-   - `AuthState.register` receives `AuthResponse`. If `res.user == null`, throws `AppError(authFail001)`.
+   - `AuthState.register` receives `AuthResponse`. If `res.user == null`, throws `AppError(authFailCred)`. Supabase `AuthException`s (e.g. user already registered) are caught and rethrown as `AppError(authFailCred)`, a client-only code that is not `requiresReauth`.
    - **Crucial Behavior**: `AuthState.register` does **not** invoke `setLoginData`.
    - In `RegisterScreen` ([register_screen.dart:106](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L106)), `authState.isLoggedIn` is checked:
      - Since `setLoginData` was not called, `isLoggedIn` evaluates to `false`.
@@ -162,6 +162,7 @@ Flutter UI (LoginScreen)
 4. **Supabase Authentication**
    - File: [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L38-L40)
    - Invokes `sbClient.auth.signInWithPassword(email: email, password: password, captchaToken: captchaToken)`.
+   - A Supabase `AuthException` (invalid credentials, unconfirmed email, etc.) is caught and rethrown as `AppError(authFailCred)`; the same applies when `res.user`/`res.session` are null. `authFailCred` is client-only and **not** in `requiresReauth`, so `ErrorHandler` shows a SnackBar on the form (no session-expiry dialog, no stack replacement).
    - Returns a Supabase `AuthResponse` containing `res.user` and `res.session`.
 
 5. **Profile Resolution**
@@ -297,7 +298,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 | Missing Turnstile Config | Flutter Client | `CaptchaService` | `API_VALIDATION_001` | SnackBar error |
 | Turnstile Cancel / Timeout | Flutter Client | `CaptchaService` | `LOCAL_UNKNOWN` | SnackBar ("Captcha failed") |
 | Risk Blocked (Brute-force) | Backend Node API | `checkLoginRiskController` | `SEC_BLOCK_002` | SnackBar ("Troppi tentativi di login. Riprova tra poco.") |
-| Invalid Credentials | Supabase Auth | `AuthException` | `AUTH_FAIL_001` | ErrorHandler Reauth Dialog / SnackBar |
+| Invalid Credentials | Supabase Auth | `AuthException` (caught in `AuthState.login`) | `AUTH_FAIL_CRED` | Form error SnackBar (no dialog, no redirect) |
 | Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB_NOT_FOUND_001` | SnackBar ("Profilo utente non trovato nel database") |
 | Backend Sync Network Error | Node API / Http | `NetworkError` | N/A | Silent log / SnackBar |
 
@@ -312,22 +313,17 @@ During the reverse-engineering analysis, the following structural bugs, security
 - **Defect**: `AuthState.login()` in [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L229-L301) **never calls `reportFailedLogin()`** when Supabase `signInWithPassword()` fails or throws an `AuthException`.
 - **Impact**: Failed login attempts are never recorded in `authRisk.service.js`. `loginAttempts` counter stays at 0, strike levels never increment, and brute-force protection through failed attempts is **completely non-functional** in production.
 
-### 2. BUG: Reauth Dialog Infinite Loop / Misleading UI on Login Failure
-- **Finding**: When a user enters incorrect credentials on `LoginScreen`, Supabase throws an `AuthException` which `ErrorHandler` maps to `ErrorCodes.authFail001`.
-- **Defect**: `ErrorHandler` treats `authFail001` as a critical session expiration error requiring reauthentication, opening a modal `VPDialog` ("Session Expired") on top of `LoginScreen`. Confirming the dialog calls `Navigator.pushNamedAndRemoveUntil('/login')`.
-- **Impact**: Entering a wrong password triggers a "Session Expired" pop-up over the login screen itself and reloads the login route.
-
-### 3. BUG: Dead Execution Branch in `RegisterScreen`
+### 2. BUG: Dead Execution Branch in `RegisterScreen`
 - **Finding**: In [register_screen.dart:106](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L106), registration completion contains an `if (authState.isLoggedIn)` check intended to navigate directly to `PartnerScreen`.
 - **Defect**: `AuthState.register()` ([auth_state.dart:303-333](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L303-L333)) only invokes `sbClient.auth.signUp()` and never calls `setLoginData()`.
 - **Impact**: `isLoggedIn` is guaranteed to be `false`. Even if Supabase Auth is configured for instant auto-confirmation without email verification, new users are always forced into the "Confirm Email" dialog and sent back to `LoginScreen`.
 
-### 4. INCONSISTENCY: Password Validation Rules Enforced Only on Client
+### 3. INCONSISTENCY: Password Validation Rules Enforced Only on Client
 - **Finding**: Strict regex rules for uppercase, lowercase, numeric, and symbol characters are enforced solely in Flutter's `Validators.validatePassword`.
 - **Defect**: Neither the Node backend nor Supabase Auth database rules validate complex password character patterns on registration.
 - **Impact**: Any registration request bypassing the Flutter client (e.g., via direct REST API calls) can register accounts with weak passwords.
 
-### 5. SECURITY RISK: Unprotected Backend Risk Check Endpoints
+### 4. SECURITY RISK: Unprotected Backend Risk Check Endpoints
 - **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not verify Turnstile tokens or require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`).
 - **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
 

@@ -15,6 +15,7 @@ class ErrorCodes {
   static const String authFail004 = 'AUTH-FAIL-004'; // Ruolo non valido
   static const String authFail005 = 'AUTH-FAIL-005'; // Profilo non trovato
   static const String authFail006 = 'AUTH-FAIL-006'; // Device mismatch
+  static const String authFailCred = 'AUTH-FAIL-CRED';
   static const String authPermission001 =
       'AUTH-PERMISSION-001'; // Capability mancante
 
@@ -75,6 +76,8 @@ class ErrorCodes {
         return loc.error_authFail005;
       case authFail006:
         return loc.error_authFail006;
+      case authFailCred:
+        return loc.error_authFailCred;
       case authPermission001:
         return loc.error_authPermission001;
       case dbRead001:

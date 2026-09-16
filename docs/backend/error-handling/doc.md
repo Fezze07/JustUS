@@ -62,7 +62,8 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 - Implements Dart `Exception`.
 - Factory `AppError.fromJson(json)` parses backend JSON error envelope.
 - Method `userMessage(loc)` maps error code to localized string via `ErrorCodes.userMessage(code, loc)`.
-- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `003`, `006`, and the synthetic client code `"401"` (`ErrorCodes.httpUnauthorized`, raised when a token refresh fails).
+- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `003`, `006`, and the synthetic client code `"401"` (`ErrorCodes.httpUnauthorized`, raised when a token refresh fails). The client synthetic code `AUTH-FAIL-CRED` is deliberately **not** included.
+- Auth mapping: a Supabase `AuthException` raised during **login/registration** is caught in `AuthState.login`/`register` and rethrown as `AppError(AUTH-FAIL-CRED)`; the same code covers the "no user/session" outcomes. A generic `AuthException` reaching `ErrorHandler._toAppError` (token/session validation) still maps to `AUTH-FAIL-001`.
 - Flag `isCritical`: True if `requiresReauth` or `SEC-BLOCK-001` / `SEC-BLOCK-002`.
 
 ---

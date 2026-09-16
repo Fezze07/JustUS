@@ -746,6 +746,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get error_authFail006 => 'Unrecognized device. Please login again.';
 
   @override
+  String get error_authFailCred => 'Incorrect email or password.';
+
+  @override
   String get error_authPermission001 =>
       'You do not have permission for this action.';
 

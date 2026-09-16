@@ -1526,6 +1526,12 @@ abstract class AppLocalizations {
   /// **'Dispositivo non riconosciuto. Accedi di nuovo.'**
   String get error_authFail006;
 
+  /// No description provided for @error_authFailCred.
+  ///
+  /// In it, this message translates to:
+  /// **'Email o password non corretti.'**
+  String get error_authFailCred;
+
   /// No description provided for @error_authPermission001.
   ///
   /// In it, this message translates to:

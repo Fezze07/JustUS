@@ -221,7 +221,7 @@ Two mechanisms:
    **Effect**: after a session expiry the user is logged out (state cleared) and shown a non-dismissible "Session expired" dialog whose action redirects to `LoginScreen`, clearing the stale `MainShell` stack. (todo# 1.3)
 
 2. **Reauth dialog (auth-driven, navigates):** triggered for `AppError.code` in {`"401"`, `authFail001`, `authFail002`, `authFail003`, `authFail006`} (error_codes.dart; error_handler.dart:145-146). The `authFailXXX` codes originate from backend auth endpoint errors / `AuthException` mapping (`_toAppError`, error_handler.dart:83-89); `"401"` is the synthetic code for a failed refresh. Flow: `showDialog` (non-dismissible) -> OK -> `navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r)=>false)` (error_handler.dart:249-273).
-   - **Loop risk**: `AuthState.login` runs inside `runSafe`; a **wrong-password `AuthException`** on the LoginScreen is mapped to `authFail001` -> the reauth dialog appears **on top of the LoginScreen itself**, then replaces the stack with... the LoginScreen. Self-referential navigation makes the login error look like a session expiry. Same for `register` captcha/user-create failures.
+   - Credential failures during login/registration are **excluded** from this path: `AuthState.login`/`register` catch the Supabase `AuthException` (and the "no user/session" outcomes) and rethrow `AppError(authFailCred)` — a client-only code that is not in `requiresReauth`, so `ErrorHandler` shows a plain SnackBar on the form instead of the "session expired" dialog and never replaces the stack with the LoginScreen itself. Genuine token/session validation failures keep mapping to `authFail001`/`"401"`.
    - The comment at error_handler.dart:261 claims "l'AuthState gestirà il logout vero e proprio", but `logout()` is only wired to `onSessionExpired`; a `authFailXXX` error arriving from a non-ApiService source does **not** reset `AuthState`, so after navigation the `LoginScreen` may be shown while the user is still logically logged in.
 
 ---
@@ -272,7 +272,7 @@ Two mechanisms:
 | 9 | Launch-from-notification | `getNotificationAppLaunchDetails` -> payload stream -> no listener -> splash default route | NOT IMPLEMENTED (payload ignored) |
 | 10 | Logout (Profile button) | dialog -> AuthState.logout -> `pushAndRemoveUntil` LoginScreen | IMPLEMENTED |
 | 11 | Session expiry (401, refresh failed) | onSessionExpired -> logout (state) -> GenericError(401) -> reauth dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED |
-| 12 | Reauth-required error (authFailXXX) | ErrorHandler dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED (see loop risk) |
+| 12 | Reauth-required error (authFail001/002/003/006 or "401") | ErrorHandler dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED |
 | 13 | Forced update | Homepage post-frame -> checkVersion -> non-dismissible VPDialog -> `launchUrl` (external) | IMPLEMENTED (no in-app nav) |
 | 14 | Failed session restoration (no session) | init -> logout -> LoginScreen | IMPLEMENTED |
 | 15 | Failed session restoration (network) | init partial -> still isLoggedIn -> PartnerScreen (possible mis-route + degraded UI) | IMPLEMENTED (edge behavior) |
@@ -296,15 +296,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 ---
 
 ## Findings
-
-### F-N2: Reauth dialog fires on top of the LoginScreen for ordinary login failures
-
-**What**: wrong-password/login errors raise `AuthException`, mapped to `authFail001` (error_handler.dart:83-89), which is `requiresReauth` -> `_showReauthDialog` -> `pushNamedAndRemoveUntil('/login', (r)=>false)`.
-**Where**: error_handler.dart:83-89,249-273; auth_state.dart:229-252 (login inside `runSafe`); base_state.dart:79-98.
-**Why**: the mapping to `authFail001` is used both for genuine session-expiry cases and for simple credential errors, without distinguishing where they originate.
-**When**: every failed login attempt on the LoginScreen.
-**Impact**: misleading dialog ("session expired / reauthentication required") and self-referential navigation: the stack is replaced by the very screen that was showing the error. Inconsistent UX; potential repeat-loop if the underlying call keeps failing.
-**Confidence**: HIGH (code path is deterministic).
 
 ### F-N3: Named routes `/homepage`, `/partner`, `/register` are unreachable
 
