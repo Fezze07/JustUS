@@ -77,24 +77,30 @@ Session Creation (Login / Register)
 
 ### Token Lifetime & Policy Enforcement
 
-- File: [tokenUtils.js](file:///f:/JustUS/Backend/utils/auth/tokenUtils.js#L27-L36) & [env.js](file:///f:/JustUS/Backend/config/env.js#L30)
+- File: [tokenUtils.js](file:///f:/JustUS/Backend/utils/auth/tokenUtils.js#L27-L39) & [env.js](file:///f:/JustUS/Backend/config/env.js#L41)
 - Configured Constant: `MAX_ACCESS_TOKEN_LIFETIME_SEC` in `Backend/config/env.js`.
-  - Default Value: `900` seconds (15 minutes).
+  - **Required**: there is no code default. `env.js` fails fast at startup if the variable is missing, non-numeric, or `<= 0`.
+  - It must be **greater than or equal to** the Supabase Auth JWT expiry so that legitimately issued tokens are accepted:
+    - hosted: Dashboard > Authentication > Sessions > JWT expiry
+    - local: `supabase/config.toml` `jwt_expiry = 3600`
+  - Current value in `.env.example` and the local `.env`: `3600` (1 hour), matching Supabase's default and the local `jwt_expiry`.
 - **Backend Policy Verification**:
   ```javascript
   function validateTokenLifetime(claims, maxLifetimeSec) {
     const issuedAt = Number(claims.iat ?? 0);
     const expiresAt = Number(claims.exp ?? 0);
-    
+
     if (issuedAt && expiresAt) {
       const tokenLifetime = expiresAt - issuedAt;
       if (tokenLifetime > maxLifetimeSec) {
-        throw new Error("Token lifetime exceeds policy");
+        throw new Error(
+          `Token lifetime exceeds policy (token: ${tokenLifetime}s, max: ${maxLifetimeSec}s)`
+        );
       }
     }
   }
   ```
-- If a JWT is issued with a lifetime greater than `maxAccessTokenLifetimeSec` (e.g., Supabase default 3600 seconds / 1 hour), `authMiddleware` throws an error, resulting in `AUTH_FAIL_001`.
+- The check is a **drift guard**: if Supabase is later reconfigured to a longer lifetime without raising the env value, `authMiddleware` rejects the token and returns `AUTH_FAIL_001` (with the offending and configured lifetimes logged). Keeping the two values aligned is what guarantees authenticated requests are accepted end-to-end.
 
 ---
 
@@ -313,16 +319,11 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 
 ## Potential Bugs and Inconsistencies
 
-### 1. CONFIGURATION MISMATCH: Hardcoded Token Lifetime Rejection
-- **Finding**: `Backend/config/env.js:30` sets `maxAccessTokenLifetimeSec` to default `900` seconds (15 minutes).
-- **Defect**: In `tokenUtils.js:33`, `validateTokenLifetime()` throws `"Token lifetime exceeds policy"` if `exp - iat > maxAccessTokenLifetimeSec`.
-- **Impact**: If Supabase Auth is configured to issue JWTs with a default 1-hour (3600 seconds) lifetime, the Node backend will immediately reject valid Supabase JWTs with `AUTH_FAIL_001`.
-
-### 2. CONCURRENCY BUG: Unhandled Concurrent 401 Requests
+### 1. CONCURRENCY BUG: Unhandled Concurrent 401 Requests
 - **Finding**: `ApiService._isRefreshing` guards against multiple refresh calls.
 - **Defect**: If multiple asynchronous API requests fail with 401 simultaneously, the first request sets `_isRefreshing = true` and begins refreshing. The secondary requests inspect `_isRefreshing == true`, skip `_tryRefreshToken()`, and immediately return 401 session expired errors to the UI.
 
-### 3. CONCURRENCY: Manual Refresh Proxy and Supabase Auto-Refresh Can Race
+### 2. CONCURRENCY: Manual Refresh Proxy and Supabase Auto-Refresh Can Race
 - **Finding**: Two independent refresh paths exist: the Supabase SDK built-in auto-refresh (fires `onAuthStateChange(tokenRefreshed)`) and the backend-proxy `ApiService._tryRefreshToken()`.
 - **Defect**: `_isRefreshing` only serializes the manual path; the Supabase SDK can refresh concurrently and the two paths produce different token pairs that both target the same secure-storage keys and live session.
 - **Impact**: A stale refresh result can overwrite a newer token pair, yielding token inconsistency.
@@ -359,8 +360,8 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 
 | Environment Variable | Default Value | Usage | File Reference |
 |---|---|---|---|
-| `MAX_ACCESS_TOKEN_LIFETIME_SEC` | `900` (15 min) | Maximum allowed JWT lifetime | [env.js:30](file:///f:/JustUS/Backend/config/env.js#L30) |
-| `REQUEST_SIGNING_MAX_SKEW_MS` | `300000` (5 min) | Maximum allowed HMAC timestamp skew | [env.js:47](file:///f:/JustUS/Backend/config/env.js#L47) |
+| `MAX_ACCESS_TOKEN_LIFETIME_SEC` | **Required** (`.env.example`: `3600`, 1 h) | Maximum allowed JWT lifetime; must be >= Supabase Auth JWT expiry. Startup fails fast if missing/invalid. | [env.js:41](file:///f:/JustUS/Backend/config/env.js#L41) |
+| `REQUEST_SIGNING_MAX_SKEW_MS` | `300000` (5 min) | Maximum allowed HMAC timestamp skew | [env.js:61](file:///f:/JustUS/Backend/config/env.js#L61) |
 
 ---
 

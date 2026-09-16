@@ -7,6 +7,17 @@ function parseNumber(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function requirePositiveNumber(value, name) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(
+      `[env] Missing or invalid required environment variable: ${name}. ` +
+        "It must be a positive integer and match the Supabase Auth JWT expiry."
+    );
+  }
+  return parsed;
+}
+
 function parseList(value) {
   return (value ?? "")
     .split(",")
@@ -27,7 +38,10 @@ const env = {
     process.env.SUPABASE_PUBLISHABLE_KEY ??
     "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-  maxAccessTokenLifetimeSec: parseNumber(process.env.MAX_ACCESS_TOKEN_LIFETIME_SEC, 900),
+  maxAccessTokenLifetimeSec: requirePositiveNumber(
+    process.env.MAX_ACCESS_TOKEN_LIFETIME_SEC,
+    "MAX_ACCESS_TOKEN_LIFETIME_SEC"
+  ),
   turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
   turnstileEnabled: Boolean(process.env.TURNSTILE_SECRET_KEY),
   r2AccountId: process.env.R2_ACCOUNT_ID ?? "",

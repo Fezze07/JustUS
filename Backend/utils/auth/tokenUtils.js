@@ -31,7 +31,9 @@ function validateTokenLifetime(claims, maxLifetimeSec) {
   if (issuedAt && expiresAt) {
     const tokenLifetime = expiresAt - issuedAt;
     if (tokenLifetime > maxLifetimeSec) {
-      throw new Error("Token lifetime exceeds policy");
+      throw new Error(
+        `Token lifetime exceeds policy (token: ${tokenLifetime}s, max: ${maxLifetimeSec}s)`
+      );
     }
   }
 }
