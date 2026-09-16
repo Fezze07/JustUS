@@ -62,7 +62,7 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 - Implements Dart `Exception`.
 - Factory `AppError.fromJson(json)` parses backend JSON error envelope.
 - Method `userMessage(loc)` maps error code to localized string via `ErrorCodes.userMessage(code, loc)`.
-- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `003`, `006`.
+- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `003`, `006`, and the synthetic client code `"401"` (`ErrorCodes.httpUnauthorized`, raised when a token refresh fails).
 - Flag `isCritical`: True if `requiresReauth` or `SEC-BLOCK-001` / `SEC-BLOCK-002`.
 
 ---

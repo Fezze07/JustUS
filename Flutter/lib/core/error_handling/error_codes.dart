@@ -39,6 +39,9 @@ class ErrorCodes {
   // SYS
   static const String sysFail001 = 'SYS-FAIL-001'; // Errore interno generico
 
+  // HTTP
+  static const String httpUnauthorized = '401';
+
   // Codice locale (non proviene dal backend)
   static const String localNetworkError =
       'LOCAL-NET-001'; // Nessuna connessione
@@ -90,6 +93,8 @@ class ErrorCodes {
         return loc.error_apiTimeout001;
       case apiFail001:
         return loc.error_apiFail001;
+      case httpUnauthorized:
+        return loc.error_authFail001;
       case secBlock001:
         return loc.error_secBlock001;
       case secBlock002:
@@ -123,7 +128,8 @@ class ErrorCodes {
     return code == authFail001 ||
         code == authFail002 ||
         code == authFail003 ||
-        code == authFail006;
+        code == authFail006 ||
+        code == httpUnauthorized;
   }
 
   /// Restituisce true se l'errore è critico (da mostrare come Dialog)

@@ -213,14 +213,14 @@ Actually used (grep of `pushNamed`):
 
 Two mechanisms:
 
-1. **Session expiry via `ApiService` (auth-driven, state-only):** on 401 after a failed refresh, `ApiService._safeCall` calls `ApiService.onSessionExpired?.call()` (api_service.dart:178). `AuthState.init` registers that callback as `() => logout()` (auth_state.dart:81-86). `logout()` clears storage/caches/state (auth_state.dart:534-549) but does **not navigate**. The resulting `GenericError(code:401)` (api_service.dart:180-181) then propagates through `BaseState.handleResult`/`runSafe` -> `ErrorHandler.handle`:
+1. **Session expiry via `ApiService` (auth-driven, navigates):** on 401 after a failed refresh, `ApiService._safeCall` calls `ApiService.onSessionExpired?.call()` (api_service.dart:230). `AuthState.init` registers that callback as `() => logout()` (auth_state.dart:81-86). `logout()` clears storage/caches/state (auth_state.dart:535-550) but does **not** navigate itself. The resulting `GenericError(code: 401)` (api_service.dart:232-233) then propagates through `BaseState.handleResult`/`runSafe` -> `ErrorHandler.handle`:
    - `_toAppError` -> `AppError(code: "401")` (error_handler.dart:76-79),
-   - `ErrorCodes.requiresReauth("401") == false` (error_codes.dart:118-123),
-   - `isCritical("401") == false` -> **snackbar** (error_handler.dart:145-150).
-   
-   **Effect**: after a session expiry the user is effectively logged out but **stays on the current screen (e.g. Homepage/Profile inside MainShell) with cleared state and no redirect to LoginScreen.** Stale-screen-after-state-change (Findings).
+   - `ErrorCodes.requiresReauth("401") == true` (`httpUnauthorized`, error_codes.dart),
+   - -> **reauth dialog** (error_handler.dart:145-146) -> OK -> `pushNamedAndRemoveUntil('/login', (r)=>false)` (error_handler.dart:249-273).
 
-2. **Reauth dialog (auth-driven, navigates):** triggered only for `AppError.code` in {`authFail001`,`authFail002`,`authFail003`,`authFail006`} (error_codes.dart:118-123; error_handler.dart:145-146). Those codes originate from backend auth endpoint errors / `AuthException` mapping (`_toAppError`, error_handler.dart:83-89). Flow: `showDialog` (non-dismissible) -> OK -> `navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r)=>false)` (error_handler.dart:249-273).
+   **Effect**: after a session expiry the user is logged out (state cleared) and shown a non-dismissible "Session expired" dialog whose action redirects to `LoginScreen`, clearing the stale `MainShell` stack. (todo# 1.3)
+
+2. **Reauth dialog (auth-driven, navigates):** triggered for `AppError.code` in {`"401"`, `authFail001`, `authFail002`, `authFail003`, `authFail006`} (error_codes.dart; error_handler.dart:145-146). The `authFailXXX` codes originate from backend auth endpoint errors / `AuthException` mapping (`_toAppError`, error_handler.dart:83-89); `"401"` is the synthetic code for a failed refresh. Flow: `showDialog` (non-dismissible) -> OK -> `navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r)=>false)` (error_handler.dart:249-273).
    - **Loop risk**: `AuthState.login` runs inside `runSafe`; a **wrong-password `AuthException`** on the LoginScreen is mapped to `authFail001` -> the reauth dialog appears **on top of the LoginScreen itself**, then replaces the stack with... the LoginScreen. Self-referential navigation makes the login error look like a session expiry. Same for `register` captcha/user-create failures.
    - The comment at error_handler.dart:261 claims "l'AuthState gestirà il logout vero e proprio", but `logout()` is only wired to `onSessionExpired`; a `authFailXXX` error arriving from a non-ApiService source does **not** reset `AuthState`, so after navigation the `LoginScreen` may be shown while the user is still logically logged in.
 
@@ -238,7 +238,7 @@ Two mechanisms:
 
 - Single official path: `ProfileScreen._logout()` (profile_screen.dart:59-62) -> `LogoutUtils.showLogoutDialog` -> `LogoutUtils.performLogout` (logout_utils.dart:39-48): `await AuthState.logout()` then `pushAndRemoveUntil(LoginScreen, (r)=>false)` - clears the whole stack.
 - Mandatory-force-update may indirectly send the user to the store via `launchUrl`, but does not log out.
-- Session-expiry "logout" (see Authentication-driven navigation) does **not** navigate.
+- Session-expiry "logout" (see Authentication-driven navigation) also navigates: the 401 maps to the reauth dialog, which redirects to `LoginScreen`.
 
 ---
 
@@ -271,7 +271,7 @@ Two mechanisms:
 | 8 | Notification tap (foreground/background) | tap -> payload on `onNotificationTap` -> **no listener** -> no navigation | NOT IMPLEMENTED |
 | 9 | Launch-from-notification | `getNotificationAppLaunchDetails` -> payload stream -> no listener -> splash default route | NOT IMPLEMENTED (payload ignored) |
 | 10 | Logout (Profile button) | dialog -> AuthState.logout -> `pushAndRemoveUntil` LoginScreen | IMPLEMENTED |
-| 11 | Session expiry (401, refresh failed) | onSessionExpired -> logout (state only) -> GenericError(401) -> snackbar -> **no navigation** | PARTIALLY IMPLEMENTED (missing redirect) |
+| 11 | Session expiry (401, refresh failed) | onSessionExpired -> logout (state) -> GenericError(401) -> reauth dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED |
 | 12 | Reauth-required error (authFailXXX) | ErrorHandler dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED (see loop risk) |
 | 13 | Forced update | Homepage post-frame -> checkVersion -> non-dismissible VPDialog -> `launchUrl` (external) | IMPLEMENTED (no in-app nav) |
 | 14 | Failed session restoration (no session) | init -> logout -> LoginScreen | IMPLEMENTED |
@@ -296,15 +296,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 ---
 
 ## Findings
-
-### F-N1: Session expiry leaves the user on a stale screen (no redirect)
-
-**What**: 401-refresh-failure path: `ApiService` -> `onSessionExpired` -> `AuthState.logout()` (clears all state, no navigation) while the returned `GenericError(code:401)` maps to a plain snackbar (`requiresReauth("401")==false`, `isCritical("401")==false`).
-**Where**: api_service.dart:178-181; auth_state.dart:81-86,534-549; error_handler.dart:145-150; error_codes.dart:118-128.
-**Why**: the "401" code string was never added to the `requiresReauth` list (which only covers `authFail001/002/003/006`).
-**When**: any signed API call that fails refresh while the user is inside MainShell.
-**Impact**: user is de facto logged out but continues browsing a UI with empty data; any subsequent action re-fails. Confusing and security-relevant (no re-login barrier).
-**Confidence**: HIGH.
 
 ### F-N2: Reauth dialog fires on top of the LoginScreen for ordinary login failures
 
@@ -408,7 +399,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Deep links | NOT IMPLEMENTED |
 | Notification-driven navigation | NOT IMPLEMENTED (payload ignored) |
 | Launch-from-notification navigation | NOT IMPLEMENTED |
-| Session-expiry redirect | PARTIALLY IMPLEMENTED (state reset, no redirect) |
+| Session-expiry redirect | IMPLEMENTED (401 -> reauth dialog -> `/login`) |
 | Reauth dialog navigation | IMPLEMENTED (with loop risk) |
 | Partnership-driven navigation (forward) | IMPLEMENTED |
 | Partnership-driven navigation (reverse) | NOT IMPLEMENTED |
@@ -424,7 +415,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 ## Notes
 
 - All main destination screens are pushed with inline `MaterialPageRoute` even though `routes` defines corresponding names - inconsistent and blocks cleaner redirect/deep-link logic later.
-- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog` (core). Feature **State** classes never navigate - which is correct - but this is exactly why the session-expiry path (state-side logout only) leaves the UI stranded.
+- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog` (core). Feature **State** classes never navigate - which is correct. The session-expiry path now funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
 - `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile dialog - a second core-layer consumer of the global navigator.
 - No widget/route tests exist for any navigation scenario (no golden/route tests in `Flutter/test/`).
-- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", replace `MainShell.shellKey` with a route-level tab mechanism, subscribe to `onNotificationTap` to apply content navigation, and add `401` to the `requiresReauth` set (or navigate explicitly in the `onSessionExpired` callback).
+- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", replace `MainShell.shellKey` with a route-level tab mechanism, and subscribe to `onNotificationTap` to apply content navigation.

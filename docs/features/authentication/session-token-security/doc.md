@@ -181,6 +181,12 @@ When retrying an HTTP `POST` or `GET` request:
 
 - Exactly **1 retry** is permitted (`isRetry: true`). If the retried request fails with 401, no further retries occur.
 
+### Session Expiry Presentation (todo# 1.3)
+
+- The synthetic `GenericError(code: 401)` is converted by `ErrorHandler._toAppError` into `AppError(code: "401")` (error_handler.dart:76-79).
+- `"401"` is included in `ErrorCodes.requiresReauth` via the `httpUnauthorized` constant, and its user message reuses `error_authFail001` ("Session expired. Please login again.").
+- Consequently the failure opens the non-dismissible reauth dialog (error_handler.dart:145-146), whose action calls `pushNamedAndRemoveUntil('/login')` (error_handler.dart:249-273) — the user is redirected to `LoginScreen` rather than left on a stale screen with cleared state.
+
 ---
 
 ## JWT Verification
