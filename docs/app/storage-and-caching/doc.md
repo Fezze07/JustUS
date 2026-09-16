@@ -49,7 +49,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyPartnerId` | `partner_id` | `int?` (stored as string) | `AuthState.setPartner`, `PartnerState.refreshFromRealtime` | `StorageService.getPartnerId` (all feature states/repos) | Partnership lifetime | `deleteAll` | `deleteAll` | Sentinel `-1` translated to `null` (`:207`) |
 | `_keyPartnershipId` | `partnership_id` | `int?` (stored as string) | `AuthState.setPartner`, `PartnerState.refreshFromRealtime` | `StorageService.getPartnershipId`, `AuthState.init` | Partnership lifetime | `deleteAll` | `deleteAll` | |
 | `_keyDeviceFingerprint` | `device_fingerprint` | `String` (UUID v4) | `StorageService.getOrCreateDeviceFingerprint` | `ApiService._buildHeaders`, `DeviceTokenService.getDeviceFingerprint`, `AuthState._syncBackendSession` | Device lifetime — **destroyed on logout** | `deleteAll` **deletes this** | `deleteAll` | See F-SC1 |
-| `_keyRequestBindingSecret` | `request_binding_secret` | `String?` | `AuthState._syncBackendSession` via `StorageService.saveRequestBindingSecret` | `ApiService._buildHeaders` | Session lifetime | `deleteAll` | `deleteAll` | Also bridges into `ApiService._cachedRequestBindingSecret` (`:188`) |
+| `_keyRequestBindingSecret` | `request_binding_secret` | `String?` | `AuthState._syncBackendSession` via `StorageService.saveRequestBindingSecret` | `ApiService._buildHeaders` | Session lifetime | `deleteAll` | `deleteAll` | Also bridges into `ApiService._cachedRequestBindingSecret`; if missing, `ApiService._buildHeaders` re-runs `_syncBackendSession` through `onMissingBindingSecret` before signing (deduplicated in-flight, 30s cooldown) |
 
 ### SharedPreferences — Authentication & Identity
 

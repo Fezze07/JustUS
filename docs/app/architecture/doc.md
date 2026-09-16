@@ -94,7 +94,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 ### What blocks navigation
 
 - `AuthState.init()` and `PartnerState.fetchPartnership()` are awaited by the splash; navigation cannot happen until both complete.
-- Inside `init()`, several **backend network calls are awaited**: session sync (`/auth/session-sync` -> binding secret) and FCM device-token registration. Their failures are **caught and only logged** - they do not block navigation - but there is a hidden consequence: if session-sync fails, no binding secret is saved and later signed requests (device-token, media, AI) fail as `NetworkError`.
+- Inside `init()`, several **backend network calls are awaited**: session sync (`/auth/session-sync` -> binding secret) and FCM device-token registration. Their failures are **caught and only logged** - they do not block navigation. If session-sync fails, no binding secret is saved; the next signed request (device-token, media, AI) triggers `ApiService` to re-run the session sync (`onMissingBindingSecret` -> `AuthState._syncBackendSession`) before giving up. If recovery still fails, the request fails closed with a typed `AppError` (`LOCAL-BINDING-001`) surfaced through `ErrorHandler` - it is never sent unsigned.
 - `PartnerState.fetchPartnership()` uses `runSafe()` (`showLoading: true`); a network failure is routed through `ErrorHandler` (snackbar/dialog) and leaves `partner == null`, so the splash navigates to `PartnerScreen` even when a partnership actually exists in the DB.
 
 ### Failure behavior
@@ -182,9 +182,9 @@ Every feature exposes `*Repository extends BaseRepository`:
 
 - Wraps `http.Client` in `LoggingHttpClient` (logs REST/RPC/Auth/Storage requests).
 - **Headers**: `Authorization: Bearer <supabase access token>` (from `Supabase.instance.client.auth.currentSession`), `X-Device-Fingerprint` (cached static within the process after first read), `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
-- **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the binding secret is unavailable and `requireSignature: true`, it throws `HttpException('Missing request binding secret')` - surfaced to callers as `NetworkError` (hidden init requirement, see Findings).
+- **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the secret is unavailable for a `requireSignature: true` authenticated call, it first attempts recovery by invoking `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`, deduplicated in-flight + 30s cooldown); if recovery fails it throws a typed `AppError(code: 'LOCAL-BINDING-001')`, which `_safeCall` returns as `GenericError(details: AppError)` so `ErrorHandler` shows a retry-able message. Unsigned endpoints still carry a fresh timestamp + nonce (required by `freshNonce` routes) but never a signature when the secret is absent.
 - **Response handling** (`_safeCall`): default timeout 10s (AI question has 60s); 2xx -> decode via `compute()` isolate; 401 -> `_tryRefreshToken()` (backend `/auth/refresh` proxy with the stored refresh token) then a single retry; on refresh success both tokens are persisted to secure storage **and** pushed into the Supabase SDK session via `auth.setSession(refreshToken, accessToken:)` so the retry uses the new token (todo# 1.1); refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`. Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`.
-- **Static mutable state**: `ApiService.onSessionExpired`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret` (see Findings).
+- **Static mutable state**: `ApiService.onSessionExpired`, `ApiService.onMissingBindingSecret`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret`, `_bindingSecretRecovery`, `_lastBindingSecretSyncAttempt`.
 - `resolveProtectedMediaUrl(url)` rewrites raw R2 object keys into `GET /api/v1/media/file?filename=...` URLs (used by avatar widgets).
 - `authHeaders` static getter - used by `ProtectedNetworkImage` for authenticated image downloads.
 
@@ -349,7 +349,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 4. Supabase session check:
    - No session + local access token -> `logout()` (clears cache).
    - Session present + username missing -> `fetchProfileByAuthId` + `setLoginData`.
-5. `_syncBackendSession()`: POST `/auth/session-sync` with device fingerprint + device label; stores binding secret. Failures logged only.
+5. `_syncBackendSession()`: POST `/auth/session-sync` with device fingerprint + device label; stores binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request missing the secret re-runs it on demand.
 6. If logged in + FCM: `updateDeviceToken(token, locale)` (backed by `AuthRepository.updateDeviceToken`, which is signed). Failures logged only.
 7. Subscribes to `auth.onAuthStateChange` (`tokenRefreshed` -> persist tokens) and `DeviceTokenService.onTokenRefresh` (re-register device token).
 8. Registers `this` as `WidgetsBindingObserver` -> resumed -> debounced locale sync; `didChangeLocales` -> locale sync.
@@ -464,16 +464,6 @@ Three components register as `WidgetsBindingObserver`:
 
 **Confidence**: HIGH.
 
-### F7: Hidden initialization requirement - binding secret
-
-**Evidence**: `ApiService._buildHeaders` at api_service.dart:64-90: if `method` + `path` are provided AND `bindingSecret` is null/empty AND `requireSignature: true`, the method throws `HttpException('Missing request binding secret')`. The binding secret is only obtained from `_syncBackendSession()` (auth_state.dart:337-359), which is called inside `AuthState.init()`. If `_syncBackendSession()` fails (network error, backend down), the binding secret is never saved, and all signed endpoints silently fail with `NetworkError`.
-
-**What**: Three endpoint categories require the binding secret: device-token registration, media presign/complete, and AI question generation. A backend outage during app initialization will cause all these features to break until the next successful session sync. The failure manifests as a generic `NetworkError` with no specific guidance.
-
-**Impact**: Signed features silently broken after initialization failure. No automatic retry mechanism exists to re-obtain the binding secret on subsequent app uses (init only runs once per cold start).
-
-**Confidence**: HIGH.
-
 ### F8: Dual token-refresh can race
 
 **Evidence**: Supabase client's built-in token refresh fires `onAuthStateChange(tokenRefreshed)` (auth_state.dart:154-165), which saves to `StorageService`. Separately, `ApiService._tryRefreshToken()` (api_service.dart:279-317) calls the backend `/auth/refresh` proxy, saves to `StorageService` (same keys) and pushes the pair into the live Supabase session via `setSession`. Both can fire concurrently.
@@ -559,7 +549,7 @@ Test helpers in `test_helpers/`: `mock_secure_storage.dart`, `supabase_test_help
 
 1. **StorageService.init() must be called before any StorageService read/write.** Satisfied by `main()` step 4.
 2. **SupabaseService.initialize() must be called before any `Supabase.instance.client` access.** Satisfied by `main()` step 5.
-3. **AuthState.init() must have completed before any signed API request.** It obtains the binding secret. Not explicitly enforced - relies on `SplashScreen` awaiting it before navigation.
+3. **AuthState.init() must have completed before any signed API request, and `ApiService.onMissingBindingSecret` must be wired.** `init()` performs the first session sync and sets the callback; if the secret is still missing, `ApiService` recovers on demand via that callback. Navigation relies on `SplashScreen` awaiting `init()`.
 4. **RealtimeSyncService must be configured with non-null userId + partnershipId before subscribing.** Enforced by `configure()` guard.
 5. **Only one `MainShell` widget is mounted at any time** (due to `GlobalKey`). Enforced by navigation patterns.
 6. **`BaseState.notifyListeners()` coalesces to one per frame.** Invariant: `_pendingNotify` flag cleared in `addPostFrameCallback`.

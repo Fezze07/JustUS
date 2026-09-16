@@ -23,6 +23,8 @@ Map<String, dynamic> _isolateDecodeResponse(String body) =>
 class ApiService {
   static String? _cachedDeviceFingerprint;
   static String? _cachedRequestBindingSecret;
+  static Future<String?>? _bindingSecretRecovery;
+  static DateTime? _lastBindingSecretSyncAttempt;
 
   static void setCachedRequestBindingSecret(String secret) {
     _cachedRequestBindingSecret = secret;
@@ -31,6 +33,8 @@ class ApiService {
   static void clearHeadersCache() {
     _cachedDeviceFingerprint = null;
     _cachedRequestBindingSecret = null;
+    _bindingSecretRecovery = null;
+    _lastBindingSecretSyncAttempt = null;
   }
 
   static Map<String, String> get authHeaders {
@@ -66,6 +70,8 @@ class ApiService {
 
   // Global callback for session expiration
   static Future<void> Function()? onSessionExpired;
+
+  static Future<void> Function()? onMissingBindingSecret;
 
   // -------------------- Helper Methods --------------------
 
@@ -103,14 +109,19 @@ class ApiService {
     if (method != null && path != null) {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final nonce = _uuid.v4();
-      headers['X-Request-Timestamp'] = timestamp;
-      headers['X-Request-Nonce'] = nonce;
 
       String? bindingSecret = _cachedRequestBindingSecret;
       if (bindingSecret == null) {
         bindingSecret = await StorageService.getRequestBindingSecret();
         _cachedRequestBindingSecret = bindingSecret;
       }
+
+      if ((bindingSecret == null || bindingSecret.isEmpty) &&
+          requireSignature &&
+          !skipAuth) {
+        bindingSecret = await _recoverBindingSecret();
+      }
+
       if (bindingSecret != null && bindingSecret.isNotEmpty) {
         final bodyString = payload == null ? '' : jsonEncode(payload);
         final bodyHash = _sha256(bodyString);
@@ -130,11 +141,52 @@ class ApiService {
         headers['X-Request-Nonce'] = nonce;
         headers['X-Request-Signature'] = signature;
       } else if (requireSignature) {
-        throw const HttpException('Missing request binding secret');
+        throw const AppError(
+          code: ErrorCodes.localBindingSecretMissing,
+          message: 'Request binding secret unavailable',
+          severity: ErrorSeverity.high,
+        );
+      } else {
+        headers['X-Request-Timestamp'] = timestamp;
+        headers['X-Request-Nonce'] = nonce;
       }
     }
 
     return headers;
+  }
+
+  Future<String?> _recoverBindingSecret() {
+    final inFlight = _bindingSecretRecovery;
+    if (inFlight != null) return inFlight;
+
+    final now = DateTime.now();
+    final lastAttempt = _lastBindingSecretSyncAttempt;
+    if (lastAttempt != null &&
+        now.difference(lastAttempt) < const Duration(seconds: 30)) {
+      return Future.value(_cachedRequestBindingSecret);
+    }
+
+    _lastBindingSecretSyncAttempt = now;
+    final recovery = _runBindingSecretRecovery().whenComplete(() {
+      _bindingSecretRecovery = null;
+    });
+    _bindingSecretRecovery = recovery;
+
+    return recovery;
+  }
+
+  Future<String?> _runBindingSecretRecovery() async {
+    try {
+      await onMissingBindingSecret?.call();
+    } catch (e) {
+      AnsiLogger.error('Binding secret recovery failed: $e', tag: 'ApiService');
+    }
+
+    final secret = _cachedRequestBindingSecret ??
+        await StorageService.getRequestBindingSecret();
+    _cachedRequestBindingSecret = secret;
+
+    return (secret == null || secret.isEmpty) ? null : secret;
   }
 
   String _buildClientUserAgent() {
@@ -203,6 +255,10 @@ class ApiService {
 
         return GenericError(code: response.statusCode, message: errorMessage);
       }
+    } on AppError catch (e) {
+      AnsiLogger.error('AppError: $e', tag: 'ApiService');
+
+      return GenericError(message: e.message, details: e);
     } on TimeoutException {
       return const NetworkError(
           message: 'Richiesta scaduta (timeout). Controlla la connessione.');

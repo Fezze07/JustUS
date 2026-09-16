@@ -84,6 +84,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
           tag: 'AuthState');
       await logout();
     };
+    ApiService.onMissingBindingSecret = _syncBackendSession;
 
     // Make init idempotent (A3)
     await _authSubscription?.cancel();

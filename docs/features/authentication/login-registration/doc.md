@@ -335,7 +335,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 ## Edge Cases
 
-1. **Network Disconnection During Session Sync**: If Supabase Auth succeeds but the subsequent call to `_syncBackendSession()` fails due to network loss, `AuthState` retains the Supabase session locally. However, `bindingSecret` is not retrieved from the backend, causing subsequent signed backend requests to return `AUTH_FAIL_006` ("Client binding mismatch").
+1. **Network Disconnection During Session Sync**: If Supabase Auth succeeds but the subsequent call to `_syncBackendSession()` fails due to network loss, `AuthState` retains the Supabase session locally and `bindingSecret` is not retrieved. The next signed backend request triggers `ApiService` recovery (re-invoking `_syncBackendSession` via `onMissingBindingSecret`, deduplicated in-flight with a 30s cooldown); if connectivity has returned it signs normally, otherwise it fails closed with `AppError(LOCAL-BINDING-001)` and the user can retry. It is never sent unsigned.
 2. **Database Trigger Latency/Failure**: If Supabase Auth creates an `auth.users` row but the PostgreSQL `handle_new_auth_user()` trigger fails or experiences delay, `fetchProfileByAuthId` returns null, triggering `AppError(DB_NOT_FOUND_001)` and halting login despite valid Supabase credentials.
 
 ---

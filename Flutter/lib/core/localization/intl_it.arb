@@ -311,6 +311,7 @@
   "error_localParseError": "Risposta del server non valida.",
   "error_localStorageError": "Errore nel salvataggio dei dati locali.",
   "error_localConfigError": "Errore di configurazione dell'app.",
+  "error_localBindingSecretMissing": "Preparazione sicura non riuscita. Controlla la connessione e riprova.",
   "error_localMoodDuplicate": "Hai già impostato questa emoji come mood attuale.",
   "error_unknown": "Si è verificato un errore imprevisto.",
   "auth_confirmEmailMessage": "Abbiamo inviato un link di conferma a {email}.\n\nClicca sul link per attivare il tuo account, poi torna qui per accedere.",

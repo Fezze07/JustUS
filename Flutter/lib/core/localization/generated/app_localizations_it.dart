@@ -812,6 +812,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get error_localConfigError => 'Errore di configurazione dell\'app.';
 
   @override
+  String get error_localBindingSecretMissing =>
+      'Preparazione sicura non riuscita. Controlla la connessione e riprova.';
+
+  @override
   String get error_localMoodDuplicate =>
       'Hai già impostato questa emoji come mood attuale.';
 

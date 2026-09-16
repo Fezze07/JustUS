@@ -49,6 +49,8 @@ class ErrorCodes {
       'LOCAL-STORAGE-001'; // Errore storage locale
   static const String localConfigError =
       'LOCAL-CONFIG-001'; // Errore configurazione
+  static const String localBindingSecretMissing =
+      'LOCAL-BINDING-001'; // Secret di firma non disponibile
   static const String localMoodDuplicate =
       'LOCAL-MOOD-001'; // Emoji già impostata
   static const String localUnknown = 'LOCAL-UNKNOWN'; // Errore sconosciuto
@@ -106,6 +108,8 @@ class ErrorCodes {
         return loc.error_localStorageError;
       case localConfigError:
         return loc.error_localConfigError;
+      case localBindingSecretMissing:
+        return loc.error_localBindingSecretMissing;
       case localMoodDuplicate:
         return loc.error_localMoodDuplicate;
       default:

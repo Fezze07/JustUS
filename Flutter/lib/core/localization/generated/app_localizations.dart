@@ -1634,6 +1634,12 @@ abstract class AppLocalizations {
   /// **'Errore di configurazione dell\'app.'**
   String get error_localConfigError;
 
+  /// No description provided for @error_localBindingSecretMissing.
+  ///
+  /// In it, this message translates to:
+  /// **'Preparazione sicura non riuscita. Controlla la connessione e riprova.'**
+  String get error_localBindingSecretMissing;
+
   /// No description provided for @error_localMoodDuplicate.
   ///
   /// In it, this message translates to:

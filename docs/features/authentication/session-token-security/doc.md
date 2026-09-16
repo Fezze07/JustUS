@@ -266,6 +266,10 @@ function validateSessionBinding(sessionBinding, clientContext) {
   - Saved in Flutter secure storage (`StorageService.saveRequestBindingSecret`) and cached in `ApiService`.
   - Reused for all HMAC signatures during the active session.
   - Invalidated when `auth_sessions` record is deleted or revoked (`revoked_at != null`).
+- **Client-side Recovery & Fail-Closed**:
+  - If the secret is missing when a `requireSignature: true` authenticated call is prepared, `ApiService._buildHeaders` invokes `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`) to re-run `/auth/session-sync` before signing. Recovery is deduplicated (one in-flight attempt) with a 30s cooldown after a failed attempt.
+  - If the secret still cannot be obtained, the signed call **fails closed** with `AppError(code: 'LOCAL-BINDING-001')`. `_safeCall` returns it as a `GenericError(details: AppError)`, so `ErrorHandler` shows the localized, retry-able message instead of a generic `NetworkError`.
+  - Unsigned routes (e.g. `/auth/session-sync` itself, `/auth/invite`, `/notify`, `/users/wipe`) still send `X-Request-Timestamp` + `X-Request-Nonce` (required by `freshNonce` routes) but intentionally carry no signature.
 
 ### Canonical Request Signature Format
 

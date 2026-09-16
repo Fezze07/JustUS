@@ -802,6 +802,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get error_localConfigError => 'App configuration error.';
 
   @override
+  String get error_localBindingSecretMissing =>
+      'Secure setup failed. Check your connection and try again.';
+
+  @override
   String get error_localMoodDuplicate =>
       'You already set this emoji as your current mood.';
 
