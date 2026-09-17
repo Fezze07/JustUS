@@ -240,8 +240,8 @@ HomepageScreen.initState()
 ## Security & RLS Policies
 
 - Table `public.missyou` access is governed by Row Level Security:
-  - **SELECT**: Restricted to users belonging to the active partnership (`is_in_partnership(partnership_id)`).
-  - **INSERT**: Restricted to authenticated users who are members of an active partnership.
+  - **SELECT**: Restricted to users belonging to the **accepted** partnership (`is_in_partnership(partnership_id)`, which requires `status = 'accepted'`).
+  - **INSERT**: Restricted to authenticated users who are members of an accepted partnership.
 
 ---
 

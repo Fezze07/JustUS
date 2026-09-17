@@ -80,18 +80,19 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **Helper Function `is_in_partnership` Code:**
   ```sql
   SELECT EXISTS (
-    SELECT 1 FROM public.partnerships 
-    WHERE id = p_partnership_id 
+    SELECT 1 FROM public.partnerships
+    WHERE id = p_partnership_id
+    AND status = 'accepted'
     AND (user_id_1 = public.current_user_id() OR user_id_2 = public.current_user_id())
   );
   ```
-- **Assessment:** **STALE / UNVALIDATED RELATIONSHIP CHECK**. `is_in_partnership` checks membership in a `partnerships` row **without checking `status = 'accepted'`**. Unaccepted or pending requests allow data access.
+- **Assessment:** **ACCEPTED-ONLY RELATIONSHIP CHECK**. `is_in_partnership` requires the `partnerships` row to both include the caller and have `status = 'accepted'`. Pending or rejected requests no longer grant any access.
 
 #### `moods`
 - **Policies:**
   - `moods_related_access` (SELECT): `USING ((user_id = public.current_user_id()) OR public.is_partner_of(user_id))`
   - `moods_manage_own` (INSERT), `moods_update_own` (UPDATE), `moods_delete_own` (DELETE): `user_id = public.current_user_id()`
-- **Assessment:** `is_partner_of` also checks `partnerships` without enforcing `status = 'accepted'`.
+- **Assessment:** `is_partner_of` filters by `status = 'accepted'` as well, so only an accepted partner's mood rows are readable.
 
 #### `game_answers` & `drive_item_reactions`
 - **Policies:**
@@ -144,13 +145,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 ## Critical Findings & Vulnerabilities
 
-### Finding 1: Unaccepted ('Pending') Partnership Data Access
-- **Severity:** HIGH
-- **Where:** Helper functions `public.is_in_partnership()` and `public.is_partner_of()`.
-- **Impact:** When User A sends a partnership request to User B, a `partnerships` row is created with `status = 'pending'`. Because `is_in_partnership` does not check `status = 'accepted'`, User A or User B can access or upload files (`drive_items`), bucket list items, and mood records before the invite is accepted or even if rejected.
-- **Root Cause:** Missing `AND status = 'accepted'` filter in helper function SQL definitions.
-
-### Finding 2: Lack of `WITH CHECK` on Shared Resource Mutation
+### Finding 1: Lack of `WITH CHECK` on Shared Resource Mutation
 - **Severity:** MEDIUM
 - **Where:** `drive_items.sql` (`drive_items_related`), `bucket_items.sql` (`bucket_items_partnership_access`), `game_questions.sql` (`game_questions_related`).
 - **Impact:** Policies use `FOR ALL ... USING (is_in_partnership(partnership_id))` without explicit `WITH CHECK` clauses. While PostgreSQL evaluates `USING` expression on insert/update as fallback, explicit `WITH CHECK` is recommended to prevent parameter ambiguity during updates.
@@ -162,5 +157,5 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **RLS Activation on All Tables:** **100% IMPLEMENTED** (25/25 tables)
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
-- **Strict Relationship Validation (`status = 'accepted'`):** **NOT IMPLEMENTED** (Needs fix in helper functions)
+- **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`is_in_partnership`, `is_partner_of`, and `private.is_related_user` all require `status = 'accepted'`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)

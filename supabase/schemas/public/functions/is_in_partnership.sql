@@ -7,8 +7,9 @@ CREATE OR REPLACE FUNCTION public.is_in_partnership (
   SET search_path TO 'public'
   AS $function$
   SELECT EXISTS (
-    SELECT 1 FROM public.partnerships 
-    WHERE id = p_partnership_id 
+    SELECT 1 FROM public.partnerships
+    WHERE id = p_partnership_id
+    AND status = 'accepted'
     AND (user_id_1 = public.current_user_id() OR user_id_2 = public.current_user_id())
   );
 $function$;
