@@ -35,6 +35,7 @@ CREATE POLICY "moods_related_access" ON "public"."moods"
 CREATE POLICY "moods_update_own" ON "public"."moods"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.current_user_id()))
+  WITH CHECK ((user_id = public.current_user_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."moods" TO "anon", "authenticated", "postgres", "service_role";

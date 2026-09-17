@@ -37,7 +37,8 @@ CREATE POLICY "users_select_self" ON "public"."users"
 CREATE POLICY "users_update_self" ON "public"."users"
   FOR UPDATE
   TO PUBLIC
-  USING ((id = public.current_user_id()));
+  USING ((id = public.current_user_id()))
+  WITH CHECK ((id = public.current_user_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."users" TO "anon", "authenticated", "postgres", "service_role";
 

@@ -51,14 +51,14 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
   - `users_select_self` (SELECT): `TO authenticated USING (auth_id = (SELECT auth.uid()))`
   - `users_insert_self` (INSERT): `WITH CHECK ((SELECT auth.uid()) = auth_id)`
   - `users_insert_service_role` (INSERT): `TO service_role WITH CHECK (true)`
-  - `users_update_self` (UPDATE): `USING (id = public.current_user_id())`
+  - `users_update_self` (UPDATE): `USING` + `WITH CHECK (id = public.current_user_id())`
 - **Assessment:** **SELF-SCOPED SELECT POLICY**. An authenticated user can read only their own row; `service_role` retains full access through its RLS bypass. No other user's email/UUID is reachable by direct query.
 
 #### `user_profiles`
 - **Policies:**
   - `profiles_select_self_or_partner` (SELECT): `TO authenticated USING (user_id = public.current_user_id() OR private.is_related_user(user_id))`
   - `profiles_insert_self` (INSERT): `WITH CHECK (user_id = public.current_user_id())`
-  - `profiles_update_self` (UPDATE): `USING (user_id = public.current_user_id())`
+  - `profiles_update_self` (UPDATE): `USING` + `WITH CHECK (user_id = public.current_user_id())`
 - **Assessment:** **SELF + ACCEPTED PARTNER**. `private.is_related_user` is a `SECURITY DEFINER`, non-exposed helper that returns true only when the caller and the target share a partnership whose `status = 'accepted'`. `partnership_code`, bios and pictures of unrelated users (and of *pending* invitees) are no longer reachable through table SELECT.
 
 #### Pending invitation identity
@@ -71,8 +71,8 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 #### `partnerships`
 - **Policies:**
-  - `partnerships_manage_own` (FOR ALL): `USING ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()))`
-- **Assessment:** Access is restricted to `user_id_1` or `user_id_2`.
+  - `partnerships_manage_own` (FOR ALL): `USING` + `WITH CHECK ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()))`
+- **Assessment:** Access is restricted to `user_id_1` or `user_id_2`, on both the existing and the new row (a member cannot write a partnership they are not part of).
 
 #### `drive_items` & `bucket_items` & `game_questions` & `missyou`
 - **Policies:**
@@ -91,14 +91,15 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 #### `moods`
 - **Policies:**
   - `moods_related_access` (SELECT): `USING ((user_id = public.current_user_id()) OR public.is_partner_of(user_id))`
-  - `moods_manage_own` (INSERT), `moods_update_own` (UPDATE), `moods_delete_own` (DELETE): `user_id = public.current_user_id()`
+  - `moods_manage_own` (INSERT), `moods_update_own` (UPDATE), `moods_delete_own` (DELETE): `user_id = public.current_user_id()` (UPDATE carries explicit `WITH CHECK (user_id = public.current_user_id())`)
 - **Assessment:** `is_partner_of` filters by `status = 'accepted'` as well, so only an accepted partner's mood rows are readable.
 
-#### `game_answers` & `drive_item_reactions`
+#### `game_answers` & `drive_item_reactions` & `favorites`
 - **Policies:**
   - READ: Partnership members (via subquery on parent `game_questions` / `drive_items`).
-  - WRITE/UPDATE/DELETE: Restricted to row owner (`user_id = public.current_user_id()`).
-- **Assessment:** Granular ownership properly enforced on write operations.
+  - WRITE/UPDATE: Restricted to row owner (`user_id = public.current_user_id()`).
+- **`WITH CHECK`:** INSERT and UPDATE both carry explicit `WITH CHECK` combining self-ownership **and** a parent-in-accepted-partnership subquery — a `game_answers.game_id`, `drive_item_reactions.item_id`, or `favorites.item_id` must reference a row in the caller's **accepted** partnership. `favorites` is a `FOR ALL` policy; `game_answers`/`drive_item_reactions` have per-operation INSERT/UPDATE policies.
+- **Assessment:** Granular ownership properly enforced on write operations; a row can no longer be created/moved to reference a parent outside the caller's accepted partnership.
 
 ---
 
@@ -150,4 +151,5 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`is_in_partnership`, `is_partner_of`, and `private.is_related_user` all require `status = 'accepted'`)
 - **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (is_in_partnership(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
+- **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_manage_own`; backend-only on `logs_auth_failures`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)

@@ -15,6 +15,9 @@ CREATE INDEX idx_favorites_item_id ON public.favorites USING btree (item_id);
 CREATE POLICY "favorites_own" ON "public"."favorites"
   FOR ALL
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.current_user_id()))
+  WITH CHECK ((user_id = public.current_user_id()) AND (EXISTS ( SELECT 1
+   FROM public.drive_items
+  WHERE ((drive_items.id = favorites.item_id) AND public.is_in_partnership(drive_items.partnership_id)))));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."favorites" TO "anon", "authenticated", "postgres", "service_role";

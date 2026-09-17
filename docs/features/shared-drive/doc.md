@@ -244,7 +244,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 ### Favorites Subsystem
 
 - Table: `public.favorites` (`user_id`, `item_id`).
-- RLS Policy: Users can only manage their own favorites.
+- RLS Policy: `favorites_own` (FOR ALL) — users can manage only their own favorites, and the referenced `item_id` must belong to an **accepted** partnership (`WITH CHECK user_id = current_user_id() AND item in accepted partnership`).
 - Toggle Execution: `DriveRepository.toggleFavorite(itemId, isFavorite)` ([drive_repository.dart:88-103](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L88-L103)).
   - If `isFavorite == true`: Inserts row into `public.favorites`.
   - If `isFavorite == false`: Deletes row matching `user_id` and `item_id`.

@@ -32,6 +32,7 @@ CREATE POLICY "profiles_select_self_or_partner" ON "public"."user_profiles"
 CREATE POLICY "profiles_update_self" ON "public"."user_profiles"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.current_user_id()))
+  WITH CHECK ((user_id = public.current_user_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."user_profiles" TO "anon", "authenticated", "postgres", "service_role";

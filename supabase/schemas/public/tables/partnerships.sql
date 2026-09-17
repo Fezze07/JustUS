@@ -27,6 +27,7 @@ CREATE TRIGGER set_public_partnerships_updated_at
 CREATE POLICY "partnerships_manage_own" ON "public"."partnerships"
   FOR ALL
   TO PUBLIC
-  USING (((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id())));
+  USING (((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id())))
+  WITH CHECK (((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id())));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."partnerships" TO "anon", "authenticated", "postgres", "service_role";

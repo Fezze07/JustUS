@@ -27,6 +27,7 @@ CREATE INDEX logs_auth_failures_user_idx ON public.logs_auth_failures USING btre
 CREATE POLICY "service_role_only" ON "public"."logs_auth_failures"
   FOR ALL
   TO PUBLIC
-  USING ((( SELECT auth.role() AS ROLE) = 'service_role'::text));
+  USING ((( SELECT auth.role() AS ROLE) = 'service_role'::text))
+  WITH CHECK ((( SELECT auth.role() AS ROLE) = 'service_role'::text));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."logs_auth_failures" TO "anon", "authenticated", "postgres", "service_role";

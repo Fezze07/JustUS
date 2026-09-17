@@ -39,7 +39,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **RLS Policies:**
   - `users_select_self` (FOR SELECT, `TO authenticated`, USING `auth_id = (SELECT auth.uid())`)
   - `users_insert_self` (FOR INSERT WITH CHECK `(SELECT auth.uid()) = auth_id`)
-  - `users_update_self` (FOR UPDATE USING `id = current_user_id()`)
+  - `users_update_self` (FOR UPDATE USING + WITH CHECK `id = current_user_id()`)
 
 #### `user_profiles`
 - **SQL Source:** `supabase/schemas/public/tables/user_profiles.sql`
@@ -59,7 +59,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **RLS Policies:**
   - `profiles_insert_self` (FOR INSERT WITH CHECK `user_id = current_user_id()`)
   - `profiles_select_self_or_partner` (FOR SELECT, `TO authenticated`, USING `user_id = current_user_id() OR private.is_related_user(user_id)`)
-  - `profiles_update_self` (FOR UPDATE USING `user_id = current_user_id()`)
+  - `profiles_update_self` (FOR UPDATE USING + WITH CHECK `user_id = current_user_id()`)
 
 #### `partnerships`
 - **SQL Source:** `supabase/schemas/public/tables/partnerships.sql`
@@ -67,7 +67,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `id`: `integer` NOT NULL DEFAULT `nextval('partnerships_id_seq'::regclass)`
   - `user_id_1`: `integer`
   - `user_id_2`: `integer`
-  - `status`: `character varying(20)` DEFAULT `'pending'`
+  - `status`: `character varying(50)` DEFAULT `'accepted'`
   - `anniversary_date`: `date`
   - `created_at`: `timestamp with time zone` DEFAULT `now()`
   - `updated_at`: `timestamp with time zone` DEFAULT `now()`
@@ -77,8 +77,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `partnerships_user_id_2_fkey` (FOREIGN KEY: `user_id_2` REFERENCES `users(id)` ON DELETE CASCADE)
 - **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `set_current_timestamp_updated_at()`)
 - **RLS Policies:**
-  - `partnerships_select_members` (FOR SELECT USING `current_user_id() IN (user_id_1, user_id_2)`)
-  - `partnerships_update_members` (FOR UPDATE USING `current_user_id() IN (user_id_1, user_id_2)`)
+  - `partnerships_manage_own` (FOR ALL, USING + WITH CHECK `user_id_1 = current_user_id() OR user_id_2 = current_user_id()`)
 
 ---
 
@@ -87,7 +86,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 #### `moods`
 - **SQL Source:** `supabase/schemas/public/tables/moods.sql`
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('moods_id_seq')`), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `mood_type_id` (`bigint`, FK -> `emojis.id`), `created_at` (`timestamp with time zone`, DEFAULT `now()`).
-- **RLS:** `moods_select_partner` (SELECT if user or partner), `moods_insert_self` (INSERT if `user_id = current_user_id()`).
+- **RLS:** `moods_related_access` (SELECT user or accepted partner), `moods_manage_own` (INSERT WITH CHECK `user_id = current_user_id()`), `moods_update_own` (UPDATE USING + WITH CHECK `user_id = current_user_id()`), `moods_delete_own` (DELETE self).
 
 #### `missyou`
 - **SQL Source:** `supabase/schemas/public/tables/missyou.sql`
@@ -104,12 +103,15 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **`game_questions`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `text` (`text` NOT NULL), `created_at`.
 - **`game_questions` RLS:** `game_questions_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 - **`game_answers`:** `game_id` (`integer`, FK -> `game_questions.id`), `user_id` (`integer`, FK -> `users.id`), `selected_option` (`integer`), `created_at`. UNIQUE/PK: `(game_id, user_id)`.
+- **`game_answers` RLS:** `game_answers_manage_own` (INSERT WITH CHECK self + game in accepted partnership), `game_answers_update_own` (UPDATE USING self, WITH CHECK self + game in accepted partnership), `game_answers_delete_own` (DELETE self), `game_answers_related_select` (SELECT through the parent game in an accepted partnership).
 
 #### `drive_items`, `drive_item_reactions`, `favorites`, `drive_file_types`, `emojis`
 - **`drive_items`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `name` (`text` NOT NULL), `original_name`, `type` (`character varying`), `mime_type`, `size` (`bigint`), `file_type_id` (`bigint`, FK -> `drive_file_types.id`), `metadata` (`jsonb`), `created_at`, `updated_at`.
 - **`drive_items` RLS:** `drive_items_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 - **`drive_item_reactions`:** `id` (`integer`, PK), `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), `emoji_id` (FK -> `emojis.id` ON DELETE CASCADE), `created_at`. UNIQUE `(user_id, item_id)`.
+- **`drive_item_reactions` RLS:** `drive_item_reactions_manage_own` (INSERT WITH CHECK self + item in accepted partnership), `drive_item_reactions_update_own` (UPDATE USING self, WITH CHECK self + item in accepted partnership), `drive_item_reactions_delete_own` (DELETE self), `drive_item_reactions_related_select` (SELECT through the parent item in an accepted partnership).
 - **`favorites`:** `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), PRIMARY KEY `(user_id, item_id)`.
+- **`favorites` RLS:** `favorites_own` (FOR ALL, USING + WITH CHECK self AND item in accepted partnership).
 - **`emojis`:** `id` (`bigint`, PK), `emoji_char` (`text` NOT NULL UNIQUE).
 - **`drive_file_types`:** `id` (`bigint`, PK), `extension` (`text` NOT NULL UNIQUE), `mime_type`, `icon_slug`.
 
@@ -128,6 +130,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 #### `user_devices`
 - **SQL Source:** `supabase/schemas/public/tables/user_devices.sql`
 - **Columns:** `id` (`bigint`, PK), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `device_token` (`text` UNIQUE), `device_type`, `user_agent`, `last_ip`, `created_at`.
+- **RLS:** own rows only (`user_id = current_user_id()` on SELECT/INSERT/UPDATE/DELETE).
 
 #### `roles`, `permissions`, `roles_permissions`, `user_roles`
 - **`roles`:** `id` (`bigint`, PK), `name` (`text` NOT NULL UNIQUE).
@@ -141,7 +144,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 - `logs_api_access`: `id` (`bigint`, PK), `request_id` (`uuid`), `device_id` (FK -> `user_devices.id`), `method`, `path`, `status_code`, `duration_ms`, `created_at`.
 - `logs_api_errors`: `id` (`bigint`, PK), `request_id` (`uuid`), `device_id` (FK -> `user_devices.id`), `method`, `path`, `error_json` (`jsonb`), `created_at`.
-- `logs_auth_failures`: `id` (`uuid`, PK), `request_id` (`text`), `user_id` (FK -> `users.id`), `ip_address`, `path`, `error_code` (`text` NOT NULL), `error_message`, `reason`, `severity` (`text` NOT NULL), `payload` (`jsonb`), `stack`, `created_at`.
+- `logs_auth_failures`: `id` (`uuid`, PK), `request_id` (`text`), `user_id` (FK -> `users.id`), `ip_address`, `path`, `error_code` (`text` NOT NULL), `error_message`, `reason`, `severity` (`text` NOT NULL), `payload` (`jsonb`), `stack`, `created_at`. RLS: `service_role_only` (FOR ALL, USING + WITH CHECK `auth.role() = 'service_role'`).
 - `logs_notifications`: `id` (`integer`, PK), `user_id` (FK -> `users.id`), `type`, `status`, `created_at`.
 - `logs_security_events`: `id` (`bigint`, PK), `request_id` (`uuid`), `device_id` (FK -> `user_devices.id`), `type` (`text` NOT NULL), `path`, `error_json` (`jsonb`), `created_at`.
 
