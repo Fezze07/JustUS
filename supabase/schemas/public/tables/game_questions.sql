@@ -26,6 +26,7 @@ CREATE INDEX idx_game_questions_user_id_b ON public.game_questions USING btree (
 CREATE POLICY "game_questions_related" ON "public"."game_questions"
   FOR ALL
   TO PUBLIC
-  USING (public.is_in_partnership(partnership_id));
+  USING (public.is_in_partnership(partnership_id))
+  WITH CHECK (public.is_in_partnership(partnership_id));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."game_questions" TO "anon", "authenticated", "postgres", "service_role";

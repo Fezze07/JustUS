@@ -92,20 +92,22 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 #### `missyou`
 - **SQL Source:** `supabase/schemas/public/tables/missyou.sql`
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('missyou_id_seq')`), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `created_at` (`timestamp with time zone`, DEFAULT `now()`).
-- **RLS:** `missyou_select_partnership` (SELECT if user in partnership), `missyou_insert_partnership` (INSERT if user in partnership).
+- **RLS:** `missyou_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 
 #### `bucket_items`
 - **SQL Source:** `supabase/schemas/public/tables/bucket_items.sql`
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('bucket_items_id_seq')`), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `text` (`text` NOT NULL), `category` (`character varying`), `done` (`boolean` DEFAULT `false`), `created_at` (`timestamp with time zone`, DEFAULT `now()`).
-- **RLS:** Policy checking `is_in_partnership(partnership_id)` for SELECT, INSERT, UPDATE, DELETE.
+- **RLS:** `bucket_items_partnership_access` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 
 #### `game_questions` & `game_answers`
 - **SQL Source:** `game_questions.sql`, `game_answers.sql`
 - **`game_questions`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `text` (`text` NOT NULL), `created_at`.
+- **`game_questions` RLS:** `game_questions_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 - **`game_answers`:** `game_id` (`integer`, FK -> `game_questions.id`), `user_id` (`integer`, FK -> `users.id`), `selected_option` (`integer`), `created_at`. UNIQUE/PK: `(game_id, user_id)`.
 
 #### `drive_items`, `drive_item_reactions`, `favorites`, `drive_file_types`, `emojis`
 - **`drive_items`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `name` (`text` NOT NULL), `original_name`, `type` (`character varying`), `mime_type`, `size` (`bigint`), `file_type_id` (`bigint`, FK -> `drive_file_types.id`), `metadata` (`jsonb`), `created_at`, `updated_at`.
+- **`drive_items` RLS:** `drive_items_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 - **`drive_item_reactions`:** `id` (`integer`, PK), `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), `emoji_id` (FK -> `emojis.id` ON DELETE CASCADE), `created_at`. UNIQUE `(user_id, item_id)`.
 - **`favorites`:** `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), PRIMARY KEY `(user_id, item_id)`.
 - **`emojis`:** `id` (`bigint`, PK), `emoji_char` (`text` NOT NULL UNIQUE).

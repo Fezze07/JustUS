@@ -19,6 +19,7 @@ CREATE INDEX idx_bucket_items_partnership_id ON public.bucket_items USING btree 
 CREATE POLICY "bucket_items_partnership_access" ON "public"."bucket_items"
   FOR ALL
   TO PUBLIC
-  USING (public.is_in_partnership(partnership_id));
+  USING (public.is_in_partnership(partnership_id))
+  WITH CHECK (public.is_in_partnership(partnership_id));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."bucket_items" TO "anon", "authenticated", "postgres", "service_role";

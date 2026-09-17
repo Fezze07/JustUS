@@ -76,7 +76,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 #### `drive_items` & `bucket_items` & `game_questions` & `missyou`
 - **Policies:**
-  - Uses `USING (public.is_in_partnership(partnership_id))`
+  - `drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` (all `FOR ALL`, `TO PUBLIC`): `USING (public.is_in_partnership(partnership_id))` **with explicit `WITH CHECK (public.is_in_partnership(partnership_id))`** — writes (INSERT/UPDATE) are validated against the caller's accepted partnerships at the DB layer, so a row can never be created in — or moved into — a pending/rejected partnership.
 - **Helper Function `is_in_partnership` Code:**
   ```sql
   SELECT EXISTS (
@@ -143,19 +143,11 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 ---
 
-## Critical Findings & Vulnerabilities
-
-### Finding 1: Lack of `WITH CHECK` on Shared Resource Mutation
-- **Severity:** MEDIUM
-- **Where:** `drive_items.sql` (`drive_items_related`), `bucket_items.sql` (`bucket_items_partnership_access`), `game_questions.sql` (`game_questions_related`).
-- **Impact:** Policies use `FOR ALL ... USING (is_in_partnership(partnership_id))` without explicit `WITH CHECK` clauses. While PostgreSQL evaluates `USING` expression on insert/update as fallback, explicit `WITH CHECK` is recommended to prevent parameter ambiguity during updates.
-
----
-
 ## Implementation Status
 
 - **RLS Activation on All Tables:** **100% IMPLEMENTED** (25/25 tables)
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`is_in_partnership`, `is_partner_of`, and `private.is_related_user` all require `status = 'accepted'`)
+- **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (is_in_partnership(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)

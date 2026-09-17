@@ -32,6 +32,7 @@ CREATE TRIGGER set_public_drive_items_updated_at
 CREATE POLICY "drive_items_related" ON "public"."drive_items"
   FOR ALL
   TO PUBLIC
-  USING (public.is_in_partnership(partnership_id));
+  USING (public.is_in_partnership(partnership_id))
+  WITH CHECK (public.is_in_partnership(partnership_id));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."drive_items" TO "anon", "authenticated", "postgres", "service_role";
