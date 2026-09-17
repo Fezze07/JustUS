@@ -25,7 +25,6 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
   - `SUPABASE_SERVICE_ROLE_KEY` (Supabase Admin Service Role JWT)
   - `OPENROUTER_API_KEY` (AI OpenRouter API Key)
   - `R2_SECRET_ACCESS_KEY` (Cloudflare R2 Storage Secret Access Key)
-  - `TURNSTILE_SECRET_KEY` (Cloudflare Turnstile Secret Key)
   - `SUPABASE_ANON_KEY` (Supabase Anonymous JWT)
 * **Appears Live**: **YES** (Valid, live administrative and cloud credentials).
 * **Tracked by Git**: **NO** (Excluded by `.gitignore` rules `.env` and `.env.*`).
@@ -111,7 +110,7 @@ key.properties
 - [x] Root `.env` is NOT tracked in Git.
 - [x] Backend `secrets/` folder is NOT tracked in Git.
 - [x] Private keys (`*.pem`, `*.key`, `*.keystore`) are ignored.
-- [x] `.env.example` contains only template placeholder strings (`your-service-role-key`, `your-turnstile-secret`).
+- [x] `.env.example` contains only template placeholder strings (`your-service-role-key`, etc.).
 - [! WARNING] `firebase_options.dart` and `google-services.json` are tracked in Git; while standard for Firebase apps, API key restrictions must be enforced at the provider level.
 
 ---
@@ -120,7 +119,7 @@ key.properties
 
 | File Path | Secret Type | Live? | Git Tracked? | Exposure Impact | Recommended Remediation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `.env` | Supabase Service Role JWT, OpenRouter API Key, R2 Secret Key, Turnstile Secret | **YES** | **NO** | Critical if local env compromised | Store in secure secret vault; rotate keys periodically |
+| `.env` | Supabase Service Role JWT, OpenRouter API Key, R2 Secret Key | **YES** | **NO** | Critical if local env compromised | Store in secure secret vault; rotate keys periodically |
 | `.env.test` | Mock credentials | **NO** | **NO** | None | Keep placeholders clean |
 | `Flutter/lib/firebase_options.dart` | Firebase Client API Key | **YES** | **YES** | Low-Medium (Public client key) | Restrict API keys via Google Cloud Console & App Check |
 | `Flutter/android/app/google-services.json` | Firebase Android Config & API Key | **YES** | **YES** | Low-Medium (Public client key) | Enforce Firebase RLS rules and package restriction |

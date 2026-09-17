@@ -28,7 +28,7 @@ Entry: `Flutter/lib/main.dart`.
 
 1. `WidgetsFlutterBinding.ensureInitialized()`.
 2. `FlutterError.onError` is overridden -> `FlutterError.presentError` + `ErrorHandler.handleGlobal`.
-3. `await dotenv.load()` - loads `.env` (required for Supabase URL/anon key and Turnstile key). **Hard prerequisite, blocking, throws if absent.**
+3. `await dotenv.load()` - loads `.env` (required for Supabase URL/anon key and Turnstile **site** key). **Hard prerequisite, blocking, throws if absent.**
 4. `await StorageService.init()` - initializes the `SharedPreferences` singleton.
 5. `await SupabaseService.initialize()` - reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` from dotenv, throws `Exception('Supabase configuration missing in .env file')` if empty, then `Supabase.initialize(url, publishableKey, httpClient: LoggingHttpClient)`.
 6. On Android/iOS/Web: `await Firebase.initializeApp` (wrapped in try/catch, failure only logged), registers `FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler)`, grabs `FirebaseAnalytics.instance`.
@@ -169,7 +169,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - `NotificationService` - singleton FCM/local notifications.
 - `RealtimeSyncService` - see Realtime Initialization.
 - `StorageService`, `CacheService` - see Storage & Caching.
-- `CaptchaService` - `getCaptchaToken()` runs an **invisible** Cloudflare Turnstile challenge inside a non-dismissible `AlertDialog` using `ErrorHandler.navigatorKey.currentContext` as the host context. Throws `AppError(apiValidation001)` if `TURNSTILE_PUB_SITE_KEY` missing.
+- `CaptchaService` - `getCaptchaToken()` runs the Cloudflare Turnstile widget in **Managed** mode inside a non-dismissible `AlertDialog` using `ErrorHandler.navigatorKey.currentContext` as the host context. Normal users pass automatically; an interactive challenge appears only for suspicious traffic. Throws `AppError(apiValidation001)` if `TURNSTILE_PUB_SITE_KEY` missing.
 - `DeviceTokenService` - `supportsFcm` = Android/iOS/Web; desktop fallback = persistent UUID fingerprint. `getDeviceToken()` returns `'UNKNOWN_DEVICE_TOKEN'` if unavailable.
 - `UpdateService` - version check + force-update dialog.
 - `MediaService`/`CompressionService`/`MediaCacheManager` - upload pipeline and R2 media caching (not part of bootstrap, used on demand).

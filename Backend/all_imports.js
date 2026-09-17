@@ -129,7 +129,6 @@ module.exports = {
   get validateSessionBinding() { return require('./features/auth/session.utils').validateSessionBinding; },
   get validateTokenLifetime() { return require('./utils/auth/tokenUtils').validateTokenLifetime; },
   get validateUpload() { return require('./features/media/r2.service').validateUpload; },
-  get verifyTurnstileToken() { return require('./services/turnstileService').verifyTurnstileToken; },
   get wipeUserDataController() { return require('./features/user/user.controller').wipeUserDataController; },
   get withIdempotency() { return require('./middleware/idempotencyMiddleware'); },
   get wrapRpc() { return require('./utils/db/dbUtils').wrapRpc; }

@@ -42,8 +42,6 @@ const env = {
     process.env.MAX_ACCESS_TOKEN_LIFETIME_SEC,
     "MAX_ACCESS_TOKEN_LIFETIME_SEC"
   ),
-  turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
-  turnstileEnabled: Boolean(process.env.TURNSTILE_SECRET_KEY),
   r2AccountId: process.env.R2_ACCOUNT_ID ?? "",
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",

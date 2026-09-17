@@ -7,6 +7,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:justus/all_imports.dart';
 
 class CaptchaService {
+  /// Runs a Cloudflare Turnstile challenge and returns the verification token.
+  ///
+  /// Uses the visible widget in Managed mode: normal users pass automatically
+  /// (no interaction needed) while Cloudflare only surfaces an interactive
+  /// challenge for suspicious traffic. The token is single-use and is consumed
+  /// exclusively by Supabase Auth's native Turnstile integration.
   static Future<String?> getCaptchaToken() async {
     final siteKey = dotenv.env['TURNSTILE_PUB_SITE_KEY'];
     if (siteKey == null || siteKey.isEmpty) {
@@ -24,26 +30,22 @@ class CaptchaService {
     final baseUrl = '${ApiConfig.appOrigin}/';
     AnsiLogger.auth('Avvio verifica per $baseUrl...', tag: 'CaptchaService');
 
-    String? captchaToken;
-    final turnstile = CloudflareTurnstile.invisible(
-      siteKey: siteKey,
-      baseUrl: baseUrl,
-    );
+    final completer = Completer<String?>();
 
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        unawaited(_runInvisibleChallenge(turnstile).then((token) {
-          captchaToken = token;
+        void close(String? token) {
+          if (!completer.isCompleted) completer.complete(token);
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-        }));
+        }
 
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && captchaToken == null) {
-              captchaToken = null;
+            if (!didPop && !completer.isCompleted) {
+              completer.complete(null);
               Navigator.of(dialogContext).pop();
             }
           },
@@ -53,16 +55,35 @@ class CaptchaService {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(context.loc.auth_captchaMessage),
-                const SizedBox(height: 24),
-                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                CloudflareTurnstile(
+                  siteKey: siteKey,
+                  baseUrl: baseUrl,
+                  options: TurnstileOptions(),
+                  onTokenReceived: (token) {
+                    AnsiLogger.auth('Token ricevuto', tag: 'CaptchaService');
+                    close(token);
+                  },
+                  onError: (error) {
+                    AnsiLogger.error(
+                      'Turnstile error: ${error.message}',
+                      tag: 'CaptchaService',
+                    );
+                    if (!error.retryable) close(null);
+                  },
+                  onTimeout: () {
+                    AnsiLogger.notification(
+                      'Turnstile timeout',
+                      tag: 'CaptchaService',
+                    );
+                    close(null);
+                  },
+                ),
               ],
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  captchaToken = null;
-                  Navigator.of(dialogContext).pop();
-                },
+                onPressed: () => close(null),
                 child: Text(context.loc.common_cancel),
               ),
             ],
@@ -71,34 +92,8 @@ class CaptchaService {
       },
     );
 
-    return captchaToken;
-  }
-
-  static Future<String?> _runInvisibleChallenge(
-      CloudflareTurnstile turnstile) async {
-    try {
-      final token = await turnstile
-          .getToken()
-          .timeout(const Duration(seconds: 30));
-
-      if (token != null && token.isNotEmpty) {
-        AnsiLogger.auth('Token ricevuto', tag: 'CaptchaService');
-      } else {
-        AnsiLogger.notification('Token nullo o vuoto', tag: 'CaptchaService');
-      }
-
-      return token;
-    } on TurnstileException catch (e) {
-      AnsiLogger.error('Turnstile error: ${e.message}', tag: 'CaptchaService');
-      return null;
-    } on TimeoutException {
-      AnsiLogger.notification('Turnstile timeout dopo 30s', tag: 'CaptchaService');
-      return null;
-    } catch (e) {
-      AnsiLogger.error('Errore inaspettato: $e', tag: 'CaptchaService');
-      return null;
-    } finally {
-      unawaited(turnstile.dispose());
-    }
+    if (!completer.isCompleted) completer.complete(null);
+    return completer.future
+        .timeout(const Duration(seconds: 30), onTimeout: () => null);
   }
 }

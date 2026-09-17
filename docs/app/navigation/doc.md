@@ -407,6 +407,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 - All main destination screens are pushed with inline `MaterialPageRoute` even though `routes` defines corresponding names - inconsistent and blocks cleaner redirect/deep-link logic later.
 - The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog` (core). Feature **State** classes never navigate - which is correct. The session-expiry path now funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
-- `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile dialog - a second core-layer consumer of the global navigator.
+- `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile (Managed-mode) dialog - a second core-layer consumer of the global navigator.
 - No widget/route tests exist for any navigation scenario (no golden/route tests in `Flutter/test/`).
 - Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", replace `MainShell.shellKey` with a route-level tab mechanism, and subscribe to `onNotificationTap` to apply content navigation.

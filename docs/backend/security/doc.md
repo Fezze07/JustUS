@@ -164,10 +164,13 @@ The exact execution order of middleware in the application pipeline is determine
 ### 10. Turnstile Cloudflare Captcha Verification
 
 - **Threat Addressed**: Automated bot registration, credential stuffing, brute-force auth attempts.
-- **Implementation Location**: [`services/turnstileService.js`](file:///f:/JustUS/Backend/services/turnstileService.js).
-- **Request Flow**: `verifyTurnstileToken({ token, remoteIp })` sends POST request to `https://challenges.cloudflare.com/turnstile/v0/siteverify`. Skipped if `env.turnstileEnabled` is `false`.
-- **Failure Behavior**: Returns verification response object from Cloudflare.
-- **Bypass / Deficiency**: The service is implemented in [`turnstileService.js`](file:///f:/JustUS/Backend/services/turnstileService.js), but **it is not wired into any active route controller or middleware** (e.g. auth routes do not call `verifyTurnstileToken`).
+- **Implementation Location**: Native Supabase Auth CAPTCHA integration + Flutter client [`CaptchaService`](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart). The Cloudflare Turnstile secret key is configured in the Supabase Auth dashboard (**not** in this repository or the Node backend).
+- **Request Flow**:
+  1. `CaptchaService.getCaptchaToken()` renders the Turnstile widget in **Managed** mode: normal users pass automatically (no interaction); Cloudflare surfaces an interactive challenge only for suspicious traffic.
+  2. The single-use token is passed to Supabase Auth (`sbClient.auth.signInWithPassword(captchaToken:)` / `signUp(captchaToken:)`).
+  3. Supabase Auth validates the token against Cloudflare at sign-in/sign-up time.
+- **Failure Behavior**: Missing/invalid token aborts the Supabase auth call (`AuthException`); the client surfaces `authFailCred` / `localUnknown` ("Captcha failed"). Suspicious clients that fail the challenge receive no token and cannot authenticate.
+- **Note**: The token is **single-use**, so verification must happen on exactly one side. Verification lives only on Supabase Auth; the Node backend must not consume it. A former dead backend client (`services/turnstileService.js`) was removed — it was never wired to any route/middleware.
 
 ---
 
@@ -203,7 +206,7 @@ The exact execution order of middleware in the application pipeline is determine
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. DB primary key constraint prevents cross-node replays. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
 | **HMAC Verification** | Request Payload + DB Session Secret | **Multi-Instance Safe**. Stateless computation per request. | **LOW (SAFE)** |
-| **Cloudflare Turnstile** | External API | **Not Integrated**. Dead code; not attached to auth routes. | **HIGH** |
+| **Cloudflare Turnstile** | External API | **Multi-Instance Safe**. Verified natively by Supabase Auth at sign-in/sign-up; no per-instance state. | **LOW (SAFE)** |
 
 ---
 

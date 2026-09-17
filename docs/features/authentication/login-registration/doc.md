@@ -60,11 +60,11 @@ Flutter UI (RegisterScreen)
    - If any validation fails, the first encountered error message is displayed via `UIUtils.showSnackBar` (isError: true) and the flow aborts before making any network calls.
 
 3. **Cloudflare Turnstile CAPTCHA Challenge**
-   - File: [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart#L10-L104)
+   - File: [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart)
    - `AuthState.register` calls `_getCaptchaToken()`.
    - Reads `TURNSTILE_PUB_SITE_KEY` from environment variables (`flutter_dotenv`).
-   - Opens an invisible Turnstile challenge modal dialog (`CloudflareTurnstile.invisible`).
-   - If token generation succeeds within 30 seconds, returns the string token.
+   - Opens a modal dialog hosting the Turnstile widget in **Managed** mode (`CloudflareTurnstile`): normal users pass automatically with no interaction; Cloudflare only renders an interactive challenge for suspicious traffic.
+   - If token generation succeeds, returns the string token.
    - If missing site key, timed out, canceled by user, or exception thrown, returns `null` and throws `AppError`.
 
 4. **Supabase Auth Request**
@@ -156,8 +156,8 @@ Flutter UI (LoginScreen)
    - If blocked, backend returns `429` with error key `SEC_BLOCK_002` ("Login temporarily blocked"). Flutter receives this and aborts authentication immediately.
 
 3. **CAPTCHA Challenge**
-   - File: [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart#L10)
-   - Flutter displays the Turnstile challenge modal to acquire a fresh `captchaToken`.
+   - File: [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart)
+   - Flutter displays the Turnstile challenge modal (**Managed** mode) to acquire a fresh `captchaToken`; normal users pass automatically with no interaction.
 
 4. **Supabase Authentication**
    - File: [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L38-L40)
@@ -236,22 +236,19 @@ Password requirements and their enforcement locations were empirically verified 
 
 ## Turnstile
 
-Cloudflare Turnstile protection is implemented as an invisible challenge in the Flutter frontend and verified server-side during Supabase Auth transactions.
+Cloudflare Turnstile protection is implemented in the Flutter frontend using the widget in **Managed** mode, and the resulting token is verified by Supabase Auth's native Turnstile integration during auth transactions.
 
 ### Key Characteristics
 
-- **Token Origin**: Generated on the client using the `cloudflare_turnstile` package (`CloudflareTurnstile.invisible`).
+- **Token Origin**: Generated on the client using the `cloudflare_turnstile` package (`CloudflareTurnstile` widget in Managed mode: normal users pass automatically with no interaction; Cloudflare only renders an interactive challenge for suspicious traffic).
 - **Configuration Key**: `TURNSTILE_PUB_SITE_KEY` loaded via `flutter_dotenv` from `.env`.
 - **Target Base URL**: `${ApiConfig.appOrigin}/`.
 - **Challenge Lifecycle**:
-  - `CaptchaService.getCaptchaToken()` displays a modal `AlertDialog` with a spinner.
-  - Runs `_runInvisibleChallenge()` with a 30-second timeout (`.timeout(const Duration(seconds: 30))`).
-  - Upon token acquisition or cancellation, closes the dialog and returns the token string (or `null`).
+  - `CaptchaService.getCaptchaToken()` displays a modal `AlertDialog` hosting the Turnstile widget.
+  - `onTokenReceived` closes the dialog and returns the token string; `onError` (non-retryable), `onTimeout`, cancel, or a 30-second overall deadline close it and return `null`.
 - **Token Transit**: Passed in `sbClient.auth.signInWithPassword(captchaToken:)` and `sbClient.auth.signUp(captchaToken:)`.
-- **Backend Service**:
-  - File: [turnstileService.js](file:///f:/JustUS/Backend/services/turnstileService.js)
-  - Backend contains `verifyTurnstileToken({ token, remoteIp })` which calls `https://challenges.cloudflare.com/turnstile/v0/siteverify`.
-  - **Observation**: Backend auth routes (`/login-risk-check`, `/login-attempt`, `/session-sync`) do **not** wire `verifyTurnstileToken` as middleware. Turnstile validation relies strictly on Supabase Auth's native Turnstile integration.
+- **Verification Owner**: Supabase Auth only. The Turnstile token is **single-use**, so it is consumed exclusively by Supabase Auth's native Turnstile integration (requires the secret key in the Supabase Auth dashboard).
+- **Backend Service**: **REMOVED.** The former dead client [`turnstileService.js`](file:///f:/JustUS/Backend/services/turnstileService.js) and its config (`TURNSTILE_SECRET_KEY`, `env.turnstileEnabled`) were deleted — it was never wired to any route/middleware, and verifying on the Node backend would conflict with the single-use token already consumed by Supabase Auth.
 
 ---
 
@@ -324,7 +321,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 - **Impact**: Any registration request bypassing the Flutter client (e.g., via direct REST API calls) can register accounts with weak passwords.
 
 ### 4. SECURITY RISK: Unprotected Backend Risk Check Endpoints
-- **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not verify Turnstile tokens or require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`).
+- **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`). Turnstile verification intentionally stays on Supabase Auth only (single-use token — it cannot also be consumed by the backend).
 - **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
 
 ---
@@ -350,14 +347,13 @@ During the reverse-engineering analysis, the following structural bugs, security
 - [register_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart): UI rendering for registration form and email confirmation modal.
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): State management methods `login()`, `register()`, `_checkLoginRisk()`, `_syncBackendSession()`, `setLoginData()`.
 - [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): API wrapper methods `signInWithPassword()`, `signUp()`, `checkLoginRisk()`, `reportFailedLogin()`.
-- [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart): Turnstile invisible challenge modal runner `getCaptchaToken()`.
+- [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart): Turnstile Managed-mode challenge inside a dialog, `getCaptchaToken()`.
 - [validators.dart](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart): Client input validation regex methods `validateEmail()`, `validatePassword()`, `validateRequired()`.
 
 ### Backend Node.js
 - [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js): Express routes for `/login-risk-check`, `/login-attempt`, `/session-sync`, `/device-token`.
 - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): Route handlers `checkLoginRiskController`, `registerFailedLoginController`, `syncSessionController`.
 - [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js): In-memory risk engine `checkLoginRisk()`, `recordFailedLogin()`, `clearFailedLogins()`.
-- [turnstileService.js](file:///f:/JustUS/Backend/services/turnstileService.js): Cloudflare siteverify API client `verifyTurnstileToken()`.
 
 ### Supabase / Database
 - `auth.users`: Core identity table managed by Supabase Auth.
@@ -372,7 +368,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 |---|---|---|
 | Registration UI & Form Input | **IMPLEMENTED** | `RegisterScreen` |
 | Client Input & Password Validation | **IMPLEMENTED** | `Validators` (Client-side regex) |
-| Turnstile CAPTCHA Integration | **IMPLEMENTED** | `CaptchaService` modal challenge |
+| Turnstile CAPTCHA Integration | **IMPLEMENTED** | `CaptchaService` Managed-mode widget; token verified by Supabase Auth native integration |
 | Supabase Auth Registration | **IMPLEMENTED** | `signUp()` with metadata & redirect |
 | PostgreSQL Profile Trigger | **IMPLEMENTED** | `handle_new_auth_user()` trigger |
 | Login Risk Pre-Check | **IMPLEMENTED** | `checkLoginRiskController` & `/login-risk-check` |
