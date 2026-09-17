@@ -305,9 +305,9 @@ The Profile & Settings subsystem crosses all architectural layers:
 | Language Selection & Persistence | **IMPLEMENTED** | `/localization` screen, `SharedPreferences`, dynamic locale |
 | App Version Display | **IMPLEMENTED** | `v{info.version}` displayed via `package_info_plus` |
 | Automatic Update Checker | **IMPLEMENTED** | Executed on `HomepageScreen` startup via `UpdateService` |
-| Manual Update Check from Profile | **NOT IMPLEMENTED** | No manual trigger button on profile screen |
+| Manual Update Check from Profile | **IMPLEMENTED** | Setting tile & app version tap trigger manual update check via `UpdateService` |
 | Session Logout | **IMPLEMENTED** | Clears tokens, local storage, closes WebSocket connection |
-| Password Change Navigation | **BROKEN / STUB** | UI form exists but does not call password update API |
+| Password Change Navigation | **IMPLEMENTED** | Wired submit form with reauthentication, loading state, localized validation & error handling |
 | Account Data Wipe (Debug) | **PARTIALLY IMPLEMENTED** | Purges PostgreSQL & local app cache; leaks R2 files & local secure storage |
 
 ---

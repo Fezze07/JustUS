@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // UpdateService - App update checker and downloader
 // =============================================================================
 
@@ -15,7 +15,8 @@ class UpdateService {
   final VersionRepository _repo = VersionRepository();
   bool _isDialogShowing = false;
 
-  Future<void> checkVersion(BuildContext context) async {
+  Future<void> checkVersion(BuildContext context,
+      {bool showNoUpdateToast = false}) async {
     if (_isDialogShowing) return;
     if (kIsWeb) return;
 
@@ -30,7 +31,12 @@ class UpdateService {
     final result = await _repo.checkAppVersion();
 
     final versionInfo = result.valueOrNull;
-    if (versionInfo == null) return;
+    if (versionInfo == null) {
+      if (showNoUpdateToast && context.mounted) {
+        ErrorHandler.handle(AppError.network(), context: context);
+      }
+      return;
+    }
 
     AnsiLogger.log(
       'Server: version=${versionInfo.version} build=${versionInfo.build} '
@@ -41,10 +47,15 @@ class UpdateService {
 
     final serverBuild = versionInfo.build;
 
-    if (localBuild >= serverBuild) return;
+    if (localBuild >= serverBuild) {
+      if (showNoUpdateToast && context.mounted) {
+        UIUtils.showSnackBar(context, context.loc.update_upToDate);
+      }
+      return;
+    }
 
-    final bool mandatory = versionInfo.forceUpdate ||
-        localBuild < versionInfo.minBuild;
+    final bool mandatory =
+        versionInfo.forceUpdate || localBuild < versionInfo.minBuild;
 
     if (context.mounted) {
       _showUpdateDialog(context, versionInfo, mandatory);
@@ -62,48 +73,52 @@ class UpdateService {
       await showDialog(
         context: context,
         barrierDismissible: !mandatory,
-        builder: (context) => VPDialog(
-          title: context.loc.update_availableTitle,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(context.loc.update_newVersion),
-              if (versionInfo.changelog.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  context.loc.update_changelogTitle,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(versionInfo.changelog),
+        builder: (context) => PopScope(
+          canPop: !mandatory,
+          child: VPDialog(
+            title: context.loc.update_availableTitle,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.loc.update_newVersion),
+                if (versionInfo.changelog.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    context.loc.update_changelogTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(versionInfo.changelog),
+                ],
               ],
+            ),
+            actions: [
+              if (!mandatory)
+                TextButton(
+                  onPressed: () {
+                    _isDialogShowing = false;
+                    Navigator.pop(context);
+                  },
+                  child: Text(context.loc.update_later),
+                ),
+              FilledButton(
+                onPressed: () {
+                  unawaited(_launchUpdateUrl(versionInfo.apkUrl));
+                  if (!mandatory) {
+                    _isDialogShowing = false;
+                    Navigator.pop(context);
+                  }
+                },
+                child: Text(context.loc.update_now),
+              ),
             ],
           ),
-          actions: [
-            if (!mandatory &&
-                !kIsWeb &&
-                (defaultTargetPlatform == TargetPlatform.android ||
-                    defaultTargetPlatform == TargetPlatform.windows))
-              TextButton(
-                onPressed: () {
-                  _isDialogShowing = false;
-                  Navigator.pop(context);
-                },
-                child: Text(context.loc.update_later),
-              ),
-            FilledButton(
-              onPressed: () {
-                unawaited(_launchUpdateUrl(versionInfo.apkUrl));
-                _isDialogShowing = false;
-                Navigator.pop(context);
-              },
-              child: Text(context.loc.update_now),
-            ),
-          ],
         ),
       );
-      _isDialogShowing = false;
+      if (!mandatory) {
+        _isDialogShowing = false;
+      }
     }());
   }
 

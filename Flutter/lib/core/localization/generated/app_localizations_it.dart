@@ -684,6 +684,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get update_now => 'Aggiorna ora';
 
   @override
+  String get update_checkTitle => 'Controlla aggiornamenti';
+
+  @override
+  String get update_checkSubtitle =>
+      'Verifica se è disponibile una versione più recente';
+
+  @override
+  String get update_upToDate => 'L\'app è aggiornata!';
+
+  @override
   String get logout_title => 'Disconnetti sessione';
 
   @override

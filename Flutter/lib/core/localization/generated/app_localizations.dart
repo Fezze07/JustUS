@@ -1400,6 +1400,24 @@ abstract class AppLocalizations {
   /// **'Aggiorna ora'**
   String get update_now;
 
+  /// No description provided for @update_checkTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Controlla aggiornamenti'**
+  String get update_checkTitle;
+
+  /// No description provided for @update_checkSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Verifica se è disponibile una versione più recente'**
+  String get update_checkSubtitle;
+
+  /// No description provided for @update_upToDate.
+  ///
+  /// In it, this message translates to:
+  /// **'L\'app è aggiornata!'**
+  String get update_upToDate;
+
   /// No description provided for @logout_title.
   ///
   /// In it, this message translates to:

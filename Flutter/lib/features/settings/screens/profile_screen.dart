@@ -291,6 +291,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           activeThumbColor: AppColors.neonBlue),
                       color: AppColors.neonBlue,
                     ),
+                    const VPDivider(),
+                    VPSettingTile(
+                      icon: Icons.system_update,
+                      title: context.loc.update_checkTitle,
+                      subtitle: context.loc.update_checkSubtitle,
+                      trailing: const Icon(Icons.chevron_right,
+                          color: Colors.white54),
+                      color: AppColors.neonBlue,
+                      onTap: () => UpdateService().checkVersion(context, showNoUpdateToast: true),
+                    ),
                   ]),
 
                   const SizedBox(height: 24),
@@ -413,13 +423,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 32),
-                  Text(
-                    context.loc.profile_appVersion(_appVersion),
-                    style: VpWidgets.googleFont(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white30,
-                      letterSpacing: 1.5,
+                  GestureDetector(
+                    onTap: () => UpdateService().checkVersion(context, showNoUpdateToast: true),
+                    child: Text(
+                      context.loc.profile_appVersion(_appVersion),
+                      style: VpWidgets.googleFont(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white30,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
                 ],
