@@ -167,9 +167,9 @@ The codebase contains references to an "email invitation flow", but reverse engi
 - **UI Update**: Flutter receives success response, calls `fetchPartnership()`, and shows SnackBar ("Richiesta inviata a $email").
 
 ### 2. Receiving & Viewing Requests
-- **Data Source**: `PartnershipRepository.getPendingInvitations()` calls the `get_pending_invitations()` RPC, which returns only the caller's pending rows (`invitation_id`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`). No direct read of the counterpart's `users`/`user_profiles` row occurs.
+- **Data Source**: `PartnershipRepository.getPendingInvitations()` calls the `get_pending_invitations()` RPC, which returns only the caller's pending rows (`invitation_id`, `partner_id`, `partner_display_name`, `is_received`). No direct read of the counterpart's `users`/`user_profiles` row occurs.
 - **UI Element**: `PartnerScreen` renders `_buildInvitationsList` with `receivedInvitations` and `sentInvitations`.
-- **Item Cards**: Display partner display name / email and timestamp. Provides "Accept" (Check icon) and "Reject" (Close icon) buttons.
+- **Item Cards**: Display partner display name and timestamp. Provides "Accept" (Check icon) and "Reject" (Close icon) buttons.
 
 ### 3. Accepting a Request
 - **User Action**: User taps "Accept" on a received invitation tile.

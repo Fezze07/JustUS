@@ -103,8 +103,8 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`, `anon`. Granted to `authenticated`, `postgres`, `service_role`.
 * **Inputs:** None (scoped to `public.current_user_id()`).
-* **Outputs:** table rows of `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received` (true when the caller is the recipient).
-* **Tables Touched:** `partnerships` (READ), `users` (READ), `user_profiles` (READ).
+* **Outputs:** table rows of `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received` (true when the caller is the recipient).
+* **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
 * **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. Returns 0 rows otherwise.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart), `getPendingInvitations`).
 * **Failure Behavior:** Never returns unrelated users; the only identity fields exposed are `display_name` and `email` of the pending counterpart.

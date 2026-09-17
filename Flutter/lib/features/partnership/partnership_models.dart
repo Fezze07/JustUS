@@ -130,7 +130,6 @@ class PartnershipInvitation {
   final DateTime createdAt;
   final int? partnerId;
   final String? partnerDisplayName;
-  final String? partnerEmail;
   final bool isReceived;
 
   PartnershipInvitation({
@@ -139,7 +138,6 @@ class PartnershipInvitation {
     required this.createdAt,
     this.partnerId,
     this.partnerDisplayName,
-    this.partnerEmail,
     this.isReceived = false,
   });
 
@@ -150,11 +148,10 @@ class PartnershipInvitation {
       createdAt: AppDateUtils.tryParse(json['created_at'] as String?) ?? DateTime.now(),
       partnerId: (json['partner_id'] as num?)?.toInt(),
       partnerDisplayName: json['partner_display_name'] as String?,
-      partnerEmail: json['partner_email'] as String?,
       isReceived: (json['is_received'] as bool?) ?? false,
     );
   }
 
   bool get isPending => status == 'pending';
-  String get username => partnerDisplayName ?? partnerEmail ?? 'Partner';
+  String get username => partnerDisplayName ?? 'Partner';
 }

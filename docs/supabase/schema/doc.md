@@ -171,7 +171,7 @@ All 18 PostgreSQL functions in `supabase/schemas/public/functions/`:
 6. `get_game_stats(p_uid bigint, p_partner_id bigint)`: `SECURITY DEFINER` function counting matched game answers between partners.
 7. `get_or_create_emoji(p_emoji_char text)`: Inserts emoji into `emojis` if missing and returns ID.
 8. `get_partnership_names(p_user_id integer)`: `SECURITY DEFINER` returning `{ name1, name2 }` JSON. Executable only by `service_role`.
-9. `get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `current_user_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+9. `get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `current_user_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
 10. `handle_new_auth_user()`: `SECURITY DEFINER` trigger function on `auth.users` insert. Revoked from `PUBLIC`, granted only to `postgres`, `service_role`.
 11. `is_in_partnership(p_partnership_id integer)`: RLS validation helper returning `boolean`.
 12. `is_partner_of(other_user_id integer)`: RLS validation helper returning `boolean`.

@@ -62,8 +62,8 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **Assessment:** **SELF + ACCEPTED PARTNER**. `private.is_related_user` is a `SECURITY DEFINER`, non-exposed helper that returns true only when the caller and the target share a partnership whose `status = 'accepted'`. `partnership_code`, bios and pictures of unrelated users (and of *pending* invitees) are no longer reachable through table SELECT.
 
 #### Pending invitation identity
-- Pending requests still need the counterpart's display name/email in the partners screen, but neither `users` nor `user_profiles` exposes pending invitees.
-- Instead, `public.get_pending_invitations()` (SECURITY DEFINER, granted to `authenticated` only, revoked from `PUBLIC`/`anon`) returns the minimum identity fields (`invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`) for rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. The function is scoped by `public.current_user_id()` and never returns an unrelated user's row.
+- Pending requests still need the counterpart's display name in the partners screen, but neither `users` nor `user_profiles` exposes pending invitees.
+- Instead, `public.get_pending_invitations()` (SECURITY DEFINER, granted to `authenticated` only, revoked from `PUBLIC`/`anon`) returns the minimum identity fields (`invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received`) for rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. The function is scoped by `public.current_user_id()`, never returns an unrelated user's row, and does not expose the counterpart's email.
 
 ---
 
