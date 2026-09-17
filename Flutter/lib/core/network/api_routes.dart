@@ -14,7 +14,6 @@ class ApiRoutes {
   static const String authLoginRiskCheck = '$apiPrefix/auth/login-risk-check';
   static const String authLoginAttempt = '$apiPrefix/auth/login-attempt';
   static const String authSessionSync = '$apiPrefix/auth/session-sync';
-  static const String authRefresh = '$apiPrefix/auth/refresh';
 
   static const String mediaUploadUrl = '$apiPrefix/media/upload-url';
   static const String mediaComplete = '$apiPrefix/media/complete';

@@ -179,8 +179,8 @@ Logout Initiated (Profile / Partner Screen)
    - Populates `StorageService`, initializes `_accessToken`, syncs backend session via `/auth/session-sync`, registers device token, and fetches active partnership status.
 2. **Authenticated → Refreshing → Authenticated**:
    - Triggered when `ApiService._safeCall` receives HTTP 401.
-   - Sets `_isRefreshing = true` and invokes `POST /api/v1/auth/refresh`.
-   - Persists the new access+refresh pair to `StorageService` and pushes them into the Supabase SDK session (`setSession`); retries the original request with `isRetry = true`. If the refresh fails, `logout()` runs and the synthetic `"401"` code is `requiresReauth`, so the reauth dialog opens and redirects to `LoginScreen` (todo# 1.3).
+   - Delegates to the Supabase SDK (`auth.refreshSession()`), the single refresh path; if the SDK already refreshed the live session (different token than the failed request), the redundant call is skipped.
+   - The `tokenRefreshed` listener persists the new access+refresh pair to `StorageService`; the original request is retried with `isRetry = true`. If the refresh fails, `logout()` runs and the synthetic `"401"` code is `requiresReauth`, so the reauth dialog opens and redirects to `LoginScreen` (todo# 1.3).
 3. **Authenticated → Logout → Unauthenticated**:
    - User confirms logout dialog.
    - Clears storage, invalidates session headers, unsubscribes Realtime channel, and replaces stack with `LoginScreen`.

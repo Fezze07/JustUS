@@ -90,8 +90,6 @@ module.exports = {
   get presignUploadController() { return require('./features/media/media.controller').presignUploadController; },
   get recordFailedLogin() { return require('./features/auth/authRisk.service').recordFailedLogin; },
   get redirectToSignedDownloadController() { return require('./features/media/media.controller').redirectToSignedDownloadController; },
-  get refreshTokenController() { return require('./features/auth/auth.controller').refreshTokenController; },
-  get refreshTokenSchema() { return require('./features/auth/auth.schemas').refreshTokenSchema; },
   get registerCompletedUpload() { return require('./features/media/mediaWorkflow.service').registerCompletedUpload; },
   get registerFailedLoginController() { return require('./features/auth/auth.controller').registerFailedLoginController; },
   get requestContext() { return require('./middleware/requestContext'); },

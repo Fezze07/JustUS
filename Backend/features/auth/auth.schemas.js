@@ -25,15 +25,10 @@ const inviteSchema = z.object({
   partnershipCode: z.string().length(6, "Il codice deve essere di 6 caratteri"),
 });
 
-const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(20).max(1024),
-});
-
 module.exports = {
   updateDeviceTokenSchema,
   loginRiskSchema,
   loginAttemptSchema,
   sessionSyncSchema,
   inviteSchema,
-  refreshTokenSchema,
 };

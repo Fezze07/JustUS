@@ -4,7 +4,6 @@
 
 const {
   adminSupabase,
-  authSupabase,
   checkLoginRisk,
   recordFailedLogin,
   clearFailedLogins,
@@ -181,27 +180,10 @@ const invitePartnerController = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
-const refreshTokenController = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
-  
-  const { data, error } = await authSupabase.auth.refreshSession({ refresh_token: refreshToken });
-  
-  if (error || !data.session) {
-    throw new AppError({ errorKey: "AUTH_FAIL_001", message: "Session expired or invalid refresh token", cause: error });
-  }
-
-  res.json({
-    success: true,
-    accessToken: data.session.access_token,
-    refreshToken: data.session.refresh_token
-  });
-});
-
 module.exports = {
   updateDeviceToken,
   checkLoginRiskController,
   registerFailedLoginController,
   syncSessionController,
   invitePartnerController,
-  refreshTokenController,
 };

@@ -47,22 +47,19 @@ Session Creation (Login / Register)
    │        │
    │        └── ApiService._safeCall catches 401 response
    │
-├── 7. Automatic Refresh Flow (_tryRefreshToken)
-    │        │
-    │        ├── Sends POST /api/v1/auth/refresh with refreshToken
-    │        ├── Backend calls authSupabase.auth.refreshSession()
-    │        ├── Returns new accessToken & refreshToken
-    │        ├── -> saved to StorageService (secure storage, cold-start source)
-    │        └── -> pushed into Supabase SDK session via
-    │               setSession(refreshToken, accessToken: accessToken)
-    │               (fast-path; emits SIGNED_IN, no extra /token round-trip)
-    │
-    └── 8. Request Retry (FIXED, todo# 1.1 — 2026-09-17)
-             │
-             ├── ApiService retries original HTTP request (isRetry = true)
-             └── Header builder now reads the NEW token from the Supabase SDK
-                 session -> retry succeeds. Previously: old token -> 401
-                 again -> forced logout despite a successful refresh.
+   ├── 7. Automatic Refresh Flow (_tryRefreshToken)
+   │        │
+   │        ├── Calls Supabase SDK auth.refreshSession() (single refresh path)
+   │        ├── SDK updates its live session and emits tokenRefreshed
+   │        ├── AuthState listener persists the new tokens to StorageService
+   │        └── Concurrent callers share one refresh: gotrue dedupes by
+   │            refresh token, including the SDK's built-in auto-refresh
+   │
+   └── 8. Request Retry
+            │
+            ├── ApiService retries original HTTP request (isRetry = true)
+            └── Header builder reads the NEW token from the Supabase SDK
+                session -> retry succeeds.
 ```
 
 ---
@@ -128,34 +125,31 @@ Client-side token persistence is handled through `StorageService` backed by `Flu
 
 ### Protocol & Mechanism
 
-- File: [api_service.dart:279-317](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart#L279-L317) & [auth.controller.js:184-198](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L184-L198)
-- Token refresh is **backend-mediated**. The Flutter client does not call Supabase Auth directly for refreshes; it sends a request to the Node.js API backend.
+- File: [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart) (`_safeCall`, `_tryRefreshToken`)
+- Token refresh is **SDK-mediated**: the client calls `Supabase.instance.client.auth.refreshSession()`. The Node backend exposes **no** refresh endpoint — the former `POST /api/v1/auth/refresh` proxy has been retired (todo# 1.6).
 
 ```
-Flutter Client                           Node Backend                     Supabase Auth
-      │                                       │                                 │
-      │── POST /api/v1/auth/refresh ─────────>│                                 │
-      │   { refreshToken }                    │── refreshSession(refreshToken)─>│
-      │                                       │   (authSupabase.auth)           │
-      │                                       │<── New Tokens (access/refresh)──│
-      │<── { accessToken, refreshToken } ─────│                                 │
-      │                                       │                                 │
-      │── persisted to StorageService ────────┘  (cold-start source)            │
-      │                                                                          │
-      │── GET /user (setSession fast-path,     (signedIn event fires)            │
-      │    Supabase SDK in-process) ──> Supabase Auth                            │
+Flutter Client                         Supabase Auth
+      │                                      │
+      │── auth.refreshSession() ────────────>│
+      │                                      │
+      │<── New session (access/refresh) ─────│
+      │                                      │
+      │── SDK updates currentSession ────────┘
+      │   -> emits tokenRefreshed
+      │   -> AuthState listener persists both tokens to StorageService
 ```
 
-On success `ApiService._tryRefreshToken()`:
-1. Requires a non-empty access + refresh pair.
-2. Persists both tokens to secure storage (`StorageService.saveAccessToken/saveRefreshToken`) — remains the cold-start source.
-3. Pushes them into the Supabase SDK session via `auth.setSession(newRefreshToken, accessToken: newAccessToken)`. The fast path (valid AT) restores the session through a single `GET /user`, emitting `AuthChangeEvent.signedIn`; it does **not** burn the already-rotated refresh token. If `setSession` throws, the refresh is treated as failed so `_safeCall` surfaces real session expiry through `onSessionExpired` rather than a wasted retry.
+On HTTP `401`, `ApiService._safeCall`:
+1. Captures the access token that was used for the failed request.
+2. If the live Supabase session already carries a **different** access token, a refresh already happened (e.g. the SDK auto-refresh won) -> retry immediately without refreshing again.
+3. Otherwise calls `auth.refreshSession()`, which updates the live session; `AuthState._accessToken` is updated by the `tokenRefreshed` listener and the new tokens are persisted to `StorageService`.
+4. On success retries the original request once (`isRetry = true`); on failure calls `onSessionExpired` (-> `logout()`) and returns the synthetic `401`.
 
-### Concurrency Protection & Race Conditions
+### Concurrency Protection
 
-- `ApiService` uses an in-memory boolean flag `_isRefreshing = false` during refresh operations.
-- If an API call receives HTTP 401 while `_isRefreshing` is `true`, `_safeCall` bypasses triggering a second refresh attempt and immediately returns `GenericError(code: 401)`.
-- Multiple simultaneous 401 responses do **not** enqueue or wait for the active refresh to finish; secondary requests fail immediately.
+- There is exactly **one** refresh path (the Supabase SDK). gotrue serializes concurrent refreshes that share a refresh token through an internal `_pendingRefreshes` map, so simultaneous 401-driven refreshes and the SDK's built-in auto-refresh spend the one-time refresh token only once.
+- Because the SDK owns the session, `AuthState._accessToken` and `currentSession` cannot disagree: the `tokenRefreshed` listener copies the SDK session into `_accessToken`/`_refreshToken` after every refresh (todo# 1.6).
 
 ---
 
@@ -163,11 +157,11 @@ On success `ApiService._tryRefreshToken()`:
 
 ### Retry Logic (`_safeCall`)
 
-- File: [api_service.dart:152-222](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart#L152-L222)
-- When an HTTP response status code is `401`, `_safeCall` evaluates:
+- File: [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart)
+- `_safeCall` records the access token used for the request, then when the response status code is `401` evaluates:
   ```dart
-  if (response.statusCode == 401 && !isRetry && !_isRefreshing) {
-    final refreshResult = await _tryRefreshToken();
+  if (response.statusCode == 401 && !isRetry) {
+    final refreshResult = await _tryRefreshToken(requestAccessToken);
     if (refreshResult) {
       return await _safeCall(call, fromJson, isRetry: true, timeout: timeout, label: label);
     }
@@ -319,15 +313,7 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 
 ## Potential Bugs and Inconsistencies
 
-### 1. CONCURRENCY BUG: Unhandled Concurrent 401 Requests
-- **Finding**: `ApiService._isRefreshing` guards against multiple refresh calls.
-- **Defect**: If multiple asynchronous API requests fail with 401 simultaneously, the first request sets `_isRefreshing = true` and begins refreshing. The secondary requests inspect `_isRefreshing == true`, skip `_tryRefreshToken()`, and immediately return 401 session expired errors to the UI.
-
-### 2. CONCURRENCY: Manual Refresh Proxy and Supabase Auto-Refresh Can Race
-- **Finding**: Two independent refresh paths exist: the Supabase SDK built-in auto-refresh (fires `onAuthStateChange(tokenRefreshed)`) and the backend-proxy `ApiService._tryRefreshToken()`.
-- **Defect**: `_isRefreshing` only serializes the manual path; the Supabase SDK can refresh concurrently and the two paths produce different token pairs that both target the same secure-storage keys and live session.
-- **Impact**: A stale refresh result can overwrite a newer token pair, yielding token inconsistency.
-- **Tracked as**: todo# 1.6 (single refresh coordinator) / `docs/app/architecture/doc.md` finding F8.
+None currently identified.
 
 ---
 

@@ -15,7 +15,6 @@ const API_V1_PATHS = {
   notifyBase: `${API_V1_PREFIX}/notify`,
   usersBase: `${API_V1_PREFIX}/users`,
   appVersion: `${API_V1_PREFIX}/app-version`,
-  authRefresh: `${API_V1_PREFIX}/auth/refresh`,
   authLoginAttempt: `${API_V1_PREFIX}/auth/login-attempt`,
   authLoginRiskCheck: `${API_V1_PREFIX}/auth/login-risk-check`,
   authSessionSync: `${API_V1_PREFIX}/auth/session-sync`,

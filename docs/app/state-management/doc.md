@@ -129,7 +129,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ### HomepageState (no CheckpointMixin)
 - Fields: `_totalMissYou`, `_message`, `_isLoading` (homepage_state.dart:11-13). `_isLoading` is declared but never used by any method — `init`/`fetchTotalMissYou`/`addMissYou` never set it (lines 26-58, 64-68); only `sendMissYou` sets it (line 71). UI never reads `isLoading` on this state. This is dead boilerplate that does not implement "loading state" (see F-SM11-adjacent; here it's simply unused).
-- `addMissYou` is an optimistic counter bump + unawaited save (homepage_state.dart:64-68). Realtime `insert` events call `addMissYou()` directly (realtime_sync_service.dart:435-436), i.e. the same code path used for the user's own action — an insert trigger on the user's own row double-counts if the optimistic bump already happened. (Linked to architecture F8.)
+- `addMissYou` is an optimistic counter bump + unawaited save (homepage_state.dart:64-68). Realtime `insert` events call `addMissYou()` directly (realtime_sync_service.dart:435-436), i.e. the same code path used for the user's own action — an insert trigger on the user's own row double-counts if the optimistic bump already happened.
 - `refreshFromRealtime` just re-fetches the total (homepage_state.dart:60-62).
 
 ### MoodState (CheckpointMixin)

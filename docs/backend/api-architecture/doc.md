@@ -109,10 +109,6 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-sync")` $\rightarrow$ `validated({ body: sessionSyncSchema })`
 - **Behavior**: Generates `binding_secret` UUID, hashes `device_fingerprint`, upserts `auth_sessions`, returns `{ bindingSecret }`.
 
-#### `POST /api/v1/auth/refresh`
-- **Middleware Chain**: `limited(authRefreshRateLimit)` $\rightarrow$ `validated({ body: refreshTokenSchema })`
-- **External Dependency**: Calls `authSupabase.auth.refreshSession({ refreshToken })`.
-
 ---
 
 ### 4. Push Notification Endpoints

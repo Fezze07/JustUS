@@ -6,7 +6,6 @@ const {
   registerFailedLoginController,
   syncSessionController,
   invitePartnerController,
-  refreshTokenController,
   createCompositeRateLimit,
   ipKey,
   deviceKey,
@@ -19,7 +18,6 @@ const {
   loginAttemptSchema,
   sessionSyncSchema,
   inviteSchema,
-  refreshTokenSchema,
 } = require("./auth.schemas");
 
 const {
@@ -31,19 +29,13 @@ const {
   limited,
 } = require("../../routes/routeHelpers");
 
-const { createIpUserRateLimit, createIpOnlyRateLimit } = require("../../utils/auth/rateLimitPresets");
+const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 
 const authRateLimit = createIpUserRateLimit({
   name: "auth.device-token",
   message: "Too many device token updates",
   ipMax: 20,
   userMax: 10,
-});
-
-const authRefreshRateLimit = createIpOnlyRateLimit({
-  name: "auth.refresh",
-  message: "Too many token refresh attempts",
-  ipMax: 10,
 });
 
 const loginRiskRateLimit = createCompositeRateLimit({
@@ -103,15 +95,6 @@ router.post(
     validated({ body: inviteSchema })
   ),
   invitePartnerController
-);
-
-router.post(
-  "/refresh",
-  ...chain(
-    limited(authRefreshRateLimit),
-    validated({ body: refreshTokenSchema })
-  ),
-  refreshTokenController
 );
 
 module.exports = router;

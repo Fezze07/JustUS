@@ -65,9 +65,6 @@ class ApiService {
   ApiService({http.Client? client})
       : _client = client ?? LoggingHttpClient(http.Client(), tag: 'ApiService');
 
-  // Flag to prevent concurrent refresh attempts
-  bool _isRefreshing = false;
-
   // Global callback for session expiration
   static Future<void> Function()? onSessionExpired;
 
@@ -205,9 +202,13 @@ class ApiService {
     Future<http.Response> Function() call,
     T Function(Map<String, dynamic>) fromJson, {
     bool isRetry = false,
+    bool usesAuth = true,
     Duration timeout = const Duration(seconds: 10),
     String? label,
   }) async {
+    final requestAccessToken = usesAuth
+        ? Supabase.instance.client.auth.currentSession?.accessToken
+        : null;
     try {
       final response = await call().timeout(timeout);
 
@@ -218,13 +219,13 @@ class ApiService {
         final body = await compute(_isolateDecodeResponse, response.body);
 
         return Success(fromJson(body));
-      } else if (response.statusCode == 401 && !isRetry && !_isRefreshing) {
-        // Token expired - try to refresh
-        final refreshResult = await _tryRefreshToken();
+      } else if (response.statusCode == 401 && !isRetry) {
+        // Token expired - refresh through the single Supabase SDK path
+        final refreshResult = await _tryRefreshToken(requestAccessToken);
         if (refreshResult) {
           // Retry the original call
           return await _safeCall(call, fromJson,
-              isRetry: true, timeout: timeout, label: label);
+              isRetry: true, usesAuth: usesAuth, timeout: timeout, label: label);
         }
         // Refresh failed
         await onSessionExpired?.call();
@@ -292,6 +293,7 @@ class ApiService {
       },
       fromJson ?? (json) => json as T,
       label: label,
+      usesAuth: !skipAuth,
       timeout: timeout,
     );
   }
@@ -328,53 +330,39 @@ class ApiService {
       },
       fromJson ?? (json) => json as T,
       label: label,
+      usesAuth: !skipAuth,
       timeout: timeout,
     );
   }
 
-  Future<bool> _tryRefreshToken() async {
-    if (_isRefreshing) return false;
-    _isRefreshing = true;
+  Future<bool> _tryRefreshToken(String? staleAccessToken) async {
+    final auth = Supabase.instance.client.auth;
+
+    final currentAccessToken = auth.currentSession?.accessToken;
+    if (currentAccessToken != null &&
+        currentAccessToken.isNotEmpty &&
+        currentAccessToken != staleAccessToken) {
+      return true;
+    }
 
     try {
-      final refreshToken = await StorageService.getRefreshToken();
-      if (refreshToken == null || refreshToken.isEmpty) {
+      final response = await auth.refreshSession();
+      final session = response.session;
+      if (session == null || session.accessToken.isEmpty) {
         return false;
       }
 
-      final response = await _client.post(
-        ApiConfig.apiUri(ApiRoutes.authRefresh),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refreshToken}),
-      );
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final newAccessToken = body['accessToken'] as String?;
-        final newRefreshToken = body['refreshToken'] as String?;
-        if (newAccessToken != null &&
-            newAccessToken.isNotEmpty &&
-            newRefreshToken != null &&
-            newRefreshToken.isNotEmpty) {
-          await StorageService.saveAccessToken(newAccessToken);
-          await StorageService.saveRefreshToken(newRefreshToken);
-
-          await Supabase.instance.client.auth.setSession(
-            newRefreshToken,
-            accessToken: newAccessToken,
-          );
-
-          return true;
-        }
+      await StorageService.saveAccessToken(session.accessToken);
+      final newRefreshToken = session.refreshToken;
+      if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
+        await StorageService.saveRefreshToken(newRefreshToken);
       }
 
-      return false;
+      return session.accessToken != staleAccessToken;
     } catch (e) {
       AnsiLogger.error('_tryRefreshToken error: $e', tag: 'ApiService');
 
       return false;
-    } finally {
-      _isRefreshing = false;
     }
   }
 
