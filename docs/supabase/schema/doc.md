@@ -37,7 +37,8 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `users_auth_id_fkey` (FOREIGN KEY: `auth_id` REFERENCES `auth.users(id)` ON DELETE CASCADE)
 - **Triggers:** `set_public_users_updated_at` (BEFORE UPDATE EXECUTE `set_current_timestamp_updated_at()`)
 - **RLS Policies:**
-  - `users_select_authenticated` (FOR SELECT USING `auth.role() = 'authenticated'`)
+  - `users_select_self` (FOR SELECT, `TO authenticated`, USING `auth_id = (SELECT auth.uid())`)
+  - `users_insert_self` (FOR INSERT WITH CHECK `(SELECT auth.uid()) = auth_id`)
   - `users_update_self` (FOR UPDATE USING `id = current_user_id()`)
 
 #### `user_profiles`
@@ -57,7 +58,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **Triggers:** `set_public_user_profiles_updated_at` (BEFORE UPDATE EXECUTE `set_current_timestamp_updated_at()`)
 - **RLS Policies:**
   - `profiles_insert_self` (FOR INSERT WITH CHECK `user_id = current_user_id()`)
-  - `profiles_select_authenticated` (FOR SELECT USING `auth.role() = 'authenticated'`)
+  - `profiles_select_self_or_partner` (FOR SELECT, `TO authenticated`, USING `user_id = current_user_id() OR private.is_related_user(user_id)`)
   - `profiles_update_self` (FOR UPDATE USING `user_id = current_user_id()`)
 
 #### `partnerships`
@@ -149,7 +150,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 ### 1. `v_active_partnership`
 - **SQL Source:** `supabase/schemas/public/views/v_active_partnership.sql`
 - **Security:** `WITH (security_invoker = true)`.
-- **Query:** Joins `partnerships`, `users`, `user_profiles` to expose active partner details for `current_user_id()`.
+- **Query:** Joins `partnerships` and `user_profiles` to expose active partner details for `current_user_id()`. The partner's `users` row is not read; `partner_id` is derived from `user_id_1`/`user_id_2`.
 
 ### 2. `v_drive_dashboard`
 - **SQL Source:** `supabase/schemas/public/views/v_drive_dashboard.sql`
@@ -160,25 +161,28 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 17 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 18 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `accept_partnership(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
-2. `request_partnership(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY DEFINER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
+2. `request_partnership(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
 3. `current_user_id()`: Converts `auth.uid()` (`uuid`) to internal `users.id` (`integer`).
 4. `generate_unique_partnership_code()`: Generates random 6-character uppercase alphanumeric code checking unicity against `user_profiles`.
 5. `get_accepted_partner(target_user_id integer)`: STABLE function returning single active partner user ID.
 6. `get_game_stats(p_uid bigint, p_partner_id bigint)`: `SECURITY DEFINER` function counting matched game answers between partners.
 7. `get_or_create_emoji(p_emoji_char text)`: Inserts emoji into `emojis` if missing and returns ID.
 8. `get_partnership_names(p_user_id integer)`: `SECURITY DEFINER` returning `{ name1, name2 }` JSON. Executable only by `service_role`.
-9. `handle_new_auth_user()`: `SECURITY DEFINER` trigger function on `auth.users` insert. Revoked from `PUBLIC`, granted only to `postgres`, `service_role`.
-10. `is_in_partnership(p_partnership_id integer)`: RLS validation helper returning `boolean`.
-11. `is_partner_of(other_user_id integer)`: RLS validation helper returning `boolean`.
-12. `send_missyou()`: Inserts `missyou` record for caller's active partnership.
-13. `set_mood(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji.
-14. `cleanup_old_logs()`: `SECURITY DEFINER` function deleting logs > 30 days old.
-15. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
-16. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
-17. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
+9. `get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `current_user_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+10. `handle_new_auth_user()`: `SECURITY DEFINER` trigger function on `auth.users` insert. Revoked from `PUBLIC`, granted only to `postgres`, `service_role`.
+11. `is_in_partnership(p_partnership_id integer)`: RLS validation helper returning `boolean`.
+12. `is_partner_of(other_user_id integer)`: RLS validation helper returning `boolean`.
+13. `send_missyou()`: Inserts `missyou` record for caller's active partnership.
+14. `set_mood(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji.
+15. `cleanup_old_logs()`: `SECURITY DEFINER` function deleting logs > 30 days old.
+16. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
+17. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
+18. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
+
+> `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 
 ---
 

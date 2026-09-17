@@ -14,8 +14,8 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 | Table Name | RLS Status | SELECT Policy | INSERT Policy | UPDATE Policy | DELETE Policy | Target Roles |
 | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
-| `users` | **ENABLED** | Authenticated (All) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = current_user_id()`) | Denied (Default) | `PUBLIC`, `service_role` |
-| `user_profiles` | **ENABLED** | Authenticated (All) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Denied (Default) | `PUBLIC` |
+| `users` | **ENABLED** | Self (`auth_id = auth.uid()`) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = current_user_id()`) | Denied (Default) | `authenticated`, `service_role` |
+| `user_profiles` | **ENABLED** | Self + accepted partner | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Denied (Default) | `authenticated` |
 | `partnerships` | **ENABLED** | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | `PUBLIC` |
 | `moods` | **ENABLED** | Self or Partner | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | `PUBLIC` |
 | `missyou` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
@@ -48,18 +48,22 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 #### `users`
 - **Policies:**
-  - `users_select_authenticated` (SELECT): `USING (auth.role() = 'authenticated')`
+  - `users_select_self` (SELECT): `TO authenticated USING (auth_id = (SELECT auth.uid()))`
   - `users_insert_self` (INSERT): `WITH CHECK ((SELECT auth.uid()) = auth_id)`
   - `users_insert_service_role` (INSERT): `TO service_role WITH CHECK (true)`
   - `users_update_self` (UPDATE): `USING (id = public.current_user_id())`
-- **Assessment:** **OVERLY BROAD SELECT POLICY**. Allows any logged-in user to query all rows of `public.users` (id, email, auth_id, timestamps).
+- **Assessment:** **SELF-SCOPED SELECT POLICY**. An authenticated user can read only their own row; `service_role` retains full access through its RLS bypass. No other user's email/UUID is reachable by direct query.
 
 #### `user_profiles`
 - **Policies:**
-  - `profiles_select_authenticated` (SELECT): `USING (auth.role() = 'authenticated')`
+  - `profiles_select_self_or_partner` (SELECT): `TO authenticated USING (user_id = public.current_user_id() OR private.is_related_user(user_id))`
   - `profiles_insert_self` (INSERT): `WITH CHECK (user_id = public.current_user_id())`
   - `profiles_update_self` (UPDATE): `USING (user_id = public.current_user_id())`
-- **Assessment:** **OVERLY BROAD SELECT POLICY**. Allows any logged-in user to read all display names, bios, profile picture URLs, and unique `partnership_code` values for all users.
+- **Assessment:** **SELF + ACCEPTED PARTNER**. `private.is_related_user` is a `SECURITY DEFINER`, non-exposed helper that returns true only when the caller and the target share a partnership whose `status = 'accepted'`. `partnership_code`, bios and pictures of unrelated users (and of *pending* invitees) are no longer reachable through table SELECT.
+
+#### Pending invitation identity
+- Pending requests still need the counterpart's display name/email in the partners screen, but neither `users` nor `user_profiles` exposes pending invitees.
+- Instead, `public.get_pending_invitations()` (SECURITY DEFINER, granted to `authenticated` only, revoked from `PUBLIC`/`anon`) returns the minimum identity fields (`invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`) for rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. The function is scoped by `public.current_user_id()` and never returns an unrelated user's row.
 
 ---
 
@@ -129,7 +133,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 ```
 
 1. **Flutter Client Layer:**
-   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`.
+   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`, and calls the `get_pending_invitations` RPC for pending-request identity.
    - All Flutter direct requests pass through Supabase PostgREST with user JWT context, evaluating RLS policies.
 
 2. **Backend Server Layer:**
@@ -140,19 +144,13 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 ## Critical Findings & Vulnerabilities
 
-### Finding 1: User Enumeration & Global Profile Leakage
-- **Severity:** HIGH
-- **Where:** `users.sql` (`users_select_authenticated`), `user_profiles.sql` (`profiles_select_authenticated`).
-- **Impact:** Any registered user can execute `SELECT * FROM users` or `SELECT * FROM user_profiles` and retrieve emails, UUIDs, display names, and `partnership_code`s of all platform users.
-- **Root Cause:** Policy checks `auth.role() = 'authenticated'` without restricting rows to self or partner.
-
-### Finding 2: Unaccepted ('Pending') Partnership Data Access
+### Finding 1: Unaccepted ('Pending') Partnership Data Access
 - **Severity:** HIGH
 - **Where:** Helper functions `public.is_in_partnership()` and `public.is_partner_of()`.
 - **Impact:** When User A sends a partnership request to User B, a `partnerships` row is created with `status = 'pending'`. Because `is_in_partnership` does not check `status = 'accepted'`, User A or User B can access or upload files (`drive_items`), bucket list items, and mood records before the invite is accepted or even if rejected.
 - **Root Cause:** Missing `AND status = 'accepted'` filter in helper function SQL definitions.
 
-### Finding 3: Lack of `WITH CHECK` on Shared Resource Mutation
+### Finding 2: Lack of `WITH CHECK` on Shared Resource Mutation
 - **Severity:** MEDIUM
 - **Where:** `drive_items.sql` (`drive_items_related`), `bucket_items.sql` (`bucket_items_partnership_access`), `game_questions.sql` (`game_questions_related`).
 - **Impact:** Policies use `FOR ALL ... USING (is_in_partnership(partnership_id))` without explicit `WITH CHECK` clauses. While PostgreSQL evaluates `USING` expression on insert/update as fallback, explicit `WITH CHECK` is recommended to prevent parameter ambiguity during updates.
@@ -165,4 +163,4 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **NOT IMPLEMENTED** (Needs fix in helper functions)
-- **Strict User Profile Isolation:** **NOT IMPLEMENTED** (Global select allowed for authenticated users)
+- **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)

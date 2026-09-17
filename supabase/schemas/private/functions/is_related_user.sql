@@ -12,9 +12,9 @@ CREATE OR REPLACE FUNCTION private.is_related_user (
     from public.partnerships p
     where p.status = 'accepted'
       and (
-        (p.user_id = private.current_profile_id() and p.partner_id = target_user_id)
+        (p.user_id_1 = private.current_profile_id() and p.user_id_2 = target_user_id)
         or
-        (p.partner_id = private.current_profile_id() and p.user_id = target_user_id)
+        (p.user_id_2 = private.current_profile_id() and p.user_id_1 = target_user_id)
       )
   );
 $function$;

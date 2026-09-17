@@ -29,10 +29,10 @@ CREATE POLICY "users_insert_service_role" ON "public"."users"
   TO "service_role"
   WITH CHECK (true);
 
-CREATE POLICY "users_select_authenticated" ON "public"."users"
+CREATE POLICY "users_select_self" ON "public"."users"
   FOR SELECT
-  TO PUBLIC
-  USING ((( SELECT auth.role() AS ROLE) = 'authenticated'::text));
+  TO "authenticated"
+  USING ((auth_id = ( SELECT auth.uid() AS uid)));
 
 CREATE POLICY "users_update_self" ON "public"."users"
   FOR UPDATE

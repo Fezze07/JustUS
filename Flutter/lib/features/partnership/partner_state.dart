@@ -2,8 +2,6 @@
 // PartnerState - Partner management screen state
 // =============================================================================
 
-import 'dart:async';
-
 import 'package:justus/all_imports.dart';
 
 class PartnerState extends BaseState {
@@ -12,48 +10,14 @@ class PartnerState extends BaseState {
 
   final PartnershipRepository _repo;
 
-  String _emailQuery = '';
-  List<User> _suggestedUsers = [];
   PartnershipResponse? _partnershipInfo;
 
-  Timer? _debounceTimer;
-
-  String get emailQuery => _emailQuery;
-  List<User> get suggestedUsers => _suggestedUsers;
   PartnershipResponse? get partnershipInfo => _partnershipInfo;
 
   User? get partner => _partnershipInfo?.partner;
   List<User> get receivedRequests =>
       _partnershipInfo?.pendingRequests?.received ?? [];
   List<User> get sentRequests => _partnershipInfo?.pendingRequests?.sent ?? [];
-
-  void setEmailQuery(String value) {
-    _emailQuery = value;
-    _debouncedSearch();
-  }
-
-  void _debouncedSearch() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      unawaited(_fetchSuggestions());
-    });
-  }
-
-  Future<void> _fetchSuggestions() async {
-    if (_emailQuery.isEmpty) {
-      _suggestedUsers = [];
-      notifyListeners();
-
-      return;
-    }
-
-    await runSafe(() async {
-      final result = await _repo.searchPartner(_emailQuery);
-      await handleResult(result, onSuccess: (value) {
-        _suggestedUsers = value;
-      });
-    }, showLoading: false);
-  }
 
   Future<void> fetchPartnership() async {
     await runSafe(() async {
@@ -133,11 +97,5 @@ class PartnerState extends BaseState {
         setMessage('Richiesta rifiutata');
       });
     });
-  }
-
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    super.dispose();
   }
 }

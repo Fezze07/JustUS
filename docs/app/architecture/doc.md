@@ -138,7 +138,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 - `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> device-token registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
 - `AuthState.register()` performs only signup; it **does not** set login data even when Supabase auto-confirms (so no session bootstrap happens on register).
-- `PartnerState` debounces the email search (300 ms) and re-fetches partnership on realtime events.
+- `PartnerState` re-fetches partnership on realtime events.
 - `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and an `isLoading` guard that **silently skips** the whole load (including the cache path) if a load is already in progress.
 
 ---
@@ -159,7 +159,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 Every feature exposes `*Repository extends BaseRepository`:
 
 - `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `changePassword`, `updateDeviceToken` (backend, signed).
-- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `searchPartner` (Supabase, `ilike`), `sendPartnerRequest` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (Supabase query with joined users/profiles).
+- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `sendPartnerRequest` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase views/RPCs) plus backend calls for media/AI where needed.
 
 ### Services

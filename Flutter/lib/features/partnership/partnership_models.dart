@@ -144,17 +144,14 @@ class PartnershipInvitation {
   });
 
   factory PartnershipInvitation.fromJson(Map<String, dynamic> json) {
-    final partner = json['partner'] as Map<String, dynamic>?;
-
     return PartnershipInvitation(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: (json['invitation_id'] as num?)?.toInt() ?? 0,
       status: (json['status'] as String?) ?? 'pending',
       createdAt: AppDateUtils.tryParse(json['created_at'] as String?) ?? DateTime.now(),
-      partnerId: partner != null ? (partner['id'] as num?)?.toInt() : null,
-      partnerDisplayName: partner != null
-          ? ((partner['display_name'] ?? partner['username']) as String?)
-          : null,
-      partnerEmail: partner != null ? partner['email'] as String? : null,
+      partnerId: (json['partner_id'] as num?)?.toInt(),
+      partnerDisplayName: json['partner_display_name'] as String?,
+      partnerEmail: json['partner_email'] as String?,
+      isReceived: (json['is_received'] as bool?) ?? false,
     );
   }
 

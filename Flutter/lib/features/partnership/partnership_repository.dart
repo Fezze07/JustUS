@@ -135,48 +135,13 @@ class PartnershipRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<List<User>>> searchPartner(String? query) async {
-    return tryCall(() async {
-      var q = sbClient
-          .from('users')
-          .select('id, email, user_profiles(display_name, profile_pic_url)');
-      if (query != null && query.isNotEmpty) {
-        q = q.or('email.ilike.%$query%');
-      }
-      final data = await q.limit(20).toList();
-
-      return data.map((u) => User.fromJson(u)).toList();
-    });
-  }
-
   Future<ResultWrapper<List<PartnershipInvitation>>>
       getPendingInvitations() async {
-    return withUser((uid) async {
-      final data = await sbClient
-          .from('partnerships')
-          .select(
-              '*, user_id_1(id, email, user_profiles(display_name, profile_pic_url)), user_id_2(id, email, user_profiles(display_name, profile_pic_url))')
-          .eq('status', 'pending')
-          .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
-          .toList();
+    return tryCall(() async {
+      final data = await sbClient.rpc('get_pending_invitations');
+      final rows = (data as List<dynamic>).cast<Map<String, dynamic>>();
 
-      return data.map((row) {
-        final isReceived = row['user_id_2']['id'] == uid;
-        final partnerData = isReceived ? row['user_id_1'] : row['user_id_2'];
-        final profile = partnerData['user_profiles'] as Map<String, dynamic>?;
-
-        return PartnershipInvitation(
-          id: row['id'] as int,
-          status: row['status'] as String? ?? 'pending',
-          createdAt: AppDateUtils.tryParse(row['created_at'] as String?) ??
-              DateTime.now(),
-          partnerId: partnerData['id'] as int?,
-          partnerDisplayName: profile?['display_name'] as String? ??
-              (partnerData['email'] as String?)?.split('@').first,
-          partnerEmail: partnerData['email'] as String?,
-          isReceived: isReceived,
-        );
-      }).toList();
+      return rows.map(PartnershipInvitation.fromJson).toList();
     });
   }
 }

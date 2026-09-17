@@ -44,8 +44,8 @@ The partnership architecture spans three main layers:
 
 1. **Flutter Frontend**:
    - [partner_screen.dart](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart): UI rendering for personal partnership code, partner card, pending received requests, pending sent requests, and add partner action.
-   - [partner_state.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart): State manager for searching users, fetching partnership data, handling debounced search, and performing optimistic state updates.
-   - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `accept_partnership` RPC, `partnerships` DELETE for rejection) and Node Express API (`_api.requestPartnership`).
+   - [partner_state.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart): State manager for fetching partnership data, sending/accepting/rejecting requests, and performing optimistic state updates.
+   - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `get_pending_invitations` RPC, `accept_partnership` RPC, `partnerships` DELETE for rejection) and Node Express API (`_api.requestPartnership`).
    - [partnership_models.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_models.dart): Data models `PartnershipResponse`, `PendingRequests`, and `PartnershipInvitation`.
    - [realtime_sync_service.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart): Subscribes to Postgres change events on `public.partnerships`, invalidates `BaseRepository` cache, and updates `PartnerState` / `AuthState`.
 
@@ -56,8 +56,8 @@ The partnership architecture spans three main layers:
 3. **Database Layer (Supabase / PostgreSQL)**:
    - `public.partnerships`: Main database table storing pair relationships with columns `id`, `user_id_1`, `user_id_2`, `status`, `anniversary_date`, `created_at`, `updated_at`.
    - `public.user_profiles`: Stores user profile metadata including unique `partnership_code`.
-   - `v_active_partnership`: PostgreSQL view returning active partner details, pending sent array (`pending_sent`), and pending received array (`pending_received`).
-   - Stored Procedures: `request_partnership(partner_email, partner_code)` and `accept_partnership(p_partnership_id)`.
+   - `v_active_partnership`: PostgreSQL view returning the accepted partner's profile details (`partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`).
+   - Stored Procedures: `request_partnership(partner_email, partner_code)`, `accept_partnership(p_partnership_id)`, and `get_pending_invitations()` (pending-request identity for the caller only).
 
 ---
 
@@ -118,9 +118,9 @@ The partnership subsystem defines three logical states per user:
    - **NOT PERMITTED**. The system architecture enforces a strict 1:1 pairing constraint. The database view `v_active_partnership` and application logic treat partnership as a single 1:1 relationship.
 
 5. **`v_active_partnership` Resolution Logic**:
-   - The view filters `public.partnerships` where the querying user is either `user_id_1` or `user_id_2`.
-   - If an `accepted` row exists, it returns `status = 'accepted'` along with the partner's profile (`partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`).
-   - If only `pending` rows exist, it aggregates outgoing requests into `pending_sent` (JSONB array) and incoming requests into `pending_received` (JSONB array).
+   - The view filters `public.partnerships` where the querying user is either `user_id_1` or `user_id_2` and `status = 'accepted'`.
+   - It returns the partner's profile (`partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`). The partner's `users` row is not read: `partner_id` is derived from `user_id_1`/`user_id_2` and joined directly to `user_profiles`.
+   - Pending invitations are **not** part of this view. They are fetched separately through the scoped `get_pending_invitations()` RPC, which returns only the caller's pending rows.
 
 ---
 
@@ -138,7 +138,7 @@ Each user profile automatically receives a unique **Partnership Code** upon regi
 - **Brute-Force Resistance**:
   - A partnership code alone is insufficient to send a request.
   - The request payload requires **both** `email` AND `partnershipCode`.
-  - In `auth.controller.js`, `resolveRequestedPartnerOrNull` queries `users` by email and `user_profiles` by `partnership_code`. If either fails to match, the request fails silently or returns null, preventing code enumeration attacks.
+   - In `auth.controller.js`, `resolveRequestedPartnerOrNull` queries `users` by email and `user_profiles` by `partnership_code` through the backend's `service_role` client (RLS-bypassing). If either fails to match, the request fails silently or returns null, preventing code enumeration attacks. Direct `authenticated` access to `public.users` is self-only, so this lookup is not possible from the client.
 
 ---
 
@@ -160,22 +160,18 @@ The codebase contains references to an "email invitation flow", but reverse engi
 
 ## Functional Behavior & User Flow
 
-### 1. Searching for Partners (Email Debounce)
-- **User Action**: In `PartnerScreen`, user types a recipient email into the search text field.
-- **Debounce Mechanism**: `PartnerState.setEmailQuery()` ([partner_state.dart:30-40](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart#L30-L40)) manages a `Timer` with a **300ms debounce delay**.
-- **Execution**: When the timer fires, `_fetchSuggestions()` invokes `PartnershipRepository.searchPartner(query)` which performs a Supabase ILIKE query: `users.select().or('email.ilike.%$query%').limit(20)`.
-
-### 2. Sending a Request
+### 1. Sending a Request
 - **User Action**: User opens `PartnerInviteDialog`, enters the partner's email and 6-character code, and taps "Send".
 - **Validation**: Client validates inputs are non-empty (`partner_fillAllFields`). Backend validates schema (`email`, `partnershipCode.length(6)`).
 - **Execution**: Calls `POST /api/v1/auth/invite-partner` -> Backend checks `resolveRequestedPartnerOrNull` -> Checks self-invitation -> Calls `adminSupabase.rpc('request_partnership')`.
-- **UI Update**: Flutter receives success response, calls `fetchPartnership()`, re-populates `sentRequests`, and shows SnackBar ("Richiesta inviata a $email").
+- **UI Update**: Flutter receives success response, calls `fetchPartnership()`, and shows SnackBar ("Richiesta inviata a $email").
 
-### 3. Receiving & Viewing Requests
+### 2. Receiving & Viewing Requests
+- **Data Source**: `PartnershipRepository.getPendingInvitations()` calls the `get_pending_invitations()` RPC, which returns only the caller's pending rows (`invitation_id`, `partner_id`, `partner_display_name`, `partner_email`, `is_received`). No direct read of the counterpart's `users`/`user_profiles` row occurs.
 - **UI Element**: `PartnerScreen` renders `_buildInvitationsList` with `receivedInvitations` and `sentInvitations`.
 - **Item Cards**: Display partner display name / email and timestamp. Provides "Accept" (Check icon) and "Reject" (Close icon) buttons.
 
-### 4. Accepting a Request
+### 3. Accepting a Request
 - **User Action**: User taps "Accept" on a received invitation tile.
 - **Execution**: Calls `AuthState.acceptInvitation(invite.id)` -> Invokes `PartnershipRepository.acceptPartnerRequest(invite.id)` -> Runs Supabase RPC `accept_partnership(p_partnership_id = invite.id)`.
 - **Side Effects**:
@@ -184,7 +180,7 @@ The codebase contains references to an "email invitation flow", but reverse engi
   - Calls `StorageService.savePartner` to store partner ID and username locally.
   - Replaces navigation stack with `MainShell`.
 
-### 5. Rejecting a Request
+### 4. Rejecting a Request
 - **User Action**: User taps "Decline" or "Cancel Request".
 - **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Deletes row from `public.partnerships` where `id = invitationId` and `status = 'pending'`.
 - **UI Update**: Pending invitation is removed from local list.
@@ -300,9 +296,9 @@ During the reverse-engineering analysis, the following technical findings and bu
 | Subsystem / Feature | Status | Notes |
 |---|---|---|
 | Personal Code Display & Clipboard Copy | **IMPLEMENTED** | `PartnerScreen._buildYourCodeCard` |
-| Partner Search with Email Debounce | **IMPLEMENTED** | 300ms Timer in `PartnerState` |
+| Pending Request Identity | **IMPLEMENTED** | `get_pending_invitations` RPC (scoped `SECURITY DEFINER`, no direct `users`/`user_profiles` read) |
 | Send Request (Email + 6-Char Code) | **IMPLEMENTED** | `request_partnership` RPC |
-| View Pending Sent & Received Requests | **IMPLEMENTED** | `v_active_partnership` view aggregation |
+| View Pending Sent & Received Requests | **IMPLEMENTED** | `get_pending_invitations` RPC |
 | Accept Request Flow | **IMPLEMENTED** | `accept_partnership` RPC + notification |
 | Reject Request Flow | **PARTIALLY IMPLEMENTED** | DB deletion works, but optimistic UI filter has ID mismatch bug |
 | External Email Delivery | **NOT IMPLEMENTED** | Labeled as email invite, but only performs DB request insertion |

@@ -24,10 +24,10 @@ CREATE POLICY "profiles_insert_self" ON "public"."user_profiles"
   TO PUBLIC
   WITH CHECK ((user_id = public.current_user_id()));
 
-CREATE POLICY "profiles_select_authenticated" ON "public"."user_profiles"
+CREATE POLICY "profiles_select_self_or_partner" ON "public"."user_profiles"
   FOR SELECT
-  TO PUBLIC
-  USING ((( SELECT auth.role() AS ROLE) = 'authenticated'::text));
+  TO "authenticated"
+  USING (((user_id = public.current_user_id()) OR private.is_related_user(user_id)));
 
 CREATE POLICY "profiles_update_self" ON "public"."user_profiles"
   FOR UPDATE

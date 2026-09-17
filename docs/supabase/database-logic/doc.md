@@ -10,12 +10,12 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `v_active_partnership`
 * **SQL Source:** `supabase/schemas/public/views/v_active_partnership.sql`
-* **Purpose:** Provides a single, unified view of the current user's active relationship, including status, anniversary date, partner user details (email, display name, bio, profile picture), and names of both partners.
+* **Purpose:** Provides a single, unified view of the current user's active relationship, including status, anniversary date, and the partner's profile details (display name, bio, profile picture). The partner's `users` row is intentionally not read.
 * **Security Context:** `WITH (security_invoker = true)`
-  - Inherits RLS policies of underlying tables (`partnerships`, `users`, `user_profiles`) based on the authenticated caller's JWT token.
+  - Inherits RLS policies of underlying tables (`partnerships`, `user_profiles`) based on the authenticated caller's JWT token.
 * **Inputs:** None (Implicitly uses `public.current_user_id()` derived from `auth.uid()`).
-* **Outputs:** `partnership_id`, `status`, `anniversary_date`, `partner_id`, `partner_email`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`, `user_id_a`, `user_id_b`, `user_a_name`, `user_b_name`.
-* **Tables Touched:** `public.partnerships` (READ), `public.users` (READ), `public.user_profiles` (READ).
+* **Outputs:** `partnership_id`, `status`, `anniversary_date`, `partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`, `user_id_a`, `user_id_b`.
+* **Tables Touched:** `public.partnerships` (READ), `public.user_profiles` (READ).
 * **Execution Condition:** `(user_id_1 = current_user_id() OR user_id_2 = current_user_id()) AND status = 'accepted'`.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
 * **Side Effects:** None (Read-only view).
@@ -41,8 +41,9 @@ This document provides a technical specification and analysis of all **Supabase-
 ### `request_partnership(partner_email text, partner_code text, override_sender_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/request_partnership.sql`
 * **Purpose:** Initiates a new relationship connection request between two users.
-* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
-  - **Execution Grants:** Revoked from `PUBLIC`. Granted exclusively to `authenticated`, `postgres`, `service_role`.
+* **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Revoked from `PUBLIC`. Granted to `authenticated`, `postgres`, `service_role`.
+  - Invoked by the backend through the `service_role` client (`adminSupabase.rpc`), which bypasses RLS for the recipient lookup. Under a plain `authenticated` session the `public.users` lookup is now self-only, so it cannot resolve another user (and cannot enumerate emails).
 * **Inputs:** `partner_email` (`text`), `partner_code` (`text`), `override_sender_id` (`integer` DEFAULT NULL).
 * **Outputs:** `integer` (ID of created `partnerships` row).
 * **Tables Touched:** `public.partnerships` (READ, INSERT), `public.users` (READ), `public.user_profiles` (READ).
@@ -93,6 +94,20 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
 * **Caller:** Node.js Backend AI Engine.
 * **Failure Behavior:** If no active accepted partnership is found, returns fallback object `{ "name1": "Partner 1", "name2": "Partner 2" }`.
+
+---
+
+### `get_pending_invitations()`
+* **SQL Source:** `supabase/schemas/public/functions/get_pending_invitations.sql`
+* **Purpose:** Returns the caller's pending partnership invitations (both sent and received) without exposing another user's full `users`/`user_profiles` row.
+* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Revoked from `PUBLIC`, `anon`. Granted to `authenticated`, `postgres`, `service_role`.
+* **Inputs:** None (scoped to `public.current_user_id()`).
+* **Outputs:** table rows of `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `partner_email`, `is_received` (true when the caller is the recipient).
+* **Tables Touched:** `partnerships` (READ), `users` (READ), `user_profiles` (READ).
+* **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. Returns 0 rows otherwise.
+* **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart), `getPendingInvitations`).
+* **Failure Behavior:** Never returns unrelated users; the only identity fields exposed are `display_name` and `email` of the pending counterpart.
 
 ---
 
