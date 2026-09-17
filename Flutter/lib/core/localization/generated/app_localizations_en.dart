@@ -248,6 +248,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Must contain at least one symbol';
 
   @override
+  String get auth_validationPasswordMismatch => 'Passwords do not match';
+
+  @override
   String get home_daysTogether => 'DAYS TOGETHER';
 
   @override

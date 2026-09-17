@@ -270,17 +270,12 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Known Issues & Discovered Bugs
 
-### 1. CRITICAL BUG: `ChangePasswordScreen` is a Pure UI Stub
-- **Finding**: In [`change_password_screen.dart:92-98`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart#L92-L98), submitting the password change form shows a success SnackBar and pops the screen.
-- **Impact**: The password is **never updated** in Supabase Auth or backend. Users receive false confirmation of a password change.
-- **Confidence**: **HIGH**
-
-### 2. BUG: Missing Camera Option in Profile Photo Picker
+### 1. BUG: Missing Camera Option in Profile Photo Picker
 - **Finding**: In [`profile_screen.dart:47-51`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L47-L51), `_pickProfilePhoto()` hardcodes `source: ImageSource.gallery`.
 - **Impact**: Users cannot take a new profile photo directly using the device camera.
 - **Confidence**: **HIGH**
 
-### 3. BUG: Unreachable Display Name & Bio Editing Logic
+### 2. BUG: Unreachable Display Name & Bio Editing Logic
 - **Finding**: `UserRepository` defines `updateDisplayName()` and `updateBio()`, and `ProfileState` defines `updateBio()`, but `ProfileScreen` provides **no text fields or edit buttons** to edit display name or bio.
 - **Impact**: Users cannot edit their display name or bio within the application UI.
 - **Confidence**: **HIGH**

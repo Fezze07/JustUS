@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'Deve contenere almeno un simbolo'**
   String get auth_validationPasswordSymbol;
 
+  /// No description provided for @auth_validationPasswordMismatch.
+  ///
+  /// In it, this message translates to:
+  /// **'Le password non coincidono'**
+  String get auth_validationPasswordMismatch;
+
   /// No description provided for @home_daysTogether.
   ///
   /// In it, this message translates to:

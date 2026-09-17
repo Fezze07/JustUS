@@ -76,6 +76,7 @@
   "auth_validationPasswordUppercase": "Must contain at least one uppercase letter",
   "auth_validationPasswordNumber": "Must contain at least one number",
   "auth_validationPasswordSymbol": "Must contain at least one symbol",
+  "auth_validationPasswordMismatch": "Passwords do not match",
   "home_daysTogether": "DAYS TOGETHER",
   "home_currentMoodTitle": "OUR CURRENT MOOD",
   "home_updateStatus": "Update Status",

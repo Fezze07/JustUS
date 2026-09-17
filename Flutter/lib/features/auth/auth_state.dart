@@ -349,6 +349,62 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     });
   }
 
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return runSafe(() async {
+      final email = _authRepo.currentSession?.user.email;
+      if (email == null || email.isEmpty) {
+        throw const AppError(
+          code: ErrorCodes.authFail001,
+          message: 'No active session',
+        );
+      }
+
+      final captchaToken = await _getCaptchaToken();
+      if (captchaToken == null) {
+        throw const AppError(
+          code: ErrorCodes.localUnknown,
+          message: 'Captcha failed',
+        );
+      }
+
+      final AuthResponse res;
+      try {
+        res = await _authRepo.signInWithPassword(
+          email: email,
+          password: currentPassword,
+          captchaToken: captchaToken,
+        );
+      } on AuthException catch (e) {
+        throw AppError(
+          code: ErrorCodes.authFailCred,
+          message: e.message,
+          severity: ErrorSeverity.high,
+        );
+      }
+
+      if (res.user == null || res.session == null) {
+        throw const AppError(
+          code: ErrorCodes.authFailCred,
+          message: 'Re-authentication failed',
+        );
+      }
+
+      final result =
+          await _authRepo.changePassword(currentPassword, newPassword);
+      if (result is GenericError<void>) {
+        throw AppError(
+          code: result.code?.toString() ?? ErrorCodes.authFailCred,
+          message: result.message ?? 'Password change failed',
+        );
+      } else if (result is NetworkError<void>) {
+        throw AppError.network();
+      }
+    });
+  }
+
   Future<bool> invitePartner(String email, String partnershipCode) async {
     return runSafe(() async {
       final res = await _partnershipRepo.inviteUser(email, partnershipCode);

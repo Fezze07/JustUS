@@ -358,13 +358,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 **Where**: splash_screen.dart:19,22-55.
 **Confidence**: HIGH.
 
-### F-N12: ChangePasswordScreen is a stub
-
-**What**: no state/repository call; validates locally, snackbar, pop.
-**Where**: change_password_screen.dart:92-97.
-**Impact**: feature appears to work but nothing changes; no navigation complexity justified.
-**Confidence**: HIGH.
-
 ### F-N13: Register `isLoggedIn` branch is unreachable
 
 **What**: `register()` never sets login data/session.

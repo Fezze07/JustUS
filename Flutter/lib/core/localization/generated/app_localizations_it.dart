@@ -249,6 +249,9 @@ class AppLocalizationsIt extends AppLocalizations {
       'Deve contenere almeno un simbolo';
 
   @override
+  String get auth_validationPasswordMismatch => 'Le password non coincidono';
+
+  @override
   String get home_daysTogether => 'GIORNI INSIEME';
 
   @override
