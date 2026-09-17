@@ -45,7 +45,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 * **File**: [`Backend/core/jobs/retentionJob.js`](file:///f:/JustUS/Backend/core/jobs/retentionJob.js#L21-L48)
 * **Defined Policy**:
   ```javascript
-  const LOG_RETENTION_DAYS = Number(process.env.LOG_RETENTION_DAYS) || 90;
+  `const LOG_RETENTION_DAYS = env.logRetentionDays;` // REQUIRED env var (env.js throws if missing)
   const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   ```
 * **Execution**: Started automatically in `index.js` on server startup via `startRetentionJobs()`. Runs every 24 hours.
@@ -67,7 +67,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 * **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`.
 * **Current Active Mechanism**: Node.js `sweepOldLogs()` in `retentionJob.js`.
 * **Execution Schedule**: Executed once immediately on server startup, then every 24 hours via `setInterval`.
-* **Configuration**: `LOG_RETENTION_DAYS` environment variable (defaults to `90`).
+* **Configuration**: `LOG_RETENTION_DAYS` environment variable (**REQUIRED** — no code default; env.js throws if missing/invalid).
 * **Failure Mode**: If `LOG_RETENTION_DAYS` is set higher than 30 and PostgreSQL `cleanup_old_logs()` is enabled via `pg_cron`, PostgreSQL truncates logs at 30 days, violating the backend's configured retention requirement.
 
 ---

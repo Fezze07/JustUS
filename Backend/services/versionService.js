@@ -1,9 +1,9 @@
 const path = require("path");
 const fs = require("fs").promises;
 
-const { AppError } = require("../all_imports");
+const { AppError, env } = require("../all_imports");
 
-const DATA_DIR = process.env.JUSTUS_DATA_DIR || "/var/www/justus/JustUS-Data";
+const DATA_DIR = env.dataDir;
 const VERSION_FILE = path.join(DATA_DIR, "versions", "app_version.json");
 
 async function getLatestAppVersion() {

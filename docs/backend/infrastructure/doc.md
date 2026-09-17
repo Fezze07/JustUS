@@ -51,7 +51,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 
 ### 2. Log Sweep (`sweepOldLogs`)
 - **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`.
-- **Retention Period**: Configured via `LOG_RETENTION_DAYS` env var (default: **90 days**).
+- **Retention Period**: Configured via `LOG_RETENTION_DAYS` env var (**REQUIRED** — no code default; env.js throws if missing/invalid).
 - **Interval**: Every 24 hours (`LOG_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000`).
 - **Logic**: Calculates cutoff date (`Date.now() - LOG_RETENTION_DAYS * 86,400,000`). Executes `DELETE FROM <table> WHERE created_at < cutoff`.
 

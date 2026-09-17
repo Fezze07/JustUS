@@ -2,7 +2,7 @@
  * retentionService.js
  *
  * Runs scheduled cleanup jobs to enforce data-retention policies:
- *   - security_events, api_access_logs, api_error_logs → delete after LOG_RETENTION_DAYS (default 90)
+ *   - security_events, api_access_logs, api_error_logs → delete after LOG_RETENTION_DAYS
  *   - request_nonces → delete rows past their expires_at (default: daily sweep)
  *   - R2 incomplete multipart uploads → abort after MULTIPART_MAX_AGE_MS (default 48 h)
  *
@@ -18,7 +18,7 @@ const { adminSupabase, env, logError, logInfo } = require("../../all_imports");
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const LOG_RETENTION_DAYS = Number(process.env.LOG_RETENTION_DAYS) || 90;
+const LOG_RETENTION_DAYS = env.logRetentionDays;
 const NONCE_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 const LOG_SWEEP_INTERVAL_MS   = 24 * 60 * 60 * 1000;      // every 24 h
 const MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h

@@ -12,10 +12,17 @@ function requirePositiveNumber(value, name) {
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(
       `[env] Missing or invalid required environment variable: ${name}. ` +
-        "It must be a positive integer and match the Supabase Auth JWT expiry."
+        "It must be a positive integer."
     );
   }
   return parsed;
+}
+
+function requireNonEmpty(value, name) {
+  if (!value || !value.trim()) {
+    throw new Error(`[env] Missing required environment variable: ${name}.`);
+  }
+  return value.trim();
 }
 
 function parseList(value) {
@@ -27,16 +34,17 @@ function parseList(value) {
 
 const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
+  dataDir: requireNonEmpty(process.env.JUSTUS_DATA_DIR, "JUSTUS_DATA_DIR"),
   port: parseNumber(process.env.PORT, 5001),
   trustProxy: parseNumber(process.env.TRUST_PROXY, 1),
   requestTimeoutMs: parseNumber(process.env.REQUEST_TIMEOUT_MS, 15_000),
   bodyLimit: process.env.BODY_LIMIT ?? "1mb",
   allowedOrigins: parseList(process.env.ALLOWED_ORIGINS),
   supabaseUrl: process.env.SUPABASE_URL ?? "",
-  supabaseAnonKey:
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_PUBLISHABLE_KEY ??
-    "",
+  supabaseAnonKey: requireNonEmpty(
+    process.env.SUPABASE_ANON_KEY,
+    "SUPABASE_ANON_KEY"
+  ),
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   maxAccessTokenLifetimeSec: requirePositiveNumber(
     process.env.MAX_ACCESS_TOKEN_LIFETIME_SEC,
@@ -57,6 +65,10 @@ const env = {
   aiCircuitBreakerThreshold: parseNumber(process.env.AI_CIRCUIT_BREAKER_THRESHOLD, 5),
   aiCircuitBreakerCooldownMs: parseNumber(process.env.AI_CIRCUIT_BREAKER_COOLDOWN_MS, 60_000),
   requestSigningMaxSkewMs: parseNumber(process.env.REQUEST_SIGNING_MAX_SKEW_MS, 5 * 60_000),
+  logRetentionDays: requirePositiveNumber(
+    process.env.LOG_RETENTION_DAYS,
+    "LOG_RETENTION_DAYS"
+  ),
 };
 
 function requireEnv(keys, context) {
