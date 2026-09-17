@@ -3,8 +3,14 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   ApiConfig._();
 
-  static const String _devServerOrigin = 'https://justus-dev.serverfede.eu';
-  static const String _prodServerOrigin = 'https://justus.serverfede.eu';
+  static const String _devServerOrigin = String.fromEnvironment(
+    'JUSTUS_DEV_SERVER_ORIGIN',
+    defaultValue: 'https://justus-dev.serverfede.eu',
+  );
+  static const String _prodServerOrigin = String.fromEnvironment(
+    'JUSTUS_PROD_SERVER_ORIGIN',
+    defaultValue: 'https://justus.serverfede.eu',
+  );
 
   static bool get isDebug => kDebugMode;
 

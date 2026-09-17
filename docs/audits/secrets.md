@@ -68,14 +68,13 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 
 ---
 
-### 4. Hardcoded Server Origins & API Config
+### 4. Server Origins & API Config
 
-* **File**: [`Flutter/lib/core/network/api_config.dart`](file:///f:/JustUS/Flutter/lib/core/network/api_config.dart#L6-L7)
+* **File**: [`Flutter/lib/core/network/api_config.dart`](file:///f:/JustUS/Flutter/lib/core/network/api_config.dart#L6-L15)
 * **Type of Secret**: Server Domain Names (`https://justus-dev.serverfede.eu`, `https://justus.serverfede.eu`).
-* **Appears Live**: **YES** (Dev and Prod server domain URLs).
+* **Appears Live**: **CONFIG** (Compile-time configuration defaults).
 * **Tracked by Git**: **YES**.
-* **Exposure Impact**: Exposes backend endpoint infrastructure hostnames in client code.
-* **Recommended Remediation**: Inject server origins via environment configuration (`flutter_dotenv` or compile-time `--dart-define`) rather than hardcoding domain strings directly in source code.
+* **Exposure Impact**: Config defaults only. The origins are selected per Flutter build mode and overrideable at build time via `--dart-define=JUSTUS_DEV_SERVER_ORIGIN` / `JUSTUS_PROD_SERVER_ORIGIN` (documented in `Flutter/.env.example`), so builds no longer hardcode a single non-configurable domain.
 
 ---
 
@@ -123,4 +122,4 @@ key.properties
 | `.env.test` | Mock credentials | **NO** | **NO** | None | Keep placeholders clean |
 | `Flutter/lib/firebase_options.dart` | Firebase Client API Key | **YES** | **YES** | Low-Medium (Public client key) | Restrict API keys via Google Cloud Console & App Check |
 | `Flutter/android/app/google-services.json` | Firebase Android Config & API Key | **YES** | **YES** | Low-Medium (Public client key) | Enforce Firebase RLS rules and package restriction |
-| `Flutter/lib/core/network/api_config.dart` | Dev & Prod Hostnames | **YES** | **YES** | Low | Parameterize via `--dart-define` or `.env` |
+| `Flutter/lib/core/network/api_config.dart` | Dev & Prod Hostnames (config defaults) | **YES** | **YES** | Low | Override per build via `--dart-define` (`JUSTUS_DEV/PROD_SERVER_ORIGIN`) |
