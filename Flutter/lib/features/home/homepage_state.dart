@@ -67,24 +67,41 @@ class HomepageState extends BaseState {
     notifyListeners();
   }
 
-  Future<void> sendMissYou() async {
+  DateTime? _lastMissYouSentAt;
+
+  Future<bool> sendMissYou() async {
+    final now = DateTime.now();
+    if (_isLoading ||
+        (_lastMissYouSentAt != null &&
+            now.difference(_lastMissYouSentAt!) <
+                const Duration(milliseconds: 1500))) {
+      return false;
+    }
+
+    _lastMissYouSentAt = now;
     _isLoading = true;
     notifyListeners();
 
-    final result = await _repo.sendMissYou();
+    var success = false;
+    try {
+      final result = await _repo.sendMissYou();
 
-    await result.handleAsync(
-      onSuccess: (_) async {
-        await CacheService.saveCheckpoint(
-          CacheService.kMissYou,
-          DateTime.now().toUtc().toIso8601String(),
-        );
-        _message = 'Mi manchi inviato!';
-      },
-    );
+      await result.handleAsync(
+        onSuccess: (_) async {
+          success = true;
+          await CacheService.saveCheckpoint(
+            CacheService.kMissYou,
+            DateTime.now().toUtc().toIso8601String(),
+          );
+          _message = 'Mi manchi inviato!';
+        },
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
 
-    _isLoading = false;
-    notifyListeners();
+    return success;
   }
 
   void clear() {

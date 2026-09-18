@@ -412,19 +412,25 @@ class _HomepageScreenState extends State<HomepageScreen>
               );
             },
           ),
-          Selector<HomepageState, int>(
-            selector: (_, h) => h.totalMissYou,
-            builder: (context, totalMissYou, _) {
+          Selector<HomepageState, (int, bool)>(
+            selector: (_, h) => (h.totalMissYou, h.isLoading),
+            builder: (context, missYouData, _) {
+              final totalMissYou = missYouData.$1;
+              final isSending = missYouData.$2;
               final hpState = context.read<HomepageState>();
               return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                 child: Center(
                   child: GestureDetector(
-                    onTap: () {
-                      unawaited(hpState.sendMissYou());
-                      UIUtils.showSnackBar(
-                          context, context.loc.home_missYouSent);
-                    },
+                    onTap: isSending
+                        ? null
+                        : () async {
+                            final success = await hpState.sendMissYou();
+                            if (success && context.mounted) {
+                              UIUtils.showSnackBar(
+                                  context, context.loc.home_missYouSent);
+                            }
+                          },
                     child: _MissYouButton(
                       count: totalMissYou,
                       pulseAnim: _pulseAnim,

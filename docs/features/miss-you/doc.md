@@ -249,16 +249,7 @@ HomepageScreen.initState()
 
 During reverse-engineering analysis, the following technical findings were identified:
 
-### 1. DEFECT: Missing Tap Debounce / Double-Tap Protection on Miss You Button
-
-* **WHAT**: `_MissYouButton` allows rapid consecutive taps without client-side debouncing or button disabling.
-* **WHERE**: [homepage_screen.dart:422-432](file:///f:/JustUS/Flutter/lib/features/home/screens/homepage_screen.dart#L422-L432)
-* **WHY**: `HomepageState.sendMissYou()` toggles `_isLoading = true`, but the `GestureDetector` in `homepage_screen.dart` does not check `hpState.isLoading` or disable `onTap`.
-* **WHEN**: User rapidly taps the Miss You button.
-* **IMPACT**: Multiple network RPC requests are dispatched simultaneously, inserting multiple duplicate rows into `public.missyou` and artificially inflating the counter.
-* **CONFIDENCE**: **HIGH**
-
-### 2. INCONSISTENCY: Unused `_missYouRefreshTimer` in `RealtimeSyncService`
+### 1. INCONSISTENCY: Unused `_missYouRefreshTimer` in `RealtimeSyncService`
 
 * **WHAT**: `RealtimeSyncService` declares `Timer? _missYouRefreshTimer;` and cancels it in `dispose()`, but never uses it in `_handleMissYouPayload()`.
 * **WHERE**: [realtime_sync_service.dart:41 & 634](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart#L41)
@@ -281,4 +272,4 @@ During reverse-engineering analysis, the following technical findings were ident
 | Local Storage & Cache Checkpoints | **IMPLEMENTED** | `StorageService` + `CacheService` checkpoints |
 | Startup App Version Check | **IMPLEMENTED** | `UpdateService.checkVersion()` via `/api/v1/app-version` |
 | Force Update UI Blocking | **IMPLEMENTED** | Non-dismissible `VPDialog` without "Later" button |
-| Tap Debounce Protection | **NOT IMPLEMENTED** | Rapid tapping fires duplicate RPC requests |
+| Tap Debounce Protection | **IMPLEMENTED** | Client-side 500ms debounce guard in `HomepageState.sendMissYou()` & `GestureDetector` disabled when `isLoading` |
