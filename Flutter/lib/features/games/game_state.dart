@@ -202,7 +202,6 @@ class GameState extends BaseState with CheckpointMixin {
         await StorageService.saveGameHistory(_history);
 
         if (!wasPending) {
-          await _repo.updateQuestionStatus(_currentQuestion!.id, 'both_answered');
           _currentQuestion = null;
           await StorageService.clearCachedGameQuestion();
           await fetchStats();
@@ -405,15 +404,6 @@ class GameState extends BaseState with CheckpointMixin {
       await StorageService.saveGameHistory(_history);
     }
 
-    if (_currentQuestion != null &&
-        _currentQuestion!.hasAnswered &&
-        _currentQuestion!.partnerAnswered) {
-      await _repo.updateQuestionStatus(_currentQuestion!.id, 'both_answered');
-      _currentQuestion = null;
-      await StorageService.clearCachedGameQuestion();
-      await fetchStats();
-      notifyListeners();
-    }
 
     await _updateGameCheckpoint();
   }
@@ -433,17 +423,11 @@ class GameState extends BaseState with CheckpointMixin {
     result.handle(
       onSuccess: (value) async {
         if (_currentQuestion != null && _currentQuestion!.id == gameId) {
-          if (value.hasAnswered && value.partnerAnswered) {
-            await _repo.updateQuestionStatus(gameId, 'both_answered');
-            _currentQuestion = null;
-            await StorageService.clearCachedGameQuestion();
-          } else {
-            _currentQuestion = _currentQuestion!.copyWith(
-              hasAnswered: value.hasAnswered,
-              partnerAnswered: value.partnerAnswered,
-            );
-            await StorageService.saveGameQuestion(_currentQuestion!);
-          }
+          _currentQuestion = _currentQuestion!.copyWith(
+            hasAnswered: value.hasAnswered,
+            partnerAnswered: value.partnerAnswered,
+          );
+          await StorageService.saveGameQuestion(_currentQuestion!);
         }
 
         var updated = false;

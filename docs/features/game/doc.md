@@ -241,16 +241,9 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: Server restarts clear all active rate limits, token quotas, circuit breaker cooldowns, and cached idempotency keys.
 * **CONFIDENCE**: **HIGH**
 
-### 2. DEFECT: Client-Side Status Update Dependency
-
-* **WHAT**: Updating question status to `'both_answered'` relies on the client application calling `updateQuestionStatus()`.
-* **WHERE**: [game_state.dart:205 & 411](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart#L205)
-* **WHY**: No database trigger or backend service automatically updates `game_questions.status` when the second `game_answers` row is inserted.
-* **WHEN**: Both partners answer a question, but the second answering client closes the app or loses connection before calling `updateQuestionStatus()`.
-* **IMPACT**: Question remains in `'pending'` status in database, preventing new questions from being generated until manual status cleanup occurs.
-* **CONFIDENCE**: **HIGH**
 
 ---
+
 
 ## Implementation Status Matrix
 
@@ -266,4 +259,4 @@ During reverse-engineering analysis, the following technical findings were ident
 | Realtime Answer Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `game_answers` |
 | Agreement Match Calculation | **IMPLEMENTED** | `isMatched` check & `get_game_stats` RPC |
 | Persistent Infrastructure State | **NOT IMPLEMENTED** | Quotas/circuits reset on server restart (in-memory) |
-| Server-Side Status Trigger | **NOT IMPLEMENTED** | Client must call `updateQuestionStatus` |
+| Server-Side Status Trigger | **IMPLEMENTED** | `tr_game_answers_update_question_status` trigger sets `status = 'both_answered'` on second answer INSERT/UPDATE |

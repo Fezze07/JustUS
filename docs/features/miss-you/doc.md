@@ -272,4 +272,4 @@ During reverse-engineering analysis, the following technical findings were ident
 | Local Storage & Cache Checkpoints | **IMPLEMENTED** | `StorageService` + `CacheService` checkpoints |
 | Startup App Version Check | **IMPLEMENTED** | `UpdateService.checkVersion()` via `/api/v1/app-version` |
 | Force Update UI Blocking | **IMPLEMENTED** | Non-dismissible `VPDialog` without "Later" button |
-| Tap Debounce Protection | **IMPLEMENTED** | Client-side 500ms debounce guard in `HomepageState.sendMissYou()` & `GestureDetector` disabled when `isLoading` |
+| Tap Debounce Protection | **IMPLEMENTED** | Client-side 1500ms debounce guard in `HomepageState.sendMissYou()` & `GestureDetector` disabled when `isLoading` |

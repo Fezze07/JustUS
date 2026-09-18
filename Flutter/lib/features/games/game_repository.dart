@@ -269,13 +269,4 @@ class GameRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<void>> updateQuestionStatus(int questionId, String status) {
-    return tryCall(() async {
-      await sbClient
-          .from('game_questions')
-          .update({'status': status})
-          .eq('id', questionId);
-    });
-  }
-
 }
