@@ -365,11 +365,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 **Impact**: auto-confirmed accounts are told to verify email and must log in manually; contradictory UX.
 **Confidence**: HIGH.
 
-### F-N14: Forgot-password button is a no-op
-
-**What**: empty `onPressed` at login_screen.dart:68.
-**Confidence**: HIGH.
-
 ---
 
 ## Implementation status

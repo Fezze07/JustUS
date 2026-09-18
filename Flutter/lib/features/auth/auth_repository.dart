@@ -58,6 +58,16 @@ class AuthRepository extends BaseRepository {
         captchaToken: captchaToken);
   }
 
+  Future<void> resetPassword({
+    required String email,
+    required String redirectTo,
+  }) async {
+    await sbClient.auth.resetPasswordForEmail(
+      email,
+      redirectTo: redirectTo,
+    );
+  }
+
   Future<void> signOut() async {
     await sbClient.auth.signOut();
   }

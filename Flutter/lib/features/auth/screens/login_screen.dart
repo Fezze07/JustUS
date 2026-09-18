@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // LoginScreen - Violet-Punk Style
 // =============================================================================
 
@@ -62,19 +62,48 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 12),
 
         // Forgot Password
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () {},
-            child: Text(
-              context.loc.auth_forgotPassword,
-              style: VpWidgets.googleFont(
-                color: AppColors.neonBlue,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
+        Consumer<AuthState>(
+          builder: (context, state, _) {
+            return Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: state.isLoading
+                    ? null
+                    : () async {
+                        final email = _emailController.text;
+                        final emailError =
+                            Validators.validateEmail(context, email);
+                        if (emailError != null) {
+                          UIUtils.showSnackBar(context, emailError,
+                              isError: true);
+                          return;
+                        }
+
+                        final success = await state.resetPassword(email);
+                        if (!context.mounted) return;
+                        if (success) {
+                          UIUtils.showSnackBar(
+                            context,
+                            context.loc.auth_passwordResetSent,
+                          );
+                        } else {
+                          ErrorHandler.handle(
+                            state.error ?? 'Error resetting password',
+                            context: context,
+                          );
+                        }
+                      },
+                child: Text(
+                  context.loc.auth_forgotPassword,
+                  style: VpWidgets.googleFont(
+                    color: AppColors.neonBlue,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
 
         const SizedBox(height: 20),

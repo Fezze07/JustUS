@@ -464,6 +464,12 @@ abstract class AppLocalizations {
   /// **'Password aggiornata con successo!'**
   String get auth_passwordUpdated;
 
+  /// No description provided for @auth_passwordResetSent.
+  ///
+  /// In it, this message translates to:
+  /// **'Email di ripristino password inviata! Controlla la tua casella.'**
+  String get auth_passwordResetSent;
+
   /// No description provided for @auth_captchaTitle.
   ///
   /// In it, this message translates to:

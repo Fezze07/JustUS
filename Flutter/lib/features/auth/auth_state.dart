@@ -357,6 +357,15 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     });
   }
 
+  Future<bool> resetPassword(String email) async {
+    return runSafe(() async {
+      await _authRepo.resetPassword(
+        email: email,
+        redirectTo: _emailRedirectTo,
+      );
+    });
+  }
+
   Future<ChangePasswordResult> changePassword({
     required String currentPassword,
     required String newPassword,

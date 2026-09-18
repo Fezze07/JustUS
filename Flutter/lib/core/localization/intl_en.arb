@@ -61,6 +61,7 @@
   "auth_confirmPasswordHint": "Re-enter new password",
   "auth_updatePassword": "Update Password",
   "auth_passwordUpdated": "Password updated successfully!",
+  "auth_passwordResetSent": "Password reset email sent! Check your inbox.",
   "auth_captchaTitle": "Security check",
   "auth_captchaMessage": "JustUs is verifying that you are human...",
   "auth_captchaMissingConfig": "Missing security configuration (Site Key).",

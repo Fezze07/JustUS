@@ -109,6 +109,7 @@
   "auth_confirmPasswordHint": "Reinserisci la nuova password",
   "auth_updatePassword": "Aggiorna password",
   "auth_passwordUpdated": "Password aggiornata con successo!",
+  "auth_passwordResetSent": "Email di ripristino password inviata! Controlla la tua casella.",
   "auth_captchaTitle": "Verifica di sicurezza",
   "auth_captchaMessage": "JustUs sta verificando che tu sia un umano...",
   "auth_captchaMissingConfig": "Configurazione di sicurezza mancante (Site Key).",
