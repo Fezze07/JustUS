@@ -470,6 +470,18 @@ abstract class AppLocalizations {
   /// **'Email di ripristino password inviata! Controlla la tua casella.'**
   String get auth_passwordResetSent;
 
+  /// No description provided for @auth_resetPasswordTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Ripristina password'**
+  String get auth_resetPasswordTitle;
+
+  /// No description provided for @auth_resetPasswordSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Inserisci una nuova password per il tuo account.'**
+  String get auth_resetPasswordSubtitle;
+
   /// No description provided for @auth_captchaTitle.
   ///
   /// In it, this message translates to:

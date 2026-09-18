@@ -200,6 +200,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'Email di ripristino password inviata! Controlla la tua casella.';
 
   @override
+  String get auth_resetPasswordTitle => 'Ripristina password';
+
+  @override
+  String get auth_resetPasswordSubtitle =>
+      'Inserisci una nuova password per il tuo account.';
+
+  @override
   String get auth_captchaTitle => 'Verifica di sicurezza';
 
   @override

@@ -199,6 +199,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Password reset email sent! Check your inbox.';
 
   @override
+  String get auth_resetPasswordTitle => 'Reset Password';
+
+  @override
+  String get auth_resetPasswordSubtitle =>
+      'Enter a new password for your account.';
+
+  @override
   String get auth_captchaTitle => 'Security check';
 
   @override

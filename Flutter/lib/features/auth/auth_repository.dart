@@ -68,6 +68,15 @@ class AuthRepository extends BaseRepository {
     );
   }
 
+  Future<ResultWrapper<void>> updatePasswordWithoutCurrent(
+      String newPassword) async {
+    return tryCall(() async {
+      await sbClient.auth.updateUser(UserAttributes(
+        password: newPassword,
+      ));
+    });
+  }
+
   Future<void> signOut() async {
     await sbClient.auth.signOut();
   }

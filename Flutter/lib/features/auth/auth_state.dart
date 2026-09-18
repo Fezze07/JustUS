@@ -7,7 +7,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import 'package:justus/all_imports.dart';
@@ -158,7 +158,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       }
     }
 
-    // Sincronizza lo StorageService quando Supabase refresha il token in background
+    // Sincronizza lo StorageService e gestisci il passwordRecovery da link email
     _authSubscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final evt = data.event;
@@ -170,6 +170,16 @@ class AuthState extends BaseState with WidgetsBindingObserver {
         }
         _accessToken = currentSession.accessToken;
         _refreshToken = currentSession.refreshToken;
+      } else if (evt == AuthChangeEvent.passwordRecovery) {
+        AnsiLogger.auth('Password recovery event received from deep link',
+            tag: 'AuthState');
+        final navContext = ErrorHandler.navigatorKey.currentContext;
+        if (navContext != null && navContext.mounted) {
+          unawaited(Navigator.push(
+            navContext,
+            MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+          ));
+        }
       }
     });
     _tokenRefreshSubscription =
@@ -363,6 +373,20 @@ class AuthState extends BaseState with WidgetsBindingObserver {
         email: email,
         redirectTo: _emailRedirectTo,
       );
+    });
+  }
+
+  Future<bool> updatePasswordNew(String newPassword) async {
+    return runSafe(() async {
+      final result = await _authRepo.updatePasswordWithoutCurrent(newPassword);
+      if (result is GenericError<void>) {
+        throw AppError(
+          code: result.code?.toString() ?? ErrorCodes.authFailCred,
+          message: result.message ?? 'Password update failed',
+        );
+      } else if (result is NetworkError<void>) {
+        throw AppError.network();
+      }
     });
   }
 
