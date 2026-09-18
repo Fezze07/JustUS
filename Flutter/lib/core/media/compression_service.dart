@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:light_compressor_v2/light_compressor_v2.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:video_compress/video_compress.dart';
 
 class CompressionService {
   /// Compresses an image to ~80% quality JPEG
@@ -22,19 +22,30 @@ class CompressionService {
     return File(result.path);
   }
 
-  /// Compresses a video to Medium quality
+  /// Compresses a video using medium H.264 quality.
   static Future<File> compressVideo(File file) async {
-    final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
-      file.path,
-      quality: VideoQuality.MediumQuality,
+    final result = await LightCompressor().compressVideo(
+      path: file.path,
+      videoQuality: VideoQuality.medium,
+      video: Video(
+        videoName: 'compressed_${DateTime.now().millisecondsSinceEpoch}.mp4',
+      ),
+      android: AndroidConfig(
+        isSharedStorage: false,
+      ),
+      ios: IOSConfig(
+        saveInGallery: false,
+      ),
     );
 
-    if (mediaInfo == null || mediaInfo.file == null) return file;
+    if (result is OnSuccess && result.destinationPath.isNotEmpty) {
+      return File(result.destinationPath);
+    }
 
-    return mediaInfo.file!;
+    return file;
   }
 
-  /// Audio: returns original file. Bitrate reduction can be added via ffmpeg if needed.
+  /// Audio: returns original file.
   static Future<File> compressAudio(File file) async {
     return file;
   }

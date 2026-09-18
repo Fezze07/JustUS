@@ -188,13 +188,11 @@ Actually used (grep of `pushNamed`):
 
 ---
 
-## Deep links
+## Deep links / Android App Links
 
-**Not implemented** - no evidence of in-app deep-link handling:
-
-- No `go_router`, `uni_links`, `app_links`, `firebase_dynamic_links` in `pubspec.yaml` dependencies (grep). (`app_links` appears only in `pubspec.lock` and native plugin registrants as a transitive dependency; no Dart source imports or uses it - grep over `lib/**/*.dart` returns nothing.)
-- No custom scheme/intent-filter handling code. `justus://` appears only in `AuthState._emailRedirectTo` (auth_state.dart:65-78) as the Supabase **email-confirmation redirect URI**, whose target is a static server-side HTML `callbackPage` (not app navigation).
-- Launch-from-notification is handled via local notifications `getNotificationAppLaunchDetails` (notification_service.dart:51-59) and **does not perform navigation** (see below).
+- **Custom Scheme & HTTPS App Links**: L'app supporta la ricezione di URL sia via schema personalizzato `justus://auth/callback` che via Android App Links (HTTPS) `https://justus.serverfede.eu/auth/callback` configurati in `AndroidManifest.xml` con `android:autoVerify="true"`.
+- `main.dart` gestisce l'arrivo dei link tramite `onGenerateRoute`, instanziando `SplashScreen` e lasciando la gestione dei parametri URL del callback all'SDK di Supabase Auth (`onAuthStateChange`).
+- Nessun pacchetto di routing esterno (`go_router`, `uni_links`) è utilizzato per la navigazione interna dai deep link.
 
 ---
 
@@ -375,7 +373,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Named routes | IMPLEMENTED (3/6 used) |
 | Route arguments | NOT IMPLEMENTED |
 | Redirects | NOT IMPLEMENTED (decentralized, imperative) |
-| Deep links | NOT IMPLEMENTED |
+| Deep links / App links | PARTIALLY IMPLEMENTED (Custom Scheme + Android App Links) |
 | Notification-driven navigation | NOT IMPLEMENTED (payload ignored) |
 | Launch-from-notification navigation | NOT IMPLEMENTED |
 | Session-expiry redirect | IMPLEMENTED (401 -> reauth dialog -> `/login`) |

@@ -133,6 +133,15 @@ class JustUsApp extends StatelessWidget {
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
               home: const SplashScreen(),
+              onGenerateRoute: (settings) {
+                // If a deep link path comes in (e.g. /callback?code=...), return null so
+                // Flutter doesn't fail with an unhandled route error.
+                // Supabase Auth handles the URL parameters
+                return MaterialPageRoute(
+                  builder: (context) => const SplashScreen(),
+                  settings: settings,
+                );
+              },
               routes: {
                 '/login': (context) => const LoginScreen(),
                 '/register': (context) => const RegisterScreen(),
@@ -140,6 +149,7 @@ class JustUsApp extends StatelessWidget {
                 '/partner': (context) => const PartnerScreen(),
                 '/localization': (context) => const LocalizationScreen(),
                 '/change-password': (context) => const ChangePasswordScreen(),
+                '/reset-password': (context) => const ResetPasswordScreen(),
               },
             );
           },
