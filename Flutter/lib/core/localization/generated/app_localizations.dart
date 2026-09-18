@@ -560,6 +560,12 @@ abstract class AppLocalizations {
   /// **'Le password non coincidono'**
   String get auth_validationPasswordMismatch;
 
+  /// No description provided for @auth_currentPasswordIncorrect.
+  ///
+  /// In it, this message translates to:
+  /// **'La password attuale non è corretta'**
+  String get auth_currentPasswordIncorrect;
+
   /// No description provided for @home_daysTogether.
   ///
   /// In it, this message translates to:

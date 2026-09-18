@@ -6,18 +6,19 @@ import 'package:justus/all_imports.dart';
 class AuthRepository extends BaseRepository {
   final ApiService _api;
 
-  AuthRepository({super.sbClient, ApiService? api}) 
-    : _api = api ?? ApiService();
+  AuthRepository({super.sbClient, ApiService? api})
+      : _api = api ?? ApiService();
 
-
-  Future<ResultWrapper<Map<String, dynamic>>> checkLoginRisk(String email, String deviceFingerprint) async {
+  Future<ResultWrapper<Map<String, dynamic>>> checkLoginRisk(
+      String email, String deviceFingerprint) async {
     return _api.checkLoginRisk({
       'email': email.trim(),
       'deviceFingerprint': deviceFingerprint,
     });
   }
 
-  Future<ResultWrapper<Map<String, dynamic>>> reportFailedLogin(String email, String deviceFingerprint, String? reason) async {
+  Future<ResultWrapper<Map<String, dynamic>>> reportFailedLogin(
+      String email, String deviceFingerprint, String? reason) async {
     return _api.reportFailedLogin({
       'email': email.trim(),
       'deviceFingerprint': deviceFingerprint,
@@ -25,22 +26,36 @@ class AuthRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<Map<String, dynamic>>> syncSession(String deviceFingerprint, String deviceLabel) async {
+  Future<ResultWrapper<Map<String, dynamic>>> syncSession(
+      String deviceFingerprint, String deviceLabel) async {
     return _api.syncSession({
       'deviceFingerprint': deviceFingerprint,
       'deviceLabel': deviceLabel,
     });
   }
 
-
   Session? get currentSession => sbClient.auth.currentSession;
 
-  Future<AuthResponse> signInWithPassword({required String email, required String password, required String captchaToken}) async {
-    return sbClient.auth.signInWithPassword(email: email, password: password, captchaToken: captchaToken);
+  Future<AuthResponse> signInWithPassword(
+      {required String email,
+      required String password,
+      required String captchaToken}) async {
+    return sbClient.auth.signInWithPassword(
+        email: email, password: password, captchaToken: captchaToken);
   }
 
-  Future<AuthResponse> signUp({required String email, required String password, required Map<String, dynamic> data, required String emailRedirectTo, required String captchaToken}) async {
-    return sbClient.auth.signUp(email: email, password: password, data: data, emailRedirectTo: emailRedirectTo, captchaToken: captchaToken);
+  Future<AuthResponse> signUp(
+      {required String email,
+      required String password,
+      required Map<String, dynamic> data,
+      required String emailRedirectTo,
+      required String captchaToken}) async {
+    return sbClient.auth.signUp(
+        email: email,
+        password: password,
+        data: data,
+        emailRedirectTo: emailRedirectTo,
+        captchaToken: captchaToken);
   }
 
   Future<void> signOut() async {
@@ -50,7 +65,10 @@ class AuthRepository extends BaseRepository {
   Future<ResultWrapper<void>> changePassword(
       String currentPassword, String newPassword) async {
     return tryCall(() async {
-      await sbClient.auth.updateUser(UserAttributes(password: newPassword));
+      await sbClient.auth.updateUser(UserAttributes(
+        password: newPassword,
+        currentPassword: currentPassword,
+      ));
     });
   }
 

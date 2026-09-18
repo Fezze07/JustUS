@@ -252,6 +252,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get auth_validationPasswordMismatch => 'Le password non coincidono';
 
   @override
+  String get auth_currentPasswordIncorrect =>
+      'La password attuale non è corretta';
+
+  @override
   String get home_daysTogether => 'GIORNI INSIEME';
 
   @override

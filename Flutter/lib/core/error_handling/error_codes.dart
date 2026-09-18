@@ -16,6 +16,8 @@ class ErrorCodes {
   static const String authFail005 = 'AUTH-FAIL-005'; // Profilo non trovato
   static const String authFail006 = 'AUTH-FAIL-006'; // Device mismatch
   static const String authFailCred = 'AUTH-FAIL-CRED';
+  static const String authFailCurrent =
+      'AUTH-FAIL-CURRENT'; // Vecchia password errata nel cambio password
   static const String authPermission001 =
       'AUTH-PERMISSION-001'; // Capability mancante
 

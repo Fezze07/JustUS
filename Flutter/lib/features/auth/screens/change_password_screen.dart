@@ -16,12 +16,12 @@ class ChangePasswordScreen extends StatefulWidget {
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Controllers
   final _oldController = TextEditingController();
   final _newController = TextEditingController();
   final _confirmController = TextEditingController();
-  
+
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
@@ -118,7 +118,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 context,
                                 newPassword,
                               );
-                              final confirmError = confirmPassword != newPassword
+                              final confirmError = confirmPassword !=
+                                      newPassword
                                   ? context.loc.auth_validationPasswordMismatch
                                   : null;
 
@@ -133,19 +134,48 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 return;
                               }
 
-                              final success = await authState.changePassword(
+                              final result = await authState.changePassword(
                                 currentPassword: oldPassword,
                                 newPassword: newPassword,
                               );
 
                               if (!context.mounted) return;
 
-                              if (success) {
-                                UIUtils.showSnackBar(
-                                  context,
-                                  context.loc.auth_passwordUpdated,
-                                );
-                                Navigator.pop(context);
+                              switch (result) {
+                                case ChangePasswordResult.currentPasswordWrong:
+                                  UIUtils.showSnackBar(
+                                    context,
+                                    context.loc.auth_currentPasswordIncorrect,
+                                    isError: true,
+                                  );
+                                case ChangePasswordResult.failure:
+                                  // ErrorHandler ha già mostrato il feedback
+                                  // generico (rete, captcha, sessione, …).
+                                  break;
+                                case ChangePasswordResult.success:
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  final message =
+                                      context.loc.auth_passwordUpdated;
+                                  final closeLabel = context.loc.common_close;
+                                  final route = ModalRoute.of(context);
+
+                                  Navigator.pop(context);
+
+                                  // Wait until the exit transition finishes so the
+                                  // SnackBar is shown only on the destination Scaffold;
+                                  // otherwise both scaffolds render it simultaneously
+                                  // during the pop animation, creating duplicate Hero
+                                  // tags (flutter/flutter#72139).
+                                  if (route != null) {
+                                    await route.completed;
+                                  }
+
+                                  UIUtils.showSnackBarOn(
+                                    messenger,
+                                    message,
+                                    closeLabel: closeLabel,
+                                  );
                               }
                             },
                           );

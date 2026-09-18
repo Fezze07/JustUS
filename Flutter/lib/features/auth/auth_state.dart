@@ -12,6 +12,14 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import 'package:justus/all_imports.dart';
 
+/// Esito del cambio password, per distinguere il caso specifico in cui la
+/// password attuale è errata dagli altri fallimenti (rete, captcha, …).
+enum ChangePasswordResult {
+  success,
+  currentPasswordWrong,
+  failure,
+}
+
 class AuthState extends BaseState with WidgetsBindingObserver {
   final AuthRepository _authRepo;
   final PartnershipRepository _partnershipRepo;
@@ -349,11 +357,12 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     });
   }
 
-  Future<bool> changePassword({
+  Future<ChangePasswordResult> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
-    return runSafe(() async {
+    setLoading(true);
+    try {
       final email = _authRepo.currentSession?.user.email;
       if (email == null || email.isEmpty) {
         throw const AppError(
@@ -378,8 +387,10 @@ class AuthState extends BaseState with WidgetsBindingObserver {
           captchaToken: captchaToken,
         );
       } on AuthException catch (e) {
+        // La vecchia password è sbagliata: nessuno snackbar generico,
+        // la schermata mostrerà il messaggio specifico.
         throw AppError(
-          code: ErrorCodes.authFailCred,
+          code: ErrorCodes.authFailCurrent,
           message: e.message,
           severity: ErrorSeverity.high,
         );
@@ -402,7 +413,19 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       } else if (result is NetworkError<void>) {
         throw AppError.network();
       }
-    });
+
+      return ChangePasswordResult.success;
+    } catch (e, st) {
+      if (e is AppError && e.code == ErrorCodes.authFailCurrent) {
+        // Solo log, senza UI generica: il messaggio lo decide la schermata.
+        ErrorHandler.handle(e, stackTrace: st, showUI: false);
+        return ChangePasswordResult.currentPasswordWrong;
+      }
+      ErrorHandler.handle(e, stackTrace: st);
+      return ChangePasswordResult.failure;
+    } finally {
+      setLoading(false);
+    }
   }
 
   Future<bool> invitePartner(String email, String partnershipCode) async {

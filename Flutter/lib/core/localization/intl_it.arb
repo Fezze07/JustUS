@@ -125,6 +125,7 @@
   "auth_validationPasswordNumber": "Deve contenere almeno un numero",
   "auth_validationPasswordSymbol": "Deve contenere almeno un simbolo",
   "auth_validationPasswordMismatch": "Le password non coincidono",
+  "auth_currentPasswordIncorrect": "La password attuale non è corretta",
   "home_daysTogether": "GIORNI INSIEME",
   "home_currentMoodTitle": "IL NOSTRO MOOD ATTUALE",
   "home_updateStatus": "Aggiorna stato",

@@ -77,6 +77,7 @@
   "auth_validationPasswordNumber": "Must contain at least one number",
   "auth_validationPasswordSymbol": "Must contain at least one symbol",
   "auth_validationPasswordMismatch": "Passwords do not match",
+  "auth_currentPasswordIncorrect": "The current password is incorrect",
   "home_daysTogether": "DAYS TOGETHER",
   "home_currentMoodTitle": "OUR CURRENT MOOD",
   "home_updateStatus": "Update Status",

@@ -67,6 +67,8 @@ entries = {
   'auth_validationPasswordUppercase': ('Deve contenere almeno una maiuscola', 'Must contain at least one uppercase letter'),
   'auth_validationPasswordNumber': ('Deve contenere almeno un numero', 'Must contain at least one number'),
   'auth_validationPasswordSymbol': ('Deve contenere almeno un simbolo', 'Must contain at least one symbol'),
+  'auth_validationPasswordMismatch': ('Le password non coincidono', 'Passwords do not match'),
+  'auth_currentPasswordIncorrect': ('La password attuale non è corretta', 'The current password is incorrect'),
   'home_daysTogether': ('GIORNI INSIEME', 'DAYS TOGETHER'),
   'home_currentMoodTitle': ('IL NOSTRO MOOD ATTUALE', 'OUR CURRENT MOOD'),
   'home_feelingGood': ('Tutto bene!', 'Feeling Good!'),
