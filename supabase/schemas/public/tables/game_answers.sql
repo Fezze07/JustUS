@@ -41,3 +41,9 @@ CREATE POLICY "game_answers_update_own" ON "public"."game_answers"
   WHERE ((game_questions.id = game_answers.game_id) AND public.is_in_partnership(game_questions.partnership_id)))));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."game_answers" TO "anon", "authenticated", "postgres", "service_role";
+
+CREATE OR REPLACE TRIGGER tr_game_answers_update_question_status
+  AFTER INSERT OR UPDATE ON public.game_answers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_game_question_status();
+
