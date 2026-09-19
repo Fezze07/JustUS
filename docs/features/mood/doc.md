@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a reverse-engineered analysis of the **Mood & Emotions Subsystem** in the JustUS application. It traces the full execution lifecycle of mood updates, emoji selection, partner sharing, timeline rendering, real-time synchronization, caching, and analytics capabilities across the Flutter frontend, Node backend, and Supabase PostgreSQL database.
+This document provides a reverse-engineered analysis of the **Mood & Emotions Subsystem** in the JustUS application. It traces the full execution lifecycle of mood updates, emoji selection, partner sharing, timeline rendering, real-time synchronization, and caching capabilities across the Flutter frontend, Node backend, and Supabase PostgreSQL database.
 
 The mood subsystem allows users to select or input Unicode emojis to express their current emotional state, share mood updates with their linked partner in real-time, view a historical couple mood timeline, and manage a recent emoji history.
 
@@ -64,11 +64,10 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 
 ### Application Model (`MoodEntry`)
 
-Defined in [mood_models.dart:39-87](file:///f:/JustUS/Flutter/lib/features/mood/mood_models.dart#L39-L87):
+Defined in [mood_models.dart:39-83](file:///f:/JustUS/Flutter/lib/features/mood/mood_models.dart#L39-L83):
 - `id` (`int`): Primary key of the mood row.
 - `userId` (`int?`): Owner user ID.
 - `emoji` (`String`): Extracted Unicode emoji string (`emoji_char`).
-- `note` (`String?`): Optional note text (model field present, but backend RPC does not store notes).
 - `createdAt` (`String`): ISO8601 timestamp.
 - `isMine` (`bool`): `true` if `userId == currentUserId`.
 
@@ -164,7 +163,6 @@ User Action (Select Emoji in Sheet or Custom Input)
 ### 2. Custom Text & Single-Emoji Validation
 - Users can input any valid Unicode emoji in the text field in `EmojiPickerSheet`.
 - String validation uses `input.characters.length != 1` to support multi-byte Unicode emoji grapheme clusters while blocking multi-character text strings.
-- **Custom Note Field**: Model `MoodEntry` contains a `note` property, but neither `set_mood` RPC nor the Flutter `updateMood()` method accepts or persists custom note text.
 
 ### 3. Recent Emojis
 - Fetched via `MoodRepository.fetchRecentCoupleEmojis()` ([mood_repository.dart:86-109](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L86-L109)).
@@ -183,33 +181,6 @@ User Action (Select Emoji in Sheet or Custom Input)
 - `loadMoreTimeline()` increments `_timelineOffset` and appends next batch of 4 items using `.range(offset, offset + limit - 1)`.
 - Renders entry timestamp formatted as `d MMMM` (e.g., "11 Settembre") and `HH:mm` (e.g., "20:45").
 - Displays color-coded borders: `AppColors.primary` for user's own entries (`isMine: true`), `Colors.pinkAccent` for partner's entries (`isMine: false`).
-
----
-
-## Analytics & Trend Calculations
-
-The task prompt required analyzing analytics calculations and verifying operation on the stored dataset:
-
-### Empirical Audit Findings
-
-1. **Analytics UI Button**:
-   - File: [mood_screen.dart:49-52](file:///f:/JustUS/Flutter/lib/features/mood/screens/mood_screen.dart#L49-L52)
-   - `MoodScreen` app bar includes an analytics icon button (`Icons.analytics`).
-   - **Finding**: The `onPressed` callback is completely **empty** (`onPressed: () {}`). Tapping the analytics button performs no action and renders no charts or statistical views.
-
-2. **Trend Calculations**:
-   - The "Recent Trends" feature described in project documentation operates strictly on `fetchRecentCoupleEmojis()` ([mood_repository.dart:86-109](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L86-L109)).
-   - **Algorithm**:
-     ```dart
-     final data = await _fetchMoodsForUsers([uid, partnerId], select: 'emojis(emoji_char)', limit: 10);
-     final emojis = data.map((m) => m['emojis']['emoji_char']).where((e) => e.isNotEmpty).toList();
-     final unique = <String>[];
-     for (final e in emojis) {
-       if (seen.add(e)) unique.add(e);
-     }
-     return unique;
-     ```
-   - **Verification**: Operates directly on the actual `public.moods` dataset for the active couple. It selects the 10 most recent entries from the database, extracts emoji characters, and returns a unique ordered list representing current emotional trends.
 
 ---
 
@@ -247,23 +218,7 @@ The task prompt required analyzing analytics calculations and verifying operatio
 
 During reverse-engineering analysis, the following technical findings were identified:
 
-### 1. DEFECT: Dead Analytics Button in `MoodScreen`
-
-* **WHAT**: The analytics icon button in `MoodScreen` header has an empty callback.
-* **WHERE**: [mood_screen.dart:49-52](file:///f:/JustUS/Flutter/lib/features/mood/screens/mood_screen.dart#L49-L52)
-* **WHY**: Button was placed in UI layout but analytics view / chart calculation screen was never implemented.
-* **WHEN**: User taps the analytics icon in the top app bar of `MoodScreen`.
-* **IMPACT**: No feedback or screen transition occurs when tapped.
-* **CONFIDENCE**: **HIGH**
-
-### 2. INCONSISTENCY: Unused `note` Field in Data Model
-
-* **WHAT**: `MoodEntry` model contains a `note` property, but `set_mood` RPC and `updateMood()` method do not support custom notes.
-* **WHERE**: [mood_models.dart:44](file:///f:/JustUS/Flutter/lib/features/mood/mood_models.dart#L44) and [mood_repository.dart:8-29](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L8-L29)
-* **WHY**: Database schema / RPC `set_mood` takes only `p_emoji_char`. Notes are not stored in `public.moods`.
-* **WHEN**: Inspecting model definitions vs database functions.
-* **IMPACT**: Dead model property.
-* **CONFIDENCE**: **HIGH**
+- None (all prior findings fixed).
 
 ---
 
@@ -279,6 +234,4 @@ During reverse-engineering analysis, the following technical findings were ident
 | Mood Timeline & Pagination | **IMPLEMENTED** | `fetchTimeline()` with offset pagination |
 | Realtime Synchronization | **IMPLEMENTED** | `RealtimeSyncService` listens to `moods` INSERTs |
 | Checkpoint & Cache Strategy | **IMPLEMENTED** | `CheckpointMixin` + `CacheService.kMoods` |
-| Mood Analytics Button | **NOT IMPLEMENTED** | Button exists in UI with empty `onPressed` callback |
-| Mood Note Field | **NOT IMPLEMENTED** | Model property exists, but backend RPC lacks note column |
 | Edit / Delete Mood Entries | **NOT IMPLEMENTED** | Append-only database design |

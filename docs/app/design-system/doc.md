@@ -377,7 +377,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 
 ### F-DS11: Accessibility not implemented
 
-**What**: **zero** `Semantics` and zero `Tooltip` usages anywhere in `lib/`. Icon-only `IconButton`s (mood back/analytics, bucket delete, drive ellipsis, invitation check/close) have no tooltips; nav icon buttons and link/text-buttons frequently use `GestureDetector` without button semantics (`VPSectionHeader` action, `VPFilterChip`, `VPAuthLink`, homepage `_NavIconButton`, `_GlassIconButton`); toggles lack state announcements.
+**What**: **zero** `Semantics` and zero `Tooltip` usages anywhere in `lib/`. Icon-only `IconButton`s (mood back, bucket delete, drive ellipsis, invitation check/close) have no tooltips; nav icon buttons and link/text-buttons frequently use `GestureDetector` without button semantics (`VPSectionHeader` action, `VPFilterChip`, `VPAuthLink`, homepage `_NavIconButton`, `_GlassIconButton`); toggles lack state announcements.
 **Impact**: screen-reader UX degraded; no accessibility regression protection.
 **Confidence**: HIGH.
 

@@ -41,7 +41,6 @@ class MoodEntry {
   final int? userId;
   /// Dynamic emoji character string (any Unicode emoji)
   final String emoji;
-  final String? note;
   final String createdAt;
   final bool isMine;
 
@@ -49,7 +48,6 @@ class MoodEntry {
     required this.id,
     this.userId,
     required this.emoji,
-    this.note,
     required this.createdAt,
     this.isMine = false,
   });
@@ -68,7 +66,6 @@ class MoodEntry {
       id: (json['id'] as num?)?.toInt() ?? 0,
       userId: userId,
       emoji: emojiChar,
-      note: json['note'] as String?,
       createdAt: (json['created_at'] as String?) ?? '',
       isMine: mine,
     );
@@ -79,7 +76,6 @@ class MoodEntry {
       'id': id,
       'user_id': userId,
       'emoji': emoji,
-      'note': note,
       'created_at': createdAt,
       'is_mine': isMine,
     };

@@ -45,12 +45,6 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
         icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
         onPressed: () => Navigator.pop(context),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.analytics, color: AppColors.primary),
-          onPressed: () {},
-        ),
-      ],
       body: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(
         selector: (_, s) => (s.recentEmojis, s.timeline, s.hasMoreTimeline),
         builder: (context, moodData, _) {
