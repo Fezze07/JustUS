@@ -605,9 +605,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mood_recents => 'YOUR RECENTS';
 
   @override
-  String get mood_edit => 'Edit';
-
-  @override
   String get mood_howFeeling => 'How are you feeling?';
 
   @override

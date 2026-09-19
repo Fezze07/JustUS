@@ -609,9 +609,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mood_recents => 'I TUOI RECENTI';
 
   @override
-  String get mood_edit => 'Modifica';
-
-  @override
   String get mood_howFeeling => 'Come ti senti?';
 
   @override

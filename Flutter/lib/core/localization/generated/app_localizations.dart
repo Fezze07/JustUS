@@ -1250,12 +1250,6 @@ abstract class AppLocalizations {
   /// **'I TUOI RECENTI'**
   String get mood_recents;
 
-  /// No description provided for @mood_edit.
-  ///
-  /// In it, this message translates to:
-  /// **'Modifica'**
-  String get mood_edit;
-
   /// No description provided for @mood_howFeeling.
   ///
   /// In it, this message translates to:

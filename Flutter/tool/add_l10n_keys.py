@@ -173,7 +173,6 @@ entries = {
   'bucket_updateError': ('Errore aggiornamento item', 'Error updating item'),
   'mood_boardTitle': ('Mood Board', 'Mood Board'),
   'mood_recents': ('I TUOI RECENTI', 'YOUR RECENTS'),
-  'mood_edit': ('Modifica', 'Edit'),
   'mood_label': ('Mood', 'Mood'),
   'mood_howFeeling': ('Come ti senti?', 'How are you feeling?'),
   'mood_timeline': ('Timeline', 'Timeline'),

@@ -61,11 +61,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  VPSectionHeader(
-                    title: context.loc.mood_recents,
-                    actionLabel: context.loc.mood_edit,
-                    onActionTap: () {},
-                  ),
+                  VPSectionHeader(title: context.loc.mood_recents),
 
                   if (recentEmojis.isEmpty)
                     Padding(
