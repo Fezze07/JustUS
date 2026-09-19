@@ -230,6 +230,12 @@ abstract class AppLocalizations {
   /// **'Annulla'**
   String get common_cancel;
 
+  /// No description provided for @common_save.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva'**
+  String get common_save;
+
   /// No description provided for @common_close.
   ///
   /// In it, this message translates to:
@@ -793,6 +799,36 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'DISCONNETTI SESSIONE'**
   String get profile_disconnectSession;
+
+  /// No description provided for @profile_identitySection.
+  ///
+  /// In it, this message translates to:
+  /// **'IDENTITÀ'**
+  String get profile_identitySection;
+
+  /// No description provided for @profile_displayNameTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nome visualizzato'**
+  String get profile_displayNameTitle;
+
+  /// No description provided for @profile_displayNameSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Come appari al tuo partner'**
+  String get profile_displayNameSubtitle;
+
+  /// No description provided for @profile_displayNameEmpty.
+  ///
+  /// In it, this message translates to:
+  /// **'Il nome non può essere vuoto'**
+  String get profile_displayNameEmpty;
+
+  /// No description provided for @profile_saved.
+  ///
+  /// In it, this message translates to:
+  /// **'Salvato!'**
+  String get profile_saved;
 
   /// No description provided for @partner_title.
   ///

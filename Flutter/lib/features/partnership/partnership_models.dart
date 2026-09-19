@@ -45,7 +45,6 @@ class PartnershipResponse {
         id: (json['partner_id'] as num).toInt(),
         displayName: json['partner_display_name'] as String?,
         profilePicUrl: json['partner_profile_pic_url'] as String?,
-        bio: json['partner_bio'] as String?,
       );
     }
 

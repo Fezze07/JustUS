@@ -56,7 +56,7 @@ The partnership architecture spans three main layers:
 3. **Database Layer (Supabase / PostgreSQL)**:
    - `public.partnerships`: Main database table storing pair relationships with columns `id`, `user_id_1`, `user_id_2`, `status`, `anniversary_date`, `created_at`, `updated_at`.
    - `public.user_profiles`: Stores user profile metadata including unique `partnership_code`.
-   - `v_active_partnership`: PostgreSQL view returning the accepted partner's profile details (`partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`).
+   - `v_active_partnership`: PostgreSQL view returning the accepted partner's profile details (`partner_id`, `partner_display_name`, `partner_profile_pic_url`).
    - Stored Procedures: `request_partnership(partner_email, partner_code)`, `accept_partnership(p_partnership_id)`, and `get_pending_invitations()` (pending-request identity for the caller only).
 
 ---
@@ -119,7 +119,7 @@ The partnership subsystem defines three logical states per user:
 
 5. **`v_active_partnership` Resolution Logic**:
    - The view filters `public.partnerships` where the querying user is either `user_id_1` or `user_id_2` and `status = 'accepted'`.
-   - It returns the partner's profile (`partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`). The partner's `users` row is not read: `partner_id` is derived from `user_id_1`/`user_id_2` and joined directly to `user_profiles`.
+   - It returns the partner's profile (`partner_id`, `partner_display_name`, `partner_profile_pic_url`). The partner's `users` row is not read: `partner_id` is derived from `user_id_1`/`user_id_2` and joined directly to `user_profiles`.
    - Pending invitations are **not** part of this view. They are fetched separately through the scoped `get_pending_invitations()` RPC, which returns only the caller's pending rows.
 
 ---

@@ -59,7 +59,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
   - `profiles_select_self_or_partner` (SELECT): `TO authenticated USING (user_id = public.current_user_id() OR private.is_related_user(user_id))`
   - `profiles_insert_self` (INSERT): `WITH CHECK (user_id = public.current_user_id())`
   - `profiles_update_self` (UPDATE): `USING` + `WITH CHECK (user_id = public.current_user_id())`
-- **Assessment:** **SELF + ACCEPTED PARTNER**. `private.is_related_user` is a `SECURITY DEFINER`, non-exposed helper that returns true only when the caller and the target share a partnership whose `status = 'accepted'`. `partnership_code`, bios and pictures of unrelated users (and of *pending* invitees) are no longer reachable through table SELECT.
+- **Assessment:** **SELF + ACCEPTED PARTNER**. `private.is_related_user` is a `SECURITY DEFINER`, non-exposed helper that returns true only when the caller and the target share a partnership whose `status = 'accepted'`. `partnership_code` and pictures of unrelated users (and of *pending* invitees) are no longer reachable through table SELECT.
 
 #### Pending invitation identity
 - Pending requests still need the counterpart's display name in the partners screen, but neither `users` nor `user_profiles` exposes pending invitees.

@@ -81,17 +81,17 @@ class ProfileState extends BaseState {
     });
   }
 
-  Future<void> updateBio(String? bio) async {
-    await runSafe(() async {
-      final result = await _userRepo.updateBio(bio);
+  Future<bool> updateDisplayName(String displayName) async {
+    return runSafe(() async {
+      final result = await _userRepo.updateDisplayName(displayName);
+      if (result is! Success<void>) throw result;
 
-      await handleResult(result, onSuccess: (_) async {
-        if (_userProfile != null) {
-          _userProfile = _userProfile!.copyWith(bio: bio);
-          await StorageService.saveUserProfile(_userProfile!);
-        }
-        setMessage('Bio aggiornata!');
-      });
+      if (_userProfile != null) {
+        _userProfile = _userProfile!.copyWith(displayName: displayName);
+        await StorageService.saveUserProfile(_userProfile!);
+      }
+      await StorageService.saveUsername(displayName);
+      setMessage('Nome aggiornato!');
     });
   }
 

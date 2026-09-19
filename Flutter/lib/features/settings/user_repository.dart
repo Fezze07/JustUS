@@ -12,7 +12,7 @@ class UserRepository extends BaseRepository {
     return tryCall(() async {
       final profile = await sbClient
           .from('users')
-          .select('id, email, auth_id, created_at, user_profiles(display_name, profile_pic_url, bio, partnership_code)')
+          .select('id, email, auth_id, created_at, user_profiles(display_name, profile_pic_url, partnership_code)')
           .eq('auth_id', authId)
           .maybeSingle();
 
@@ -26,21 +26,12 @@ class UserRepository extends BaseRepository {
     return withUser((uid) async {
       final data = await sbClient
           .from('users')
-          .select('id, email, auth_id, created_at, user_profiles(display_name, profile_pic_url, bio, partnership_code)')
+          .select('id, email, auth_id, created_at, user_profiles(display_name, profile_pic_url, partnership_code)')
           .eq('id', uid)
           .maybeSingle();
       if (data == null) throw Exception('Profilo non trovato');
 
       return User.fromJson(data);
-    });
-  }
-
-  Future<ResultWrapper<void>> updateBio(String? bio) async {
-    return withUser((uid) async {
-      await sbClient
-          .from('user_profiles')
-          .update({'bio': bio})
-          .eq('user_id', uid);
     });
   }
 

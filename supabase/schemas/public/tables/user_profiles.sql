@@ -4,7 +4,6 @@ CREATE TABLE "public"."user_profiles" (
   "profile_pic_url"  text,
   "created_at"       timestamp with time zone DEFAULT now(),
   "updated_at"       timestamp with time zone DEFAULT now(),
-  "bio"              text,
   "partnership_code" text,
   CONSTRAINT "user_profiles_partnership_code_key" UNIQUE (partnership_code),
   CONSTRAINT "user_profiles_pkey" PRIMARY KEY (user_id),

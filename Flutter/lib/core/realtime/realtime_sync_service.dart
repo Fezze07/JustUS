@@ -14,6 +14,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     required BucketState bucketState,
     required GameState gameState,
     required DriveState driveState,
+    required ProfileState profileState,
     sb.SupabaseClient? client,
   })  : _authState = authState,
         _moodState = moodState,
@@ -22,6 +23,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
         _bucketState = bucketState,
         _gameState = gameState,
         _driveState = driveState,
+        _profileState = profileState,
         _client = client ?? SupabaseService().client;
 
   final AuthState _authState;
@@ -31,6 +33,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
   final BucketState _bucketState;
   final GameState _gameState;
   final DriveState _driveState;
+  final ProfileState _profileState;
   final sb.SupabaseClient _client;
 
   sb.RealtimeChannel? _channel;
@@ -42,6 +45,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
   Timer? _bucketRefreshTimer;
   Timer? _gameRefreshTimer;
   Timer? _driveRefreshTimer;
+  Timer? _userProfileRefreshTimer;
   Timer? _lifecycleDebounceTimer;
   Timer? _pollingFallbackTimer;
 
@@ -121,16 +125,20 @@ class RealtimeSyncService with WidgetsBindingObserver {
     final changed = _userId != userId ||
         _partnerId != partnerId ||
         _partnershipId != partnershipId;
-    AnsiLogger.realtime(
-        'configure() - userId=$userId partnerId=$partnerId partnershipId=$partnershipId changed=$changed foreground=$_foreground');
     _reconnectAttempt = 0;
     _consecutiveFailures = 0;
-    if (_usePollingFallback) {
-      _deactivatePollingFallback();
-    }
     _userId = userId;
     _partnerId = partnerId;
     _partnershipId = partnershipId;
+
+    if (!changed) return;
+
+    AnsiLogger.realtime(
+        'configure() - CHANGE: userId=$userId partnerId=$partnerId partnershipId=$partnershipId foreground=$_foreground');
+
+    if (_usePollingFallback) {
+      _deactivatePollingFallback();
+    }
 
     if (userId == null || partnershipId == null) {
       AnsiLogger.realtime(
@@ -139,7 +147,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
       return;
     }
 
-    if (changed && _foreground) {
+    if (_foreground) {
       _scheduleReconnect();
     }
   }
@@ -314,6 +322,12 @@ class RealtimeSyncService with WidgetsBindingObserver {
             schema: 'public',
             table: 'drive_item_reactions',
             callback: _handleDrivePayload,
+          )
+          .onPostgresChanges(
+            event: sb.PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_profiles',
+            callback: _handleUserProfilesPayload,
           );
 
       _channel = channel;
@@ -493,6 +507,26 @@ class RealtimeSyncService with WidgetsBindingObserver {
     });
   }
 
+  void _handleUserProfilesPayload(sb.PostgresChangePayload payload) {
+    AnsiLogger.realtime(
+        '_handleUserProfilesPayload - table=${payload.table} eventType=${payload.eventType.name}');
+    if (_suppressProcessing) return;
+    if (payload.eventType.name != 'update') return;
+    if (!_isRelevantUserProfile(payload) || !_markSeen(payload)) return;
+
+    _userProfileRefreshTimer?.cancel();
+    _userProfileRefreshTimer = Timer(const Duration(milliseconds: 150), () {
+      AnsiLogger.realtime(
+          '_handleUserProfilesPayload -> refresh profiles (user/partner)');
+      BaseRepository.clearPartnershipCache();
+      unawaited(Future.wait([
+        _profileState.loadProfile(force: true),
+        _partnerState.refreshFromRealtime(),
+        _authState.refreshPartnershipFromRealtime(),
+      ]));
+    });
+  }
+
   void _handleDrivePayload(sb.PostgresChangePayload payload) {
     AnsiLogger.realtime(
         '_handleDrivePayload - table=${payload.table} eventType=${payload.eventType.name}');
@@ -504,6 +538,13 @@ class RealtimeSyncService with WidgetsBindingObserver {
       AnsiLogger.realtime('_handleDrivePayload -> refreshFromRealtime()');
       unawaited(_driveState.refreshFromRealtime());
     });
+  }
+
+  bool _isRelevantUserProfile(sb.PostgresChangePayload payload) {
+    final userId = _rowInt(_currentRecord(payload), 'user_id');
+    if (userId == null) return false;
+
+    return userId == _userId || userId == _partnerId;
   }
 
   bool _isRelevantMood(sb.PostgresChangePayload payload) {
@@ -635,6 +676,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _bucketRefreshTimer?.cancel();
     _gameRefreshTimer?.cancel();
     _driveRefreshTimer?.cancel();
+    _userProfileRefreshTimer?.cancel();
     await _authSubscription?.cancel();
     await _unsubscribe();
   }

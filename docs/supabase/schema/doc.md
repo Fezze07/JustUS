@@ -47,7 +47,6 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `user_id`: `integer` NOT NULL
   - `display_name`: `text`
   - `profile_pic_url`: `text`
-  - `bio`: `text`
   - `partnership_code`: `text` UNIQUE
   - `created_at`: `timestamp with time zone` DEFAULT `now()`
   - `updated_at`: `timestamp with time zone` DEFAULT `now()`

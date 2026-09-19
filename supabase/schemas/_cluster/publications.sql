@@ -13,3 +13,5 @@ ALTER PUBLICATION "supabase_realtime" ADD TABLE "public"."missyou";
 ALTER PUBLICATION "supabase_realtime" ADD TABLE "public"."moods";
 
 ALTER PUBLICATION "supabase_realtime" ADD TABLE "public"."partnerships";
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE "public"."user_profiles";

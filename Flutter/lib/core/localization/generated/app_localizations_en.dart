@@ -76,6 +76,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get common_cancel => 'Cancel';
 
   @override
+  String get common_save => 'Save';
+
+  @override
   String get common_close => 'Close';
 
   @override
@@ -372,6 +375,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profile_disconnectSession => 'DISCONNECT SESSION';
+
+  @override
+  String get profile_identitySection => 'IDENTITY';
+
+  @override
+  String get profile_displayNameTitle => 'Display name';
+
+  @override
+  String get profile_displayNameSubtitle => 'How you appear to your partner';
+
+  @override
+  String get profile_displayNameEmpty => 'Name can\'t be empty';
+
+  @override
+  String get profile_saved => 'Saved!';
 
   @override
   String get partner_title => 'Who are you connecting\nwith today?';

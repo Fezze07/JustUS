@@ -12,7 +12,6 @@ class User {
   // Joined from user_profiles (via v_active_partnership or explicit join)
   final String? displayName;
   final String? profilePicUrl;
-  final String? bio;
   final String? partnershipCode;
 
   User({
@@ -22,7 +21,6 @@ class User {
     this.createdAt,
     this.displayName,
     this.profilePicUrl,
-    this.bio,
     this.partnershipCode,
   });
 
@@ -43,7 +41,6 @@ class User {
           json['username']) as String?,
       profilePicUrl:
           (profile?['profile_pic_url'] ?? json['profile_pic_url']) as String?,
-      bio: (profile?['bio'] ?? json['bio']) as String?,
       partnershipCode:
           (profile?['partnership_code'] ?? json['partnership_code']) as String?,
     );
@@ -57,7 +54,6 @@ class User {
       'created_at': createdAt,
       'display_name': displayName,
       'profile_pic_url': profilePicUrl,
-      'bio': bio,
       'partnership_code': partnershipCode,
     };
   }
@@ -69,7 +65,6 @@ class User {
     String? createdAt,
     String? displayName,
     String? profilePicUrl,
-    String? bio,
     String? partnershipCode,
   }) {
     return User(
@@ -79,7 +74,6 @@ class User {
       createdAt: createdAt ?? this.createdAt,
       displayName: displayName ?? this.displayName,
       profilePicUrl: profilePicUrl ?? this.profilePicUrl,
-      bio: bio ?? this.bio,
       partnershipCode: partnershipCode ?? this.partnershipCode,
     );
   }

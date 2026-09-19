@@ -76,6 +76,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get common_cancel => 'Annulla';
 
   @override
+  String get common_save => 'Salva';
+
+  @override
   String get common_close => 'Chiudi';
 
   @override
@@ -374,6 +377,21 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get profile_disconnectSession => 'DISCONNETTI SESSIONE';
+
+  @override
+  String get profile_identitySection => 'IDENTITÀ';
+
+  @override
+  String get profile_displayNameTitle => 'Nome visualizzato';
+
+  @override
+  String get profile_displayNameSubtitle => 'Come appari al tuo partner';
+
+  @override
+  String get profile_displayNameEmpty => 'Il nome non può essere vuoto';
+
+  @override
+  String get profile_saved => 'Salvato!';
 
   @override
   String get partner_title => 'Con chi vuoi connetterti\noggi?';

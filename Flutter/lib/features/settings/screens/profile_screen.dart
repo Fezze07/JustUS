@@ -60,6 +60,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context, () => LogoutUtils.performLogout(context));
   }
 
+  Future<String?> _showTextEditDialog({
+    required String title,
+    required String initialValue,
+    required String fieldHint,
+    required int maxLines,
+    required bool allowEmpty,
+    required String emptyMessage,
+  }) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _TextEditDialog(
+        title: title,
+        initialValue: initialValue,
+        fieldHint: fieldHint,
+        maxLength: maxLines > 1 ? 280 : 60,
+        maxLines: maxLines,
+        allowEmpty: allowEmpty,
+        emptyMessage: emptyMessage,
+      ),
+    );
+
+    return result?.trim();
+  }
+
+Future<void> _editDisplayName(User user) async {
+    final value = await _showTextEditDialog(
+      title: context.loc.profile_displayNameTitle,
+      fieldHint: context.loc.profile_displayNameTitle,
+      initialValue: user.username,
+      maxLines: 1,
+      allowEmpty: false,
+      emptyMessage: context.loc.profile_displayNameEmpty,
+    );
+    if (!mounted || value == null || value == user.username) return;
+
+    final saved =
+        await context.read<ProfileState>().updateDisplayName(value);
+    if (saved && mounted) {
+      UIUtils.showSnackBar(context, context.loc.profile_saved);
+    }
+  }
+
   Future<void> _showWipeConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -241,19 +283,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
-                  if (user?.bio != null && user!.bio!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      user.bio!,
-                      textAlign: TextAlign.center,
-                      style: VpWidgets.googleFont(
-                        fontSize: 14,
-                        color: Colors.white54,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-
                   const SizedBox(height: 48),
 
                   // Settings Sections
@@ -371,6 +400,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ]),
 
+                  const SizedBox(height: 24),
+
+                  VPSectionHeader(title: context.loc.profile_identitySection),
+                  VPSettingGroup(children: [
+                    VPSettingTile(
+                      icon: Icons.badge_outlined,
+                      title: context.loc.profile_displayNameTitle,
+                      subtitle: user?.username ?? context.loc.common_youTitle,
+                      trailing:
+                          const Icon(Icons.edit, color: Colors.white54),
+                      color: AppColors.neonGreen,
+                      onTap: () {
+                        if (user != null) unawaited(_editDisplayName(user));
+                      },
+                    ),
+                  ]),
+
                   if (kDebugMode) ...[
                     const SizedBox(height: 48),
                     VPSectionHeader(title: context.loc.profile_debugUtilitiesSection),
@@ -440,6 +486,108 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class _TextEditDialog extends StatefulWidget {
+  const _TextEditDialog({
+    required this.title,
+    required this.initialValue,
+    required this.fieldHint,
+    required this.maxLength,
+    required this.maxLines,
+    required this.allowEmpty,
+    required this.emptyMessage,
+  });
+
+  final String title;
+  final String initialValue;
+  final String fieldHint;
+  final int maxLength;
+  final int maxLines;
+  final bool allowEmpty;
+  final String emptyMessage;
+
+  @override
+  State<_TextEditDialog> createState() => _TextEditDialogState();
+}
+
+class _TextEditDialogState extends State<_TextEditDialog> {
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.deepViolet,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24)),
+      title: Text(
+        widget.title,
+        style: VpWidgets.googleFont(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
+      ),
+      content: TextField(
+        key: const ValueKey('edit-text-field'),
+        controller: _controller,
+        autofocus: true,
+        maxLines: widget.maxLines,
+        minLines: widget.maxLines > 1 ? 2 : 1,
+        maxLength: widget.maxLength,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: widget.fieldHint,
+          hintStyle: const TextStyle(color: Colors.white38),
+          errorText: _errorText,
+          counterStyle: const TextStyle(color: Colors.white38),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+                color: AppColors.neonPurple.withValues(alpha: 0.3)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.neonPurple),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.loc.common_cancel,
+              style: const TextStyle(color: Colors.white54)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.neonPurple),
+          onPressed: () {
+            final value = _controller.text.trim();
+            if (!widget.allowEmpty && value.isEmpty) {
+              setState(() => _errorText = widget.emptyMessage);
+              return;
+            }
+            Navigator.pop(context, value);
+          },
+          child: Text(context.loc.common_save,
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
     );
   }
 }

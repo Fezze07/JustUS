@@ -44,8 +44,8 @@ BEGIN
             SELECT user_id_2 FROM partnerships WHERE id = v_partnership_id
         );
         
-        -- Reset profile info (bio, pic) for both partners
-        UPDATE user_profiles SET bio = NULL, profile_pic_url = NULL 
+        -- Reset profile info (pic) for both partners
+        UPDATE user_profiles SET profile_pic_url = NULL 
         WHERE user_id IN (
             SELECT user_id_1 FROM partnerships WHERE id = v_partnership_id
             UNION

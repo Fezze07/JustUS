@@ -29,6 +29,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
       bucketState: context.read<BucketState>(),
       gameState: context.read<GameState>(),
       driveState: context.read<DriveState>(),
+      profileState: context.read<ProfileState>(),
     )..start();
     AnsiLogger.realtime('RealtimeSyncScope created');
   }

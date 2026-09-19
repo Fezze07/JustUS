@@ -10,11 +10,11 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `v_active_partnership`
 * **SQL Source:** `supabase/schemas/public/views/v_active_partnership.sql`
-* **Purpose:** Provides a single, unified view of the current user's active relationship, including status, anniversary date, and the partner's profile details (display name, bio, profile picture). The partner's `users` row is intentionally not read.
+* **Purpose:** Provides a single, unified view of the current user's active relationship, including status, anniversary date, and the partner's profile details (display name, profile picture). The partner's `users` row is intentionally not read.
 * **Security Context:** `WITH (security_invoker = true)`
   - Inherits RLS policies of underlying tables (`partnerships`, `user_profiles`) based on the authenticated caller's JWT token.
 * **Inputs:** None (Implicitly uses `public.current_user_id()` derived from `auth.uid()`).
-* **Outputs:** `partnership_id`, `status`, `anniversary_date`, `partner_id`, `partner_display_name`, `partner_profile_pic_url`, `partner_bio`, `user_id_a`, `user_id_b`.
+* **Outputs:** `partnership_id`, `status`, `anniversary_date`, `partner_id`, `partner_display_name`, `partner_profile_pic_url`, `user_id_a`, `user_id_b`.
 * **Tables Touched:** `public.partnerships` (READ), `public.user_profiles` (READ).
 * **Execution Condition:** `(user_id_1 = current_user_id() OR user_id_2 = current_user_id()) AND status = 'accepted'`.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
@@ -80,7 +80,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Outputs:** `void`.
 * **Tables Touched:** `partnerships` (READ), `drive_items` (DELETE), `bucket_items` (DELETE), `game_questions` (DELETE), `game_answers` (DELETE), `missyou` (DELETE), `favorites` (DELETE), `drive_item_reactions` (DELETE), `moods` (DELETE), `user_profiles` (UPDATE), `logs_notifications` (DELETE).
 * **Caller:** Backend Integration Tests / Admin Tools via `service_role`.
-* **Side Effects:** Massive destructive purge of user & partner files, games, bucket list items, reactions, moods, notifications, and profile details (bio and picture reset to NULL).
+* **Side Effects:** Massive destructive purge of user & partner files, games, bucket list items, reactions, moods, notifications, and profile details (picture reset to NULL).
 
 ---
 

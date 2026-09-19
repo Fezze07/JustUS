@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Profile & Settings** feature in JustUS manages user profile attributes (avatar photo, display name, bio), system preferences (language/localization, notifications, theme), security actions (password change navigation, logout), app version display, and debug maintenance operations (account domain wipe).
+The **Profile & Settings** feature in JustUS manages user profile attributes (avatar photo, display name), system preferences (language/localization, notifications, theme), security actions (password change navigation, logout), app version display, and debug maintenance operations (account domain wipe).
 
 This document provides a reverse-engineering technical analysis of the end-to-end implementation across the Flutter mobile app, Node.js/Express backend server, and Supabase PostgreSQL database.
 
@@ -10,15 +10,16 @@ This document provides a reverse-engineering technical analysis of the end-to-en
 
 ## Functional Behavior
 
-1. **Connected Avatar & Partner Info**: Displays linked user and partner avatars in a dual-hero avatar badge connected by a neon gradient line. Displays user and partner usernames, anniversary date badge, and user bio.
-2. **Profile Image Picker & Upload**: Tapping the user avatar opens the device gallery, crops/resizes the image to max 512x512 pixels, compresses it to 80% JPEG quality, uploads it directly to Cloudflare R2 via a backend-signed PUT URL, and updates the `user_profiles` database record.
-3. **Partner Code Sharing**: Displays the user's unique partnership code with a single-tap copy action to the system clipboard.
-4. **Anniversary Date Selection**: Interactive date picker allowing users to set or update their partnership anniversary date.
-5. **Language & Localization Management**: Navigates to `/localization` to select between supported languages (Italian and English), persisting the preference across app restarts and dynamically switching localized string lookup.
-6. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
-7. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
-8. **App Version Display & Update Check**: Displays local app version (`v{version}`) at the footer of the profile screen. Automatic update checks run on app startup (`HomepageScreen`).
-9. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL and local storage without invalidating authentication tokens.
+1. **Connected Avatar & Partner Info**: Displays linked user and partner avatars in a dual-hero avatar badge connected by a neon gradient line. Displays user and partner usernames and the anniversary date badge.
+2. **Profile Image Picker & Upload**: Tapping the user avatar opens a camera/gallery bottom sheet (`MediaPickerService`), crops/resizes the image to max 512x512 pixels, compresses it to 80% JPEG quality, uploads it directly to Cloudflare R2 via a backend-signed PUT URL, and updates the `user_profiles` database record.
+3. **Display Name Editing**: An "IDENTITY" setting group lets the user edit their display name (required, max 60 chars) through an edit dialog wired to `ProfileState.updateDisplayName`. Edits persist to `user_profiles`, update local caches, and propagate to partner devices in realtime.
+4. **Partner Code Sharing**: Displays the user's unique partnership code with a single-tap copy action to the system clipboard.
+5. **Anniversary Date Selection**: Interactive date picker allowing users to set or update their partnership anniversary date.
+6. **Language & Localization Management**: Navigates to `/localization` to select between supported languages (Italian and English), persisting the preference across app restarts and dynamically switching localized string lookup.
+7. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
+8. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
+9. **App Version Display & Update Check**: Displays local app version (`v{version}`) at the footer of the profile screen. Automatic update checks run on app startup (`HomepageScreen`).
+10. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL and local storage without invalidating authentication tokens.
 
 ---
 
@@ -31,6 +32,17 @@ User Taps Avatar → Gallery Picker (512x512) → Image Selected → Local File 
   → HTTP PUT to Cloudflare R2 → POST /api/v1/media/complete (kind: 'profile')
   → UPDATE user_profiles SET profile_pic_url = filename
   → Local Storage & ProfileState Updated → Avatar Refreshed
+```
+
+### Display Name Edit Flow
+```
+Profile Screen → Identity Group → Tap Display name → Edit Dialog (TextField)
+  → Save → ProfileState.updateDisplayName
+  → UserRepository.updateDisplayName → UPDATE user_profiles SET display_name
+  → ProfileState updates in-memory model + StorageService caches (user_profile, username)
+  → Realtime: user_profiles UPDATE → RealtimeSyncService._handleUserProfilesPayload
+      → clearPartnershipCache + ProfileState.loadProfile(force: true)
+      → PartnerState/AuthState.refreshFromRealtime → partner device UI + storage updated
 ```
 
 ### Language Selection Flow
@@ -82,16 +94,15 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Frontend
 
 ### Screens & Widgets
-- [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart): Main violet-punk styled screen rendering connected avatars, names, partner code, settings sections, debug utilities, logout button, and version label.
+- [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart): Main violet-punk styled screen rendering connected avatars, names, partner code, IDENTITY setting group (display name edit dialog), debug utilities, logout button, and version label.
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart): Screen listing supported languages (`_LanguageTile`) and AI translation readiness card.
 - [`change_password_screen.dart`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Form with text fields for current password, new password, and confirmation password.
 
 ### Key Logic & Repositories
-- [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart): Manages `_userProfile`, `_partnerProfile`, `_isUploading`, `_anniversaryDate`, throttling server profile fetches (1-minute window), uploading profile photos, updating bio, and calling `wipeAppData()`.
+- [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart): Manages `_userProfile`, `_partnerProfile`, `_isUploading`, `_anniversaryDate`, throttling server profile fetches (1-minute window), uploading profile photos, updating the display name, and calling `wipeAppData()`.
 - [`user_repository.dart`](file:///f:/JustUS/Flutter/lib/features/settings/user_repository.dart): Contains API calls:
   - `fetchProfileByAuthId(authId)`: Queries `users` joined with `user_profiles`.
   - `fetchProfile()`: Queries `users` for current authenticated user.
-  - `updateBio(bio)`: Updates `user_profiles.bio`.
   - `updateDisplayName(displayName)`: Updates `user_profiles.display_name`.
   - `uploadProfilePicture(file)`: Delegates upload to `MediaService`.
   - `debugWipeData()`: Invokes `ApiService.wipeUserData()`.
@@ -114,7 +125,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Tables
 - `public.users`: Holds core account details (`id`, `email`, `auth_id`, `created_at`).
-- `public.user_profiles`: Holds profile attributes (`user_id`, `display_name`, `bio`, `profile_pic_url`, `partnership_code`, `created_at`, `updated_at`).
+- `public.user_profiles`: Holds profile attributes (`user_id`, `display_name`, `profile_pic_url`, `partnership_code`, `created_at`, `updated_at`).
 
 ### Stored Procedures & RPCs
 - `debug_wipe_user_data(p_user_id integer)`: Administrative stored procedure executing data deletion. Configured with `SECURITY INVOKER` and restricted execution rights (`service_role` execution only via admin client).
@@ -161,6 +172,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Realtime / Synchronization
 
+- **Profile Edit Propagation**: `user_profiles` is part of the `supabase_realtime` publication; `RealtimeSyncService._handleUserProfilesPayload` (150 ms debounce) reacts to self/partner `UPDATE`s by clearing the partnership cache and refreshing `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Display name/profile pic changes appear on the partner device without re-entering the screen.
 - **Account Wipe Suppression**: Prior to executing account wipe, `ProfileScreen` calls `RealtimeSyncService.suppress()` to prevent incoming database change events from triggering state re-syncs mid-deletion.
 - **Post-Wipe Refresh**: Once wipe completes, `RealtimeSyncService.refreshChannel()` re-establishes the WebSocket sync channel.
 
@@ -183,6 +195,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Validation
 
 - **Image Picker Boundaries**: Constrained by `maxWidth: 512` and `maxHeight: 512` in `ImagePicker.pickImage()`.
+- **Display Name**: Required (non-empty), trimmed, max 60 chars; empty submissions rejected in the edit dialog.
 - **MIME & File Size Guards**:
   - `MediaService`: Validates MIME against `['image/jpeg', 'image/png', 'image/webp', 'image/gif']`.
   - `CompressionService.isWithinSizeLimit()`: Enforces hard limit of 15 MB prior to compression.
@@ -222,6 +235,8 @@ The Profile & Settings subsystem crosses all architectural layers:
 ### Frontend
 - [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart)
   - `_pickProfilePhoto()`: Opens `MediaPickerService` bottom sheet (camera + gallery) capped at 512x512.
+  - `_showTextEditDialog()`: Generic localized edit dialog (TextField, validation, max length 60).
+  - `_editDisplayName()`: Opens the edit dialog and calls `ProfileState.updateDisplayName`.
   - `_showWipeConfirmation()`: Displays wipe dialog, suppresses realtime sync, invokes wipe, clears provider states.
   - `_logout()`: Invokes `LogoutUtils.showLogoutDialog()`.
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart)
@@ -231,10 +246,10 @@ The Profile & Settings subsystem crosses all architectural layers:
 - [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart)
   - `loadProfile()`: Throttled fetch of user and partner profile data.
   - `uploadProfilePhoto()`: Uploads image file and updates local profile version.
-  - `updateBio()`: Updates user bio.
+  - `updateDisplayName()`: Updates `user_profiles.display_name`, refreshes in-memory model + `user_profile`/`username` caches.
   - `wipeAppData()`: Triggers backend wipe API and clears local app cache.
 - [`user_repository.dart`](file:///f:/JustUS/Flutter/lib/features/settings/user_repository.dart)
-  - `fetchProfile()`, `updateBio()`, `updateDisplayName()`, `uploadProfilePicture()`, `debugWipeData()`.
+  - `fetchProfile()`, `updateDisplayName()`, `uploadProfilePicture()`, `debugWipeData()`.
 - [`language_provider.dart`](file:///f:/JustUS/Flutter/lib/core/localization/language_provider.dart)
   - `loadSavedLocale()`, `setLanguageCode()`, `setLocale()`.
 - [`language_helper.dart`](file:///f:/JustUS/Flutter/lib/core/localization/language_helper.dart)
@@ -255,7 +270,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Database Objects
 
 - `public.users`: User accounts table.
-- `public.user_profiles`: User profile metadata table (`user_id`, `display_name`, `bio`, `profile_pic_url`, `partnership_code`).
+- `public.user_profiles`: User profile metadata table (`user_id`, `display_name`, `profile_pic_url`, `partnership_code`).
 - `debug_wipe_user_data`: Stored procedure purging user domain records.
 
 ---
@@ -270,17 +285,12 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Known Issues & Discovered Bugs
 
-### 1. BUG: Unreachable Display Name & Bio Editing Logic
-- **Finding**: `UserRepository` defines `updateDisplayName()` and `updateBio()`, and `ProfileState` defines `updateBio()`, but `ProfileScreen` provides **no text fields or edit buttons** to edit display name or bio.
-- **Impact**: Users cannot edit their display name or bio within the application UI.
-- **Confidence**: **HIGH**
-
-### 2. INCOMPLETE DELETION: Cloudflare R2 Storage Leak During Account Wipe
+### 1. INCOMPLETE DELETION: Cloudflare R2 Storage Leak During Account Wipe
 - **Finding**: RPC `debug_wipe_user_data` purges database rows in `drive_items` and updates `user_profiles`, but does **not** delete underlying files stored in Cloudflare R2 storage.
 - **Impact**: Physical media files remain orphaned permanently in Cloudflare R2 storage post-wipe.
 - **Confidence**: **HIGH**
 
-### 3. INCOMPLETE LOCAL CLEANUP: Surviving Local Keys During Account Wipe
+### 2. INCOMPLETE LOCAL CLEANUP: Surviving Local Keys During Account Wipe
 - **Finding**: `StorageService.clearAppCache()` leaves `username` and `partner_display_name` in `SharedPreferences`, and does not clear `FlutterSecureStorage`.
 - **Impact**: User credentials and names survive the account wipe locally until manual logout.
 - **Confidence**: **HIGH**
@@ -295,8 +305,8 @@ The Profile & Settings subsystem crosses all architectural layers:
 | Profile Image Gallery Pick & 512px Resize | **IMPLEMENTED** | Gallery picker with 512x512 limits & 80% JPEG compression |
 | Profile Image Camera Selection | **IMPLEMENTED** | `MediaPickerService` bottom sheet (camera + gallery) shared with the drive, profile caps pick at 512x512 |
 | R2 Profile Image Direct Upload | **IMPLEMENTED** | Uploads via signed PUT URL & updates `user_profiles` |
-| Display Name & Bio Viewing | **IMPLEMENTED** | Displayed on profile screen |
-| Display Name & Bio Editing UI | **NOT IMPLEMENTED** | Backend/repo functions exist, but no UI input fields |
+| Display Name Viewing | **IMPLEMENTED** | Displayed on profile screen |
+| Display Name Editing UI | **IMPLEMENTED** | "IDENTITY" setting group on the profile screen: edit dialog wired to `ProfileState.updateDisplayName`; partner devices see the change in realtime (`user_profiles` subscription) |
 | Language Selection & Persistence | **IMPLEMENTED** | `/localization` screen, `SharedPreferences`, dynamic locale |
 | App Version Display | **IMPLEMENTED** | `v{info.version}` displayed via `package_info_plus` |
 | Automatic Update Checker | **IMPLEMENTED** | Executed on `HomepageScreen` startup via `UpdateService` |
