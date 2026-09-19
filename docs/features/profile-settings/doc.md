@@ -221,7 +221,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Frontend
 - [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart)
-  - `_pickProfilePhoto()`: Opens gallery picker with 512x512 limits.
+  - `_pickProfilePhoto()`: Opens `MediaPickerService` bottom sheet (camera + gallery) capped at 512x512.
   - `_showWipeConfirmation()`: Displays wipe dialog, suppresses realtime sync, invokes wipe, clears provider states.
   - `_logout()`: Invokes `LogoutUtils.showLogoutDialog()`.
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart)
@@ -270,22 +270,17 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Known Issues & Discovered Bugs
 
-### 1. BUG: Missing Camera Option in Profile Photo Picker
-- **Finding**: In [`profile_screen.dart:47-51`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L47-L51), `_pickProfilePhoto()` hardcodes `source: ImageSource.gallery`.
-- **Impact**: Users cannot take a new profile photo directly using the device camera.
-- **Confidence**: **HIGH**
-
-### 2. BUG: Unreachable Display Name & Bio Editing Logic
+### 1. BUG: Unreachable Display Name & Bio Editing Logic
 - **Finding**: `UserRepository` defines `updateDisplayName()` and `updateBio()`, and `ProfileState` defines `updateBio()`, but `ProfileScreen` provides **no text fields or edit buttons** to edit display name or bio.
 - **Impact**: Users cannot edit their display name or bio within the application UI.
 - **Confidence**: **HIGH**
 
-### 4. INCOMPLETE DELETION: Cloudflare R2 Storage Leak During Account Wipe
+### 2. INCOMPLETE DELETION: Cloudflare R2 Storage Leak During Account Wipe
 - **Finding**: RPC `debug_wipe_user_data` purges database rows in `drive_items` and updates `user_profiles`, but does **not** delete underlying files stored in Cloudflare R2 storage.
 - **Impact**: Physical media files remain orphaned permanently in Cloudflare R2 storage post-wipe.
 - **Confidence**: **HIGH**
 
-### 5. INCOMPLETE LOCAL CLEANUP: Surviving Local Keys During Account Wipe
+### 3. INCOMPLETE LOCAL CLEANUP: Surviving Local Keys During Account Wipe
 - **Finding**: `StorageService.clearAppCache()` leaves `username` and `partner_display_name` in `SharedPreferences`, and does not clear `FlutterSecureStorage`.
 - **Impact**: User credentials and names survive the account wipe locally until manual logout.
 - **Confidence**: **HIGH**
@@ -298,7 +293,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 |---|---|---|
 | Connected Avatars & Names Display | **IMPLEMENTED** | Renders user & partner info with connected gradient line |
 | Profile Image Gallery Pick & 512px Resize | **IMPLEMENTED** | Gallery picker with 512x512 limits & 80% JPEG compression |
-| Profile Image Camera Selection | **NOT IMPLEMENTED** | Hardcoded to `ImageSource.gallery` |
+| Profile Image Camera Selection | **IMPLEMENTED** | `MediaPickerService` bottom sheet (camera + gallery) shared with the drive, profile caps pick at 512x512 |
 | R2 Profile Image Direct Upload | **IMPLEMENTED** | Uploads via signed PUT URL & updates `user_profiles` |
 | Display Name & Bio Viewing | **IMPLEMENTED** | Displayed on profile screen |
 | Display Name & Bio Editing UI | **NOT IMPLEMENTED** | Backend/repo functions exist, but no UI input fields |

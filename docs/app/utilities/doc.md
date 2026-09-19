@@ -47,9 +47,9 @@ The utilities covered include:
 * **Responsibility**: Wraps `image_picker` package to provide simple camera and gallery selection helpers and a pre-styled modal bottom sheet.
 * **API**:
   - `static Future<XFile?> pickImageFromSource(ImageSource source)`
-  - `static Future<XFile?> showPickerSheet(BuildContext context)`
+  - `static Future<XFile?> showPickerSheet(BuildContext context, {double? maxWidth, double? maxHeight})`
 * **Dependencies**: `image_picker`, `flutter/material.dart`, `google_fonts`, `AppColors`, `LocalizationExtensions`.
-* **Callers**: Used directly in `DriveScreen` ([`drive_screen.dart:35`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L35)).
+* **Callers**: Used in `DriveScreen` ([`drive_screen.dart:35`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L35)) and `ProfileScreen` ([`profile_screen.dart:46`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L46), passing `maxWidth`/`maxHeight` of 512).
 * **Expected Usage**: Prompt users with camera/gallery choice for uploading assets (e.g. drive items or profile pictures).
 * **Error Behavior**: Returns `null` if the user cancels or if camera/gallery access fails/denied without internal exception handling.
 * **Lifecycle Assumptions**: Checks `context.mounted` before dismissing `Navigator.pop(context)` inside bottom sheet tiles.

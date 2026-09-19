@@ -11,9 +11,13 @@ class MediaPickerService {
     return await _picker.pickImage(source: source);
   }
 
-  static Future<XFile?> showPickerSheet(BuildContext context) async {
+  static Future<XFile?> showPickerSheet(
+    BuildContext context, {
+    double? maxWidth,
+    double? maxHeight,
+  }) async {
     XFile? pickedFile;
-    
+
     await showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.deepViolet,
@@ -28,7 +32,11 @@ class MediaPickerService {
               leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
               title: Text(context.loc.drive_takePhoto, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
               onTap: () async {
-                pickedFile = await _picker.pickImage(source: ImageSource.camera);
+                pickedFile = await _picker.pickImage(
+                  source: ImageSource.camera,
+                  maxWidth: maxWidth,
+                  maxHeight: maxHeight,
+                );
                 if (context.mounted) Navigator.pop(context);
               },
             ),
@@ -36,7 +44,11 @@ class MediaPickerService {
               leading: const Icon(Icons.photo_library, color: AppColors.accentAqua),
               title: Text(context.loc.drive_fromGallery, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
               onTap: () async {
-                pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+                pickedFile = await _picker.pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: maxWidth,
+                  maxHeight: maxHeight,
+                );
                 if (context.mounted) Navigator.pop(context);
               },
             ),

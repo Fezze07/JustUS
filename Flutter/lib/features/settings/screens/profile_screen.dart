@@ -21,7 +21,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _imagePicker = ImagePicker();
   String _appVersion = '';
 
   @override
@@ -44,8 +43,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+    final XFile? image = await MediaPickerService.showPickerSheet(
+      context,
       maxWidth: 512,
       maxHeight: 512,
     );
