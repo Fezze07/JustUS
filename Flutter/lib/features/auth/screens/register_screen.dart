@@ -103,38 +103,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (!context.mounted) return;
 
                 if (success) {
-                  if (authState.isLoggedIn) {
-                    unawaited(Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PartnerScreen()),
-                      (route) => false,
-                    ));
-                  } else {
-                    unawaited(showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (_) => VPDialog(
-                        title: context.loc.auth_confirmEmailTitle,
-                        content: Text(
-                          context.loc.auth_confirmEmailMessage(email),
-                          style: VpWidgets.googleFont(color: Colors.white70),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(context).pop(); // Torna al login
-                            },
-                            child: Text(
-                              context.loc.auth_goToLogin,
-                              style: VpWidgets.googleFont(
-                                  color: AppColors.primary),
-                            ),
-                          ),
-                        ],
+                  unawaited(showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => VPDialog(
+                      title: context.loc.auth_confirmEmailTitle,
+                      content: Text(
+                        context.loc.auth_confirmEmailMessage(email),
+                        style: VpWidgets.googleFont(color: Colors.white70),
                       ),
-                    ));
-                  }
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop(); // Torna al login
+                          },
+                          child: Text(
+                            context.loc.auth_goToLogin,
+                            style: VpWidgets.googleFont(
+                                color: AppColors.primary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ));
                 }
               },
             );

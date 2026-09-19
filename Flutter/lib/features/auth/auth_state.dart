@@ -328,7 +328,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   }
 
   Future<bool> register(String email, String password, String name) async {
-    return runSafe(() async {
+    setLoading(true);
+    try {
       // Step 0: CAPTCHA Verification
       final captchaToken = await _getCaptchaToken();
 
@@ -363,8 +364,30 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       }
 
       AnsiLogger.auth('Auth user creato: ${res.user!.id}', tag: 'Register');
+
+      // 2. La verifica email è obbligatoria: se Supabase restituisce comunque
+      //    una sessione (conferme disabilitate sul progetto), la revochiamo
+      //    subito per non bypassare la conferma dell'email.
+      if (res.session != null) {
+        AnsiLogger.auth(
+            'Sessione non attesa alla registrazione: signOut per imporre la verifica email',
+            tag: 'Register');
+        try {
+          await _authRepo.signOut();
+        } catch (e) {
+          AnsiLogger.error(
+              'SignOut dopo registrazione fallito: $e', tag: 'Register');
+        }
+      }
+
       AnsiLogger.auth('Email di conferma inviata a $email', tag: 'Register');
-    });
+      return true;
+    } catch (e, st) {
+      ErrorHandler.handle(e, stackTrace: st);
+      return false;
+    } finally {
+      setLoading(false);
+    }
   }
 
   Future<bool> resetPassword(String email) async {

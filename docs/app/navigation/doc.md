@@ -87,7 +87,7 @@ The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is reimpl
 |---|---|---|---|
 | SplashScreen._checkAuth | isLoggedIn && partner!=null / isLoggedIn && partner==null / !isLoggedIn | MainShell / PartnerScreen / LoginScreen | splash_screen.dart:28-53 |
 | LoginScreen onPressed | login() success && hasPartner | MainShell / PartnerScreen | login_screen.dart:105-115 |
-| RegisterScreen onPressed | register() success && isLoggedIn | PartnerScreen (`pushAndRemoveUntil`) | register_screen.dart:105-111 |
+| RegisterScreen onPressed | register() success | confirm-email dialog -> pop,pop -> Login (email verification mandatory) | register_screen.dart:96-130 |
 | PartnerScreen accept invitation | acceptInvitation success | MainShell | partner_screen.dart:358-363 |
 | PartnerScreen existing-partner card tap | partner != null | MainShell | partner_screen.dart:113-118 |
 
@@ -114,10 +114,7 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 `register_screen.dart`:
 
 - Footer -> `Navigator.pop(context)` back to Login (line 34).
-- On successful `register(...)`:
-  - `if (authState.isLoggedIn)` -> `pushAndRemoveUntil(PartnerScreen, (r)=>false)` (line 107-111).
-  - else -> non-dismissible "confirm your email" `VPDialog`; OK pops the dialog then pops **the register route** ("Torna al login", line 125-126) -> back to `LoginScreen`.
-- **Dead branch**: `AuthState.register()` (auth_state.dart:303-333) only calls Supabase `signUp` and never calls `setLoginData`; even when Supabase auto-confirms and returns a session, `isLoggedIn` stays **false**. Therefore the `isLoggedIn` branch at register_screen.dart:106 is effectively unreachable, and every registration goes through the "confirm email" dialog. (If the account is actually auto-confirmed, the user is told to check their email and must log in manually.)
+- On successful `register(...)` (`register_screen.dart:97-130`): always shows the non-dismissible "confirm your email" `VPDialog`; OK pops the dialog then pops **the register route** ("Torna al login", line 118-119) -> back to `LoginScreen`. Email verification is mandatory by product decision: `AuthState.register()` never auto-logs-in; if Supabase returns a session anyway, the session is immediately revoked via `signOut()`, so the verify-email -> login path can never be bypassed (`auth_state.dart:344-401`).
 
 ---
 
@@ -263,7 +260,7 @@ Two mechanisms:
 | 2 | Authenticated user with partnership | Splash -> AuthState.init OK -> fetchPartnership OK -> `pushReplacement` MainShell | IMPLEMENTED |
 | 3 | Authenticated user without partnership | Splash -> Main... -> partner null -> `pushReplacement` PartnerScreen | IMPLEMENTED |
 | 4 | Unauthenticated user | Splash -> init isLoggedIn false -> `pushReplacement` LoginScreen | IMPLEMENTED |
-| 5 | Fresh registration | Register -> confirm-email dialog -> pop,pop -> Login | IMPLEMENTED (isLoggedIn branch effectively dead) |
+| 5 | Fresh registration | Register -> confirm-email dialog -> pop,pop -> Login | IMPLEMENTED (email verification mandatory) |
 | 6 | Login success | Login -> based on hasPartner -> `pushReplacement` (MainShell|PartnerScreen) | IMPLEMENTED |
 | 7 | Invitation accept | PartnerScreen -> accept -> fetch -> `pushReplacement` MainShell | IMPLEMENTED |
 | 8 | Notification tap (foreground/background) | tap -> payload on `onNotificationTap` -> **no listener** -> no navigation | NOT IMPLEMENTED |
@@ -345,7 +342,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 ### F-N10: Navigation decisions read different data sources (possible mis-route)
 
-**What**: splash uses `partnerState.partner`, login uses `AuthState.hasPartner` (`_partnerId`), register uses `isLoggedIn`; failures of `fetchPartnership` at splash route a paired user to PartnerScreen.
+**What**: splash uses `partnerState.partner`, login uses `AuthState.hasPartner` (`_partnerId`); failures of `fetchPartnership` at splash route a paired user to PartnerScreen.
 **Where**: splash_screen.dart:31, auth_state.dart:62, partner_screen.dart:113.
 **Impact**: inconsistent destinations for the same logical state depending on which fetch failed; PartnerScreen self-heals only if its own profile load succeeds.
 **Confidence**: MEDIUM-HIGH.
@@ -354,13 +351,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 **What**: no try/catch, unawaited; any throw leaves the spinner with no navigation (handled only by `handleGlobal` overlay).
 **Where**: splash_screen.dart:19,22-55.
-**Confidence**: HIGH.
-
-### F-N13: Register `isLoggedIn` branch is unreachable
-
-**What**: `register()` never sets login data/session.
-**Where**: auth_state.dart:303-333; register_screen.dart:106.
-**Impact**: auto-confirmed accounts are told to verify email and must log in manually; contradictory UX.
 **Confidence**: HIGH.
 
 ---

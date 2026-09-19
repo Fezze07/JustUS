@@ -40,8 +40,8 @@ Flutter UI (RegisterScreen)
    │
    └── 6. State & Navigation Decision
             │
-            ├── If authState.isLoggedIn (Token present): Navigate to PartnerScreen
-            └── Else (Default): Show VPDialog ("Confirm Email") -> Pop to LoginScreen
+            └── Always: Show VPDialog ("Confirm Email", non-dismissible)
+                    -> Pop to LoginScreen (email verification mandatory)
 ```
 
 ### Detailed Component Steps
@@ -86,13 +86,11 @@ Flutter UI (RegisterScreen)
      - Inserts into `public.user_roles` with role `'user'`
 
 6. **Frontend State & Navigation Post-Registration**
-   - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L303-L333)
+   - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L344-L401)
    - `AuthState.register` receives `AuthResponse`. If `res.user == null`, throws `AppError(authFailCred)`. Supabase `AuthException`s (e.g. user already registered) are caught and rethrown as `AppError(authFailCred)`, a client-only code that is not `requiresReauth`.
-   - **Crucial Behavior**: `AuthState.register` does **not** invoke `setLoginData`.
-   - In `RegisterScreen` ([register_screen.dart:106](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L106)), `authState.isLoggedIn` is checked:
-     - Since `setLoginData` was not called, `isLoggedIn` evaluates to `false`.
-     - The screen displays a non-dismissible `VPDialog` informing the user that a confirmation email has been sent to their email address.
-     - Upon tapping "Go to Login", the dialog pops and the navigator pops back to `LoginScreen`.
+   - **Email verification is mandatory**: `AuthState.register` never auto-logs-in. If Supabase returns a session anyway (project with email confirmations disabled), the session is **immediately revoked** via `signOut()`, so the verify-email -> login path can never be bypassed.
+   - In `RegisterScreen` ([register_screen.dart:105](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L105)), a successful `register(...)` always shows a non-dismissible `VPDialog` informing the user that a confirmation email has been sent to their email address.
+   - Upon tapping "Go to Login", the dialog pops and the navigator pops back to `LoginScreen`.
 
 ---
 
@@ -310,17 +308,12 @@ During the reverse-engineering analysis, the following structural bugs, security
 - **Defect**: `AuthState.login()` in [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L229-L301) **never calls `reportFailedLogin()`** when Supabase `signInWithPassword()` fails or throws an `AuthException`.
 - **Impact**: Failed login attempts are never recorded in `authRisk.service.js`. `loginAttempts` counter stays at 0, strike levels never increment, and brute-force protection through failed attempts is **completely non-functional** in production.
 
-### 2. BUG: Dead Execution Branch in `RegisterScreen`
-- **Finding**: In [register_screen.dart:106](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L106), registration completion contains an `if (authState.isLoggedIn)` check intended to navigate directly to `PartnerScreen`.
-- **Defect**: `AuthState.register()` ([auth_state.dart:303-333](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L303-L333)) only invokes `sbClient.auth.signUp()` and never calls `setLoginData()`.
-- **Impact**: `isLoggedIn` is guaranteed to be `false`. Even if Supabase Auth is configured for instant auto-confirmation without email verification, new users are always forced into the "Confirm Email" dialog and sent back to `LoginScreen`.
-
-### 3. INCONSISTENCY: Password Validation Rules Enforced Only on Client
+### 2. INCONSISTENCY: Password Validation Rules Enforced Only on Client
 - **Finding**: Strict regex rules for uppercase, lowercase, numeric, and symbol characters are enforced solely in Flutter's `Validators.validatePassword`.
 - **Defect**: Neither the Node backend nor Supabase Auth database rules validate complex password character patterns on registration.
 - **Impact**: Any registration request bypassing the Flutter client (e.g., via direct REST API calls) can register accounts with weak passwords.
 
-### 4. SECURITY RISK: Unprotected Backend Risk Check Endpoints
+### 3. SECURITY RISK: Unprotected Backend Risk Check Endpoints
 - **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`). Turnstile verification intentionally stays on Supabase Auth only (single-use token — it cannot also be consumed by the backend).
 - **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
 
