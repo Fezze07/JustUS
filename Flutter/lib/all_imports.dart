@@ -68,6 +68,7 @@ export 'package:justus/core/media/media_cache_manager.dart';
 export 'package:justus/shared/utils/ui/media_picker_service.dart';
 export 'package:justus/core/media/media_service.dart';
 export 'package:justus/features/home/missyou_repository.dart';
+export 'package:justus/core/realtime/mood_change_batch.dart';
 export 'package:justus/features/mood/mood_models.dart';
 export 'package:justus/features/mood/mood_repository.dart';
 export 'package:justus/features/mood/screens/mood_screen.dart';

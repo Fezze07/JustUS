@@ -38,7 +38,7 @@ Supabase Postgres commit
 | Subscription | `realtime_sync_service.dart:274-326` | 1 channel, 9 `.onPostgresChanges` bindings |
 | Filtering | `:539-620` | Client relevance: user/partner/partnership |
 | Deduplication | `:584-608` | `_markSeen`, FIFO LRU of 80 event keys |
-| Debounce | `:404-409, 418-426, 478-493, 502-506` | 120/150 ms trailing-edge timers |
+| Debounce | `:421-436, 440-448, 486-530, 552-556` | 120/150 ms trailing-edge timers + buffered flush |
 | State update | feature states | `refreshFromRealtime()` / granular handlers |
 | UI update | `notifyListeners()` | Provider consumers (screens/tabs) |
 
@@ -50,7 +50,7 @@ Channel name: `justus-sync-$userId-$generation` — the generation counter is in
 
 | # | Table | Event types | Callback | Debounce | Dispatches to |
 |---|---|---|---|---|---|
-| 1 | `moods` | all | `_handleMoodPayload` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` |
+| 1 | `moods` | all | `_handleMoodPayload` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` per **distinct** changed user (`mood_change_batch.dart`) |
 | 2 | `partnerships` | all | `_handlePartnershipPayload` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
 | 3 | `missyou` | all | `_handleMissYouPayload` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
 | 4 | `bucket_items` | all | `_handleBucketPayload` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
@@ -70,7 +70,7 @@ All debounces are **trailing-edge**: each incoming event cancels the pending tim
 
 | Debouncer | Timer | Delay | Coalesces | Consequence of coalescing |
 |---|---|---|---|---|
-| Mood | `_moodRefreshTimer` | 120 ms | multiple mood events | One `refreshFromRealtime(changedUserId)` executes; `changedUserId` comes from the **last** event only (F-RT2). |
+| Mood | `MoodChangeBatch` (`mood_change_batch.dart`) | 120 ms | multiple mood events | The **union** of distinct `changedUserId`s in the burst is flushed; a same-window burst from BOTH users refreshes both sides — nothing is skipped. |
 | Partnership | `_partnershipRefreshTimer` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
 | Game (answers + question updates) | `GameEventBuffer` (`game_event_buffer.dart`) | 150 ms | multiple game events | Full burst is buffered **FIFO** and every event is applied in delivery order — nothing is dropped. |
 | Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce" (`:466`). |
@@ -235,13 +235,13 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### moods
 
-- **Flow**: mood event → relevance (`user_id` self/partner) → dedup → 120 ms debounce → `MoodState.refreshFromRealtime(changedUserId)`.
+- **Flow**: mood event → relevance (`user_id` self/partner) → dedup → `MoodChangeBatch` (120 ms trailing-edge, distinct-`changedUserId` union) → `MoodState.refreshFromRealtime(changedUserId)` for each distinct user in the burst.
 - `changedUserId == self` → only `_updateMoodsCheckpoint()` runs (the optimistic `updateMood` path already handled the local state — **no duplicate work**).
 - `changedUserId == partner` → `fetchRecentEmojis()` + `fetchTimeline()` + `fetchPartnerMood()`.
 - `null` → full fallback: `fetchMyMood()` + `fetchPartnerMood()` + shared fetches.
 - Always ends with `_updateMoodsCheckpoint()`.
 - Comment in `mood_state.dart:210`: *"Own action: optimistic update already handled everything"*.
-- **Risk**: debounce captures `changedUserId` from the last event only; a same-120-ms burst from BOTH users refreshes only one side (F-RT2). Recovered by the next event or `_refreshAll`.
+- **Burst handling**: a same-window burst from BOTH users coalesces into the union of their ids, so each partition-owned refresh runs exactly once — neither side is skipped.
 
 ### partnerships
 
@@ -315,7 +315,7 @@ Events are dropped in normal operation in three ways:
 
 1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
    - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync.
-   - Mood: `changedUserId` captured from the last event only; intra-window mixed-user bursts refresh one side (F-RT2).
+   - Mood: the distinct `changedUserId` union of the burst is refreshed; a mixed-user burst refreshes both sides (`mood_change_batch.dart`).
 2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`:562`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT9).
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
 
@@ -380,19 +380,10 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 
 ## Findings
 
-### F-RT2: Mood debounce captures only the last `changedUserId` (MEDIUM)
-
-- **WHAT**: `_moodRefreshTimer` closure binds `changedUserId` from the last payload of a burst. If own and partner mood events land within 120 ms, the refresh executes only for one side.
-- **WHERE**: `realtime_sync_service.dart:404-409` (`_handleMoodPayload`).
-- **WHY**: Coalescing with per-call binding, not per-burst aggregation.
-- **WHEN**: Ambient: two users updating moods rapidly. Own-event side is a no-op by design; the partner side can be skipped entirely.
-- **IMPACT**: Partner mood card (`_partnerMood`) may display stale emoji until a later event or refresh. Timeline is a partial mitigation (`fetchTimeline` covers both users).
-- **CONFIDENCE**: MEDIUM.
-
 ### F-RT3: `_missYouRefreshTimer` is dead code (LOW)
 
-- **WHAT**: Declared at `realtime_sync_service.dart:41`, cancelled in `dispose()` (`:634`), but **never scheduled anywhere**.
-- **WHERE**: `realtime_sync_service.dart:41,634`.
+- **WHAT**: Declared at `realtime_sync_service.dart:43`, cancelled in `dispose()` (`:705`), but **never scheduled anywhere**.
+- **WHERE**: `realtime_sync_service.dart:43,705`.
 - **IMPACT**: None — missyou events are processed immediately. Dead field.
 - **CONFIDENCE**: HIGH.
 
@@ -470,16 +461,16 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 | Bucket granular in-order application | IMPLEMENTED |
 | Game question insert/delete bypassing debounce | IMPLEMENTED |
 | Game answer debounce lossless in bursts (FIFO buffer) | IMPLEMENTED |
-| Mood debounce multi-user burst handling | NOT IMPLEMENTED (F-RT2) |
+| Mood debounce distinct-user burst handling | IMPLEMENTED |
 | Realtime auto-recovery while polling fallback active | NOT IMPLEMENTED (F-RT7) |
 
 ---
 
 ## Tests
 
-No automated tests exercise the full realtime pipeline (`realtime_sync_service.dart` and `realtime_sync_scope.dart` are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`) and the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`).
+No automated tests exercise the full realtime pipeline (`realtime_sync_service.dart` and `realtime_sync_scope.dart` are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`), the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`), and the mood distinct-user coalescing is covered at unit level (`test/mood_change_batch_test.dart`).
 
-**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT2–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
+**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT3–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
 
 ---
 
@@ -489,4 +480,4 @@ No automated tests exercise the full realtime pipeline (`realtime_sync_service.d
 - **Mutations are fire-and-forget**: `submitAnswer`, `addBucketItem`, `toggleDone`, `uploadDriveItemToR2`, `deleteItem`, `addReaction` do not await server confirmation; state reconciliation relies on Realtime echoes + periodic refetches. No optimistic rollback exists for bucket/drive mutations — only mood implements optimistic update with rollback (`mood_state.dart:233-282`).
 - **Realtime echo self-loop is handled**: the app receives its **own** mutations back on the channel. Bucket uses `_knownIds`; game uses `isOwnInsert`; mood uses the `changedUserId == self` no-op; drive/missyou use full refetch/idempotent increment. No duplicates arise from the self-echo path.
 - **`notifyListeners()` is frame-coalesced** (`base_state.dart:22-29`): bursts of state writes during realtime refreshes produce a single rebuild per frame — this is UI coalescing, not event coalescing.
-- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed in general (F-RT2, F-RT4), but game-answer bursts are lossless via the FIFO buffer.
+- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed in general (F-RT4), but game-answer bursts are lossless via the FIFO buffer and mood bursts refresh every distinct changed user.

@@ -39,7 +39,6 @@ class RealtimeSyncService with WidgetsBindingObserver {
   sb.RealtimeChannel? _channel;
   StreamSubscription<dynamic>? _authSubscription;
   Timer? _reconnectTimer;
-  Timer? _moodRefreshTimer;
   Timer? _partnershipRefreshTimer;
   Timer? _missYouRefreshTimer;
   Timer? _bucketRefreshTimer;
@@ -68,10 +67,15 @@ class RealtimeSyncService with WidgetsBindingObserver {
     sink: _applyGameEvent,
   );
 
+  late final MoodChangeBatch _moodChangeBatch = MoodChangeBatch(
+    sink: _applyMoodRefresh,
+  );
+
   void suppress() {
     AnsiLogger.realtime('suppress() - pausing event processing');
     _suppressProcessing = true;
     _gameEventBuffer.clear();
+    _moodChangeBatch.clear();
   }
 
   void resume({bool refresh = true}) {
@@ -138,6 +142,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (!changed) return;
 
     _gameEventBuffer.clear();
+    _moodChangeBatch.clear();
 
     AnsiLogger.realtime(
         'configure() - CHANGE: userId=$userId partnerId=$partnerId partnershipId=$partnershipId foreground=$_foreground');
@@ -420,13 +425,16 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (!_isRelevantMood(payload) || !_markSeen(payload)) return;
 
     final changedUserId = _rowUserId(_currentRecord(payload), 'user_id');
+    if (changedUserId == null) return;
 
-    _moodRefreshTimer?.cancel();
-    _moodRefreshTimer = Timer(const Duration(milliseconds: 120), () {
-      AnsiLogger.realtime(
-          '_handleMoodPayload -> refreshFromRealtime(changedUserId=$changedUserId)');
-      unawaited(_moodState.refreshFromRealtime(changedUserId: changedUserId));
-    });
+    _moodChangeBatch.add(changedUserId);
+  }
+
+  Future<void> _applyMoodRefresh(List<int> changedUserIds) async {
+    AnsiLogger.realtime(
+        '_applyMoodRefresh -> refreshFromRealtime(changedUserIds=$changedUserIds)');
+    await Future.wait(changedUserIds.map(
+        (userId) => _moodState.refreshFromRealtime(changedUserId: userId)));
   }
 
   void _handlePartnershipPayload(sb.PostgresChangePayload payload) {
@@ -693,11 +701,11 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _lifecycleDebounceTimer?.cancel();
     _reconnectTimer?.cancel();
     _pollingFallbackTimer?.cancel();
-    _moodRefreshTimer?.cancel();
     _partnershipRefreshTimer?.cancel();
     _missYouRefreshTimer?.cancel();
     _bucketRefreshTimer?.cancel();
     _gameEventBuffer.clear();
+    _moodChangeBatch.clear();
     _driveRefreshTimer?.cancel();
     _userProfileRefreshTimer?.cancel();
     await _authSubscription?.cancel();
