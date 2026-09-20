@@ -18,6 +18,7 @@ class ApiRoutes {
   static const String mediaUploadUrl = '$apiPrefix/media/upload-url';
   static const String mediaComplete = '$apiPrefix/media/complete';
   static const String mediaFile = '$apiPrefix/media/file';
+  static const String mediaDelete = '$apiPrefix/media/delete';
 
   static const String aiQuestion = '$apiPrefix/ai/question';
 

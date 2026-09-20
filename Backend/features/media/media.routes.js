@@ -4,6 +4,7 @@ const {
   presignUploadController,
   completeUploadController,
   redirectToSignedDownloadController,
+  deleteMediaController,
 } = require("../../all_imports");
 const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 const {
@@ -18,6 +19,7 @@ const {
   presignSchema,
   completeSchema,
   fileQuerySchema,
+  deleteSchema,
 } = require("./media.schemas");
 
 const mediaRateLimit = createIpUserRateLimit({
@@ -59,6 +61,18 @@ router.get(
     validated({ query: fileQuerySchema })
   ),
   redirectToSignedDownloadController
+);
+
+router.post(
+  "/delete",
+  ...chain(
+    authenticated(),
+    capability("can_media_upload"),
+    limited(mediaRateLimit),
+    signed("media-delete"),
+    validated({ body: deleteSchema })
+  ),
+  deleteMediaController
 );
 
 module.exports = router;

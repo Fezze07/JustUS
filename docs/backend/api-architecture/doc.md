@@ -97,6 +97,13 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `validated({ query: fileQuerySchema })`
 - **Behavior**: Verifies user access in `drive_items`, generates S3/R2 pre-signed download URL, and responds with HTTP 302 redirect.
 
+#### `POST /api/v1/media/delete`
+- **Controller**: `deleteMediaController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `capability("can_media_upload")` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `signed("media-delete")` $\rightarrow$ `validated({ body: deleteSchema })`
+- **Request Body**: `{ id }` (positive integer drive item id).
+- **Behavior**: Reads the `drive_items` row; rejects `403 AUTH-FAIL-004` unless the caller is `user_id` or `partner_id`; deletes the R2 object (`DeleteObjectCommand`) when a filename is stored; then deletes the row (favorites/reactions cascade).
+- **Flutter Consumer**: `DriveRepository.deleteDriveItem(id)` → `ApiService.deleteMediaItem(id)` — replaces the old direct SQL delete so R2 cleanup is atomic with the row delete.
+
 ---
 
 ### 3. Authentication & Device Endpoints
@@ -126,6 +133,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(userRateLimit)`
 - **Database Dependencies**: Invokes `adminSupabase.rpc("debug_wipe_user_data", { p_user_id: userId })`.
+- **R2 Cleanup**: after the RPC succeeds, `deleteUserR2Objects(userId)` resolves the accepted partner id and deletes all objects under `uploads/{userId}/`, `profile/{userId}/`, `uploads/{partnerId}/`, `profile/{partnerId}/` (`r2.service` `listObjectKeys` + batched `DeleteObjectsCommand`). Uses `SYS-FAIL-001` if R2 cleanup fails (DB rows are already purged; re-running the wipe retries the R2 sweep).
 
 ---
 

@@ -22,8 +22,13 @@ const fileQuerySchema = z.object({
   filename: z.string().min(1).max(512),
 });
 
+const deleteSchema = z.object({
+  id: z.number().int().positive(),
+});
+
 module.exports = {
   presignSchema,
   completeSchema,
   fileQuerySchema,
+  deleteSchema,
 };

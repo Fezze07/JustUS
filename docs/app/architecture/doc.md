@@ -14,7 +14,7 @@ State management is `provider` + `ChangeNotifier`. All feature states extend `Ba
 The app uses two trust paths:
 
 1. **Flutter -> Supabase (direct)** for RLS-safe data operations (moods, missyou, bucket list, game answers, drive dashboard via views, partnership RPCs). Configured in `lib/core/network/supabase_service.dart`, called through `BaseRepository.sbClient`.
-2. **Flutter -> Node/Express backend (`/api/v1`)** for privileged operations that are abusable/billable: AI question generation, Cloudflare R2 media presign/complete, FCM device-token registration, session binding sync, invite, login-risk check, refresh proxy, user wipe. Driven by `lib/core/network/api_service.dart` (HMAC-signed, nonce-protected, JWT-authenticated).
+2. **Flutter -> Node/Express backend (`/api/v1`)** for privileged operations that are abusable/billable: AI question generation, Cloudflare R2 media presign/complete/delete, FCM device-token registration, session binding sync, invite, login-risk check, refresh proxy, user wipe. Driven by `lib/core/network/api_service.dart` (HMAC-signed, nonce-protected, JWT-authenticated).
 
 The Flutter app is NOT responsible for the database schema; it relies on hosted Supabase objects (`v_active_partnership`, `v_drive_dashboard`, RPCs `request_partnership`/`accept_partnership`/`send_missyou`/`set_mood`, etc.) that are documented in `.agents/skills/` but are not versioned in the repo.
 
@@ -418,7 +418,7 @@ Three components register as `WidgetsBindingObserver`:
 
 **Evidence**: `homepage_screen.dart:674` - `_AvatarColumn` renders `Image.network(imageUrl!)` directly using `profilePicUrl` from the Supabase `user_profiles` table. Contrast with `VPAvatar` (vp_widgets.dart) and `VPMiniAvatar` (vp_mini_avatar.dart:17-29), both of which call `ApiService.resolveProtectedMediaUrl(imageUrl)` first.
 
-**What**: Profile pictures in Supabase `user_profiles.profile_pic_url` are stored as R2 object keys (e.g. `drive/profile/{userId}/...`), not full HTTP URLs. `resolveProtectedMediaUrl()` rewrites these into `GET /api/v1/media/file?filename=...`. Without this rewrite, `Image.network` attempts to fetch a relative path as an HTTP URL and fails.
+**What**: Profile pictures in Supabase `user_profiles.profile_pic_url` are stored as R2 object keys (e.g. `profile/{userId}/...`), not full HTTP URLs. `resolveProtectedMediaUrl()` rewrites these into `GET /api/v1/media/file?filename=...`. Without this rewrite, `Image.network` attempts to fetch a relative path as an HTTP URL and fails.
 
 **Impact**: The homepage partner avatar always fails to load and shows the errorBuilder placeholder (default person icon). The profile screen avatars work correctly because they use `VPAvatar` which resolves the URL.
 

@@ -159,6 +159,25 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
 
 ---
 
+## Item Deletion Flow
+
+- Files: [drive_repository.dart:82-93](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L82-L93), [drive_state.dart:200-220](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L200-L220), [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js).
+```
+DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cache rewrite)
+  → DriveRepository.deleteDriveItem(id) → ApiService.deleteMediaItem(id)
+  → POST /api/v1/media/delete { id } (HMAC-signed, capability can_media_upload)
+  → Backend deleteMediaController:
+      - Reads drive_items(id, user_id, partner_id, filename) via adminSupabase
+      - Rejects 403 if the caller is not user_id/partner_id (AUTH-FAIL-004)
+      - Deletes the R2 object (DeleteObjectCommand) when a filename is stored
+      - Deletes the drive_items row (favorites / reactions cascade)
+  → Success → snackbar; failure → local list restored (drive_state.dart:214-218)
+```
+- Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so the R2 object is removed atomically with the row.
+- The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes.
+
+---
+
 ## Media Type Specifications & Format Handling
 
 | Media Type | Supported MIME Types | Client Compression | Gallery Rendering | Full-Screen Viewer Widget |
@@ -277,16 +296,7 @@ Profile picture uploads share the underlying R2 storage pipeline with the Shared
 
 During reverse-engineering analysis, the following technical findings were identified:
 
-### 1. DEFECT: Orphaned R2 Storage Objects on Item Deletion
-
-* **WHAT**: Deleting a drive item from the app leaves the binary media file stored permanently in Cloudflare R2.
-* **WHERE**: [drive_repository.dart:82-86](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L82-L86)
-* **WHY**: `deleteDriveItem(id)` executes a direct SQL `DELETE FROM drive_items WHERE id = ?`. **No S3 DeleteObjectCommand or backend cleanup service is invoked**.
-* **WHEN**: User deletes a photo, video, or file from the drive.
-* **IMPACT**: Storage leak. Deleted files accumulate in Cloudflare R2 bucket indefinitely.
-* **CONFIDENCE**: **HIGH**
-
-### 2. DEFECT: Orphaned R2 Storage Objects on Failed Upload Completion
+### 1. DEFECT: Orphaned R2 Storage Objects on Failed Upload Completion
 
 * **WHAT**: If direct HTTP PUT upload to R2 succeeds, but `completeMediaUpload` fails (due to network drop or app crash), the R2 object is orphaned.
 * **WHERE**: [media_service.dart:85-116](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L85-L116)
@@ -295,7 +305,7 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: Storage leak in R2 bucket with no corresponding database record.
 * **CONFIDENCE**: **HIGH**
 
-### 3. INCONSISTENCY: Pre-Compression Fast-Fail Rejects Valid Files
+### 2. INCONSISTENCY: Pre-Compression Fast-Fail Rejects Valid Files
 
 * **WHAT**: Files larger than 15 MB on disk are rejected before compression is attempted.
 * **WHERE**: [media_service.dart:46](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46)
@@ -304,7 +314,7 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: User receives a "File exceeds 15 MB limit" error, even though compression would have reduced file size well below 15 MB.
 * **CONFIDENCE**: **HIGH**
 
-### 4. LIMITATION: Missing Thumbnail Generation
+### 3. LIMITATION: Missing Thumbnail Generation
 
 * **WHAT**: Full-sized compressed media files are loaded directly into 3-column gallery grid views.
 * **WHERE**: [drive_screen.dart:317-333](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L317-L333)
@@ -313,7 +323,7 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: Increased data consumption and slower grid rendering on mobile networks.
 * **CONFIDENCE**: **HIGH**
 
-### 5. LIMITATION: Unexposed UI Picker for Audio and PDF Files
+### 4. LIMITATION: Unexposed UI Picker for Audio and PDF Files
 
 * **WHAT**: `MediaService` and Backend API support uploading audio and PDF files, but `MediaPickerService` in `DriveScreen` only presents Camera and Gallery options.
 * **WHERE**: [media_picker_service.dart:27-42](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L27-L42)
@@ -339,7 +349,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Favorites Subsystem | **IMPLEMENTED** | `public.favorites` + `v_drive_dashboard` join |
 | Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `get_or_create_emoji` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
-| R2 Storage Deletion Cleanup | **NOT IMPLEMENTED** | DB deletion leaves orphaned objects in R2 |
+| R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` removes the R2 object + row; wipe purges all user-prefix objects |
 | Post-Compression Size Check | **NOT IMPLEMENTED** | 15 MB size check runs before compression |
 | Media Thumbnail Generation | **NOT IMPLEMENTED** | Full-sized media loaded in grid view |
 | Audio / PDF Picker Button in UI | **NOT IMPLEMENTED** | Picker sheet lacks document/audio options |

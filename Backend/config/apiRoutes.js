@@ -22,6 +22,7 @@ const API_V1_PATHS = {
   authDeviceToken: `${API_V1_PREFIX}/auth/device-token`,
   aiQuestion: `${API_V1_PREFIX}/ai/question`,
   mediaFile: `${API_V1_PREFIX}/media/file`,
+  mediaDelete: `${API_V1_PREFIX}/media/delete`,
   userWipe: `${API_V1_PREFIX}/users/wipe`,
 };
 

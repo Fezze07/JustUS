@@ -80,9 +80,15 @@ class DriveRepository extends BaseRepository {
   }
 
   Future<ResultWrapper<void>> deleteDriveItem(int id) async {
-    return tryCall(() async {
-      await sbClient.from('drive_items').delete().eq('id', id);
-    });
+    final api = ApiService();
+    final result = await api.deleteMediaItem(id);
+
+    return switch (result) {
+      Success() => const Success(null),
+      GenericError(:final message, :final code, :final details) =>
+        GenericError(message: message, code: code, details: details),
+      NetworkError(:final message) => NetworkError(message: message),
+    };
   }
 
   Future<ResultWrapper<void>> toggleFavorite(

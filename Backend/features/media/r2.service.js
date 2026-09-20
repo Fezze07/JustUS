@@ -1,6 +1,13 @@
 const path = require("path");
 const crypto = require("crypto");
-const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+} = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { env } = require("../../all_imports");
 
@@ -106,9 +113,88 @@ async function createDownloadUrl(key) {
   });
 }
 
+async function listObjectKeys(prefix) {
+  if (!prefix) return [];
+  const keys = [];
+  let continuationToken;
+
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: env.r2BucketName,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    });
+
+    const result = await getClient().send(command);
+
+    if (result.Contents) {
+      for (const obj of result.Contents) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+    }
+
+    continuationToken = result.IsTruncated
+      ? result.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  return keys;
+}
+
+async function deleteObject(key) {
+  if (!isConfigured() || !key) return;
+
+  await getClient().send(
+    new DeleteObjectCommand({
+      Bucket: env.r2BucketName,
+      Key: key,
+    })
+  );
+}
+
+async function deleteObjects(keys) {
+  if (!isConfigured() || keys.length === 0) return 0;
+
+  let deleted = 0;
+  for (let index = 0; index < keys.length; index += 1000) {
+    const batch = keys.slice(index, index + 1000);
+    const result = await getClient().send(
+      new DeleteObjectsCommand({
+        Bucket: env.r2BucketName,
+        Delete: {
+          Objects: batch.map((Key) => ({ Key })),
+          Quiet: true,
+        },
+      })
+    );
+
+    deleted += batch.length - (result.Errors?.length ?? 0);
+
+    if (result.Errors?.length) {
+      throw new Error(
+        `Failed to delete R2 objects: ${JSON.stringify(result.Errors)}`
+      );
+    }
+  }
+
+  return deleted;
+}
+
+async function deleteObjectsByPrefix(prefix) {
+  if (!isConfigured() || !prefix) return 0;
+
+  const keys = await listObjectKeys(prefix);
+
+  return deleteObjects(keys);
+}
+
 module.exports = {
   isConfigured,
   createUploadUrl,
   createDownloadUrl,
+  listObjectKeys,
+  deleteObject,
+  deleteObjects,
+  deleteObjectsByPrefix,
   validateUpload,
 };

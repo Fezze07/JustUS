@@ -418,6 +418,15 @@ class ApiService {
         body: body, requireSignature: true, label: 'Complete Media Upload');
   }
 
+  Future<ResultWrapper<Map<String, dynamic>>> deleteMediaItem(int id) async {
+    return _post(
+      ApiRoutes.mediaDelete,
+      body: {'id': id},
+      requireSignature: true,
+      label: 'Delete Media',
+    );
+  }
+
   // -------------------- AI Question Generation --------------------
 
   Future<ResultWrapper<Map<String, dynamic>>> generateAiQuestion() async {
