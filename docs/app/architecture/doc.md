@@ -268,22 +268,30 @@ gotrue's internal `_pendingRefreshes` map makes both sources share a single netw
 - The service is exposed as `Provider<RealtimeSyncService>.value` (consumed by e.g. `ProfileScreen._showWipeConfirmation`).
 - Service lifecycle is tied to this widget's `dispose()`.
 
-### Service (`lib/core/realtime/realtime_sync_service.dart`)
+### Service layer (`lib/core/realtime/`)
 
-- `start()`: registers as `WidgetsBindingObserver`, subscribes to `auth.onAuthStateChange`. On `tokenRefreshed` -> `realtime.setAuth(token)` without reconnect. Any other auth event while foreground+user -> `_scheduleReconnect()`.
-- `configure(userId, partnerId, partnershipId)`: resets retry counters; if `userId` or `partnershipId` is null -> unsubscribe and defer; else (on change) `_scheduleReconnect`.
-- Subscribes to **8 tables** on one channel `justus-sync-<userId>-<generation>`: `moods`, `partnerships`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `drive_item_reactions`.
-- Event routing: per-table relevance filter (`_isRelevantMood/Partnership/MissYou/Game/Drive`) + dedup (`_markSeen`, LRU of 80 `table:event:id:commitTimestamp` keys) + debounced timers (120-150 ms) into feature states (`refreshFromRealtime(...)`, `applyRealtimeEvent(...)`, `handleQuestionInsert/Update/Delete`, `handleAnswerInsert/Update/Delete`, `addMissYou`).
+The realtime stack was split by responsibility (files under `lib/core/realtime/`):
+
+- `realtime_sync_service.dart` — `RealtimeSyncService` facade: owns the 8 states, the shared `RealtimeSyncSession`, the `RealtimeSyncConnection`, and the 9-binding table→handler wiring (`RealtimeTableBinding` list). Public API unchanged: `start()`, `configure(...)`, `suppress()`, `resume()`, `refreshChannel()`, `dispose()`, plus `_refreshAll()`.
+- `realtime_sync_session.dart` — `RealtimeSyncSession`: user/partner/partnership ids, `suppressProcessing`, the `markSeen` dedup LRU (80 entries), row decoding helpers, and the `isRelevant*`/`isPartnershipRecord` relevance predicates.
+- `realtime_connection.dart` — `RealtimeSyncConnection (WidgetsBindingObserver)`: channel lifecycle, auth token-refresh listener, reconnect/exponential backoff, polling fallback, generation guard.
+- `realtime_table_binding.dart` — declarative `RealtimeTableBinding` (table + payload callback).
+- `handlers/` — one class per feature: `MoodRealtimeHandler`, `PartnershipRealtimeHandler`, `MissYouRealtimeHandler`, `BucketRealtimeHandler`, `GameRealtimeHandler`, `DriveRealtimeHandler`, `UserProfilesRealtimeHandler`.
+
+`RealtimeSyncService`:
+- `start()`: delegates to `RealtimeSyncConnection.start()` which registers as `WidgetsBindingObserver`, subscribes to `auth.onAuthStateChange`. On `tokenRefreshed` -> `realtime.setAuth(token)` without reconnect. Any other auth event while foreground+user -> `scheduleReconnect()`.
+- `configure(userId, partnerId, partnershipId)`: resets retry counters; mutates the session ids; if `userId` or `partnershipId` is null -> unsubscribe and defer; else (on change) `scheduleReconnect`.
+- Subscribes to **9 tables** on one channel `justus-sync-<userId>-<generation>`: `moods`, `partnerships`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `drive_item_reactions`, `user_profiles`.
+- Event routing: per-feature relevance filter (`RealtimeSyncSession.isRelevant*`/`isPartnershipRecord`) + dedup (`markSeen`, LRU of 80 `table:event:id:commitTimestamp` keys) + debounced timers (120-150 ms) into feature states (`refreshFromRealtime(...)`, `applyRealtimeEvent(...)`, `handleQuestionInsert/Update/Delete`, `handleAnswerInsert/Update/Delete`, `addMissYou`).
   - `game_questions` **insert/delete are processed immediately** (not debounced) to avoid drops.
   - `game_answers` events and `game_questions` **updates** are buffered FIFO in `GameEventBuffer` (`core/realtime/game_event_buffer.dart`) and flushed as a whole — a burst (answer INSERT + `both_answered` UPDATE within 150 ms) is applied completely, never reduced to its last event.
   - Mood events are coalesced in `MoodChangeBatch` (`core/realtime/mood_change_batch.dart`): the flush refreshes the **union of distinct `changedUserId`s** in the burst, so own + partner mood events landing within 120 ms are both refreshed — not just the last.
   - Miss-you **insert** optimistically increments `HomepageState.addMissYou()`; **delete** triggers a full refresh.
   - Partnership events trigger BOTH `PartnerState.refreshFromRealtime()` and `AuthState.refreshPartnershipFromRealtime()` plus `BaseRepository.clearPartnershipCache()`.
-- **Reconnection**: exponential backoff 1s -> 60s (`1 << clamp(0..7)`, base 3s for close code 1002, jitter up to +/-25%), max 20 attempts (`_reconnectAttempt`), de-duplicated by the `_subscribing` guard and a generation counter (stale channel callbacks are ignored).
-- **Polling fallback**: after 3 consecutive failures, `_activatePollingFallback()` starts `Timer.periodic(15s)` -> `_refreshAll()` (8 table queries), deactivated on a successful subscribe or on `configure`.
-- **Lifecycle**: resumed -> 300ms debounce then `_scheduleReconnect(refreshAfterSubscribe: true)`; paused/hidden/detached -> `_unsubscribe()`; inactive -> no-op. `_foreground` guards all subscribe paths.
-- `suppress()` sets `_suppressProcessing = true` and clears the game-event FIFO buffer and the mood batch (used by the Profile data-wipe); `resume()` exists but **is never called** (suppression is actually reset by the next `_subscribe()`); `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after wipe).
-- Dead field: `_missYouRefreshTimer` is declared but never assigned.
+- **Reconnection**: exponential backoff 1s -> 60s (`1 << clamp(0..7)`, base 3s for close code 1002, jitter up to +/-25%), max 20 attempts (in `RealtimeSyncConnection._reconnectAttempt`), de-duplicated by the `_subscribing` guard and a generation counter (`realtime_connection.dart`) such that stale channel callbacks are ignored.
+- **Polling fallback** (`realtime_connection.dart`): after 3 consecutive failures, `activatePollingFallback()` starts `Timer.periodic(15s)` -> `_refreshAll()` (7 table queries), deactivated on a successful subscribe or on `configure`.
+- **Lifecycle** (`realtime_connection.dart` `didChangeAppLifecycleState`): resumed -> 300ms debounce then `scheduleReconnect(refreshAfterSubscribe: true)`; paused/hidden/detached -> `unsubscribe()`; inactive -> no-op. `_foreground` guards all subscribe paths.
+- `suppress()` sets `RealtimeSyncSession.suppressProcessing = true` and clears the game-event FIFO buffer and the mood batch (used by the Profile data-wipe); `resume()` exists but **is never called** (suppression is actually reset by the next `subscribe()`); `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after wipe).
 
 ---
 
@@ -393,11 +401,11 @@ Three components register as `WidgetsBindingObserver`:
    - `didChangeLocales(locales)` -> `_syncDeviceLocale(locales.first)` (immediate, no debounce).
    - Cleanup: `dispose()` removes observer and cancels locale-sync debounce timer.
 
-2. **RealtimeSyncService** (`lib/core/realtime/realtime_sync_service.dart`):
-   - `didChangeAppLifecycleState(resumed)` -> 300ms debounce -> `_scheduleReconnect(refreshAfterSubscribe: true)`.
-   - `didChangeAppLifecycleState(paused/hidden/detached)` -> `_unsubscribe()` (cancels reconnect timers, removes channel).
+2. **RealtimeSyncConnection** (`lib/core/realtime/realtime_connection.dart`, registered via `RealtimeSyncService.start()`):
+   - `didChangeAppLifecycleState(resumed)` -> 300ms debounce -> `scheduleReconnect(refreshAfterSubscribe: true)`.
+   - `didChangeAppLifecycleState(paused/hidden/detached)` -> `unsubscribe()` (cancels reconnect timers, removes channel).
    - `didChangeAppLifecycleState(inactive)` -> no-op.
-   - Cleanup: `dispose()` removes observer, cancels all timers, cancels auth subscription, unsubscribes.
+   - Cleanup: `dispose()` removes observer, cancels all timers, cancels auth subscription, unsubscribes (called by `RealtimeSyncService.dispose()`).
 
 3. **Background message handler** (top-level `_firebaseMessagingBackgroundHandler` in `main.dart`):
    - Only runs in a separate isolate (when the OS delivers a background/terminated FCM message). Calls `WidgetsFlutterBinding.ensureInitialized()` independently.
@@ -430,19 +438,9 @@ Three components register as `WidgetsBindingObserver`:
 
 **Evidence**: `resume()` is declared at realtime_sync_service.dart. `suppress()` is called only at profile_screen.dart:95 (after data wipe). No call to `resume()` exists anywhere in the codebase (grep confirmed).
 
-**What**: After `suppress()` is called during a data wipe, event processing is re-enabled by the subsequent `_subscribe()` call inside `refreshChannel()`, which resets `_suppressProcessing = false`. The public `resume()` method is dead code.
+**What**: After `suppress()` is called during a data wipe, event processing is re-enabled by the subsequent `subscribe()` call inside `refreshChannel()` (`RealtimeSyncConnection`), which resets `RealtimeSyncSession.suppressProcessing = false`. The public `resume()` method is dead code.
 
 **Impact**: No functional impact currently (the wipe flow works via `refreshChannel()`), but the dead API is misleading for future developers who may call `resume()` expecting it to restore event processing.
-
-**Confidence**: HIGH.
-
-### F4: `_missYouRefreshTimer` is declared but never used
-
-**Evidence**: `Timer? _missYouRefreshTimer` declared in `realtime_sync_service.dart` but never assigned or read anywhere in the class.
-
-**What**: Dead field, presumably intended for debounced miss-you refresh but replaced by the inline logic in `_handleMissYouPayload` (direct optimistic increment on insert, refresh on delete).
-
-**Impact**: No functional impact. Minor code hygiene.
 
 **Confidence**: HIGH.
 
@@ -533,7 +531,7 @@ Flutter test files live in `Flutter/test/` and use `mocktail`:
 
 Test helpers in `test_helpers/`: `mock_secure_storage.dart`, `supabase_test_helpers.dart`, `test_data_factory.dart`.
 
-**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, `RealtimeSyncService`, `NotificationService`, `StorageService`, `CacheService`, `BaseState` coalescing, `ErrorHandler`, `UpdateService`, `CaptchaService`, `MainShell` lazy building, navigation flows, any widget tests.
+**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, the realtime stack (`RealtimeSyncService` facade + `RealtimeSyncConnection` + handlers + `RealtimeSyncScope`), `NotificationService`, `StorageService`, `CacheService`, `BaseState` coalescing, `ErrorHandler`, `UpdateService`, `CaptchaService`, `MainShell` lazy building, navigation flows, any widget tests.
 
 ---
 

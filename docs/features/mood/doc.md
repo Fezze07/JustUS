@@ -137,12 +137,12 @@ User Action (Select Emoji in Sheet or Custom Input)
    - Fires asynchronous partner push notification request via `notifyPartnerOnce(notificationKey: 'moodUpdated', params: {'emojiChar': emojiChar})`.
 
 4. **Realtime Broadcast & Partner UI Update**
-   - File: [realtime_sync_service.dart:396-410](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart#L396-L410)
+   - File: [mood_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/mood_realtime_handler.dart)
    - Supabase Realtime emits `INSERT` event on table `public.moods`.
-   - Partner's `RealtimeSyncService` catches payload in `_handleMoodPayload()`.
-   - Verifies relevance via `_isRelevantMood` (`userId == _userId || userId == _partnerId`).
-   - Deduplicates event key (`_markSeen`).
-   - Applies 120ms debounce timer (`_moodRefreshTimer`).
+   - Partner's `MoodRealtimeHandler` catches payload in `handle()`.
+   - Verifies relevance via `RealtimeSyncSession.isRelevantMood` (`changedUserId == session.userId || changedUserId == session.partnerId`).
+   - Deduplicates event key (`RealtimeSyncSession.markSeen`).
+   - Applies 120ms debounce via `MoodChangeBatch` (distinct-`changedUserId` coalescing, F-RT2).
    - Executes `MoodState.refreshFromRealtime(changedUserId)`.
    - Partner's app invokes `fetchPartnerMood()`, `fetchRecentEmojis()`, and `fetchTimeline()`, updating the partner's UI.
 

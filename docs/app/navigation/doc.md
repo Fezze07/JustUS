@@ -316,7 +316,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 ### F-N6: Partnership removal at runtime does not navigate to PartnerScreen
 
 **What**: `partnerships` realtime delete triggers data refresh only; `MainShell` persists with a null partner and no redirect.
-**Where**: realtime_sync_service.dart (partnership routing); main_shell.dart (no auth/partner listeners).
+**Where**: `PartnershipRealtimeHandler` (lib/core/realtime/handlers/) partnership routing; main_shell.dart (no auth/partner listeners).
 **Impact**: stale UI and no onboarding path back to `PartnerScreen` for the affected user.
 **Confidence**: HIGH (no navigation call exists anywhere for partnership delete).
 

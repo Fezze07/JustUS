@@ -1,11 +1,17 @@
 import 'dart:async';
-import 'dart:collection';
 
-import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import 'package:justus/all_imports.dart';
 
-class RealtimeSyncService with WidgetsBindingObserver {
+/// Facade over the Realtime synchronization stack.
+///
+/// Owns the feature states and coordinates the shared
+/// [RealtimeSyncSession] (identity, dedup, row decoding), one
+/// [RealtimeSyncConnection] (channel, lifecycle, reconnect, polling fallback),
+/// and one per-feature handler that routes its table's payloads into the
+/// corresponding state. The 9 `.onPostgresChanges` bindings are declared here
+/// so the table -> handler wiring stays in one place.
+class RealtimeSyncService {
   RealtimeSyncService({
     required AuthState authState,
     required MoodState moodState,
@@ -24,7 +30,50 @@ class RealtimeSyncService with WidgetsBindingObserver {
         _gameState = gameState,
         _driveState = driveState,
         _profileState = profileState,
-        _client = client ?? SupabaseService().client;
+        _client = client ?? SupabaseService().client {
+    _session = RealtimeSyncSession();
+    _moodHandler =
+        MoodRealtimeHandler(session: _session, moodState: _moodState);
+    _partnershipHandler = PartnershipRealtimeHandler(
+        session: _session, partnerState: _partnerState, authState: _authState);
+    _missYouHandler = MissYouRealtimeHandler(
+        session: _session, homepageState: _homepageState);
+    _bucketHandler =
+        BucketRealtimeHandler(session: _session, bucketState: _bucketState);
+    _gameHandler =
+        GameRealtimeHandler(session: _session, gameState: _gameState);
+    _driveHandler =
+        DriveRealtimeHandler(session: _session, driveState: _driveState);
+    _userProfileHandler = UserProfilesRealtimeHandler(
+        session: _session,
+        profileState: _profileState,
+        partnerState: _partnerState,
+        authState: _authState);
+    _connection = RealtimeSyncConnection(
+      client: _client,
+      session: _session,
+      refreshAll: _refreshAll,
+      bindings: [
+        RealtimeTableBinding(table: 'moods', callback: _moodHandler.handle),
+        RealtimeTableBinding(
+            table: 'partnerships', callback: _partnershipHandler.handle),
+        RealtimeTableBinding(
+            table: 'missyou', callback: _missYouHandler.handle),
+        RealtimeTableBinding(
+            table: 'bucket_items', callback: _bucketHandler.handle),
+        RealtimeTableBinding(
+            table: 'game_questions', callback: _gameHandler.handle),
+        RealtimeTableBinding(
+            table: 'game_answers', callback: _gameHandler.handle),
+        RealtimeTableBinding(
+            table: 'drive_items', callback: _driveHandler.handle),
+        RealtimeTableBinding(
+            table: 'drive_item_reactions', callback: _driveHandler.handle),
+        RealtimeTableBinding(
+            table: 'user_profiles', callback: _userProfileHandler.handle),
+      ],
+    );
+  }
 
   final AuthState _authState;
   final MoodState _moodState;
@@ -36,50 +85,28 @@ class RealtimeSyncService with WidgetsBindingObserver {
   final ProfileState _profileState;
   final sb.SupabaseClient _client;
 
-  sb.RealtimeChannel? _channel;
-  StreamSubscription<dynamic>? _authSubscription;
-  Timer? _reconnectTimer;
-  Timer? _partnershipRefreshTimer;
-  Timer? _missYouRefreshTimer;
-  Timer? _bucketRefreshTimer;
-  Timer? _driveRefreshTimer;
-  Timer? _userProfileRefreshTimer;
-  Timer? _lifecycleDebounceTimer;
-  Timer? _pollingFallbackTimer;
+  late final RealtimeSyncSession _session;
+  late final MoodRealtimeHandler _moodHandler;
+  late final PartnershipRealtimeHandler _partnershipHandler;
+  late final MissYouRealtimeHandler _missYouHandler;
+  late final BucketRealtimeHandler _bucketHandler;
+  late final GameRealtimeHandler _gameHandler;
+  late final DriveRealtimeHandler _driveHandler;
+  late final UserProfilesRealtimeHandler _userProfileHandler;
+  late final RealtimeSyncConnection _connection;
 
   bool _started = false;
   bool _disposed = false;
-  bool _foreground = true;
-  bool _subscribing = false;
-  bool _suppressProcessing = false;
-  bool _usePollingFallback = false;
-  int _generation = 0;
-  int _reconnectAttempt = 0;
-  int _consecutiveFailures = 0;
-  int? _userId;
-  int? _partnerId;
-  int? _partnershipId;
-
-  final Queue<String> _recentEventKeys = Queue<String>();
-  final Set<String> _recentEventKeySet = <String>{};
-
-  late final GameEventBuffer _gameEventBuffer = GameEventBuffer(
-    sink: _applyGameEvent,
-  );
-
-  late final MoodChangeBatch _moodChangeBatch = MoodChangeBatch(
-    sink: _applyMoodRefresh,
-  );
 
   void suppress() {
     AnsiLogger.realtime('suppress() - pausing event processing');
-    _suppressProcessing = true;
-    _gameEventBuffer.clear();
-    _moodChangeBatch.clear();
+    _session.suppressProcessing = true;
+    _gameHandler.clear();
+    _moodHandler.clear();
   }
 
   void resume({bool refresh = true}) {
-    _suppressProcessing = false;
+    _session.suppressProcessing = false;
     AnsiLogger.realtime(
         'resume() - resumed event processing, refresh=$refresh');
     if (refresh) {
@@ -90,9 +117,9 @@ class RealtimeSyncService with WidgetsBindingObserver {
   Future<void> refreshChannel() async {
     AnsiLogger.realtime(
         'refreshChannel() - replacing channel to drop stale events');
-    await _unsubscribe();
-    if (!_disposed && _foreground && _userId != null) {
-      await _subscribe(refreshAfterSubscribe: true);
+    await _connection.unsubscribe();
+    if (!_disposed && _connection.foreground && _session.userId != null) {
+      await _connection.subscribe(refreshAfterSubscribe: true);
     }
   }
 
@@ -100,27 +127,8 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_started || _disposed) return;
 
     _started = true;
-    AnsiLogger.realtime('start() - service started, userId=$_userId');
-    WidgetsBinding.instance.addObserver(this);
-    _authSubscription = _client.auth.onAuthStateChange.listen((authState) {
-      AnsiLogger.realtime(
-          'auth state changed: event=${authState.event} foreground=$_foreground userId=$_userId');
-
-      // Token refresh is handled internally by Supabase; just update the
-      // JWT on the existing Realtime connection without disconnecting.
-      if (authState.event == sb.AuthChangeEvent.tokenRefreshed) {
-        final token = authState.session?.accessToken;
-        if (token != null) {
-          AnsiLogger.realtime('token refreshed -> realtime.setAuth()');
-          unawaited(_client.realtime.setAuth(token));
-        }
-        return;
-      }
-
-      if (_foreground && _userId != null) {
-        _scheduleReconnect();
-      }
-    });
+    AnsiLogger.realtime('start() - service started, userId=${_session.userId}');
+    _connection.start();
   }
 
   void configure({
@@ -130,553 +138,36 @@ class RealtimeSyncService with WidgetsBindingObserver {
   }) {
     if (_disposed) return;
 
-    final changed = _userId != userId ||
-        _partnerId != partnerId ||
-        _partnershipId != partnershipId;
-    _reconnectAttempt = 0;
-    _consecutiveFailures = 0;
-    _userId = userId;
-    _partnerId = partnerId;
-    _partnershipId = partnershipId;
+    final changed = _session.userId != userId ||
+        _session.partnerId != partnerId ||
+        _session.partnershipId != partnershipId;
+    _connection.resetRetryCounters();
+    _session.userId = userId;
+    _session.partnerId = partnerId;
+    _session.partnershipId = partnershipId;
 
     if (!changed) return;
 
-    _gameEventBuffer.clear();
-    _moodChangeBatch.clear();
+    _gameHandler.clear();
+    _moodHandler.clear();
 
     AnsiLogger.realtime(
-        'configure() - CHANGE: userId=$userId partnerId=$partnerId partnershipId=$partnershipId foreground=$_foreground');
+        'configure() - CHANGE: userId=$userId partnerId=$partnerId partnershipId=$partnershipId foreground=${_connection.foreground}');
 
-    if (_usePollingFallback) {
-      _deactivatePollingFallback();
+    if (_connection.usePollingFallback) {
+      _connection.deactivatePollingFallback();
     }
 
     if (userId == null || partnershipId == null) {
       AnsiLogger.realtime(
           'configure() - userId=$userId partnershipId=$partnershipId, deferring subscribe');
-      unawaited(_unsubscribe());
+      unawaited(_connection.unsubscribe());
       return;
     }
 
-    if (_foreground) {
-      _scheduleReconnect();
+    if (_connection.foreground) {
+      _connection.scheduleReconnect();
     }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_disposed) return;
-
-    AnsiLogger.realtime(
-        'lifecycle state=$state foreground=$_foreground userId=$_userId');
-
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _foreground = true;
-        if (_userId != null) {
-          _lifecycleDebounceTimer?.cancel();
-          _lifecycleDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-            _lifecycleDebounceTimer = null;
-            _reconnectAttempt = 0;
-            _scheduleReconnect(refreshAfterSubscribe: true);
-          });
-        }
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-        _foreground = false;
-        _lifecycleDebounceTimer?.cancel();
-        _lifecycleDebounceTimer = null;
-        unawaited(_unsubscribe());
-      case AppLifecycleState.inactive:
-        break;
-    }
-  }
-
-  void _scheduleReconnect(
-      {bool refreshAfterSubscribe = false,
-      sb.RealtimeCloseEvent? closeEvent}) {
-    if (_disposed || !_foreground || _userId == null) return;
-
-    _reconnectAttempt++;
-    _consecutiveFailures++;
-
-    if (_consecutiveFailures >= 3 && !_usePollingFallback) {
-      _activatePollingFallback();
-    }
-
-    if (_reconnectAttempt > 20) {
-      AnsiLogger.realtime(
-          '_scheduleReconnect() - max retries (20) reached, giving up (will reset on next configure)');
-      _reconnectAttempt = 0;
-      return;
-    }
-
-    final shift = (_reconnectAttempt - 1).clamp(0, 7);
-
-    var baseDelayMs = 1000;
-    if (closeEvent != null && closeEvent.code == 1002) {
-      baseDelayMs = 3000;
-    }
-
-    final delayMs =
-        (baseDelayMs * (1 << shift)).clamp(1000, 60000);
-
-    final jitter = (delayMs * 0.25).round();
-    final finalDelay = delayMs +
-        (DateTime.now().microsecondsSinceEpoch % (jitter * 2 + 1) - jitter);
-
-    AnsiLogger.realtime(
-        '_scheduleReconnect() - attempt=$_reconnectAttempt delay=${finalDelay}ms refreshAfterSubscribe=$refreshAfterSubscribe');
-    _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(milliseconds: finalDelay), () {
-      AnsiLogger.realtime(
-          '_scheduleReconnect() - timer fired, calling _subscribe');
-      unawaited(_subscribe(refreshAfterSubscribe: refreshAfterSubscribe));
-    });
-  }
-
-  void _activatePollingFallback() {
-    if (_usePollingFallback || _disposed) return;
-    _usePollingFallback = true;
-    AnsiLogger.realtime(
-        '_activatePollingFallback() - Realtime unstable, switching to polling');
-    _pollingFallbackTimer?.cancel();
-    _pollingFallbackTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) {
-        if (_disposed || !_foreground) {
-          _pollingFallbackTimer?.cancel();
-          return;
-        }
-        AnsiLogger.realtime('polling fallback: _refreshAll()');
-        unawaited(_refreshAll());
-      },
-    );
-    unawaited(_refreshAll());
-  }
-
-  void _deactivatePollingFallback() {
-    if (!_usePollingFallback) return;
-    _usePollingFallback = false;
-    _pollingFallbackTimer?.cancel();
-    _pollingFallbackTimer = null;
-    AnsiLogger.realtime(
-        '_deactivatePollingFallback() - Realtime recovered, polling stopped');
-  }
-
-  Future<void> _subscribe({required bool refreshAfterSubscribe}) async {
-    if (_disposed || _subscribing || !_foreground || _userId == null) {
-      AnsiLogger.realtime(
-          '_subscribe() - SKIP: disposed=$_disposed subscribing=$_subscribing foreground=$_foreground userId=$_userId');
-      return;
-    }
-
-    _lifecycleDebounceTimer?.cancel();
-    _lifecycleDebounceTimer = null;
-
-    _subscribing = true;
-    _suppressProcessing = false;
-    try {
-      _generation += 1;
-      AnsiLogger.realtime(
-          '_subscribe() - subscribing generation=$_generation userId=$_userId refreshAfterSubscribe=$refreshAfterSubscribe');
-      await _unsubscribe();
-      if (_disposed || !_foreground || _userId == null) return;
-
-      final channel = _client
-          .channel('justus-sync-$_userId-$_generation')
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'moods',
-            callback: _handleMoodPayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'partnerships',
-            callback: _handlePartnershipPayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'missyou',
-            callback: _handleMissYouPayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'bucket_items',
-            callback: _handleBucketPayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'game_questions',
-            callback: _handleGamePayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'game_answers',
-            callback: _handleGamePayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'drive_items',
-            callback: _handleDrivePayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'drive_item_reactions',
-            callback: _handleDrivePayload,
-          )
-          .onPostgresChanges(
-            event: sb.PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'user_profiles',
-            callback: _handleUserProfilesPayload,
-          );
-
-      _channel = channel;
-      final int subscribedGeneration = _generation;
-      try {
-        channel.subscribe((status, error) {
-          if (_disposed) return;
-
-          if (subscribedGeneration != _generation) {
-            AnsiLogger.realtime(
-                'channel status=$status (stale gen=$subscribedGeneration, current=$_generation) - ignoring');
-            return;
-          }
-
-          AnsiLogger.realtime(
-              'channel status=$status${error != null ? ' error=$error' : ''}');
-
-          if (status == sb.RealtimeSubscribeStatus.subscribed) {
-            _reconnectAttempt = 0;
-            _consecutiveFailures = 0;
-            if (_usePollingFallback) {
-              _deactivatePollingFallback();
-            }
-            if (refreshAfterSubscribe) {
-              unawaited(_refreshAll());
-            }
-            return;
-          }
-
-          if (status == sb.RealtimeSubscribeStatus.channelError &&
-              error is sb.RealtimeCloseEvent) {
-            AnsiLogger.error(
-                'channel status $status: code=${error.code} reason=${error.reason}',
-                tag: 'RealtimeSync');
-            _scheduleReconnect(closeEvent: error);
-          } else if (status == sb.RealtimeSubscribeStatus.closed ||
-              status == sb.RealtimeSubscribeStatus.channelError ||
-              status == sb.RealtimeSubscribeStatus.timedOut) {
-            if (error != null) {
-              AnsiLogger.error('channel status $status: $error',
-                  tag: 'RealtimeSync');
-            }
-            _scheduleReconnect();
-          }
-        });
-      } catch (e) {
-        AnsiLogger.error('channel.subscribe() threw: $e', tag: 'RealtimeSync');
-        if (!_disposed && _foreground) {
-          _scheduleReconnect();
-        }
-      }
-    } catch (e) {
-      AnsiLogger.error('_subscribe() failed: $e', tag: 'RealtimeSync');
-      if (!_disposed && _foreground) {
-        _scheduleReconnect();
-      }
-    } finally {
-      _subscribing = false;
-    }
-  }
-
-  Future<void> _unsubscribe() async {
-    _reconnectTimer?.cancel();
-    final channel = _channel;
-    _channel = null;
-    if (channel == null) {
-      AnsiLogger.realtime('_unsubscribe() - no active channel');
-      return;
-    }
-
-    AnsiLogger.realtime('_unsubscribe() - removing channel');
-    try {
-      await _client.removeChannel(channel);
-      AnsiLogger.realtime('_unsubscribe() - channel removed');
-    } catch (e) {
-      AnsiLogger.error('removeChannel failed: $e', tag: 'RealtimeSync');
-    }
-  }
-
-  void _handleMoodPayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleMoodPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isRelevantMood(payload) || !_markSeen(payload)) return;
-
-    final changedUserId = _rowUserId(_currentRecord(payload), 'user_id');
-    if (changedUserId == null) return;
-
-    _moodChangeBatch.add(changedUserId);
-  }
-
-  Future<void> _applyMoodRefresh(List<int> changedUserIds) async {
-    AnsiLogger.realtime(
-        '_applyMoodRefresh -> refreshFromRealtime(changedUserIds=$changedUserIds)');
-    await Future.wait(changedUserIds.map(
-        (userId) => _moodState.refreshFromRealtime(changedUserId: userId)));
-  }
-
-  void _handlePartnershipPayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handlePartnershipPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isRelevantPartnership(payload) || !_markSeen(payload)) return;
-
-    _partnershipRefreshTimer?.cancel();
-    _partnershipRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      AnsiLogger.realtime('_handlePartnershipPayload -> refreshFromRealtime()');
-      BaseRepository.clearPartnershipCache();
-      unawaited(Future.wait([
-        _partnerState.refreshFromRealtime(),
-        _authState.refreshPartnershipFromRealtime(),
-      ]));
-    });
-  }
-
-  void _handleMissYouPayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleMissYouPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isRelevantMissYou(payload) || !_markSeen(payload)) return;
-
-    if (payload.eventType.name == 'insert') {
-      _homepageState.addMissYou();
-    } else if (payload.eventType.name == 'delete') {
-      unawaited(_homepageState.refreshFromRealtime());
-    }
-  }
-
-  void _handleBucketPayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleBucketPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isPartnershipRecord(payload) || !_markSeen(payload)) return;
-
-    AnsiLogger.realtime('_handleBucketPayload -> applyRealtimeEvent()');
-    unawaited(_bucketState.applyRealtimeEvent(
-      eventType: payload.eventType.name,
-      newRecord: payload.newRecord,
-      oldRecord: payload.oldRecord,
-    ));
-  }
-
-  void _handleGamePayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleGamePayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isRelevantGame(payload) || !_markSeen(payload)) return;
-
-    final table = payload.table;
-    final eventType = payload.eventType.name;
-    final newRecord = payload.newRecord;
-    final oldRecord = payload.oldRecord;
-
-    // Process insert/delete immediately so events aren't dropped by debounce
-    if (table == 'game_questions' && eventType == 'insert') {
-      AnsiLogger.realtime('_handleGamePayload -> handleQuestionInsert()');
-      unawaited(_gameState.handleQuestionInsert(newRecord));
-      return;
-    }
-    if (table == 'game_questions' && eventType == 'delete') {
-      AnsiLogger.realtime('_handleGamePayload -> handleQuestionDelete()');
-      unawaited(_gameState.handleQuestionDelete(oldRecord));
-      return;
-    }
-
-    // Buffer every remaining game event FIFO. A burst (e.g. a partner's
-    // `game_answers` INSERT followed within 150 ms by the `both_answered`
-    // `game_questions` UPDATE) is applied entirely, in delivery order,
-    // instead of keeping only the last event of the burst (F-RT1).
-    AnsiLogger.realtime('_handleGamePayload -> buffered for FIFO flush');
-    _gameEventBuffer.add(
-      table: table,
-      eventType: eventType,
-      newRecord: newRecord,
-      oldRecord: oldRecord,
-    );
-  }
-
-  Future<void> _applyGameEvent(
-    String table,
-    String eventType,
-    Map<String, dynamic> newRecord,
-    Map<String, dynamic> oldRecord,
-  ) async {
-    if (table == 'game_questions' && eventType == 'update') {
-      AnsiLogger.realtime('_handleGamePayload -> handleQuestionUpdate()');
-      await _gameState.handleQuestionUpdate(newRecord);
-    } else if (table == 'game_answers' && eventType == 'insert') {
-      AnsiLogger.realtime('_handleGamePayload -> handleAnswerInsert()');
-      await _gameState.handleAnswerInsert(newRecord);
-    } else if (table == 'game_answers' && eventType == 'update') {
-      AnsiLogger.realtime('_handleGamePayload -> handleAnswerUpdate()');
-      await _gameState.handleAnswerUpdate(newRecord);
-    } else if (table == 'game_answers' && eventType == 'delete') {
-      AnsiLogger.realtime('_handleGamePayload -> handleAnswerDelete()');
-      await _gameState.handleAnswerDelete(oldRecord);
-    }
-  }
-
-  void _handleUserProfilesPayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleUserProfilesPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (payload.eventType.name != 'update') return;
-    if (!_isRelevantUserProfile(payload) || !_markSeen(payload)) return;
-
-    _userProfileRefreshTimer?.cancel();
-    _userProfileRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      AnsiLogger.realtime(
-          '_handleUserProfilesPayload -> refresh profiles (user/partner)');
-      BaseRepository.clearPartnershipCache();
-      unawaited(Future.wait([
-        _profileState.loadProfile(force: true),
-        _partnerState.refreshFromRealtime(),
-        _authState.refreshPartnershipFromRealtime(),
-      ]));
-    });
-  }
-
-  void _handleDrivePayload(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleDrivePayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_suppressProcessing) return;
-    if (!_isRelevantDrive(payload) || !_markSeen(payload)) return;
-
-    _driveRefreshTimer?.cancel();
-    _driveRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      AnsiLogger.realtime('_handleDrivePayload -> refreshFromRealtime()');
-      unawaited(_driveState.refreshFromRealtime());
-    });
-  }
-
-  bool _isRelevantUserProfile(sb.PostgresChangePayload payload) {
-    final userId = _rowInt(_currentRecord(payload), 'user_id');
-    if (userId == null) return false;
-
-    return userId == _userId || userId == _partnerId;
-  }
-
-  bool _isRelevantMood(sb.PostgresChangePayload payload) {
-    final userId = _rowUserId(_currentRecord(payload), 'user_id');
-    if (userId == null) return false;
-
-    return userId == _userId || userId == _partnerId;
-  }
-
-  bool _isRelevantPartnership(sb.PostgresChangePayload payload) {
-    final row = _currentRecord(payload);
-    final userIds = <int?>[
-      _rowUserId(row, 'user_id_1'),
-      _rowUserId(row, 'user_id_2'),
-      _rowUserId(row, 'user_id_a'),
-      _rowUserId(row, 'user_id_b'),
-    ];
-
-    return userIds.any((id) => id != null && id == _userId);
-  }
-
-  bool _isRelevantMissYou(sb.PostgresChangePayload payload) {
-    return _isPartnershipRecord(payload);
-  }
-
-  bool _isPartnershipRecord(sb.PostgresChangePayload payload) {
-    final partnershipId = _partnershipId;
-    if (partnershipId == null) return true;
-
-    final eventPartnershipId =
-        _rowInt(_currentRecord(payload), 'partnership_id');
-
-    return eventPartnershipId == null || eventPartnershipId == partnershipId;
-  }
-
-  bool _isRelevantGame(sb.PostgresChangePayload payload) {
-    final row = _currentRecord(payload);
-    if (payload.table == 'game_questions') {
-      return _isPartnershipRecord(payload);
-    }
-
-    final userId = _rowInt(row, 'user_id');
-    if (userId == null) return _partnershipId != null;
-
-    return userId == _userId || userId == _partnerId;
-  }
-
-  bool _isRelevantDrive(sb.PostgresChangePayload payload) {
-    if (payload.table == 'drive_items') {
-      return _isPartnershipRecord(payload);
-    }
-
-    final itemId = _rowInt(_currentRecord(payload), 'item_id');
-    if (itemId == null) return _partnershipId != null;
-
-    return _driveState.driveItems.any((item) => item.id == itemId);
-  }
-
-  Map<String, dynamic> _currentRecord(sb.PostgresChangePayload payload) {
-    if (payload.newRecord.isNotEmpty) return payload.newRecord;
-
-    return payload.oldRecord;
-  }
-
-  int? _rowUserId(Map<String, dynamic> row, String key) {
-    return _rowInt(row, key);
-  }
-
-  int? _rowInt(Map<String, dynamic> row, String key) {
-    final value = row[key];
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value);
-
-    return null;
-  }
-
-  bool _markSeen(sb.PostgresChangePayload payload) {
-    final row = _currentRecord(payload);
-    final id = row['id'] ?? row['partnership_id'] ?? row['user_id'] ?? '';
-    final key = [
-      payload.table,
-      payload.eventType.name,
-      id,
-      payload.commitTimestamp.toUtc().toIso8601String(),
-    ].join(':');
-
-    if (_recentEventKeySet.contains(key)) {
-      AnsiLogger.realtime('_markSeen - DUPLICATE key=$key');
-      return false;
-    }
-
-    AnsiLogger.realtime('_markSeen - NEW event key=$key');
-    _recentEventKeys.addLast(key);
-    _recentEventKeySet.add(key);
-    const maxTrackedEvents = 80;
-    while (_recentEventKeys.length > maxTrackedEvents) {
-      _recentEventKeySet.remove(_recentEventKeys.removeFirst());
-    }
-
-    return true;
   }
 
   Future<void> _refreshAll() async {
@@ -697,18 +188,11 @@ class RealtimeSyncService with WidgetsBindingObserver {
     if (_disposed) return;
 
     _disposed = true;
-    WidgetsBinding.instance.removeObserver(this);
-    _lifecycleDebounceTimer?.cancel();
-    _reconnectTimer?.cancel();
-    _pollingFallbackTimer?.cancel();
-    _partnershipRefreshTimer?.cancel();
-    _missYouRefreshTimer?.cancel();
-    _bucketRefreshTimer?.cancel();
-    _gameEventBuffer.clear();
-    _moodChangeBatch.clear();
-    _driveRefreshTimer?.cancel();
-    _userProfileRefreshTimer?.cancel();
-    await _authSubscription?.cancel();
-    await _unsubscribe();
+    _gameHandler.clear();
+    _moodHandler.clear();
+    _partnershipHandler.dispose();
+    _driveHandler.dispose();
+    _userProfileHandler.dispose();
+    await _connection.dispose();
   }
 }

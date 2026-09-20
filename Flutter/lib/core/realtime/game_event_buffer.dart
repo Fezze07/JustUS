@@ -79,7 +79,8 @@ class GameEventBuffer {
   Future<void> _drain() async {
     while (_pending.isNotEmpty) {
       final event = _pending.removeFirst();
-      await sink(event.table, event.eventType, event.newRecord, event.oldRecord);
+      await sink(
+          event.table, event.eventType, event.newRecord, event.oldRecord);
     }
   }
 

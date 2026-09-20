@@ -9,7 +9,26 @@ A **polling fallback** (15 s interval) and **exponential-backoff resubscription*
 Two layers of isolation are enforced:
 
 1. **Server-side RLS** — Supabase filters which rows each JWT can read/write before an event is delivered on the WebSocket.
-2. **Client-side relevance filters** — `_isRelevant*()`/`_isPartnershipRecord()` re-verify the payload against `_userId`, `_partnerId`, `_partnershipId` before processing.
+2. **Client-side relevance filters** — `RealtimeSyncSession.isRelevant*()`/`isPartnershipRecord()` re-verify the payload against the session ids (`userId`, `partnerId`, `partnershipId`) before processing.
+
+## File map (post-refactor split)
+
+The old single-file service was split by responsibility. `RealtimeSyncService` is now a thin facade; all connection and routing logic lives in four modules plus seven feature handlers.
+
+| File | Responsibility |
+|---|---|
+| `lib/core/realtime/realtime_sync_service.dart` | Facade: owns the 8 states, the shared `RealtimeSyncSession` (ids/dedup), the `RealtimeSyncConnection`, and the 9-binding table->handler wiring. Public API unchanged (`start`, `configure`, `didChangeAppLifecycleState`-internalized, `suppress`, `resume`, `refreshChannel`, `dispose`). Also owns `_refreshAll()`. |
+| `lib/core/realtime/realtime_sync_session.dart` | `RealtimeSyncSession`: user/partner/partnership ids, `suppressProcessing`, dedup LRU (`markSeen`), row decoding (`currentRecord`, `rowInt`, `rowUserId`), relevance predicates (`isRelevant*`, `isPartnershipRecord`). |
+| `lib/core/realtime/realtime_connection.dart` | `RealtimeSyncConnection (WidgetsBindingObserver)`: channel build + subscribe status handling, auth token-refresh listener, lifecycle resume/pause/unsubscribe, reconnect backoff, polling fallback, lazy `_refreshAll` hook. |
+| `lib/core/realtime/realtime_table_binding.dart` | `RealtimeTableBinding` (+ `RealtimePayloadCallback` typedef): declarative table -> handler wiring for the 9 bindings. |
+| `lib/core/realtime/handlers/mood_realtime_handler.dart` | `MoodRealtimeHandler`: `MoodChangeBatch` distinct-user coalescing (120 ms). |
+| `lib/core/realtime/handlers/partnership_realtime_handler.dart` | `PartnershipRealtimeHandler`: 150 ms debounce -> cache clear + `PartnerState`/`AuthState` refresh. |
+| `lib/core/realtime/handlers/miss_you_realtime_handler.dart` | `MissYouRealtimeHandler`: immediate `addMissYou()` (insert) / `refreshFromRealtime()` (delete). |
+| `lib/core/realtime/handlers/bucket_realtime_handler.dart` | `BucketRealtimeHandler`: immediate `BucketState.applyRealtimeEvent`. |
+| `lib/core/realtime/handlers/game_realtime_handler.dart` | `GameRealtimeHandler`: immediate question insert/delete + `GameEventBuffer` FIFO flush (150 ms). |
+| `lib/core/realtime/handlers/drive_realtime_handler.dart` | `DriveRealtimeHandler`: 150 ms debounce -> full `DriveState.refreshFromRealtime()`. |
+| `lib/core/realtime/handlers/user_profiles_realtime_handler.dart` | `UserProfilesRealtimeHandler`: 150 ms debounce -> cache clear + `ProfileState`/`PartnerState`/`AuthState` refresh (update-only). |
+| `lib/core/realtime/game_event_buffer.dart`, `mood_change_batch.dart` | Unchanged reusable debounce primitives (F-RT1/F-RT2). |
 
 ---
 
@@ -21,11 +40,11 @@ Supabase Postgres commit
         └─ WebSocket delivers PostgresChangePayload (RLS-filtered by JWT)
               └─ Channel: justus-sync-$userId-$generation
                     └─ onPostgresChanges(event: all, schema: public, table: <9 tables>)
-                          └─ relevance filter  (_isRelevant* / _isPartnershipRecord)
+                          └─ relevance filter  (RealtimeSyncSession.isRelevant* / isPartnershipRecord)
                                 ├─ dropped if not user/partner/partnership
-                                └─ dedup            (_markSeen, 80-entry FIFO LRU)
+                                └─ dedup            (RealtimeSyncSession.markSeen, 80-entry FIFO LRU)
                                       └─ if duplicate → dropped
-                                      └─ if new → per-table debounce (or immediate)
+                                      └─ if new → per-feature debounce (or immediate)
                                             └─ state update (feature state method)
                                                   └─ cache write (StorageService)
                                                         └─ notifyListeners()
@@ -35,10 +54,10 @@ Supabase Postgres commit
 | Stage | Where | Mechanism |
 |---|---|---|
 | Supabase event | Postgres WAL | `PostgresChangeEvent.all` (INSERT/UPDATE/DELETE) |
-| Subscription | `realtime_sync_service.dart:274-326` | 1 channel, 9 `.onPostgresChanges` bindings |
-| Filtering | `:539-620` | Client relevance: user/partner/partnership |
-| Deduplication | `:584-608` | `_markSeen`, FIFO LRU of 80 event keys |
-| Debounce | `:421-436, 440-448, 486-530, 552-556` | 120/150 ms trailing-edge timers + buffered flush |
+| Subscription | `realtime_connection.dart` `subscribe()` | 1 channel, 9 `.onPostgresChanges` bindings (wiring in `realtime_sync_service.dart`) |
+| Filtering | `realtime_sync_session.dart` | Client relevance: user/partner/partnership |
+| Deduplication | `realtime_sync_session.dart` `markSeen()` | FIFO LRU of 80 event keys |
+| Debounce | handler files | 120/150 ms trailing-edge timers + buffered flush |
 | State update | feature states | `refreshFromRealtime()` / granular handlers |
 | UI update | `notifyListeners()` | Provider consumers (screens/tabs) |
 
@@ -46,19 +65,19 @@ Supabase Postgres commit
 
 ## Subscription Configuration
 
-Channel name: `justus-sync-$userId-$generation` — the generation counter is incremented on every `_subscribe()` call, so every (re)subscription gets a unique channel name. Supabase treats each as a brand-new subscription; the `subscribedGeneration != _generation` guard (`:325-329`) discards status callbacks from superseded channels.
+Channel name: `justus-sync-$userId-$generation` — the generation counter (`RealtimeSyncConnection._generation`) is incremented on every `subscribe()`, so every (re)subscription gets a unique channel name. Supabase treats each as a brand-new subscription; the `subscribedGeneration != _generation` guard discards status callbacks from superseded channels.
 
 | # | Table | Event types | Callback | Debounce | Dispatches to |
 |---|---|---|---|---|---|
-| 1 | `moods` | all | `_handleMoodPayload` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` per **distinct** changed user (`mood_change_batch.dart`) |
-| 2 | `partnerships` | all | `_handlePartnershipPayload` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
-| 3 | `missyou` | all | `_handleMissYouPayload` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
-| 4 | `bucket_items` | all | `_handleBucketPayload` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
-| 5 | `game_questions` | all | `_handleGamePayload` | **none** for insert/delete (immediate); 150 ms FIFO flush for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (via `game_event_buffer.dart`) |
-| 6 | `game_answers` | all | `_handleGamePayload` | 150 ms FIFO flush (burst preserved) | `GameState.handleAnswerInsert/Update/Delete` (via `game_event_buffer.dart`) |
-| 7 | `drive_items` | all | `_handleDrivePayload` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
-| 8 | `drive_item_reactions` | all | `_handleDrivePayload` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
-| 9 | `user_profiles` | all (update handled) | `_handleUserProfilesPayload` | 150 ms | `ProfileState.loadProfile(force)` + `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
+| 1 | `moods` | all | `MoodRealtimeHandler.handle` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` per **distinct** changed user (`mood_change_batch.dart`) |
+| 2 | `partnerships` | all | `PartnershipRealtimeHandler.handle` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
+| 3 | `missyou` | all | `MissYouRealtimeHandler.handle` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
+| 4 | `bucket_items` | all | `BucketRealtimeHandler.handle` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
+| 5 | `game_questions` | all | `GameRealtimeHandler.handle` | **none** for insert/delete (immediate); 150 ms FIFO flush for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (via `game_event_buffer.dart`) |
+| 6 | `game_answers` | all | `GameRealtimeHandler.handle` | 150 ms FIFO flush (burst preserved) | `GameState.handleAnswerInsert/Update/Delete` (via `game_event_buffer.dart`) |
+| 7 | `drive_items` | all | `DriveRealtimeHandler.handle` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
+| 8 | `drive_item_reactions` | all | `DriveRealtimeHandler.handle` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
+| 9 | `user_profiles` | all (update handled) | `UserProfilesRealtimeHandler.handle` | 150 ms | `ProfileState.loadProfile(force)` + `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
 
 All nine bindings register with `event: sb.PostgresChangeEvent.all`, `schema: 'public'`, and **no logical filters**. Row relevance is decided post-delivery in Dart.
 
@@ -71,32 +90,30 @@ All debounces are **trailing-edge**: each incoming event cancels the pending tim
 | Debouncer | Timer | Delay | Coalesces | Consequence of coalescing |
 |---|---|---|---|---|
 | Mood | `MoodChangeBatch` (`mood_change_batch.dart`) | 120 ms | multiple mood events | The **union** of distinct `changedUserId`s in the burst is flushed; a same-window burst from BOTH users refreshes both sides — nothing is skipped. |
-| Partnership | `_partnershipRefreshTimer` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
+| Partnership | `PartnershipRealtimeHandler._partnershipRefreshTimer` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
 | Game (answers + question updates) | `GameEventBuffer` (`game_event_buffer.dart`) | 150 ms | multiple game events | Full burst is buffered **FIFO** and every event is applied in delivery order — nothing is dropped. |
-| Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce" (`:466`). |
-| Drive | `_driveRefreshTimer` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
-| User profile | `_userProfileRefreshTimer` | 150 ms | `user_profiles` updates (self or partner row) | One refresh pass: partnership cache cleared, then `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Full refetch, order-insensitive. |
+| Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce". |
+| Drive | `DriveRealtimeHandler._driveRefreshTimer` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
+| User profile | `UserProfilesRealtimeHandler._userProfileRefreshTimer` | 150 ms | `user_profiles` updates (self or partner row) | One refresh pass: partnership cache cleared, then `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Full refetch, order-insensitive. |
 | Bucket | — | **none** | n/a | Immediate granular `applyRealtimeEvent` in commit order. |
 | MissYou | — | **none** | n/a | Immediate `addMissYou()` / `refreshFromRealtime()`. |
-| Lifecycle resume | `_lifecycleDebounceTimer` | 300 ms | app-resume bursts (task switcher) | One reconnect + full `_refreshAll`. |
-
-`_missYouRefreshTimer` is **declared but never used** (F-RT3).
+| Lifecycle resume | `RealtimeSyncConnection._lifecycleDebounceTimer` | 300 ms | app-resume bursts (task switcher) | One reconnect + full `_refreshAll`. |
 
 ---
 
-## Deduplication — `_markSeen`
+## Deduplication — `RealtimeSyncSession.markSeen`
 
-Data structures (`:61-62`):
+Data structures (`realtime_sync_session.dart`):
 
 ```dart
 final Queue<String> _recentEventKeys = Queue<String>();
 final Set<String> _recentEventKeySet = <String>{};
 ```
 
-Event identity (`:584-608`):
+Event identity:
 
 ```dart
-final row = _currentRecord(payload);
+final row = currentRecord(payload);
 final id = row['id'] ?? row['partnership_id'] ?? row['user_id'] ?? '';
 final key = [
   payload.table,
@@ -131,57 +148,57 @@ final key = [
 
 ## Relevance Filtering
 
-All filters gate on `_userId`, `_partnerId`, `_partnershipId` (set by `configure()`).
+All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partnershipId`, set by `configure()`).
 
 | Filter | Rule | Notes |
 |---|---|---|
-| `_isRelevantMood` (`:509-514`) | `user_id == _userId \|\| user_id == _partnerId` | Guards self + partner moods |
-| `_isRelevantPartnership` (`:516-526`) | any of `user_id_1/user_id_2` in row == `_userId` | Note: `user_id_a/b` also checked (unused columns, harmless) |
-| `_isRelevantMissYou` (`:528-529`) | → `_isPartnershipRecord` | partnership_id match |
-| `_isPartnershipRecord` (`:532-540`) | `eventPartnershipId == _partnershipId`; **permissive (`true`) if `_partnershipId == null`** | Used by bucket, missyou, game_questions, drive_items |
-| `_isRelevantGame` (`:542-552`) | questions → partnership; answers → `user_id` self/partner | |
-| `_isRelevantDrive` (`:554-563`) | drive_items → partnership; reactions → `item_id` in local `_driveItems` | Reaction events for items not in the local list are dropped (F-RT9) |
+| `RealtimeSyncSession.isRelevantMood` | `user_id == userId \|\| user_id == partnerId` | Guards self + partner moods |
+| `isRelevantPartnership` | any of `user_id_1/user_id_2` in row == `userId` | Note: `user_id_a/b` also checked (unused columns, harmless) |
+| `isRelevantMissYou` | → `isPartnershipRecord` | partnership_id match |
+| `isPartnershipRecord` | `eventPartnershipId == partnershipId`; **permissive (`true`) if `partnershipId == null`** | Used by bucket, missyou, game_questions, drive_items |
+| `isRelevantGame` | questions → partnership; answers → `user_id` self/partner | |
+| `isRelevantDrive` | drive_items → partnership; reactions → `item_id` in local `_driveItems` | Reaction events for items not in the local list are dropped (F-RT9) |
 
 ### Note on the permissive fallback
 
-`_isPartnershipRecord` returns `true` when `_partnershipId == null` — i.e. "filter everything in". This is **safe by construction**: `configure()` defers subscription whenever `partnershipId == null` (`:145-148`), so no channel exists without a partnership. The fallback only matters in the pathological window where the channel outlives a partnership reset; RLS still gates the events server-side.
+`isPartnershipRecord` returns `true` when `partnershipId == null` — i.e. "filter everything in". This is **safe by construction**: `configure()` defers subscription whenever `partnershipId == null`, so no channel exists without a partnership. The fallback only matters in the pathological window where the channel outlives a partnership reset; RLS still gates the events server-side.
 
 ---
 
 ## Lifecycle
 
-### start / auth events (`:87-112`)
+### start / auth events (`RealtimeSyncConnection.start`)
 
-- `start()` adds a `WidgetsBindingObserver` and subscribes to `_client.auth.onAuthStateChange`.
+- `RealtimeSyncService.start()` → `RealtimeSyncConnection.start()` adds a `WidgetsBindingObserver` and subscribes to `_client.auth.onAuthStateChange`.
 - `tokenRefreshed` → `_client.realtime.setAuth(token)` **without disconnecting** (recommended Supabase pattern). No reconnect is triggered.
-- Any other auth event with `_foreground && _userId != null` → `_scheduleReconnect()`.
+- Any other auth event with `_foreground && userId != null` → `scheduleReconnect()`.
 
-### configure (`:118-150`)
+### configure (`RealtimeSyncService.configure`)
 
 - Called post-frame by `RealtimeSyncScope` after every `AuthState`/`PartnerState` change (login, logout, partnership accepted/rejected).
-- **No-op when IDs are unchanged**: retries/failure counters are reset and fields re-assigned, but if nothing changed the method returns before any log, reconnect, or unsubscribe — so the routine rebuilds of the `Consumer2` (e.g. after a profile edit's refresh batch) log **nothing**.
-- On a real change: logs `configure() - CHANGE: ...`, resets `_reconnectAttempt` and `_consecutiveFailures`, deactivates polling fallback.
-- **Defers subscription** when `userId == null || partnershipId == null` → `_unsubscribe()` and wait (`:144-149`).
-- On id change in foreground → `_scheduleReconnect()`.
+- **No-op when IDs are unchanged**: retry/failure counters are reset and fields re-assigned (`RealtimeSyncSession` ids mutated), but if nothing changed the method returns before any log, reconnect, or unsubscribe — so the routine rebuilds of the `Consumer2` (e.g. after a profile edit's refresh batch) log **nothing**.
+- On a real change: logs `configure() - CHANGE: ...`, resets `_reconnectAttempt` and `_consecutiveFailures`, clears the game-event FIFO buffer + mood batch, deactivates polling fallback.
+- **Defers subscription** when `userId == null || partnershipId == null` → `unsubscribe()` and wait.
+- On id change in foreground → `scheduleReconnect()`.
 
-### subscribe (`:249-376`)
+### subscribe (`RealtimeSyncConnection.subscribe`)
 
-- Guarded by `_disposed || _subscribing || !_foreground || _userId == null`.
-- Increments `_generation`, calls `_unsubscribe()`, then builds the 9-binding channel and `subscribe` with a status callback.
+- Guarded by `_disposed || _subscribing || !_foreground || userId == null`.
+- Increments `_generation`, calls `unsubscribe()`, then builds the 9-binding channel (from the facade's `RealtimeTableBinding` list) and `subscribe` with a status callback.
 - Status handling:
   - `subscribed` → reset attempt/failure counters, deactivate polling, optionally `_refreshAll()` (when `refreshAfterSubscribe`).
-  - `channelError` + `RealtimeCloseEvent` → `_scheduleReconnect(closeEvent: ...)` (code-1002 → 3 s base delay).
-  - `closed` / `channelError` / `timedOut` → `_scheduleReconnect()`.
+  - `channelError` + `RealtimeCloseEvent` → `scheduleReconnect(closeEvent: ...)` (code-1002 → 3 s base delay).
+  - `closed` / `channelError` / `timedOut` → `scheduleReconnect()`.
 - Stale-generation guard: a status callback whose captured `subscribedGeneration != _generation` is ignored.
 
-### unsubscribe (`:378-394`)
+### unsubscribe (`RealtimeSyncConnection.unsubscribe`)
 
 - Cancels `_reconnectTimer`, removes channel via `_client.removeChannel`. Guarded against no-op.
 
-### Resume / Pause / Detach (`:148-175`)
+### Resume / Pause / Detach (`RealtimeSyncConnection.didChangeAppLifecycleState`)
 
-- `resumed` → `_foreground = true`; if a user exists, a **300 ms lifecycle debounce timer** fires → `_reconnectAttempt = 0`, then `_scheduleReconnect(refreshAfterSubscribe: true)` (reconnect + full `_refreshAll`).
-- `paused` / `detached` / `hidden` → `_foreground = false`; cancel debounce and `_unsubscribe()`. The WebSocket is torn down while backgrounded. On return to foreground the app **resubscribes and performs a full refresh** — the recovery mechanism for any events missed while backgrounded.
+- `resumed` → `_foreground = true`; if a user exists, a **300 ms lifecycle debounce timer** fires → `_reconnectAttempt = 0`, then `scheduleReconnect(refreshAfterSubscribe: true)` (reconnect + full `_refreshAll`).
+- `paused` / `detached` / `hidden` → `_foreground = false`; cancel debounce and `unsubscribe()`. The WebSocket is torn down while backgrounded. On return to foreground the app **resubscribes and performs a full refresh** — the recovery mechanism for any events missed while backgrounded.
 - `inactive` → no-op.
 
 ### JWT refresh
@@ -190,7 +207,7 @@ All filters gate on `_userId`, `_partnerId`, `_partnershipId` (set by `configure
 
 ---
 
-## Reconnection & Exponential Backoff (`:177-218`)
+## Reconnection & Exponential Backoff (`RealtimeSyncConnection.scheduleReconnect`)
 
 ```
 delayMs = clamp(baseDelay * 2^(reconnectAttempt-1), 1000, 60000)
@@ -214,20 +231,20 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ---
 
-## Polling Fallback (`:220-247`)
+## Polling Fallback (`RealtimeSyncConnection.activatePollingFallback`)
 
-- Activated when `_consecutiveFailures >= 3` (`:185-187`) — i.e. after three failed subscribe/reconnect cycles.
+- Activated when `_consecutiveFailures >= 3` — i.e. after three failed subscribe/reconnect cycles.
 - `Timer.periodic(15 s)` calling `_refreshAll()` (full refresh of all seven feature states) plus an immediate `_refreshAll()` on activation.
 - Stops when `_disposed || !_foreground`; deactivated on `subscribed` or on `configure()`.
 - **Result**: even with Realtime completely down, data converges within 15 s. This is the eventual-synchronization guarantee.
 
 ---
 
-## Wipe Suppression (`:68-89`, `profile_screen.dart:152-167`)
+## Wipe Suppression (`RealtimeSyncService.suppress`/`resume`/`refreshChannel`, `profile_screen.dart:152-167`)
 
-- `suppress()` sets `_suppressProcessing = true`; every handler checks it **before** dedup/filtering (so nothing is marked seen during the wipe).
+- `suppress()` sets `RealtimeSyncSession.suppressProcessing = true` and clears the game-event FIFO buffer + mood batch; every handler checks the flag **before** dedup/filtering (so nothing is marked seen during the wipe).
 - `resume(refresh: true)` clears the flag and runs `_refreshAll()`.
-- The app-data wipe flow (`profile_screen.dart:152-167`) calls `suppress()` → `wipeAppData()` → **`refreshChannel()`** (never `resume()`). `refreshChannel()` → `_unsubscribe()` → `_subscribe(refreshAfterSubscribe: true)`. Since `_subscribe()` resets `_suppressProcessing = false` (`:264`) and grants `refreshAfterSubscribe`, the full refresh post-wipe resets `_suppressProcessing`. Events arriving during the wipe are not marked seen and are re-delivered on the fresh channel — **no events are lost by suppression**.
+- The app-data wipe flow (`profile_screen.dart:152-167`) calls `suppress()` → `wipeAppData()` → **`refreshChannel()`** (never `resume()`). `refreshChannel()` → `unsubscribe()` → `subscribe(refreshAfterSubscribe: true)`. Since `subscribe()` resets `suppressProcessing = false` and grants `refreshAfterSubscribe`, the full refresh post-wipe resets suppression. Events arriving during the wipe are not marked seen and are re-delivered on the fresh channel — **no events are lost by suppression**.
 
 ---
 
@@ -235,7 +252,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### moods
 
-- **Flow**: mood event → relevance (`user_id` self/partner) → dedup → `MoodChangeBatch` (120 ms trailing-edge, distinct-`changedUserId` union) → `MoodState.refreshFromRealtime(changedUserId)` for each distinct user in the burst.
+- **Flow**: mood event → relevance (`user_id` self/partner) → dedup → `MoodChangeBatch` (120 ms trailing-edge, distinct-`changedUserId` union) → `MoodState.refreshFromRealtime(changedUserId)` for each distinct user in the burst. (`MoodRealtimeHandler`)
 - `changedUserId == self` → only `_updateMoodsCheckpoint()` runs (the optimistic `updateMood` path already handled the local state — **no duplicate work**).
 - `changedUserId == partner` → `fetchRecentEmojis()` + `fetchTimeline()` + `fetchPartnerMood()`.
 - `null` → full fallback: `fetchMyMood()` + `fetchPartnerMood()` + shared fetches.
@@ -245,22 +262,22 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### partnerships
 
-- **Flow**: partnership event → `_isRelevantPartnership` (membership) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`.
+- **Flow**: partnership event → `isRelevantPartnership` (membership) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`. (`PartnershipRealtimeHandler`)
 - Refresh re-reads `getActivePartnership` (now uncached), applies partner/partnership id to `AuthState`, persists via `StorageService.savePartner`/`savePartnershipId`, and `notifyListeners()` → `RealtimeSyncScope` Consumer2 → `configure(new ids)` → channel replaced and re-bound to the correct partnership.
 - **Acceptance path**: a status change `pending → accepted` is received by both users; each reconfigures and resubscribes. The accepting user's `refreshPartnershipFromRealtime` (spawned by `acceptPartner`) and the event-driven one are coalesced by the same `_partnershipRefreshTimer`.
 
 ### user_profiles
 
-- **Purpose**: propagates self/partner profile edits (display name, profile picture) in realtime. Enabled by adding `user_profiles` to the `supabase_realtime` publication (`supabase/schemas/_cluster/publications.sql`) and the `user_profiles` binding in `realtime_sync_service.dart:322-326`.
-- **Flow**: `UPDATE` on `user_profiles` → `_isRelevantUserProfile` (`user_id` == `_userId` or `_partnerId`, `:539-544`) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([ProfileState.loadProfile(force: true), PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`.
+- **Purpose**: propagates self/partner profile edits (display name, profile picture) in realtime. Enabled by adding `user_profiles` to the `supabase_realtime` publication (`supabase/schemas/_cluster/publications.sql`) and the `user_profiles` binding in `realtime_sync_service.dart`. (`UserProfilesRealtimeHandler`)
+- **Flow**: `UPDATE` on `user_profiles` → `isRelevantUserProfile` (`user_id` == `userId` or `partnerId`) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([ProfileState.loadProfile(force: true), PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`.
 - `INSERT`/`DELETE` events are ignored (only `update` is processed) — profile rows are inserted at signup (before the channel is bound) and never deleted.
 - `loadProfile(force: true)` bypasses the 1-minute throttle (`force` param) and refreshes both `_userProfile` and `_partnerProfile` plus the `user_profile`/`partner_profile` caches; the partnership refetches re-read uncached `v_active_partnership` and update `AuthState`/`StorageService` so `partner_display_name` stays in sync for games/homepage.
 - **Self-edits**: the editing device also receives its own `UPDATE`; the refresh is idempotent (re-reads the same values).
-- Same-channel dedup via `_markSeen` prevents double-processing when a burst of `user_profiles` events for the same row arrives.
+- Same-channel dedup via `markSeen` prevents double-processing when a burst of `user_profiles` events for the same row arrives.
 
 ### missyou
 
-- **Flow**: `_isRelevantMissYou` (partnership) → dedup → **immediate**.
+- **Flow**: `isRelevantMissYou` (partnership) → dedup → **immediate**. (`MissYouRealtimeHandler`)
   - insert → `HomepageState.addMissYou()`: local `_totalMissYou += 1` + `saveTotalMissYou`. **Not idempotent** (F-RT5).
   - delete → `HomepageState.refreshFromRealtime()` → full `fetchMissYouTotal()`.
 - Local counter overwritten by authoritative count on every full refetch (`fetchTotalMissYou`), so drift self-heals at the 60 s `CacheService.needsRefresh(kMissYou)` cadence or on any refresh.
@@ -268,7 +285,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### bucket_items
 
-- **Flow**: `_isPartnershipRecord` → dedup → **immediate** `BucketState.applyRealtimeEvent(eventType, newRecord, oldRecord)`.
+- **Flow**: `isPartnershipRecord` → dedup → **immediate** `BucketState.applyRealtimeEvent(eventType, newRecord, oldRecord)`. (`BucketRealtimeHandler`)
 - Granular, ordered application:
   - insert → guard `_knownIds.add(id)` (no-ops on duplicates) → prepend to `_items`.
   - update → guard `_knownIds.contains(id)` → replace item in place.
@@ -279,7 +296,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### game_questions
 
-- insert → **immediate** `handleQuestionInsert` → `fetchNewQuestion(showLoading: false)` (fresh question).
+- insert → **immediate** `handleQuestionInsert` → `fetchNewQuestion(showLoading: false)` (fresh question). (`GameRealtimeHandler`)
 - delete → **immediate** `handleQuestionDelete` → clears the question if it matches and scrubs history by `questionId`.
 - update → 150 ms FIFO flush → `handleQuestionUpdate`: updates `question`/`status`; on `both_answered` clears the question + cache.
 
@@ -292,8 +309,8 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### drive_items / drive_item_reactions
 
-- **Flow**: `_isRelevantDrive` → dedup → 150 ms debounce → **full** `DriveState.refreshFromRealtime()`: re-fetch entire `v_drive_dashboard`, sort by `created_at`, rebuild favorites, refresh `_singleItem` if open, `saveDriveItems` to cache, update `chk_drive_items`.
-- Guarded by `_isSyncing` (`:107`) — concurrent refreshes are skipped, not queued.
+- **Flow**: `isRelevantDrive` → dedup → 150 ms debounce → **full** `DriveState.refreshFromRealtime()`: re-fetch entire `v_drive_dashboard`, sort by `created_at`, rebuild favorites, refresh `_singleItem` if open, `saveDriveItems` to cache, update `chk_drive_items`. (`DriveRealtimeHandler`)
+- Guarded by `_isSyncing` — concurrent refreshes are skipped, not queued.
 - **Deletion**: DELETE events arrive on the same channel (all events) → debounced full refetch → deleted items disappear from cache. This closes the storage-doc gap (F-SC7: incremental sync alone cannot detect deletions — Realtime is the mechanism that does, when online).
 
 ---
@@ -316,7 +333,7 @@ Events are dropped in normal operation in three ways:
 1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
    - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync.
    - Mood: the distinct `changedUserId` union of the burst is refreshed; a mixed-user burst refreshes both sides (`mood_change_batch.dart`).
-2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`:562`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT9).
+2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`isRelevantDrive`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT9).
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
 
 **Backstops that recover dropped events** (eventual sync):
@@ -333,11 +350,11 @@ Convergence is guaranteed (given connectivity) by the combination of: 15 s polli
 
 ### Correct account isolation — YES
 
-Enforced server-side by RLS on the WebSocket (a JWT only receives rows its policies allow: self/own-partnership rows on every subscribed table) and re-verified client-side by `_isRelevant*`. The only leak vector is the cross-*partnership* cached-state issue (below), not account-level, because `clearAll()` on logout removes all caches.
+Enforced server-side by RLS on the WebSocket (a JWT only receives rows its policies allow: self/own-partnership rows on every subscribed table) and re-verified client-side by `isRelevant*`. The only leak vector is the cross-*partnership* cached-state issue (below), not account-level, because `clearAll()` on logout removes all caches.
 
 ### Correct partnership isolation — YES (at the Realtime layer)
 
-`configure()` binds the channel keys and filters to the active partnership; `_isPartnershipRecord` gates bucket/missyou/questions/drive; RLS gates server-side; re-partnering replaces the channel via `configure`. **Caveat (cross-doc):** feature caches + checkpoints are global and not cleared on partnership change (storage doc F-SC8), so a stale cold-start can *suppress* a refetch and show previous-partner data — this is a caching-layer issue that Realtime alone masks but does not fix.
+`configure()` binds the channel keys and filters to the active partnership; `isPartnershipRecord` gates bucket/missyou/questions/drive; RLS gates server-side; re-partnering replaces the channel via `configure`. **Caveat (cross-doc):** feature caches + checkpoints are global and not cleared on partnership change (storage doc F-SC8), so a stale cold-start can *suppress* a refetch and show previous-partner data — this is a caching-layer issue that Realtime alone masks but does not fix.
 
 ---
 
@@ -380,13 +397,6 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 
 ## Findings
 
-### F-RT3: `_missYouRefreshTimer` is dead code (LOW)
-
-- **WHAT**: Declared at `realtime_sync_service.dart:43`, cancelled in `dispose()` (`:705`), but **never scheduled anywhere**.
-- **WHERE**: `realtime_sync_service.dart:43,705`.
-- **IMPACT**: None — missyou events are processed immediately. Dead field.
-- **CONFIDENCE**: HIGH.
-
 ### F-RT4: Bucket realtime-apply vs. full-refresh replacement race (MEDIUM)
 
 - **WHAT**: `BucketState.applyRealtimeEvent` mutates `_items` incrementally while `BucketState.refreshFromRealtime` (from `_refreshAll`, polling, resume) **replaces** `_items` with a snapshot. A full-refetch snapshot taken *before* an insert commits can complete *after* the event was applied and overwrite it.
@@ -398,40 +408,40 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 ### F-RT5: `addMissYou()` is non-idempotent; dedup window overflow double-counts (LOW)
 
 - **WHAT**: `HomepageState.addMissYou` unconditionally `_totalMissYou += 1` + persist. If a replay passes dedup (>80 intervening events, or key collision), the count is incremented twice for one server row. Also races an in-flight `fetchTotalMissYou` (snapshot overwrite).
-- **WHERE**: `homepage_state.dart:64-68`; dedup window at `realtime_sync_service.dart:602`.
+- **WHERE**: `homepage_state.dart:64-68`; dedup window at `realtime_sync_session.dart` (`markSeen`).
 - **WHEN**: Replays after long disconnect periods on a busy channel, or burst >80 events between delivery and replay.
 - **IMPACT**: Transient wrong count; self-corrects on the next authoritative `fetchTotalMissYou` (60 s `kMissYou` freshness gate or any refresh). Nobody blocks on it — LOW.
 - **CONFIDENCE**: LOW for occurrence, HIGH for non-idempotency of the path.
 
 ### F-RT6: `game_answers` dedup key omits `game_id` (LOW)
 
-- **WHAT**: `_markSeen` keys on `row['id'] ?? ... ?? row['user_id']`. `game_answers` has a composite PK and no `id` column (schema), so the key degrades to `game_answers:<event>:<user_id>:<commitTimestamp>`. Two answers by the same user in one transaction → identical key → second dropped.
-- **WHERE**: `realtime_sync_service.dart:586-592`; schema `game_answers` (composite `game_id,user_id`).
+- **WHAT**: `markSeen` keys on `row['id'] ?? ... ?? row['user_id']`. `game_answers` has a composite PK and no `id` column (schema), so the key degrades to `game_answers:<event>:<user_id>:<commitTimestamp>`. Two answers by the same user in one transaction → identical key → second dropped.
+- **WHERE**: `realtime_sync_session.dart` (`markSeen`); schema `game_answers` (composite `game_id,user_id`).
 - **WHEN**: Batch/transactional multi-answer submits for one user (not produced by the current single-row `submitAnswer` path).
 - **IMPACT**: Dropped event → stale history until refresh. The game-event FIFO buffer does not address dedup-key collisions.
 - **CONFIDENCE**: LOW (occurrence), HIGH (key construction).
 
 ### F-RT7: Reconnect gives up permanently until lifecycle/configure (LOW)
 
-- **WHAT**: After 20 reconnect attempts, `_scheduleReconnect` stops (`:189-194`). With polling fallback active, no further subscribe is ever attempted until `configure()` or app `resume` — a sustained outage leaves the app in 15 s polling indefinitely in the background whereas the WebSocket could have recovered.
-- **WHERE**: `realtime_sync_service.dart:189-194, 220-247`.
+- **WHAT**: After 20 reconnect attempts, `scheduleReconnect` stops. With polling fallback active, no further subscribe is ever attempted until `configure()` or app `resume` — a sustained outage leaves the app in 15 s polling indefinitely in the background whereas the WebSocket could have recovered.
+- **WHERE**: `realtime_connection.dart` (`scheduleReconnect`, `activatePollingFallback`).
 - **WHEN**: Network outage > ~15 minutes while the app stays foregrounded.
 - **IMPACT**: Data freshness preserved (15 s polling) but realtime pushes are not resumed until user action. Acceptable degradation; deliberately chosen.
 - **CONFIDENCE**: MEDIUM.
 
 ### F-RT8: Reaction events for unloaded drive items are filtered out (LOW)
 
-- **WHAT**: `_isRelevantDrive` for `drive_item_reactions` requires `item_id` present in the *current in-memory* `_driveItems` (`:562`). A reaction on an item not in the local list is dropped — including reactions on items the local drive list is about to load.
-- **WHERE**: `realtime_sync_service.dart:554-563`.
+- **WHAT**: `isRelevantDrive` for `drive_item_reactions` requires `item_id` present in the *current in-memory* drive list. A reaction on an item not in the local list is dropped — including reactions on items the local drive list is about to load.
+- **WHERE**: `realtime_sync_session.dart` (`isRelevantDrive`).
 - **WHEN**: Partner reacts to an item the user hasn't loaded (paged-out history).
 - **IMPACT**: Reaction does not appear in the detail view until a full refresh. Minor.
 - **CONFIDENCE**: HIGH.
 
-### F-RT9: Partnership filter is permissive when `_partnershipId == null` (INFO)
+### F-RT9: Partnership filter is permissive when `partnershipId == null` (INFO)
 
-- **WHAT**: `_isPartnershipRecord` returns `true` when the local partnership id is null (`:575`).
-- **WHERE**: `realtime_sync_service.dart:573-581`.
-- **WHY safe**: `configure()` refuses to subscribe without a partnership (`:144-149`); RLS still enforces server-side. Documented as defense-in-depth posture, not a bug.
+- **WHAT**: `isPartnershipRecord` returns `true` when the local partnership id is null.
+- **WHERE**: `realtime_sync_session.dart` (`isPartnershipRecord`).
+- **WHY safe**: `configure()` refuses to subscribe without a partnership; RLS still enforces server-side. Documented as defense-in-depth posture, not a bug.
 - **CONFIDENCE**: HIGH (that it is safe by construction).
 
 ### F-RT10: Checkpoint write-back can regress under concurrent refreshes (LOW)
@@ -447,10 +457,10 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 
 | Component | Status |
 |---|---|
-| Single channel, 8-table subscription (all events) | IMPLEMENTED |
-| Client-side user/partner/partnership relevance filtering | IMPLEMENTED |
-| 80-event dedup LRU | IMPLEMENTED |
-| Per-table debounce (120/150 ms) + lifecycle debounce (300 ms) | IMPLEMENTED |
+| Single channel, 9-table subscription (all events) | IMPLEMENTED |
+| Client-side user/partner/partnership relevance filtering | IMPLEMENTED (`realtime_sync_session.dart`) |
+| 80-event dedup LRU | IMPLEMENTED (`realtime_sync_session.dart`) |
+| Per-table debounce (120/150 ms) + lifecycle debounce (300 ms) | IMPLEMENTED (handlers + `realtime_connection.dart`) |
 | Generation counter stale-channel guard | IMPLEMENTED |
 | Exponential backoff with jitter, code-1002 penalty, max 20 attempts | IMPLEMENTED |
 | Polling fallback at 15 s after 3 consecutive failures | IMPLEMENTED |
@@ -462,21 +472,22 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 | Game question insert/delete bypassing debounce | IMPLEMENTED |
 | Game answer debounce lossless in bursts (FIFO buffer) | IMPLEMENTED |
 | Mood debounce distinct-user burst handling | IMPLEMENTED |
+| Service split into facade + connection + session + handlers | IMPLEMENTED |
 | Realtime auto-recovery while polling fallback active | NOT IMPLEMENTED (F-RT7) |
 
 ---
 
 ## Tests
 
-No automated tests exercise the full realtime pipeline (`realtime_sync_service.dart` and `realtime_sync_scope.dart` are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`), the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`), and the mood distinct-user coalescing is covered at unit level (`test/mood_change_batch_test.dart`).
+No automated tests exercise the full realtime pipeline (`realtime_sync_scope.dart` and the `realtime_connection.dart`/handler classes are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`), the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`), and the mood distinct-user coalescing is covered at unit level (`test/mood_change_batch_test.dart`).
 
-**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT3–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
+**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT4–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
 
 ---
 
 ## Notes
 
-- **Single channel caps 9 tables**: all bindings share one WebSocket channel. A failure of one table's filter (e.g. malformed payload) is isolated per-callback, but a channel-level failure drops all nine simultaneously (designed).
+- **Single channel caps 9 tables**: all bindings share one WebSocket channel. A failure of one table's filter (e.g. malformed payload) is isolated per-callback, but a channel-level failure drops all nine simultaneously (designed). Binding order is preserved: the facade builds the `RealtimeTableBinding` list in table order and the connection iterates it when building the channel.
 - **Mutations are fire-and-forget**: `submitAnswer`, `addBucketItem`, `toggleDone`, `uploadDriveItemToR2`, `deleteItem`, `addReaction` do not await server confirmation; state reconciliation relies on Realtime echoes + periodic refetches. No optimistic rollback exists for bucket/drive mutations — only mood implements optimistic update with rollback (`mood_state.dart:233-282`).
 - **Realtime echo self-loop is handled**: the app receives its **own** mutations back on the channel. Bucket uses `_knownIds`; game uses `isOwnInsert`; mood uses the `changedUserId == self` no-op; drive/missyou use full refetch/idempotent increment. No duplicates arise from the self-echo path.
 - **`notifyListeners()` is frame-coalesced** (`base_state.dart:22-29`): bursts of state writes during realtime refreshes produce a single rebuild per frame — this is UI coalescing, not event coalescing.

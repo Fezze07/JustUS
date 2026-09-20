@@ -46,7 +46,8 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
 
             final resolvedPartnershipId = authState.partnershipId ??
                 partnerState.partnershipInfo?.partnershipId;
-            AnsiLogger.realtime('configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=$resolvedPartnershipId');
+            AnsiLogger.realtime(
+                'configure called - userId=${authState.userId} partnerId=${authState.partnerId ?? partnerState.partnershipInfo?.partner?.id} partnershipId=$resolvedPartnershipId');
             _service?.configure(
               userId: authState.userId,
               partnerId: authState.partnerId ??

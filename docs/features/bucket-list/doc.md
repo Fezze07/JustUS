@@ -150,7 +150,7 @@ UPDATE and DELETE in `bucket_repository.dart` filter only by `id`. RLS is the so
 
 ## 6. Realtime Synchronization
 
-Source: `Flutter/lib/core/realtime/realtime_sync_service.dart`
+Source: `Flutter/lib/core/realtime/handlers/bucket_realtime_handler.dart` (wired by `RealtimeSyncService`; channel owned by `RealtimeSyncConnection`)
 
 Subscribed via shared channel `justus-sync-<userId>-<generation>`:
 
@@ -159,17 +159,17 @@ Subscribed via shared channel `justus-sync-<userId>-<generation>`:
   event: PostgresChangeEvent.all,   // INSERT, UPDATE, DELETE
   schema: 'public',
   table: 'bucket_items',
-  callback: _handleBucketPayload,
+  callback: <BucketRealtimeHandler.handle>,   // wired via RealtimeSyncService
 )
 ```
 
 ### 6.1 Event Filtering
 
-`_handleBucketPayload` applies in order:
+`BucketRealtimeHandler.handle` applies in order:
 
-1. `_suppressProcessing` flag — drops event if true (auth transitions).
-2. `_isPartnershipRecord(payload)` — compares row `partnership_id` to `_partnershipId`. Passes if either is `null` (permissive — F-BL8).
-3. `_markSeen(payload)` — dedup by `(table, eventType, id, commitTimestamp)` key; ring-buffer of 80 entries.
+1. `RealtimeSyncSession.suppressProcessing` flag — drops event if true (auth transitions).
+2. `RealtimeSyncSession.isPartnershipRecord(payload)` — compares row `partnership_id` to the session `partnershipId`. Passes if either is `null` (permissive — F-BL8).
+3. `RealtimeSyncSession.markSeen(payload)` — dedup by `(table, eventType, id, commitTimestamp)` key; ring-buffer of 80 entries.
 
 ### 6.2 Dispatch
 
@@ -316,7 +316,7 @@ These gaps are covered only by Realtime during an active session. After offline 
 
 ## 13. Polling Fallback
 
-After 3+ consecutive Realtime failures, polling fallback activates (`realtime_sync_service.dart:185`). `_refreshAll()` calls `BucketState.refreshFromRealtime()` → full network fetch. Insert/delete visibility is restored; toggle-change gaps remain (see §12).
+After 3+ consecutive Realtime failures, polling fallback activates (`RealtimeSyncConnection.activatePollingFallback` in `realtime_connection.dart`). `_refreshAll()` calls `BucketState.refreshFromRealtime()` → full network fetch. Insert/delete visibility is restored; toggle-change gaps remain (see §12).
 
 ---
 

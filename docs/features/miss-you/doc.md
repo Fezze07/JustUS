@@ -34,7 +34,7 @@ Additionally, this document covers the partner avatar display, shared counter ca
    - [homepage_screen.dart](file:///f:/JustUS/Flutter/lib/features/home/screens/homepage_screen.dart): UI layout following Midnight Glass aesthetics. Renders top app bar, partner avatars, days together pill, mood display, pending bucket items, and `_MissYouButton`.
    - [homepage_state.dart](file:///f:/JustUS/Flutter/lib/features/home/homepage_state.dart): State manager maintaining `_totalMissYou`, handles cache checks (`loadWithChangeDetection`), network fetches (`fetchTotalMissYou`), and tap execution (`sendMissYou`).
    - [missyou_repository.dart](file:///f:/JustUS/Flutter/lib/features/home/missyou_repository.dart): API repository calling `sbClient.rpc('send_missyou')`, triggering push notifications (`notifyPartnerOnce`), and querying row count on `public.missyou`.
-   - [realtime_sync_service.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart): Subscribes to Postgres change events on `public.missyou`. On `INSERT`, invokes `_homepageState.addMissYou()`. On `DELETE`, triggers `refreshFromRealtime()`.
+   - [missyou_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/miss_you_realtime_handler.dart): `MissYouRealtimeHandler` subscribes to Postgres change events on `public.missyou` (wired by `RealtimeSyncService`). On `INSERT`, invokes `_homepageState.addMissYou()`. On `DELETE`, triggers `refreshFromRealtime()`.
    - [update_service.dart](file:///f:/JustUS/Flutter/lib/core/version/update_service.dart): Checks app build version against backend `/api/v1/app-version` and displays mandatory or optional update dialogs.
 
 2. **Backend / Database Layer**:
@@ -59,7 +59,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
       │                        │                    │                  │ ── Realtime Event ──>│
       │                        │                    │                  │   (table: missyou)   │
       │                        │                    │                  │                      │
-      │                        │                    │                  │                      ├── _handleMissYouPayload()
+      │                        │                    │                  │                      ├── MissYouRealtimeHandler.handle()
       │                        │                    │                  │                      ├── addMissYou() [_totalMissYou += 1]
       │                        │                    │                  │                      └── notifyListeners() -> UI updates
 ```
@@ -83,11 +83,11 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
    - Repository asynchronously fires a push notification request to the partner via `notifyPartnerOnce(notificationKey: 'missyou')`.
 
 4. **Realtime Event Broadcast**
-   - File: [realtime_sync_service.dart:429-440](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart#L429-L440)
+   - File: [missyou_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/miss_you_realtime_handler.dart)
    - Supabase Realtime engine detects the `INSERT` on `public.missyou` and broadcasts the payload to subscribed client channels (`justus-sync-{userId}-{gen}`).
-   - On Partner User B's device, `RealtimeSyncService._handleMissYouPayload` receives the event.
-   - Evaluates relevance via `_isRelevantMissYou` (verifies `eventPartnershipId == _partnershipId`).
-   - Deduplicates the event key via `_markSeen` (`table:eventType:id:commitTimestamp`).
+   - On Partner User B's device, `MissYouRealtimeHandler.handle` receives the event.
+   - Evaluates relevance via `RealtimeSyncSession.isRelevantMissYou` (verifies `eventPartnershipId == partnershipId`).
+   - Deduplicates the event key via `RealtimeSyncSession.markSeen` (`table:eventType:id:commitTimestamp`).
    - If event is `insert`, calls `_homepageState.addMissYou()`.
 
 5. **Partner Device UI Update**
@@ -159,7 +159,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
 
 3. **Ordering Behavior**:
    - Realtime events are received in commit order over WebSocket channel.
-   - Event deduplication in `RealtimeSyncService._markSeen` uses a composite key: `table:eventType:id:commitTimestamp`. Since each `INSERT` creates a unique row `id` and `commitTimestamp`, all legitimate tap events are processed sequentially.
+   - Event deduplication in `RealtimeSyncSession.markSeen` uses a composite key: `table:eventType:id:commitTimestamp`. Since each `INSERT` creates a unique row `id` and `commitTimestamp`, all legitimate tap events are processed sequentially.
 
 ---
 
@@ -248,15 +248,6 @@ HomepageScreen.initState()
 ## Discovered Bugs, Defects, and Inconsistencies
 
 During reverse-engineering analysis, the following technical findings were identified:
-
-### 1. INCONSISTENCY: Unused `_missYouRefreshTimer` in `RealtimeSyncService`
-
-* **WHAT**: `RealtimeSyncService` declares `Timer? _missYouRefreshTimer;` and cancels it in `dispose()`, but never uses it in `_handleMissYouPayload()`.
-* **WHERE**: [realtime_sync_service.dart:41 & 634](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart#L41)
-* **WHY**: `_handleMissYouPayload` handles `insert` events synchronously via `_homepageState.addMissYou()` without applying timer debouncing, leaving the timer variable dead code.
-* **WHEN**: Inspecting realtime service code.
-* **IMPACT**: Minor code cleanup issue; no runtime crash.
-* **CONFIDENCE**: **HIGH**
 
 ---
 

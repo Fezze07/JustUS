@@ -218,7 +218,7 @@ Generated AI responses undergo multi-stage validation before being returned to t
 ### 3. Realtime Synchronization & Match Calculation
 
 - `RealtimeSyncService` subscribes to Postgres change events on `game_questions` and `game_answers`.
-- When an `INSERT` or `UPDATE` on `game_answers` is received, `_handleGamePayload` updates local `GameState`.
+- When an `INSERT` or `UPDATE` on `game_answers` is received, `GameRealtimeHandler.handle` (buffered FIFO via `GameEventBuffer`) updates local `GameState`.
 - When both partners have submitted answers (`hasAnswered && partnerAnswered`):
   - Flutter calls `updateQuestionStatus(questionId, 'both_answered')` on `public.game_questions`.
   - Matches are evaluated:

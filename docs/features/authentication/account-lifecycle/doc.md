@@ -134,7 +134,7 @@ Logout Initiated (Profile / Partner Screen)
    ├── 6. AuthState.notifyListeners()
    │        │
    │        └── Triggers RealtimeSyncScope -> RealtimeSyncService.configure(userId: null)
-   │               └── RealtimeSyncService._unsubscribe() closes WebSocket channel
+   │               └── RealtimeSyncConnection.unsubscribe() closes WebSocket channel
    │
    └── 7. UI Stack Replacement (Navigator.pushAndRemoveUntil -> LoginScreen)
 ```
@@ -248,7 +248,7 @@ While `AuthState` and `StorageService` are completely wiped, **eager Provider si
 - **Logout Behavior**:
   - `AuthState.logout()` resets `_userId = null` and calls `notifyListeners()`.
   - `RealtimeSyncScope` detects the update and passes `userId: null` to `RealtimeSyncService.configure()`.
-  - `RealtimeSyncService.configure()` executes `unawaited(_unsubscribe())` ([realtime_sync_service.dart:138](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart#L138)), closing the active WebSocket channel (`justus-sync-{userId}-{gen}`) and canceling background timers.
+  - `RealtimeSyncService.configure()` (realtime_sync_service.dart) executes `unawaited(_connection.unsubscribe())` — closing the active WebSocket channel (`justus-sync-{userId}-{gen}`) and canceling background timers.
 
 ---
 
@@ -297,7 +297,8 @@ While `AuthState` and `StorageService` are completely wiped, **eager Provider si
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `logout()`, `updateDeviceToken()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Storage purge `clearAll()`, `clearAppCache()`.
 - [cache_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/cache_service.dart): Checkpoint cache purge `clearAll()`.
-- [realtime_sync_service.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart): Channel teardown `_unsubscribe()`, `configure()`.
+- [realtime_connection.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_connection.dart): Channel teardown `unsubscribe()`, lifecycle.
+- [realtime_sync_service.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_sync_service.dart): Facade `configure()`, `dispose()`.
 - [profile_state.dart](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart): `wipeAppData()`.
 
 ### Backend Node.js
