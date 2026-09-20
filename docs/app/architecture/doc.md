@@ -275,12 +275,13 @@ gotrue's internal `_pendingRefreshes` map makes both sources share a single netw
 - Subscribes to **8 tables** on one channel `justus-sync-<userId>-<generation>`: `moods`, `partnerships`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `drive_item_reactions`.
 - Event routing: per-table relevance filter (`_isRelevantMood/Partnership/MissYou/Game/Drive`) + dedup (`_markSeen`, LRU of 80 `table:event:id:commitTimestamp` keys) + debounced timers (120-150 ms) into feature states (`refreshFromRealtime(...)`, `applyRealtimeEvent(...)`, `handleQuestionInsert/Update/Delete`, `handleAnswerInsert/Update/Delete`, `addMissYou`).
   - `game_questions` **insert/delete are processed immediately** (not debounced) to avoid drops.
+  - `game_answers` events and `game_questions` **updates** are buffered FIFO in `GameEventBuffer` (`core/realtime/game_event_buffer.dart`) and flushed as a whole — a burst (answer INSERT + `both_answered` UPDATE within 150 ms) is applied completely, never reduced to its last event (F-RT1).
   - Miss-you **insert** optimistically increments `HomepageState.addMissYou()`; **delete** triggers a full refresh.
   - Partnership events trigger BOTH `PartnerState.refreshFromRealtime()` and `AuthState.refreshPartnershipFromRealtime()` plus `BaseRepository.clearPartnershipCache()`.
 - **Reconnection**: exponential backoff 1s -> 60s (`1 << clamp(0..7)`, base 3s for close code 1002, jitter up to +/-25%), max 20 attempts (`_reconnectAttempt`), de-duplicated by the `_subscribing` guard and a generation counter (stale channel callbacks are ignored).
 - **Polling fallback**: after 3 consecutive failures, `_activatePollingFallback()` starts `Timer.periodic(15s)` -> `_refreshAll()` (8 table queries), deactivated on a successful subscribe or on `configure`.
 - **Lifecycle**: resumed -> 300ms debounce then `_scheduleReconnect(refreshAfterSubscribe: true)`; paused/hidden/detached -> `_unsubscribe()`; inactive -> no-op. `_foreground` guards all subscribe paths.
-- `suppress()` sets `_suppressProcessing = true` (used by the Profile data-wipe); `resume()` exists but **is never called** (suppression is actually reset by the next `_subscribe()`); `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after wipe).
+- `suppress()` sets `_suppressProcessing = true` and clears the game-event FIFO buffer (used by the Profile data-wipe); `resume()` exists but **is never called** (suppression is actually reset by the next `_subscribe()`); `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after wipe).
 - Dead field: `_missYouRefreshTimer` is declared but never assigned.
 
 ---

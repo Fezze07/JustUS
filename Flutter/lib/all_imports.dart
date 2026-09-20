@@ -46,6 +46,7 @@ export 'package:justus/shared/design_system/error_dialog.dart';
 export 'package:justus/core/error_handling/error_handler.dart';
 export 'package:justus/features/drive/screens/favorites_screen.dart';
 export 'package:justus/firebase_options.dart';
+export 'package:justus/core/realtime/game_event_buffer.dart';
 export 'package:justus/features/games/widgets/game_history_card.dart';
 export 'package:justus/features/games/game_models.dart';
 export 'package:justus/features/games/game_repository.dart';

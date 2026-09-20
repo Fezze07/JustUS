@@ -54,8 +54,8 @@ Channel name: `justus-sync-$userId-$generation` — the generation counter is in
 | 2 | `partnerships` | all | `_handlePartnershipPayload` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
 | 3 | `missyou` | all | `_handleMissYouPayload` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
 | 4 | `bucket_items` | all | `_handleBucketPayload` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
-| 5 | `game_questions` | all | `_handleGamePayload` | **none** for insert/delete (immediate); 150 ms for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (debounced) |
-| 6 | `game_answers` | all | `_handleGamePayload` | 150 ms | `GameState.handleAnswerInsert/Update/Delete` (debounced) |
+| 5 | `game_questions` | all | `_handleGamePayload` | **none** for insert/delete (immediate); 150 ms FIFO flush for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (via `game_event_buffer.dart`) |
+| 6 | `game_answers` | all | `_handleGamePayload` | 150 ms FIFO flush (burst preserved) | `GameState.handleAnswerInsert/Update/Delete` (via `game_event_buffer.dart`) |
 | 7 | `drive_items` | all | `_handleDrivePayload` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
 | 8 | `drive_item_reactions` | all | `_handleDrivePayload` | 150 ms | `DriveState.refreshFromRealtime` (full refetch) |
 | 9 | `user_profiles` | all (update handled) | `_handleUserProfilesPayload` | 150 ms | `ProfileState.loadProfile(force)` + `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
@@ -66,13 +66,13 @@ All nine bindings register with `event: sb.PostgresChangeEvent.all`, `schema: 'p
 
 ## Debounce Timing
 
-All debounces are **trailing-edge**: each incoming event cancels the pending timer and restarts it, so only the *last* event in a burst triggers the work.
+All debounces are **trailing-edge**: each incoming event cancels the pending timer and restarts it, so a burst collapses into one activation. The game debouncer additionally **buffers** its burst and flushes it FIFO, so no intermediate game event is dropped.
 
 | Debouncer | Timer | Delay | Coalesces | Consequence of coalescing |
 |---|---|---|---|---|
 | Mood | `_moodRefreshTimer` | 120 ms | multiple mood events | One `refreshFromRealtime(changedUserId)` executes; `changedUserId` comes from the **last** event only (F-RT2). |
 | Partnership | `_partnershipRefreshTimer` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
-| Game (answers + question updates) | `_gameRefreshTimer` | 150 ms | multiple game events | Only the **last** event's `(table, eventType, payload)` is applied (F-RT1). |
+| Game (answers + question updates) | `GameEventBuffer` (`game_event_buffer.dart`) | 150 ms | multiple game events | Full burst is buffered **FIFO** and every event is applied in delivery order — nothing is dropped (F-RT1). |
 | Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce" (`:466`). |
 | Drive | `_driveRefreshTimer` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
 | User profile | `_userProfileRefreshTimer` | 150 ms | `user_profiles` updates (self or partner row) | One refresh pass: partnership cache cleared, then `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Full refetch, order-insensitive. |
@@ -281,14 +281,14 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 - insert → **immediate** `handleQuestionInsert` → `fetchNewQuestion(showLoading: false)` (fresh question).
 - delete → **immediate** `handleQuestionDelete` → clears the question if it matches and scrubs history by `questionId`.
-- update → 150 ms debounce → `handleQuestionUpdate`: updates `question`/`status`; on `both_answered` clears the question + cache.
+- update → 150 ms FIFO flush → `handleQuestionUpdate`: updates `question`/`status`; on `both_answered` clears the question + cache.
 
 ### game_answers
 
-- insert → **150 ms debounce** → `handleAnswerInsert`.
-- update → **150 ms debounce** → `handleAnswerUpdate` (re-fetches authoritative status).
-- delete → **150 ms debounce** → `handleAnswerDelete` (clears per-user answer flags + history options).
-- `handleAnswerInsert` also detects both-answered → `_repo.updateQuestionStatus('both_answered')` → which generates a `game_questions` UPDATE event back on the channel (F-RT1 trigger).
+- insert → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerInsert`.
+- update → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerUpdate` (re-fetches authoritative status).
+- delete → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerDelete` (clears per-user answer flags + history options).
+- The DB trigger `update_game_question_status` sets `game_questions.status = 'both_answered'` once both rows exist, emitting a `game_questions` UPDATE back on the channel. On the waiting device both events (answer INSERT + status UPDATE) routinely land within 150 ms; the FIFO flush applies both in delivery order, so the INSERT is never dropped (F-RT1).
 
 ### drive_items / drive_item_reactions
 
@@ -313,8 +313,8 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 Events are dropped in normal operation in three ways:
 
-1. **Debounce coalescing (trailing-edge)** — burst events collapse into one activation:
-   - Game answers: only the last `(table, eventType, payload)` is applied. In the common two-player flow, a partner's `game_answers` INSERT and the resulting `game_questions` UPDATE (both-answered) can arrive within 150 ms — the INSERT is **silently dropped**, the question is cleared (correct), but the history entry and stats never update until the next full refresh (F-RT1). **This is the most significant realtime correctness bug.**
+1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
+   - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync (F-RT1 **fixed**).
    - Mood: `changedUserId` captured from the last event only; intra-window mixed-user bursts refresh one side (F-RT2).
 2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`:562`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT9).
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
@@ -329,7 +329,7 @@ Because every handler converges to *server current state* on refetch, dropped in
 
 ### Eventual synchronization — YES
 
-Convergence is guaranteed (given connectivity) by the combination of: 15 s polling fallback, resume → resubscribe + `_refreshAll`, subscribe-success refreshes, and checkpoint-gated cold-start refetches. The worst-case staleness bound is ~15 s when Realtime is down, ~0 s when healthy (subject to F-RT1's dropped-burst recovery lag).
+Convergence is guaranteed (given connectivity) by the combination of: 15 s polling fallback, resume → resubscribe + `_refreshAll`, subscribe-success refreshes, and checkpoint-gated cold-start refetches. The worst-case staleness bound is ~15 s when Realtime is down, ~0 s when healthy (game-answer bursts are now fully lossless — F-RT1 fixed).
 
 ### Correct account isolation — YES
 
@@ -373,20 +373,22 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 - **Order-insensitive consumers** (full-refetch handlers): mood, drive, partnership, missyou-delete — safe under reordering/replay.
 - **Order-sensitive consumers**:
   - `bucket applyRealtimeEvent` — applied immediately in delivery order; correct while the channel is healthy. The bucket/refresh race (F-RT4) is the ordering hazard.
-  - `game` granular handlers — the 150 ms debounce *reorders* by effectively keeping only the last event of a burst (F-RT1). The immediate question insert/delete paths preserve order.
+  - `game` granular handlers — buffered FIFO (`game_event_buffer.dart`) and drained in delivery order, so bursts are applied without reordering or loss (F-RT1 fixed). The immediate question insert/delete paths bypass the buffer and preserve order.
 - **Reconnect replay ordering**: Supabase replays recent commits after resubscribe; the dedup + post-resume `_refreshAll` normalize any out-of-order application.
 
 ---
 
 ## Findings
 
-### F-RT1: Game debounce silently drops intermediate answer events (HIGH)
+### F-RT1: Game debounce silently drops intermediate answer events (FIXED)
 
-- **WHAT**: All `game_questions` updates and **all `game_answers` events** share one trailing-edge `_gameRefreshTimer` (150 ms). Each new event cancels the previous timer, so only the closure captured by the *last* event executes. Intermediate `game_answers` INSERT/UPDATE/DELETE events are never applied.
-- **WHERE**: `realtime_sync_service.dart:478-493` (`_handleGamePayload`).
-- **WHY**: Trailing-edge debounce with payload capture, plus the comment at `:466` acknowledging the drop risk only for question insert/delete — which are the paths that bypass it.
-- **WHEN**: The common two-player turn: partner answers → their `game_answers` INSERT arrives → timer scheduled; the accepting device (or partner's success handler) then calls `updateQuestionStatus('both_answered')` → `game_questions` UPDATE arrives within 150 ms → **the answer INSERT is cancelled**. Reproducible whenever the two events land within 150 ms on the waiting device.
-- **IMPACT**: The question clears correctly (via `handleQuestionUpdate` on `both_answered`), but `handleAnswerInsert` never runs → the game's **history entry partner option and match stats are stale** until the next full refresh (`_refreshAll`/poll/resume/pull-to-refresh). UI silently inconsistent with server for an unbounded window.
+- **WHAT** (was): All `game_questions` updates and **all `game_answers` events** shared one trailing-edge `_gameRefreshTimer` (150 ms). Each new event cancelled the previous timer, so only the closure captured by the *last* event executed. Intermediate `game_answers` INSERT/UPDATE/DELETE events were never applied.
+- **WHERE** (was): `realtime_sync_service.dart:478-493` (`_handleGamePayload`).
+- **WHY** (was): Trailing-edge debounce with payload capture.
+- **WHEN**: The common two-player turn: partner answers → their `game_answers` INSERT arrives → timer scheduled; the DB trigger then updates `game_questions` to `both_answered` → `game_questions` UPDATE arrives within 150 ms → **the answer INSERT was cancelled**.
+- **IMPACT** (was): The question cleared correctly (via `handleQuestionUpdate` on `both_answered`), but `handleAnswerInsert` never ran → the game's **history entry partner option and match stats** stayed stale until the next full refresh.
+- **RESOLUTION**: `realtime_sync_service.dart` now buffers all non-immediate game events in `GameEventBuffer` (`core/realtime/game_event_buffer.dart`): a trailing-edge 150 ms timer flushes the **entire buffer** in FIFO order, and the flush awaits each handler before the next (INSERT → history, then UPDATE → question cleared). The buffer is cleared on `suppress()`/partnership `configure` change/`dispose()` so stale post-wipe events never apply.
+- **Coverage**: `test/game_event_buffer_test.dart` (buffer FIFO/trailing-edge/drain/clear) and `test/game_burst_flow_test.dart` (state-level both-answered history + stats).
 - **CONFIDENCE**: HIGH.
 
 ### F-RT2: Mood debounce captures only the last `changedUserId` (MEDIUM)
@@ -426,7 +428,7 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 - **WHAT**: `_markSeen` keys on `row['id'] ?? ... ?? row['user_id']`. `game_answers` has a composite PK and no `id` column (schema), so the key degrades to `game_answers:<event>:<user_id>:<commitTimestamp>`. Two answers by the same user in one transaction → identical key → second dropped.
 - **WHERE**: `realtime_sync_service.dart:586-592`; schema `game_answers` (composite `game_id,user_id`).
 - **WHEN**: Batch/transactional multi-answer submits for one user (not produced by the current single-row `submitAnswer` path).
-- **IMPACT**: Dropped event → stale history until refresh. Overlaps with F-RT1 impact.
+- **IMPACT**: Dropped event → stale history until refresh. Parallel to the F-RT1 impact (the FIFO buffer does not address dedup-key collisions).
 - **CONFIDENCE**: LOW (occurrence), HIGH (key construction).
 
 ### F-RT7: Reconnect gives up permanently until lifecycle/configure (LOW)
@@ -478,7 +480,7 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 | Wipe suppression (`suppress`/`resume`/`refreshChannel`) | IMPLEMENTED |
 | Bucket granular in-order application | IMPLEMENTED |
 | Game question insert/delete bypassing debounce | IMPLEMENTED |
-| Game answer debounce lossless in bursts | NOT IMPLEMENTED (F-RT1) |
+| Game answer debounce lossless in bursts (FIFO buffer) | IMPLEMENTED |
 | Mood debounce multi-user burst handling | NOT IMPLEMENTED (F-RT2) |
 | Realtime auto-recovery while polling fallback active | NOT IMPLEMENTED (F-RT7) |
 
@@ -486,9 +488,9 @@ The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* ch
 
 ## Tests
 
-No automated tests exercise the realtime pipeline. `realtime_sync_service.dart` and `realtime_sync_scope.dart` are not referenced by any file in `Flutter/test/`.
+No automated tests exercise the full realtime pipeline (`realtime_sync_service.dart` and `realtime_sync_scope.dart` are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer — the F-RT1 fix — is covered at unit level (`test/game_event_buffer_test.dart`) and the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`).
 
-**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, debounce coalescing, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the F-RT1–F-RT10 scenarios.
+**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT2–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
 
 ---
 
@@ -498,4 +500,4 @@ No automated tests exercise the realtime pipeline. `realtime_sync_service.dart` 
 - **Mutations are fire-and-forget**: `submitAnswer`, `addBucketItem`, `toggleDone`, `uploadDriveItemToR2`, `deleteItem`, `addReaction` do not await server confirmation; state reconciliation relies on Realtime echoes + periodic refetches. No optimistic rollback exists for bucket/drive mutations — only mood implements optimistic update with rollback (`mood_state.dart:233-282`).
 - **Realtime echo self-loop is handled**: the app receives its **own** mutations back on the channel. Bucket uses `_knownIds`; game uses `isOwnInsert`; mood uses the `changedUserId == self` no-op; drive/missyou use full refetch/idempotent increment. No duplicates arise from the self-echo path.
 - **`notifyListeners()` is frame-coalesced** (`base_state.dart:22-29`): bursts of state writes during realtime refreshes produce a single rebuild per frame — this is UI coalescing, not event coalescing.
-- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed (F-RT1, F-RT2, F-RT4).
+- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed in general (F-RT2, F-RT4), but game-answer bursts are lossless via the FIFO buffer (F-RT1).

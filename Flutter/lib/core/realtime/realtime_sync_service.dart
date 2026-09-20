@@ -43,7 +43,6 @@ class RealtimeSyncService with WidgetsBindingObserver {
   Timer? _partnershipRefreshTimer;
   Timer? _missYouRefreshTimer;
   Timer? _bucketRefreshTimer;
-  Timer? _gameRefreshTimer;
   Timer? _driveRefreshTimer;
   Timer? _userProfileRefreshTimer;
   Timer? _lifecycleDebounceTimer;
@@ -65,9 +64,14 @@ class RealtimeSyncService with WidgetsBindingObserver {
   final Queue<String> _recentEventKeys = Queue<String>();
   final Set<String> _recentEventKeySet = <String>{};
 
+  late final GameEventBuffer _gameEventBuffer = GameEventBuffer(
+    sink: _applyGameEvent,
+  );
+
   void suppress() {
     AnsiLogger.realtime('suppress() - pausing event processing');
     _suppressProcessing = true;
+    _gameEventBuffer.clear();
   }
 
   void resume({bool refresh = true}) {
@@ -132,6 +136,8 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _partnershipId = partnershipId;
 
     if (!changed) return;
+
+    _gameEventBuffer.clear();
 
     AnsiLogger.realtime(
         'configure() - CHANGE: userId=$userId partnerId=$partnerId partnershipId=$partnershipId foreground=$_foreground');
@@ -476,6 +482,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     final table = payload.table;
     final eventType = payload.eventType.name;
     final newRecord = payload.newRecord;
+    final oldRecord = payload.oldRecord;
 
     // Process insert/delete immediately so events aren't dropped by debounce
     if (table == 'game_questions' && eventType == 'insert') {
@@ -485,26 +492,42 @@ class RealtimeSyncService with WidgetsBindingObserver {
     }
     if (table == 'game_questions' && eventType == 'delete') {
       AnsiLogger.realtime('_handleGamePayload -> handleQuestionDelete()');
-      unawaited(_gameState.handleQuestionDelete(payload.oldRecord));
+      unawaited(_gameState.handleQuestionDelete(oldRecord));
       return;
     }
 
-    _gameRefreshTimer?.cancel();
-    _gameRefreshTimer = Timer(const Duration(milliseconds: 150), () {
-      if (table == 'game_questions' && eventType == 'update') {
-        AnsiLogger.realtime('_handleGamePayload -> handleQuestionUpdate()');
-        unawaited(_gameState.handleQuestionUpdate(newRecord));
-      } else if (table == 'game_answers' && eventType == 'insert') {
-        AnsiLogger.realtime('_handleGamePayload -> handleAnswerInsert()');
-        unawaited(_gameState.handleAnswerInsert(newRecord));
-      } else if (table == 'game_answers' && eventType == 'update') {
-        AnsiLogger.realtime('_handleGamePayload -> handleAnswerUpdate()');
-        unawaited(_gameState.handleAnswerUpdate(newRecord));
-      } else if (table == 'game_answers' && eventType == 'delete') {
-        AnsiLogger.realtime('_handleGamePayload -> handleAnswerDelete()');
-        unawaited(_gameState.handleAnswerDelete(payload.oldRecord));
-      }
-    });
+    // Buffer every remaining game event FIFO. A burst (e.g. a partner's
+    // `game_answers` INSERT followed within 150 ms by the `both_answered`
+    // `game_questions` UPDATE) is applied entirely, in delivery order,
+    // instead of keeping only the last event of the burst (F-RT1).
+    AnsiLogger.realtime('_handleGamePayload -> buffered for FIFO flush');
+    _gameEventBuffer.add(
+      table: table,
+      eventType: eventType,
+      newRecord: newRecord,
+      oldRecord: oldRecord,
+    );
+  }
+
+  Future<void> _applyGameEvent(
+    String table,
+    String eventType,
+    Map<String, dynamic> newRecord,
+    Map<String, dynamic> oldRecord,
+  ) async {
+    if (table == 'game_questions' && eventType == 'update') {
+      AnsiLogger.realtime('_handleGamePayload -> handleQuestionUpdate()');
+      await _gameState.handleQuestionUpdate(newRecord);
+    } else if (table == 'game_answers' && eventType == 'insert') {
+      AnsiLogger.realtime('_handleGamePayload -> handleAnswerInsert()');
+      await _gameState.handleAnswerInsert(newRecord);
+    } else if (table == 'game_answers' && eventType == 'update') {
+      AnsiLogger.realtime('_handleGamePayload -> handleAnswerUpdate()');
+      await _gameState.handleAnswerUpdate(newRecord);
+    } else if (table == 'game_answers' && eventType == 'delete') {
+      AnsiLogger.realtime('_handleGamePayload -> handleAnswerDelete()');
+      await _gameState.handleAnswerDelete(oldRecord);
+    }
   }
 
   void _handleUserProfilesPayload(sb.PostgresChangePayload payload) {
@@ -674,7 +697,7 @@ class RealtimeSyncService with WidgetsBindingObserver {
     _partnershipRefreshTimer?.cancel();
     _missYouRefreshTimer?.cancel();
     _bucketRefreshTimer?.cancel();
-    _gameRefreshTimer?.cancel();
+    _gameEventBuffer.clear();
     _driveRefreshTimer?.cancel();
     _userProfileRefreshTimer?.cancel();
     await _authSubscription?.cancel();
