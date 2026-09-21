@@ -1,32 +1,30 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import 'package:justus/all_imports.dart';
 
 /// Coalesces `moods` events into a `MoodChangeBatch` (distinct `changedUserId`
 /// union) and refreshes `MoodState` per distinct user on flush.
-class MoodRealtimeHandler {
+class MoodRealtimeHandler extends RealtimeHandler {
   MoodRealtimeHandler({
-    required RealtimeSyncSession session,
+    required super.session,
     required MoodState moodState,
-  })  : _session = session,
-        _moodState = moodState;
+  }) : _moodState = moodState;
 
-  final RealtimeSyncSession _session;
   final MoodState _moodState;
 
   late final MoodChangeBatch _batch = MoodChangeBatch(
     sink: _applyMoodRefresh,
   );
 
-  void handle(sb.PostgresChangePayload payload) {
-    AnsiLogger.realtime(
-        '_handleMoodPayload - table=${payload.table} eventType=${payload.eventType.name}');
-    if (_session.suppressProcessing) return;
-    if (!_session.isRelevantMood(payload) || !_session.markSeen(payload)) {
-      return;
-    }
+  @override
+  bool isRelevant(sb.PostgresChangePayload payload) =>
+      session.isRelevantMood(payload);
 
+  @override
+  void onNewEvent(sb.PostgresChangePayload payload) {
     final changedUserId =
-        _session.rowUserId(_session.currentRecord(payload), 'user_id');
+        session.rowUserId(session.currentRecord(payload), 'user_id');
     if (changedUserId == null) return;
 
     _batch.add(changedUserId);
@@ -39,6 +37,7 @@ class MoodRealtimeHandler {
         (userId) => _moodState.refreshFromRealtime(changedUserId: userId)));
   }
 
+  @override
   void clear() {
     _batch.clear();
   }

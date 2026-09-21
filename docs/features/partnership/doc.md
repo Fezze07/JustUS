@@ -47,7 +47,7 @@ The partnership architecture spans three main layers:
    - [partner_state.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart): State manager for fetching partnership data, sending/accepting/rejecting requests, and performing optimistic state updates.
    - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `get_pending_invitations` RPC, `accept_partnership` RPC, `partnerships` DELETE for rejection) and Node Express API (`_api.requestPartnership`).
    - [partnership_models.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_models.dart): Data models `PartnershipResponse`, `PendingRequests`, and `PartnershipInvitation`.
-   - [partnership_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/partnership_realtime_handler.dart): `PartnershipRealtimeHandler` subscribes to Postgres change events on `public.partnerships`, invalidates `BaseRepository` cache, and updates `PartnerState` / `AuthState`. Wired by `RealtimeSyncService` (`lib/core/realtime/realtime_sync_service.dart`).
+   - [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart): `RefetchRealtimeHandler` (unified debounced-refetch strategy) subscribes to Postgres change events on `public.partnerships`, debounces 150 ms, invalidates `BaseRepository` cache, and updates `PartnerState` / `AuthState`. Wired by `RealtimeSyncService` (`lib/core/realtime/realtime_sync_service.dart`) with an `isRelevant` predicate + `refetch` closure.
 
 2. **Backend API (Node.js / Express)**:
    - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L164-L182): Handles `invitePartnerController`. Resolves recipient email + partnership code via `resolveRequestedPartnerOrNull`, checks self-invitation, and calls `adminSupabase.rpc('request_partnership')`.
@@ -198,11 +198,11 @@ Database Event on public.partnerships (INSERT / UPDATE / DELETE)
 Supabase Realtime Channel ('justus-sync-{userId}-{gen}')
                            │
                            ▼
-PartnershipRealtimeHandler.handle()
-                           │
-                           ├── 1. Filters relevance (RealtimeSyncSession.isRelevantPartnership: checks user_id_1, user_id_2)
-                           ├── 2. Deduplicates event key (RealtimeSyncSession.markSeen)
-                           ├── 3. Debounces execution (150ms timer)
+RefetchRealtimeHandler.handle()
+                            │
+                            ├── 1. Filters relevance (RealtimeSyncSession.isRelevantPartnership: checks user_id_1, user_id_2)
+                            ├── 2. Deduplicates event key (RealtimeSyncSession.markSeen)
+                            ├── 3. Debounces execution (150ms timer)
                            │
                            ▼
 Clear local cache (BaseRepository.clearPartnershipCache())

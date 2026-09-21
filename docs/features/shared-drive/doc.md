@@ -148,10 +148,10 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
      - **Drive Item Flow** (`kind === 'drive'`): Fetches partner ID via `getPartnerId()`. Inserts record into `public.drive_items` returning created `item` object.
 
 6. **Realtime Sync & Partner Notification**
-   - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [drive_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/drive_realtime_handler.dart)
+   - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart)
    - Flutter triggers push notification `notifyPartnerOnce(notificationKey: 'driveItemAdded')`.
    - Supabase Realtime emits `INSERT` event on `public.drive_items`.
-   - Partner's `DriveRealtimeHandler.handle` catches event, debounces for 150ms (`_driveRefreshTimer`), and calls `DriveState.refreshFromRealtime()`.
+   - Partner's `RefetchRealtimeHandler.handle` catches the event, debounces for 150 ms, and calls `DriveState.refreshFromRealtime()`.
 
 7. **Gallery UI Update**
    - File: [drive_state.dart:185-190](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L185-L190)

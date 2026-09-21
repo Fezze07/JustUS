@@ -34,21 +34,43 @@ class RealtimeSyncService {
     _session = RealtimeSyncSession();
     _moodHandler =
         MoodRealtimeHandler(session: _session, moodState: _moodState);
-    _partnershipHandler = PartnershipRealtimeHandler(
-        session: _session, partnerState: _partnerState, authState: _authState);
+    _partnershipHandler = RefetchRealtimeHandler(
+      session: _session,
+      isRelevant: _session.isRelevantPartnership,
+      refetch: () async {
+        BaseRepository.clearPartnershipCache();
+        await Future.wait([
+          _partnerState.refreshFromRealtime(),
+          _authState.refreshPartnershipFromRealtime(),
+        ]);
+      },
+    );
     _missYouHandler = MissYouRealtimeHandler(
         session: _session, homepageState: _homepageState);
     _bucketHandler =
         BucketRealtimeHandler(session: _session, bucketState: _bucketState);
     _gameHandler =
         GameRealtimeHandler(session: _session, gameState: _gameState);
-    _driveHandler =
-        DriveRealtimeHandler(session: _session, driveState: _driveState);
-    _userProfileHandler = UserProfilesRealtimeHandler(
-        session: _session,
-        profileState: _profileState,
-        partnerState: _partnerState,
-        authState: _authState);
+    _driveHandler = RefetchRealtimeHandler(
+      session: _session,
+      isRelevant: (payload) =>
+          _session.isRelevantDrive(payload, driveItems: _driveState.driveItems),
+      refetch: () => _driveState.refreshFromRealtime(),
+    );
+    _userProfileHandler = RefetchRealtimeHandler(
+      session: _session,
+      isRelevant: (payload) =>
+          payload.eventType.name == 'update' &&
+          _session.isRelevantUserProfile(payload),
+      refetch: () async {
+        BaseRepository.clearPartnershipCache();
+        await Future.wait([
+          _profileState.loadProfile(force: true),
+          _partnerState.refreshFromRealtime(),
+          _authState.refreshPartnershipFromRealtime(),
+        ]);
+      },
+    );
     _connection = RealtimeSyncConnection(
       client: _client,
       session: _session,
@@ -87,12 +109,12 @@ class RealtimeSyncService {
 
   late final RealtimeSyncSession _session;
   late final MoodRealtimeHandler _moodHandler;
-  late final PartnershipRealtimeHandler _partnershipHandler;
+  late final RefetchRealtimeHandler _partnershipHandler;
   late final MissYouRealtimeHandler _missYouHandler;
   late final BucketRealtimeHandler _bucketHandler;
   late final GameRealtimeHandler _gameHandler;
-  late final DriveRealtimeHandler _driveHandler;
-  late final UserProfilesRealtimeHandler _userProfileHandler;
+  late final RefetchRealtimeHandler _driveHandler;
+  late final RefetchRealtimeHandler _userProfileHandler;
   late final RealtimeSyncConnection _connection;
 
   bool _started = false;

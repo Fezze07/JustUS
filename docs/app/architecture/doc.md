@@ -276,7 +276,9 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
 - `realtime_sync_session.dart` — `RealtimeSyncSession`: user/partner/partnership ids, `suppressProcessing`, the `markSeen` dedup LRU (80 entries), row decoding helpers, and the `isRelevant*`/`isPartnershipRecord` relevance predicates.
 - `realtime_connection.dart` — `RealtimeSyncConnection (WidgetsBindingObserver)`: channel lifecycle, auth token-refresh listener, reconnect/exponential backoff, polling fallback, generation guard.
 - `realtime_table_binding.dart` — declarative `RealtimeTableBinding` (table + payload callback).
-- `handlers/` — one class per feature: `MoodRealtimeHandler`, `PartnershipRealtimeHandler`, `MissYouRealtimeHandler`, `BucketRealtimeHandler`, `GameRealtimeHandler`, `DriveRealtimeHandler`, `UserProfilesRealtimeHandler`.
+- `realtime_handler.dart` — `RealtimeHandler` (abstract base, template method): the shared preamble (suppress guard → relevance → `markSeen` dedup) plus `clear()`/`dispose()`. Every feature handler extends it, so a preamble change propagates to all features.
+- `refetch_realtime_handler.dart` — `RefetchRealtimeHandler`: trailing-edge debounce (150 ms) → one `refetch()`. The single full-refetch strategy for `partnerships` / `drive_items`+`drive_item_reactions` / `user_profiles` (replaces the former per-feature classes), wired in the facade with an `isRelevant` predicate + `refetch` closure.
+- `handlers/` — feature strategies extending the base: `MoodRealtimeHandler` (distinct-user coalescing), `MissYouRealtimeHandler` (immediate), `BucketRealtimeHandler` (immediate granular), `GameRealtimeHandler` (immediate + FIFO buffer).
 
 `RealtimeSyncService`:
 - `start()`: delegates to `RealtimeSyncConnection.start()` which registers as `WidgetsBindingObserver`, subscribes to `auth.onAuthStateChange`. On `tokenRefreshed` -> `realtime.setAuth(token)` without reconnect. Any other auth event while foreground+user -> `scheduleReconnect()`.

@@ -40,7 +40,7 @@ Profile Screen → Identity Group → Tap Display name → Edit Dialog (TextFiel
   → Save → ProfileState.updateDisplayName
   → UserRepository.updateDisplayName → UPDATE user_profiles SET display_name
   → ProfileState updates in-memory model + StorageService caches (user_profile, username)
-  → Realtime: user_profiles UPDATE → UserProfilesRealtimeHandler (handlers/user_profiles_realtime_handler.dart)
+  → Realtime: user_profiles UPDATE → RefetchRealtimeHandler (lib/core/realtime/refetch_realtime_handler.dart)
       → clearPartnershipCache + ProfileState.loadProfile(force: true)
       → PartnerState/AuthState.refreshFromRealtime → partner device UI + storage updated
 ```
@@ -176,7 +176,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Realtime / Synchronization
 
-- **Profile Edit Propagation**: `user_profiles` is part of the `supabase_realtime` publication; `UserProfilesRealtimeHandler` (150 ms debounce) reacts to self/partner `UPDATE`s by clearing the partnership cache and refreshing `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Display name/profile pic changes appear on the partner device without re-entering the screen.
+- **Profile Edit Propagation**: `user_profiles` is part of the `supabase_realtime` publication; `RefetchRealtimeHandler` (150 ms debounce, update-only) reacts to self/partner `UPDATE`s by clearing the partnership cache and refreshing `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Display name/profile pic changes appear on the partner device without re-entering the screen.
 - **Account Wipe Suppression**: Prior to executing account wipe, `ProfileScreen` calls `RealtimeSyncService.suppress()` to prevent incoming database change events from triggering state re-syncs mid-deletion.
 - **Post-Wipe Refresh**: Once wipe completes, `RealtimeSyncService.refreshChannel()` re-establishes the WebSocket sync channel.
 
