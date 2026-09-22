@@ -23,7 +23,7 @@ class BucketRepository extends BaseRepository {
 
       final data = await sbClient
           .from('bucket_items')
-          .select('id, text, done, created_at, updated_at, category')
+          .select('id, text, done, created_at, updated_at, category, partnership_id')
           .eq('partnership_id', partnershipId)
           .order('created_at', ascending: false)
           .toList();
@@ -53,15 +53,21 @@ class BucketRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<void>> toggleBucketItem(int id, bool done) async {
-    return tryCall(() async {
-      await sbClient.from('bucket_items').update({'done': done}).eq('id', id);
+  Future<ResultWrapper<void>> toggleBucketItem(int id, bool done) {
+    return withPartnership((partnershipId) async {
+      await sbClient
+          .from('bucket_items')
+          .update({'done': done})
+          .match({'id': id, 'partnership_id': partnershipId});
     });
   }
 
-  Future<ResultWrapper<void>> deleteBucketItem(int id) async {
-    return tryCall(() async {
-      await sbClient.from('bucket_items').delete().eq('id', id);
+  Future<ResultWrapper<void>> deleteBucketItem(int id) {
+    return withPartnership((partnershipId) async {
+      await sbClient
+          .from('bucket_items')
+          .delete()
+          .match({'id': id, 'partnership_id': partnershipId});
     });
   }
 

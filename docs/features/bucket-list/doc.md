@@ -36,8 +36,8 @@ Source: `Flutter/lib/features/bucket_list/bucket_models.dart`
 Fields: `id (int)`, `text (String)`, `done (bool)`, `createdAt (String ISO)`, `category (String)`, `partnershipId (int?)`.
 
 - `done` decoded from `bool | int`.
-- `category` defaults to `'Tutti'` if absent — mismatched with `BucketCategory.all = 'all'` (F-BL2).
-- `partnershipId` nullable and **never populated from fetch** (F-BL4).
+- `category` defaults to `BucketCategory.all` (`'all'`) if absent, so null DB categories render through the "all" filter chip instead of the stale `'Tutti'` string (F-BL2 resolved).
+- `partnershipId` nullable; populated from the fetch SELECT (`partnership_id` is now included, F-BL4 resolved).
 
 ---
 
@@ -66,9 +66,9 @@ Seven compile-time constants:
 | Flutter UI | Add-dialog only exposes 7 chips; no free-text category input |
 | Flutter Repository | `addBucketItem` omits `category` key from INSERT if null or empty |
 | Backend (Node.js) | NOT IMPLEMENTED — no bucket_items routes exist |
-| Database | `category` is `character varying, nullable`; no CHECK constraint |
+| Database | CHECK constraint `bucket_items_category_check` — allows NULL or the 7 bucket categories (F-BL3 resolved, applied to remote) |
 
-Category validation is Flutter-UI-only. Direct Supabase API access can store arbitrary strings.
+Direct Supabase API access can store the 7 categories or NULL only; arbitrary strings are rejected.
 
 ---
 
@@ -82,14 +82,14 @@ All CRUD calls Supabase PostgREST directly from Flutter. No Node.js backend rout
 
 ```
 getActivePartnership() → resolves partnership_id
-→ SELECT id, text, done, created_at, category
+→ SELECT id, text, done, created_at, updated_at, category, partnership_id
    FROM bucket_items
    WHERE partnership_id = $partnershipId
    ORDER BY created_at DESC
 ```
 
 - Returns all items (done and not-done), newest-first.
-- `partnership_id` NOT in SELECT — `BucketItem.partnershipId` is always `null` after fetch.
+- `partnership_id` included in SELECT — `BucketItem.partnershipId` reflects the owning partnership after fetch.
 - No active partnership → empty list returned (no error).
 
 ### 4.2 Add Item
@@ -116,10 +116,11 @@ Offline: Supabase call throws; error message shown; no queue or retry.
 `BucketRepository.toggleBucketItem` (bucket_repository.dart:56):
 
 ```
-UPDATE bucket_items SET done = $done WHERE id = $id
+UPDATE bucket_items SET done = $done
+WHERE id = $id AND partnership_id = $activePartnershipId
 ```
 
-- No `partnership_id` filter — RLS is the only scope guard.
+- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `Exception('No active partnership')` if none is found.
 - Optimistic UI via `_pendingChanges` map; Realtime UPDATE clears it.
 - Idempotent at DB level. Rapid double-taps may show brief inconsistency.
 - No notification on toggle.
@@ -129,10 +130,11 @@ UPDATE bucket_items SET done = $done WHERE id = $id
 `BucketRepository.deleteBucketItem` (bucket_repository.dart:62):
 
 ```
-DELETE FROM bucket_items WHERE id = $id
+DELETE FROM bucket_items
+WHERE id = $id AND partnership_id = $activePartnershipId
 ```
 
-- No `partnership_id` filter — RLS is the only scope guard.
+- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `Exception('No active partnership')` if none is found.
 - Optimistic UI via `_pendingDeletes` set; item reappears if network fails.
 - No notification on delete.
 
@@ -144,7 +146,7 @@ Source: `supabase-policies/SKILL.md`
 
 `bucket_items` → ALL operations restricted to members of the owning partnership. Policy enforced server-side via `partnership_id` membership check.
 
-UPDATE and DELETE in `bucket_repository.dart` filter only by `id`. RLS is the sole defence against cross-partnership modification. If RLS is disabled, any integer `id` can be targeted.
+UPDATE and DELETE in `bucket_repository.dart` additionally filter by `partnership_id` (`withPartnership` + `.match`), so cross-partnership modification is blocked client-side as well as by RLS (F-BL7 resolved).
 
 ---
 
@@ -168,7 +170,7 @@ Subscribed via shared channel `justus-sync-<userId>-<generation>`:
 `BucketRealtimeHandler.handle` applies in order:
 
 1. `RealtimeSyncSession.suppressProcessing` flag — drops event if true (auth transitions).
-2. `RealtimeSyncSession.isPartnershipRecord(payload)` — compares row `partnership_id` to the session `partnershipId`. Passes if either is `null` (permissive — F-BL8).
+2. `RealtimeSyncSession.isPartnershipRecord(payload)` — strict match between row `partnership_id` and the session `partnershipId`; fails outright when the session has no partnership (F-RT9 resolved). Sparse DELETE payloads (default `REPLICA IDENTITY` → only the PK is delivered) are the sole exemption, still governed by `_knownIds` dedup + RLS (F-BL8 resolved).
 3. `RealtimeSyncSession.markSeen(payload)` — dedup by `(table, eventType, id, commitTimestamp)` key; ring-buffer of 80 entries.
 
 ### 6.2 Dispatch
@@ -259,8 +261,6 @@ Source: `Flutter/lib/features/bucket_list/screens/bucket_list_screen.dart`
 - Toggle: custom checkbox via `GestureDetector`. Optimistic via `_pendingChanges`. `unawaited`.
 - Delete: `Dismissible` swipe right-to-left. Optimistic via `_pendingDeletes`. `unawaited`.
 
-**F-BL1**: `BucketItemTile` (`widgets/bucket_item_tile.dart`) is **never instantiated**. Screen renders items inline via `_buildBucketItem`. The widget is dead code using a simpler `Card + ListTile` layout without category color or optimistic state.
-
 ### 9.2 Homepage Preview
 
 Source: `Flutter/lib/features/home/screens/homepage_screen.dart:443`
@@ -320,29 +320,7 @@ After 3+ consecutive Realtime failures, polling fallback activates (`RealtimeSyn
 
 ## 14. Findings
 
-### F-BL1: `BucketItemTile` is dead code
-
-`widgets/bucket_item_tile.dart` — never instantiated. `BucketListScreen` renders items inline. The widget uses `Card + ListTile` without category color, badge, or optimistic state. Using it would regress UI fidelity.
-
-### F-BL2: Category fallback `'Tutti'` mismatches filter sentinel `'all'`
-
-`bucket_models.dart:30` — `fromJson` defaults `category` to `'Tutti'` on absent key. The "all" filter chip uses `BucketCategory.all = 'all'`. Items with null DB `category` display badge `'Tutti'` (raw, unlocalized) and `Colors.white70`. They appear in all-categories view but match no named filter chip.
-
-### F-BL3: No category validation at database or backend layer
-
-DB accepts any string or NULL for `category`. Flutter dialog-only enforcement. Direct Supabase API bypasses validation.
-
-### F-BL4: `partnership_id` not fetched in SELECT
-
-`bucket_repository.dart:26` — SELECT omits `partnership_id`. `BucketItem.partnershipId` is always `null` after fetch. Field exists in model and `toJson` but is never populated from server data.
-
-### F-BL7: UPDATE/DELETE filter only by `id`
-
-`toggleBucketItem` and `deleteBucketItem` omit `partnership_id` from WHERE. RLS is the sole defence. Misconfigured RLS enables cross-partnership modification.
-
-### F-BL8: Realtime filter is permissive on missing `partnership_id`
-
-`_isPartnershipRecord` returns `true` when `eventPartnershipId` is `null` (possible in sparse DELETE payloads). `_knownIds` dedup is the last safety net.
+All F-BL audit findings are resolved — F-BL1 (dead `BucketItemTile`, deleted), F-BL2 (category fallback), F-BL3 (DB CHECK constraint), F-BL4 (SELECT populated), F-BL5/F-BL6 (cursor + updated_at trigger, 4.3), F-BL7 (modify scope), F-BL8 (filter strictness). See the Implementation Status summary.
 
 ---
 
@@ -360,13 +338,17 @@ DB accepts any string or NULL for `category`. Flutter dialog-only enforcement. D
 | Realtime INSERT sync (granular) | IMPLEMENTED |
 | Realtime UPDATE sync (granular) | IMPLEMENTED |
 | Realtime DELETE sync (granular) | IMPLEMENTED |
+| Realtime partnership filter (strict, sparse-DELETE exempt) | IMPLEMENTED |
+| Fetch includes `partnership_id` (model populated) | IMPLEMENTED |
+| Modify scope (toggle/delete) by `partnership_id` | IMPLEMENTED |
+| Category fallback equals filter sentinel | IMPLEMENTED |
 | Local cache (SharedPreferences) | IMPLEMENTED |
 | Incremental sync — inserts only | IMPLEMENTED |
 | Homepage preview (up to 4 pending items) | IMPLEMENTED |
 | Push notification on add | PARTIALLY IMPLEMENTED |
 | Push notification on toggle / delete | NOT IMPLEMENTED |
 | Item text in push notification | NOT IMPLEMENTED |
-| Category validation at database level | NOT IMPLEMENTED |
+| Category validation at database level | IMPLEMENTED (CHECK constraint) |
 | Backend CRUD routes | NOT IMPLEMENTED |
 | Offline queuing / retry | NOT IMPLEMENTED |
 | Item edit | NOT IMPLEMENTED |

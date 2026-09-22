@@ -50,8 +50,20 @@ class DriveState extends BaseState with CheckpointMixin {
     if (changed) {
       await CacheService.saveCheckpoint(
           CacheService.kDriveItems, CacheService.kCheckpointEmpty);
+      return true;
     }
-    return changed;
+
+    final countResult = await _repo.fetchDriveItemCount();
+    final serverCount = countResult.valueOrNull;
+    if (serverCount != null &&
+        _driveItems.isNotEmpty &&
+        serverCount != _driveItems.length) {
+      await CacheService.saveCheckpoint(
+          CacheService.kDriveItems, CacheService.kCheckpointEmpty);
+      return true;
+    }
+
+    return false;
   }
 
   Future<void> _loadFromCache() async {
@@ -72,9 +84,38 @@ class DriveState extends BaseState with CheckpointMixin {
     _isSyncing = true;
 
     await runSafe(() async {
-      final result = await _repo.fetchDriveItemsIncremental();
+      final countResult = await _repo.fetchDriveItemCount();
+      final serverCount = countResult.valueOrNull;
+
+      // A row-count mismatch against the local cache means items were deleted
+      // server-side — the incremental `updated_at` cursor cannot see deletions,
+      // so full-refetch (the merge below then drops the stale local rows).
+      final needsFullRefresh = _driveItems.isNotEmpty &&
+          serverCount != null &&
+          serverCount != _driveItems.length;
+
+      final result = needsFullRefresh
+          ? await _repo.fetchDriveItems()
+          : await _repo.fetchDriveItemsIncremental();
 
       await handleResult(result, onSuccess: (value) async {
+        if (needsFullRefresh) {
+          // Whole-list refetch: the server is the source of truth, so replace
+          // instead of merging — otherwise rows deleted server-side would be
+          // kept by the `kept + value` incremental merge.
+          _driveItems = List<DriveItem>.from(value)
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          _rebuildFavorites();
+          await StorageService.saveDriveItems(_driveItems);
+
+          await saveMaxTimestampCheckpointFromItems(
+            checkpointKey: CacheService.kDriveItems,
+            items: value,
+            timestampField: (item) => (item as DriveItem).updatedAt,
+          );
+          return;
+        }
+
         if (value.isNotEmpty) {
           final updatedIds = value.map((e) => e.id).toSet();
           final kept =

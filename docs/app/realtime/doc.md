@@ -181,13 +181,13 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 | `RealtimeSyncSession.isRelevantMood` | `user_id == userId \|\| user_id == partnerId` | Guards self + partner moods |
 | `isRelevantPartnership` | any of `user_id_1/user_id_2` in row == `userId` | Note: `user_id_a/b` also checked (unused columns, harmless) |
 | `isRelevantMissYou` | → `isPartnershipRecord` | partnership_id match |
-| `isPartnershipRecord` | `eventPartnershipId == partnershipId`; **permissive (`true`) if `partnershipId == null`** | Used by bucket, missyou, game_questions, drive_items |
+| `isPartnershipRecord` | `partnershipId == null` → `false` (strict); else `eventPartnershipId == partnershipId`. Sparse DELETE payloads (REPLICA IDENTITY DEFAULT → only PK delivered, no `partnership_id`) are exempt | Used by bucket, missyou, game_questions, drive_items |
 | `isRelevantGame` | questions → partnership; answers → `user_id` self/partner | |
-| `isRelevantDrive` | drive_items → partnership; reactions → `item_id` in local `_driveItems` | Reaction events for items not in the local list are dropped (F-RT9) |
+| `isRelevantDrive` | drive_items → partnership; reactions → `item_id` in local `_driveItems` | Reaction events for items not in the local list are dropped (F-RT8) |
 
-### Note on the permissive fallback
+### Note on the strict fallback
 
-`isPartnershipRecord` returns `true` when `partnershipId == null` — i.e. "filter everything in". This is **safe by construction**: `configure()` defers subscription whenever `partnershipId == null`, so no channel exists without a partnership. The fallback only matters in the pathological window where the channel outlives a partnership reset; RLS still gates the events server-side.
+`isPartnershipRecord` returns `false` when the session `partnershipId == null` — incoming records are rejected, not "filtered everything in" (F-RT9 resolved). `configure()` defers subscription whenever `partnershipId == null`, so no channel exists without a partnership; the strict fallback is defense-in-depth for the pathological window where a channel outlives a partnership reset. The only accepted null-payload case is a DELETE event, whose `oldRecord` carries just the PK under the default `REPLICA IDENTITY` — feature-level `_knownIds` dedup and RLS still govern those events.
 
 ---
 
@@ -337,7 +337,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 - **Flow**: `isRelevantDrive` → dedup → 150 ms debounce → **full** `DriveState.refreshFromRealtime()`: re-fetch entire `v_drive_dashboard`, sort by `created_at`, rebuild favorites, refresh `_singleItem` if open, `saveDriveItems` to cache, update `chk_drive_items`. (`RefetchRealtimeHandler` instance)
 - Guarded by `_isSyncing` — concurrent refreshes are skipped, not queued.
-- **Deletion**: DELETE events arrive on the same channel (all events) → debounced full refetch → deleted items disappear from cache. This closes the storage-doc gap (F-SC7: incremental sync alone cannot detect deletions — Realtime is the mechanism that does, when online).
+- **Deletion**: DELETE events arrive on the same channel (all events) → debounced full refetch → deleted items disappear from cache. Outside Realtime, `DriveState.syncDriveItems` detects deletions via a server row-count vs. cached-length comparison that triggers a full **replacing** refetch (storage doc F-SC7); a same-count swap (insert + delete between refreshes) is recovered only by Realtime/polling.
 
 ---
 
@@ -359,7 +359,7 @@ Events are dropped in normal operation in three ways:
 1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
    - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync.
    - Mood: the distinct `changedUserId` union of the burst is refreshed; a mixed-user burst refreshes both sides (`mood_change_batch.dart`).
-2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`isRelevantDrive`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT9).
+2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`isRelevantDrive`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT8).
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
 
 **Backstops that recover dropped events** (eventual sync):
@@ -400,9 +400,9 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 
 `_hasMoodChanges` writes `kCheckpointEmpty` when changes exist, *before* the fetch. `hasChanges` then returns `true` on the next cycle until a real fetch writes a real timestamp — i.e. it **forces** retries after failed fetches (good) but also forces one redundant cycle after every successful one (harmless).
 
-### R-5: `chk_drive_items` strict `>` boundary (cross-doc F-SC7)
+### R-5: `chk_drive_items` strict `>` boundary
 
-`fetchDriveItemsIncremental` uses `gt('updated_at', checkpoint)`; rows whose `updated_at` equals the checkpoint (multi-row same-transaction commits, or microsecond collisions) are skipped. Deletions are invisible to incremental fetches entirely — only Realtime DELETE events (full refetch) or polling `_refreshAll` recover them.
+`fetchDriveItemsIncremental` uses `gt('updated_at', checkpoint)`; rows whose `updated_at` equals the checkpoint (multi-row same-transaction commits, or microsecond collisions) are skipped. Deletions are invisible to incremental fetches entirely — recovered by the count-mismatch full replace in `syncDriveItems`, by Realtime DELETE events, or by polling `_refreshAll`.
 
 ---
 
@@ -458,13 +458,6 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 - **WHEN**: Partner reacts to an item the user hasn't loaded (paged-out history).
 - **IMPACT**: Reaction does not appear in the detail view until a full refresh. Minor.
 - **CONFIDENCE**: HIGH.
-
-### F-RT9: Partnership filter is permissive when `partnershipId == null` (INFO)
-
-- **WHAT**: `isPartnershipRecord` returns `true` when the local partnership id is null.
-- **WHERE**: `realtime_sync_session.dart` (`isPartnershipRecord`).
-- **WHY safe**: `configure()` refuses to subscribe without a partnership; RLS still enforces server-side. Documented as defense-in-depth posture, not a bug.
-- **CONFIDENCE**: HIGH (that it is safe by construction).
 
 ### F-RT10: Checkpoint write-back can regress under concurrent refreshes (LOW)
 

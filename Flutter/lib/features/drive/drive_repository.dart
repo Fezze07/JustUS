@@ -47,6 +47,12 @@ class DriveRepository extends BaseRepository {
     );
   }
 
+  Future<ResultWrapper<int>> fetchDriveItemCount() {
+    return tryCall(() async {
+      return await sbClient.from('v_drive_dashboard').count();
+    });
+  }
+
   Future<ResultWrapper<String?>> getMediaDownloadUrl(String filename) async {
     return tryCall(() async {
       return _mediaService.getDownloadUrl(filename);

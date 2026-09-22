@@ -7,6 +7,9 @@ CREATE TABLE "public"."bucket_items" (
   "category"       character varying(50),
   "partnership_id" integer,
   CONSTRAINT "bucket_items_pkey" PRIMARY KEY (id),
+  CONSTRAINT "bucket_items_category_check" CHECK (
+    category IS NULL OR category IN ('Travel', 'Dates', 'Goals', 'Crazy', 'Adventure', 'Romantic', 'Homemade')
+  ),
   CONSTRAINT "bucket_items_partnership_id_fkey" FOREIGN KEY (partnership_id) REFERENCES public.partnerships(id) ON DELETE CASCADE
 );
 

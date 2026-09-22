@@ -264,4 +264,4 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - `handleResult(notifyOnSuccess:)` (base_state.dart:68) is unused across the codebase (no call passes `true`), but reauth-critical `GenericError` results still notify via the error branch (base_state.dart:71,74).
 - The `Selector`-based slices mean most widgets rebuild on small typed views of state; combined with F-SM1 deferral, the effective update pipeline is: mutate → post-frame single notify → provider marks dependents → next frame rebuild.
 - `RealtimeSyncService` holds strong references to all feature states except ProfileState (realtime_sync_scope.dart:24-31); adding profile support is the single largest missing wiring.
-- Drive incremental sync is the only feature using server-side `updated_at` cursoring (drive_repository.dart:32); all others re-fetch lists wholesale on change.
+- Drive incremental sync is the only feature using server-side `updated_at` cursoring (drive_repository.dart:24); the other features gate a full refetch on a server `MAX(updated_at)` checkpoint comparison.

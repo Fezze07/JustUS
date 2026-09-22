@@ -153,7 +153,7 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 - Updated by: `DriveState._updateDriveCheckpointFromItems` (`:131–137`) / `syncDriveItems` (`:87–91`) — max of `updatedAt` from fetched items.
 - Compared field: `v_drive_dashboard.updated_at`.
 - Incremental sync: `fetchDriveItemsIncremental` (`:24–40` of `drive_repository.dart`) applies `gt('updated_at', checkpoint)` — strict `>`: items with `updated_at` equal to checkpoint are skipped. Same-timestamp misses extremely unlikely (microsecond precision).
-- **Deletion miss**: `syncDriveItems` incremental fetch returns only existing rows. Deleted server rows do not appear. Without realtime, **deleted items persist in local cache forever**. Only realtime (`drive_items` DELETE event) triggers a full `refreshFromRealtime()` → full fetch. F-SC7
+- **Deletion detection**: incremental fetch returns only existing rows, so deletions are invisible to the cursor. `syncDriveItems` additionally compares a cheap server row count (`fetchDriveItemCount` on `v_drive_dashboard`) against the cached list length; on mismatch it does a full fetch that **replaces** the list, dropping locally-deleted rows. A same-count swap (insert + delete between refreshes) slips past the count check and is recovered by Realtime DELETE events or polling `_refreshAll`. F-SC7
 
 **chk\_miss\_you** (`CacheService.kMissYou`)
 - Updated by: `HomepageState.fetchTotalMissYou` (`:51–54` of `homepage_state.dart`) and `sendMissYou` (`:78–80`) — writes `DateTime.now().toUtc().toIso8601String()` (local clock, not server time).
@@ -255,18 +255,6 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 **What**: After logout + re-login, the app resets to the system locale (or Italian fallback). This is arguably incorrect — language is a device-level preference, not an account-level one.
 
 **Impact**: Minor UX annoyance on logout/re-login.
-
-**Confidence**: HIGH
-
----
-
-### F-SC7: Drive incremental sync does not detect deletions
-
-**Evidence**: `DriveRepository.fetchDriveItemsIncremental` (`:24–40`) runs `SELECT ... WHERE updated_at > $checkpoint`. Deleted rows do not appear in the query result. The merge logic at `drive_state.dart:79–84` keeps items from the previous in-memory list that are not in the new fetch — keeping the deleted item.
-
-**What**: When realtime is down and only incremental sync runs, deleted drive items persist in the local cache indefinitely. The full path `refreshFromRealtime()` (triggered by realtime DELETE events) re-fetches the entire list and replaces the cache, which resolves this in the online case.
-
-**Impact**: Deleted media visible locally after network hiccup; clears on next successful realtime event or pull-to-refresh.
 
 **Confidence**: HIGH
 

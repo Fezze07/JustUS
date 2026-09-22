@@ -2,6 +2,8 @@
 // JustUs App - Bucket List Models
 // =============================================================================
 
+import 'package:justus/all_imports.dart';
+
 abstract class BucketModels {}
 
 class BucketItem {
@@ -30,7 +32,7 @@ class BucketItem {
       done: json['done'] == true || json['done'] == 1,
       createdAt: (json['created_at'] as String?) ?? '',
       updatedAt: (json['updated_at'] as String?) ?? (json['created_at'] as String?) ?? '',
-      category: (json['category'] as String?) ?? 'Tutti',
+      category: (json['category'] as String?) ?? BucketCategory.all,
       partnershipId: (json['partnership_id'] as num?)?.toInt(),
     );
   }

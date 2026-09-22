@@ -99,11 +99,19 @@ class RealtimeSyncSession {
 
   bool isPartnershipRecord(sb.PostgresChangePayload payload) {
     final partnershipId = this.partnershipId;
-    if (partnershipId == null) return true;
+    if (partnershipId == null) return false;
 
     final eventPartnershipId = rowInt(currentRecord(payload), 'partnership_id');
 
-    return eventPartnershipId == null || eventPartnershipId == partnershipId;
+    if (eventPartnershipId == null) {
+      // Sparse DELETE payload: the old tuple contains only the primary key, so
+      // the row cannot be attributed to a partnership from the payload itself.
+      // Keep processing deletes — the feature state's known-id scoping is the
+      // last safety net (an id unknown locally is a no-op for that state).
+      return payload.eventType.name == 'delete';
+    }
+
+    return eventPartnershipId == partnershipId;
   }
 
   bool isRelevantGame(sb.PostgresChangePayload payload) {
