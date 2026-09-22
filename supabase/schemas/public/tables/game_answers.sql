@@ -3,6 +3,7 @@ CREATE TABLE "public"."game_answers" (
   "user_id"         integer                  NOT NULL,
   "selected_option" integer,
   "created_at"      timestamp with time zone DEFAULT now(),
+  "updated_at"      timestamp with time zone DEFAULT now(),
   CONSTRAINT "game_answers_pkey" PRIMARY KEY (game_id, user_id),
   CONSTRAINT "game_answers_game_id_fkey" FOREIGN KEY (game_id) REFERENCES public.game_questions(id) ON DELETE CASCADE,
   CONSTRAINT "game_answers_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
@@ -12,6 +13,11 @@ ALTER TABLE "public"."game_answers"
   ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX idx_game_answers_user_id ON public.game_answers USING btree (user_id);
+
+CREATE TRIGGER set_public_game_answers_updated_at
+  BEFORE UPDATE ON public.game_answers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
 
 CREATE POLICY "game_answers_delete_own" ON "public"."game_answers"
   FOR DELETE

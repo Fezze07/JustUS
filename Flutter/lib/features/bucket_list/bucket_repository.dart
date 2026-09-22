@@ -8,7 +8,7 @@ class BucketRepository extends BaseRepository {
   Future<bool> hasNewBucketItems(int partnershipId) {
     return hasChanges(
       table: 'bucket_items',
-      field: 'created_at',
+      field: 'updated_at',
       filterColumn: 'partnership_id',
       filterValues: [partnershipId],
       cacheKey: CacheService.kBucketItems,
@@ -23,7 +23,7 @@ class BucketRepository extends BaseRepository {
 
       final data = await sbClient
           .from('bucket_items')
-          .select('id, text, done, created_at, category')
+          .select('id, text, done, created_at, updated_at, category')
           .eq('partnership_id', partnershipId)
           .order('created_at', ascending: false)
           .toList();

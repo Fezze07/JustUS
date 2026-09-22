@@ -204,11 +204,10 @@ Source: `Flutter/lib/core/local_storage/storage_service.dart:240`
 Source: `Flutter/lib/core/local_storage/cache_service.dart:6`
 
 - Key: `chk_bucket_items`.
-- Stores maximum `created_at` timestamp from `_items`.
-- `BaseRepository.hasChanges` compares server `MAX(created_at)` to checkpoint.
+- Stores maximum `updated_at` timestamp from `_items` (`BucketItem.updatedAt`).
+- `BaseRepository.hasChanges` compares server `MAX(updated_at)` to checkpoint.
 - If server value is newer → checkpoint reset to EMPTY, full network fetch triggered.
-
-**F-SC6 (inherited finding)**: `toggleBucketItem` updates only `done`; `created_at` is immutable. `hasChanges` cannot detect partner done-toggle changes on cold start or during polling fallback. Stale `done` state persists until forced refresh.
+- `bucket_items.updated_at` is bumped on every UPDATE (`done` toggle) by the `set_public_bucket_items_updated_at` trigger, so partner done-toggle changes are detected on cold start and during polling fallback.
 
 ### 7.3 Cache Flush Timing
 
@@ -305,18 +304,17 @@ Backend also defines `bucketItemAdded` with English strings ("New Wish in the Bu
 
 ## 12. Incremental Synchronization Gaps
 
-The `chk_bucket_items` checkpoint detects only new **inserts** (via `created_at` comparison). It cannot detect:
+The `chk_bucket_items` checkpoint (max `updated_at`) detects new **inserts** and **updates** (done-toggles bump `updated_at` via the `set_public_bucket_items_updated_at` trigger). It cannot detect:
 
-- Partner done-toggle changes (UPDATE; `created_at` unchanged) — F-BL5 / F-SC6.
 - Partner deletes (row gone; no timestamp to compare).
 
-These gaps are covered only by Realtime during an active session. After offline periods, stale `done` state and missing deletes persist until pull-to-refresh.
+The delete gap is covered by Realtime during an active session and by polling `refreshFromRealtime()` after an offline period; stale `done` state no longer persists because toggle changes now bump the checkpoint cursor.
 
 ---
 
 ## 13. Polling Fallback
 
-After 3+ consecutive Realtime failures, polling fallback activates (`RealtimeSyncConnection.activatePollingFallback` in `realtime_connection.dart`). `_refreshAll()` calls `BucketState.refreshFromRealtime()` → full network fetch. Insert/delete visibility is restored; toggle-change gaps remain (see §12).
+After 3+ consecutive Realtime failures, polling fallback activates (`RealtimeSyncConnection.activatePollingFallback` in `realtime_connection.dart`). `_refreshAll()` calls `BucketState.refreshFromRealtime()` → full network fetch. Insert/update/delete visibility is restored.
 
 ---
 
@@ -337,14 +335,6 @@ DB accepts any string or NULL for `category`. Flutter dialog-only enforcement. D
 ### F-BL4: `partnership_id` not fetched in SELECT
 
 `bucket_repository.dart:26` — SELECT omits `partnership_id`. `BucketItem.partnershipId` is always `null` after fetch. Field exists in model and `toJson` but is never populated from server data.
-
-### F-BL5: Checkpoint misses partner done-toggle changes (inherits F-SC6)
-
-`hasChanges` is based on `MAX(created_at)` — unaffected by UPDATE. Stale `done` state persists on cold start after offline periods.
-
-### F-BL6: No `updated_at` column
-
-Toggle state has no server-side timestamp. Checkpoint-based detection of update changes is structurally impossible without a schema change.
 
 ### F-BL7: UPDATE/DELETE filter only by `id`
 
@@ -381,5 +371,5 @@ Toggle state has no server-side timestamp. Checkpoint-based detection of update 
 | Offline queuing / retry | NOT IMPLEMENTED |
 | Item edit | NOT IMPLEMENTED |
 | Item ownership tracking | NOT IMPLEMENTED |
-| Incremental sync — toggle changes | NOT IMPLEMENTED (F-BL5 / F-SC6) |
+| Incremental sync — toggle changes | IMPLEMENTED (updated_at cursor) |
 | Incremental sync — deletes | NOT IMPLEMENTED |

@@ -400,10 +400,6 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 
 `_hasMoodChanges` writes `kCheckpointEmpty` when changes exist, *before* the fetch. `hasChanges` then returns `true` on the next cycle until a real fetch writes a real timestamp — i.e. it **forces** retries after failed fetches (good) but also forces one redundant cycle after every successful one (harmless).
 
-### R-4: `chk_game_answers` update-blindness (cross-doc F-SC5)
-
-The checkpoint is `max(created_at)` over `game_answers`, but answer *updates* change `selected_option` without touching `created_at` (Postgres upsert). The checkpoint cannot see partner answer changes even when healthy — Realtime's `handleAnswerUpdate` is what covers the online case; polling fallback does not. This is the primary cold-start blind spot for games.
-
 ### R-5: `chk_drive_items` strict `>` boundary (cross-doc F-SC7)
 
 `fetchDriveItemsIncremental` uses `gt('updated_at', checkpoint)`; rows whose `updated_at` equals the checkpoint (multi-row same-transaction commits, or microsecond collisions) are skipped. Deletions are invisible to incremental fetches entirely — only Realtime DELETE events (full refetch) or polling `_refreshAll` recover them.

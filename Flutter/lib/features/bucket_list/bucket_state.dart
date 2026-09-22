@@ -60,7 +60,7 @@ class BucketState extends BaseState with CheckpointMixin {
     await saveMaxTimestampCheckpointFromItems(
       checkpointKey: CacheService.kBucketItems,
       items: _items,
-      timestampField: (item) => (item as BucketItem).createdAt,
+      timestampField: (item) => (item as BucketItem).updatedAt,
     );
   }
 

@@ -135,9 +135,8 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 ### Per-checkpoint analysis
 
 **chk\_game\_answers** (`CacheService.kGameAnswers`)
-- Updated by: `GameState._updateGameCheckpoint` (`:90–106` of `game_state.dart`) — max of `game_answers.created_at` filtered by `[uid, partnerId]`.
-- Compared field: `game_answers.created_at`.
-- Issue: game answers are upserted with `ON CONFLICT (game_id, user_id)` (`:51–55` of `game_repository.dart`). A partner's answer changes `selected_option` but does **not** update `created_at` (PostgreSQL upsert only updates changed columns). `hasChanges` therefore **misses partner answer changes** — returns false. Realtime handles answer updates via `handleAnswerUpdate`, but **polling fallback and cold-start miss this**. F-SC5
+- Updated by: `GameState._updateGameCheckpoint` (`:90–106` of `game_state.dart`) — max of `game_answers.updated_at` filtered by `[uid, partnerId]`.
+- Compared field: `game_answers.updated_at` — bumped on every UPDATE by the `set_public_game_answers_updated_at` BEFORE-UPDATE trigger (including the upsert in `submitAnswer`), so partner answer changes are detected by checkpoint on cold start and polling fallback.
 
 **chk\_moods** (`CacheService.kMoods`)
 - Updated by: `MoodState._updateMoodsCheckpoint` (`:70–79` of `mood_state.dart`) — max of all timeline entry `createdAt` + `userMoodUpdatedAt` + `partnerMoodUpdatedAt`.
@@ -146,9 +145,9 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 - Boundary miss: new mood row with `created_at` exactly equal to the checkpoint max would be treated as `isAfter` → false → missed. Same-timestamp miss is unlikely in practice.
 
 **chk\_bucket\_items** (`CacheService.kBucketItems`)
-- Updated by: `BucketState._updateBucketCheckpoint` (`:59–65` of `bucket_state.dart`) — max of `items[i].createdAt`.
-- Compared field: `bucket_items.created_at`.
-- Issue: `toggleBucketItem` updates `done` via `bucket_items.update()` (`:57` of `bucket_repository.dart`) which does **not** change `created_at`. `hasChanges` therefore **misses partner done-toggle changes** — returns false. Realtime handles updates via `applyRealtimeEvent` case `'update'`, but **polling fallback and cold-start miss done-toggle changes**. F-SC6
+- Updated by: `BucketState._updateBucketCheckpoint` (`:59–65` of `bucket_state.dart`) — max of `items[i].updatedAt`.
+- Compared field: `bucket_items.updated_at` — bumped on every UPDATE by the `set_public_bucket_items_updated_at` BEFORE-UPDATE trigger (including `toggleBucketItem`), so partner done-toggle changes are detected by checkpoint on cold start and polling fallback.
+- Deletion still invisible to the checkpoint (rows disappear without a timestamp to compare) — Realtime DELETE + polling `refreshFromRealtime()` cover it.
 
 **chk\_drive\_items** (`CacheService.kDriveItems`)
 - Updated by: `DriveState._updateDriveCheckpointFromItems` (`:131–137`) / `syncDriveItems` (`:87–91`) — max of `updatedAt` from fetched items.
@@ -256,30 +255,6 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 **What**: After logout + re-login, the app resets to the system locale (or Italian fallback). This is arguably incorrect — language is a device-level preference, not an account-level one.
 
 **Impact**: Minor UX annoyance on logout/re-login.
-
-**Confidence**: HIGH
-
----
-
-### F-SC5: `chk_game_answers` misses partner answer updates
-
-**Evidence**: `game_repository.dart:51–55` — `submitAnswer` uses upsert with `ON CONFLICT (game_id, user_id)`. PostgreSQL updates only the specified columns. `selected_option` is updated, but `created_at` is unchanged (PostgreSQL does not auto-update `created_at` unless a trigger is defined). `hasChanges` at `base_repository.dart:107` compares `serverMax` (max `created_at`) against checkpoint — `created_at` has not changed, so `isAfter` returns false.
-
-**What**: If the realtime channel is down (polling fallback after 3 consecutive failures), a partner answering a question is never detected by the change-detection mechanism. The history and stats remain stale until the user manually pulls to refresh.
-
-**Impact**: Game history and match count stale under polling fallback. Realtime covers the online path.
-
-**Confidence**: HIGH
-
----
-
-### F-SC6: `chk_bucket_items` misses partner done-toggle changes
-
-**Evidence**: `bucket_repository.dart:56–59` — `toggleBucketItem` updates `done` only. The `hasChanges` field is `created_at` (`:9` of `bucket_repository.dart`), which does not change on toggle. Therefore `serverDate.isAfter(checkpointDate)` returns false for a toggle event.
-
-**What**: Same structural issue as F-SC5. Under polling fallback or cold start, partner toggling a bucket item done/undone is invisible to the change detector.
-
-**Impact**: Bucket list stale under polling fallback. Realtime handles it.
 
 **Confidence**: HIGH
 

@@ -97,7 +97,7 @@ class GameState extends BaseState with CheckpointMixin {
       timestamps: [
         await _repo.fetchMaxTimestamp(
           table: 'game_answers',
-          field: 'created_at',
+          field: 'updated_at',
           filterColumn: 'user_id',
           filterValues: [uid, partnerId],
         ),

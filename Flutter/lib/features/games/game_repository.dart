@@ -214,7 +214,7 @@ class GameRepository extends BaseRepository {
   Future<bool> hasNewGameActivity(int uid, int partnerId) {
     return hasChanges(
       table: 'game_answers',
-      field: 'created_at',
+      field: 'updated_at',
       filterColumn: 'user_id',
       filterValues: [uid, partnerId],
       cacheKey: CacheService.kGameAnswers,

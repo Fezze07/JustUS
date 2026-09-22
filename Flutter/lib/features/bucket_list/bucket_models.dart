@@ -9,6 +9,7 @@ class BucketItem {
   final String text;
   final bool done;
   final String createdAt;
+  final String updatedAt;
   final String category;
   final int? partnershipId;
 
@@ -17,6 +18,7 @@ class BucketItem {
     required this.text,
     required this.done,
     required this.createdAt,
+    required this.updatedAt,
     required this.category,
     this.partnershipId,
   });
@@ -27,6 +29,7 @@ class BucketItem {
       text: (json['text'] as String?) ?? '',
       done: json['done'] == true || json['done'] == 1,
       createdAt: (json['created_at'] as String?) ?? '',
+      updatedAt: (json['updated_at'] as String?) ?? (json['created_at'] as String?) ?? '',
       category: (json['category'] as String?) ?? 'Tutti',
       partnershipId: (json['partnership_id'] as num?)?.toInt(),
     );
@@ -38,6 +41,7 @@ class BucketItem {
       'text': text,
       'done': done,
       'created_at': createdAt,
+      'updated_at': updatedAt,
       'category': category,
       if (partnershipId != null) 'partnership_id': partnershipId,
     };
@@ -48,6 +52,7 @@ class BucketItem {
     String? text,
     bool? done,
     String? createdAt,
+    String? updatedAt,
     String? category,
     int? partnershipId,
   }) {
@@ -56,6 +61,7 @@ class BucketItem {
       text: text ?? this.text,
       done: done ?? this.done,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       category: category ?? this.category,
       partnershipId: partnershipId ?? this.partnershipId,
     );
