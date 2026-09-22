@@ -2,6 +2,7 @@
 // StorageService - Local storage wrapper
 // =============================================================================
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -448,5 +449,32 @@ class StorageService {
     await _secureStorage.deleteAll();
     _activePartnershipId = null;
     CacheService.setPartnership(null);
+  }
+}
+
+/// Serializes async cache writes so snapshots are persisted in submission
+/// order (F-SC12).
+///
+/// A feature state that mutates and persists concurrently (e.g. drive sync vs
+/// optimistic mutations) must not let an older snapshot's write land after a
+/// newer one. Each enqueued job runs to completion before the next starts,
+/// and errors are forwarded to the submitting caller without stalling the
+/// chain.
+class CacheWriteQueue {
+  Future<void> _tail = Future.value();
+
+  /// Schedules [write]; the returned future completes with its result.
+  Future<void> enqueue(Future<void> Function() write) {
+    final completer = Completer<void>();
+    _tail = _tail.then((_) async {
+      try {
+        await write();
+        if (!completer.isCompleted) completer.complete();
+      } catch (e, st) {
+        if (!completer.isCompleted) completer.completeError(e, st);
+      }
+    });
+
+    return completer.future;
   }
 }

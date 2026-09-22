@@ -1,25 +1,51 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+
 import 'package:justus/all_imports.dart';
 
-class BucketState extends BaseState with CheckpointMixin {
+class BucketState extends BaseState
+    with CheckpointMixin, WidgetsBindingObserver {
   final BucketRepository _repository;
 
   BucketState({BucketRepository? repository})
-      : _repository = repository ?? BucketRepository();
+      : _repository = repository ?? BucketRepository() {
+    // Flush the pending debounced cache write when the app goes to background,
+    // so the last few seconds of realtime changes are not lost (F-SC13).
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   List<BucketItem> _items = [];
   final Set<int> _knownIds = {};
   bool _isInitLoading = false;
   Timer? _cacheDebounceTimer;
+  final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
 
   List<BucketItem> get items => _items;
 
   @override
   void dispose() {
     _cacheDebounceTimer?.cancel();
+    _cacheDebounceTimer = null;
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_flushCache());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _cacheDebounceTimer?.cancel();
+        _cacheDebounceTimer = null;
+        unawaited(_flushCache());
+        break;
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+        break;
+    }
   }
 
   // --- Init & Fetch ---
@@ -170,9 +196,13 @@ class BucketState extends BaseState with CheckpointMixin {
     });
   }
 
-  Future<void> _flushCache() async {
-    await StorageService.saveBucketList(_items);
-    await _updateBucketCheckpoint();
+  Future<void> _flushCache() {
+    final snapshot = List<BucketItem>.from(_items);
+
+    return _cacheWriteQueue.enqueue(() async {
+      await StorageService.saveBucketList(snapshot);
+      await _updateBucketCheckpoint();
+    });
   }
 
   void clear() {

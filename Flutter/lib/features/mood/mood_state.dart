@@ -234,10 +234,14 @@ class MoodState extends BaseState with CheckpointMixin {
     await runSafe(() async {
       final now = DateTime.now().toUtc().toIso8601String();
 
-      // Optimistic update
+      // Optimistic update — in-memory only. The cache is never written before
+      // the server confirms, so a failed (or killed) update cannot persist a
+      // phantom `id:0,userId:0` timeline entry (F-SC14).
       final previousMood = _userMood;
       final previousTimestamp = _userMoodUpdatedAt;
+      final previousRecentEmojis = List<String>.from(_recentEmojis);
       final previousTimeline = List<MoodEntry>.from(_timeline);
+      final previousTimelineOffset = _timelineOffset;
       _userMood = emoji;
       _userMoodUpdatedAt = now;
       _recentEmojis = [emoji, ..._recentEmojis.where((e) => e != emoji)];
@@ -251,9 +255,6 @@ class MoodState extends BaseState with CheckpointMixin {
       } else {
         _timelineOffset++;
       }
-      await StorageService.saveMood('me', emoji);
-      await StorageService.saveRecentEmojis(_recentEmojis);
-      await StorageService.saveTimeline(_timeline);
       notifyListeners();
 
       final result = await _repo.updateMood(emoji);
@@ -262,20 +263,29 @@ class MoodState extends BaseState with CheckpointMixin {
         onSuccess: (value) async {
           _userMood = value.emoji;
           _userMoodUpdatedAt = value.createdAt;
+          // Replace the optimistic placeholder with the server-confirmed entry
+          // before persisting
+          if (_timeline.isNotEmpty && _timeline.first.id == 0) {
+            _timeline[0] = value;
+          }
           await StorageService.saveMood('me', _userMood);
+          await StorageService.saveRecentEmojis(_recentEmojis);
+          await StorageService.saveTimeline(_timeline);
           await _updateMoodsCheckpoint();
           setMessage('Mood aggiornato!');
         },
       );
 
       if (result.isError) {
+        // Full rollback: restore every optimistic mutation, including
+        // `_recentEmojis` and the timeline offset (F-SM12). The cache was
+        // never written optimistically, so it already reflects the
+        // pre-update state.
         _userMood = previousMood;
         _userMoodUpdatedAt = previousTimestamp;
+        _recentEmojis = previousRecentEmojis;
         _timeline = previousTimeline;
-        _timelineOffset--;
-        await StorageService.saveMood('me', previousMood);
-        await StorageService.saveRecentEmojis(_recentEmojis);
-        await StorageService.saveTimeline(_timeline);
+        _timelineOffset = previousTimelineOffset;
         notifyListeners();
       }
     });

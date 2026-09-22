@@ -69,11 +69,11 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyMoodPartner` | `mood_partner` | `String` (emoji) | `MoodState.fetchPartnerMood` | `MoodState.loadCache`, `MoodState.loadPartnerMoodFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kMoods` checkpoint | |
 | `_keyRecentEmojis` | `recent_emojis` | `List<String>` | `MoodState.fetchRecentCoupleEmojis`, `MoodState.updateMood` | `MoodState._loadMoodScreenCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kMoods` checkpoint | Up to 10 entries, order = recency |
 | `_keyTimeline` | `mood_timeline` | `List<MoodEntry>` (JSON) | `MoodState.fetchTimeline`, `MoodState.loadMoreTimeline`, `MoodState.updateMood` | `MoodState._loadMoodScreenCache` | Until overwrite (partial pages only) | `p.clear()` | `clearAppCache` | `CacheService.kMoods` checkpoint | **Overwritten to only 4 items on each full refetch** — deep pages lost on re-init (`:179–184`) |
-| `_keyBucketList` | `bucket_list` | `List<BucketItem>` (JSON) | `BucketState.fetchBucket`, `BucketState.applyRealtimeEvent` (debounced 2s) | `BucketState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kBucketItems` checkpoint (created\_at-based) | |
+| `_keyBucketList` | `bucket_list` | `List<BucketItem>` (JSON) | `BucketState.fetchBucket`, `BucketState.applyRealtimeEvent` (debounced 2s, flushed on app-pause/dispose) | `BucketState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kBucketItems` checkpoint (created\_at-based) | |
 | `_keyGameMatches` | `game_matches` | `int` | `GameState.fetchStats` | `GameState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kGameAnswers` checkpoint | |
 | `_keyGameQuestion` | `game_question` | `GameNewQuestionResponse` (JSON) | `GameState.fetchNewQuestion`, `GameState.handleQuestionInsert/Update/Delete`, `GameState.submitAnswer` | `GameState._loadFromCache`, `GameState._resolveCachedNames` | Until overwritten or both\_answered | `p.clear()` | `clearAppCache` | Cleared explicitly on `both_answered` / delete (`clearCachedGameQuestion`) | Contains user names (optionA/optionB resolved on cache read at `:44–69`) |
 | `_keyGameHistory` | `game_history` | `List<GameHistoryItem>` (JSON) | `GameState.fetchHistory`, `GameState.submitAnswer`, `GameState.handleAnswerInsert/Update/Delete` | `GameState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kGameAnswers` checkpoint | |
-| `_keyDriveCache` | `drive_cache` | `List<DriveItem>` (JSON) | `DriveState.syncDriveItems`, `DriveState.refreshFromRealtime`, `DriveState.addFileItemR2`, `DriveState.deleteItem`, `DriveState.toggleFavorite`, `DriveState.addReaction` | `DriveState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kDriveItems` checkpoint (updated\_at-based) | Full list re-serialized on every mutation |
+| `_keyDriveCache` | `drive_cache` | `List<DriveItem>` (JSON) | `DriveState.syncDriveItems`, `DriveState.refreshFromRealtime`, `DriveState.addFileItemR2`, `DriveState.deleteItem`, `DriveState.toggleFavorite`, `DriveState.addReaction` | `DriveState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kDriveItems` checkpoint (updated\_at-based) | Full list re-serialized on every mutation; writes serialized through `CacheWriteQueue` (F-SC12 resolved) |
 | `_keyUserProfile` | `user_profile` | `User` (JSON) | `ProfileState.loadProfile`, `ProfileState.updateDisplayName`, `ProfileState.uploadProfilePhoto` | `ProfileState.loadProfile` (cache-first) | Until overwrite | `p.clear()` | `clearAppCache` | **None** — only overwritten on explicit `loadProfile(force)` | **Contains PII: email, authId, partnershipCode** — stored in plaintext (`:52–63` of `auth_models.dart`) |
 | `_keyPartnerProfile` | `partner_profile` | `User` (JSON) | `ProfileState.loadProfile` | `ProfileState.loadProfile` (cache-first) | Until overwrite | `p.clear()` | `clearAppCache` | **None** | Same PII concern as user_profile |
 | `_keyProfilePicVersion` | `profile_pic_version` | `int` (millisecondsSinceEpoch) | `ProfileState.uploadProfilePhoto` | **No consumer** | Until overwrite | `p.clear()` | `clearAppCache` | Dead write-only key — never read (`:317` of `storage_service.dart`) | F-SC2 |
@@ -268,42 +268,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ---
 
-### F-SC12: Concurrent cache writes race without serialization
-
-**Evidence**: `DriveState.syncDriveItems` is guarded by `_isSyncing` (`:71`), but `addFileItemR2` (`:162`), `deleteItem` (`:200`), `addReaction` (`:225`), and `toggleFavorite` (`:252`) are **not** guarded by `_isSyncing`. All write to `StorageService.saveDriveItems(_driveItems)` asynchronously.
-
-**What**: If a mutation (upload, delete, reaction, favorite) runs concurrently with `syncDriveItems`, both call `saveDriveItems` with different snapshots of `_driveItems`. The last writer wins. An optimistic update could be overwritten by a slightly older snapshot from a concurrent sync, losing the in-memory change (which would be corrected on the next realtime event or refresh).
-
-**Impact**: Brief transient inconsistency in the drive tab. Self-corrects quickly.
-
-**Confidence**: MEDIUM (requires timing of concurrent operations)
-
----
-
-### F-SC13: `BucketState._flushCache` debounce can lose writes on dispose
-
-**Evidence**: `BucketState.dispose()` (`:19–23`) cancels `_cacheDebounceTimer` then calls `unawaited(_flushCache())`. The unawaited call writes to SharedPreferences asynchronously — but `dispose()` is a synchronous lifecycle callback. If the widget tree is disposed before the unawaited write completes (e.g. navigation during a realtime event), the cache write may not persist.
-
-**What**: When the BucketListScreen tab is disposed (during navigation or wipe), the in-memory state may contain unsaved realtime updates. The unawaited flush may complete after disposal or may be interrupted.
-
-**Impact**: Minor — the next init() re-reads from cache and refetches if `hasChanges` is true.
-
-**Confidence**: LOW
-
----
-
-### F-SC14: Mood optimistic update can persist phantom entry to cache
-
-**Evidence**: `MoodState.updateMood` (`:244–256` of `mood_state.dart`) inserts a local `MoodEntry(id: 0, userId: 0, ...)` into `_timeline` and calls `saveTimeline` before the server responds. If the app is killed between the optimistic write and the server response, the cache contains a phantom entry with `id: 0, userId: 0` that does not correspond to any server row.
-
-**What**: On the next cold start, `_loadMoodScreenCache` loads the phantom entry into `_timeline`. On the subsequent network fetch, the phantom entry is overwritten (since `fetchTimeline` replaces the entire `_timeline`).
-
-**Impact**: Phantom mood entry visible in the mood screen for up to one full initialization cycle.
-
-**Confidence**: LOW (requires app kill in a narrow window)
-
----
-
 ### F-SC15: `StorageService.prefs` async getter reinitializes if `_prefs` is null
 
 **Evidence**: `StorageService.prefs` (`:64–68`) — `_prefs ??= await SharedPreferences.getInstance()`. If `init()` was never called (should not happen in production, but could in tests or edge cases), `_prefs` is null and the async getter re-initializes lazily.
@@ -369,16 +333,18 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 | Test file | Storage coverage |
 |---|---|
-| `Flutter/test/mood_state_test.dart` | Verifies `updateMood` writes to `StorageService.getMood('me')` (`:67`). Verifies `initHome` reads cached moods (`:87–97`). Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
+| `Flutter/test/mood_state_test.dart` | Verifies `updateMood` writes to `StorageService.getMood('me')` on success (`:67`). F-SM12/F-SC14: on error `updateMood` fully rolls back `_recentEmojis`/timeline and never writes the optimistic `id:0,userId:0` phantom to the cache; success replaces the placeholder with the server-confirmed entry. Verifies `initHome` reads cached moods (`:87–97`). Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/game_state_test.dart` | Verifies `fetchNewQuestion` caches the question (`:67–70`). Verifies `submitAnswer` updates history. Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/test_helpers/mock_secure_storage.dart` | Mocks `flutter_secure_storage` platform channel for test isolation. |
 | `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge. |
+| `Flutter/test/drive_cache_serialization_test.dart` | F-SC12: concurrent optimistic mutation + trailing refresh serialize their cache writes — the cache ends equal to the final in-memory drive list (no older snapshot clobbering a newer one). |
+| `Flutter/test/bucket_flush_test.dart` | F-SC13: app-pause and `dispose()` flush the pending 2s-debounced bucket cache write immediately. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
 | `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). |
 | `Flutter/test/test_helpers/mock_path_provider.dart` | Mocks `plugins.flutter.io/path_provider` so `flutter_cache_manager` works in widget tests. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 
-**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, media-cache clearing on **logout**, concurrent cache write races, `CacheService.needsRefresh`.
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are now covered — F-SC12/F-SC13.)
 
 ---
 

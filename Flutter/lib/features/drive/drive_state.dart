@@ -16,11 +16,24 @@ class DriveState extends BaseState with CheckpointMixin {
   bool _isUploading = false;
   bool _isSyncing = false;
   List<DriveItem> _favoriteItems = [];
+  final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
 
   List<DriveItem> get driveItems => _driveItems;
   DriveItem? get singleItem => _singleItem;
   bool get isUploading => _isUploading;
   List<DriveItem> get favoriteItems => _favoriteItems;
+
+  /// Persists the current `_driveItems` snapshot through the serialized write
+  /// queue (F-SC12): the snapshot is captured at call time and every write
+  /// submitted later is guaranteed to land after it, so a concurrent sync can
+  /// never let an older snapshot clobber a newer mutation.
+  Future<void> _persistDriveCache() {
+    final snapshot = List<DriveItem>.from(_driveItems);
+
+    return _cacheWriteQueue.enqueue(
+      () => StorageService.saveDriveItems(snapshot),
+    );
+  }
 
   void _rebuildFavorites() {
     _favoriteItems = _driveItems.where((item) => item.isFavorite == 1).toList();
@@ -106,7 +119,7 @@ class DriveState extends BaseState with CheckpointMixin {
           _driveItems = List<DriveItem>.from(value)
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           _rebuildFavorites();
-          await StorageService.saveDriveItems(_driveItems);
+          await _persistDriveCache();
 
           await saveMaxTimestampCheckpointFromItems(
             checkpointKey: CacheService.kDriveItems,
@@ -123,7 +136,7 @@ class DriveState extends BaseState with CheckpointMixin {
           _driveItems = [...kept, ...value]
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           _rebuildFavorites();
-          await StorageService.saveDriveItems(_driveItems);
+          await _persistDriveCache();
 
           await saveMaxTimestampCheckpointFromItems(
             checkpointKey: CacheService.kDriveItems,
@@ -160,7 +173,7 @@ class DriveState extends BaseState with CheckpointMixin {
               _driveItems.indexWhere((item) => item.id == _singleItem!.id);
           _singleItem = index == -1 ? null : _driveItems[index];
         }
-        await StorageService.saveDriveItems(_driveItems);
+        await _persistDriveCache();
         await _updateDriveCheckpointFromItems();
       });
     }, showLoading: false);
@@ -225,7 +238,7 @@ class DriveState extends BaseState with CheckpointMixin {
         onSuccess: (value) async {
           _driveItems = [value, ..._driveItems];
           _rebuildFavorites();
-          await StorageService.saveDriveItems(_driveItems);
+          await _persistDriveCache();
           setMessage('Upload completato ✓');
         },
       );
@@ -242,7 +255,7 @@ class DriveState extends BaseState with CheckpointMixin {
     final currentList = List<DriveItem>.from(_driveItems);
     _driveItems = _driveItems.where((item) => item.id != id).toList();
     _rebuildFavorites();
-    await StorageService.saveDriveItems(_driveItems);
+    await _persistDriveCache();
     notifyListeners();
 
     await runSafe(() async {
@@ -255,7 +268,7 @@ class DriveState extends BaseState with CheckpointMixin {
       if (result.isError) {
         _driveItems = currentList;
         _rebuildFavorites();
-        await StorageService.saveDriveItems(_driveItems);
+        await _persistDriveCache();
       }
     }, showLoading: false);
   }
@@ -276,7 +289,7 @@ class DriveState extends BaseState with CheckpointMixin {
             return item;
           }).toList();
           _rebuildFavorites();
-          await StorageService.saveDriveItems(_driveItems);
+          await _persistDriveCache();
           if (_singleItem?.id == itemId) {
             _singleItem = _singleItem!.copyWith(
               reactions: [..._singleItem!.reactions, emoji],
@@ -300,7 +313,7 @@ class DriveState extends BaseState with CheckpointMixin {
 
     _driveItems[idx] = updatedItem;
     _rebuildFavorites();
-    await StorageService.saveDriveItems(_driveItems);
+    await _persistDriveCache();
     if (_singleItem?.id == itemId) _singleItem = updatedItem;
     notifyListeners();
 
@@ -310,7 +323,7 @@ class DriveState extends BaseState with CheckpointMixin {
       if (!result.isSuccess) {
         _driveItems[idx] = item;
         _rebuildFavorites();
-        await StorageService.saveDriveItems(_driveItems);
+        await _persistDriveCache();
         if (_singleItem?.id == itemId) _singleItem = item;
         throw result;
       }
