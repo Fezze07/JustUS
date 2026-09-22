@@ -235,6 +235,7 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 | `mood_me` / `mood_partner` | Mood Emojis | **YES** |
 | `mood_timeline` | Mood Timeline Entries | **YES** |
 | `chk_*` (All Keys) | Cache Checkpoints | **YES** (`CacheService.clearAll()`) |
+| `app_language_code` | Selected App Language | **NO** — device-level preference; `StorageService.clearAll()` re-persists it after `p.clear()` (F-SC4 resolved) |
 
 ### Surviving In-Memory Provider Data (BUG)
 

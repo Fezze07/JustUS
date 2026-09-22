@@ -505,6 +505,6 @@ No tests reference `NotificationService`, `DeviceTokenService`, `onNotificationT
 - **`user_devices` live schema**: contains `locale` and `updated_at` columns, which are missing from the schema-reference skill (`supabase-schema/SKILL.md`) — that table predates these columns. The live `information_schema` is authoritative.
 - **Cross-doc references**:
   - Navigation **F-N5**: notification taps never navigate (this section and `navigation/doc.md:332-338`).
-  - Storage **F-SC4**: logout wipes `app_language_code`, so the next session's notification localization falls back to the system locale.
+  - Storage **F-SC4** (resolved): `app_language_code` is preserved across logout (`StorageService.clearAll()` re-persists it), so notification localization keeps working after re-login.
   - Architecture **F11**: partnership rejection fires no notification (functional asymmetry).
   - Realtime: mutations that trigger notifications also flow back over the channel — no double-processing arises there (realtime doc, self-echo note).

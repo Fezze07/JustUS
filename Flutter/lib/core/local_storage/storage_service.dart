@@ -440,7 +440,11 @@ class StorageService {
 
   static Future<void> clearAll() async {
     final p = await prefs;
+    final languageCode = p.getString(LanguageHelper.storageKey);
     await p.clear();
+    if (languageCode != null) {
+      await p.setString(LanguageHelper.storageKey, languageCode);
+    }
     await _secureStorage.deleteAll();
     _activePartnershipId = null;
     CacheService.setPartnership(null);

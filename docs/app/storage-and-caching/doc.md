@@ -95,7 +95,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 
 | Key | Storage key string | Producer | Consumer | Notes |
 |---|---|---|---|---|
-| `LanguageHelper.storageKey` | `app_language_code` | `LanguageProvider.setLocale` | `LanguageProvider.loadSavedLocale`, `NotificationService.showRemoteMessage` | **Deleted on logout** by `p.clear()` (`auth_state.dart:537`). Locale preference resets to system on logout. F-SC4 |
+| `LanguageHelper.storageKey` | `app_language_code` | `LanguageProvider.setLocale` | `LanguageProvider.loadSavedLocale`, `NotificationService.showRemoteMessage` | **Preserved on logout** — `StorageService.clearAll()` re-persists it after `p.clear()` (device-level preference, F-SC4 resolved) |
 
 ### Media File Cache (flutter\_cache\_manager)
 
@@ -199,10 +199,10 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 1. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
 2. `CacheService.clearAll()` — removes all 5 checkpoint keys from SharedPreferences.
-3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (including feature caches, `app_language_code`, and every constant in StorageService); `_secureStorage.deleteAll()` removes **all** secure storage keys.
+3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, which is read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes **all** secure storage keys.
 4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`.
 
-**Net effect**: All cached feature data, identity, tokens, and the device fingerprint are wiped. The language preference (`app_language_code`) is also wiped, causing the app to fall back to the system locale on next launch. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) is **not** cleared. F-SC1 (fingerprint) and F-SC9 (media cache)
+**Net effect**: All cached feature data, identity, tokens, and the device fingerprint are wiped. The language preference (`app_language_code`) is preserved as a device-level preference. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) is **not** cleared. F-SC1 (fingerprint) and F-SC9 (media cache)
 
 ---
 
@@ -251,18 +251,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 **Evidence**: Declared at `storage_service.dart:47`. Listed in `clearAppCache` (`:377`). **No producer or consumer** exists anywhere in the codebase.
 
 **Impact**: No functional impact. Dead constant.
-
-**Confidence**: HIGH
-
----
-
-### F-SC4: Logout wipes the persisted language preference
-
-**Evidence**: `StorageService.clearAll()` calls `p.clear()` (`:390`). `LanguageProvider` persists locale under key `app_language_code` (`language_helper.dart:26`). `p.clear()` removes all SharedPreferences keys including this one.
-
-**What**: After logout + re-login, the app resets to the system locale (or Italian fallback). This is arguably incorrect — language is a device-level preference, not an account-level one.
-
-**Impact**: Minor UX annoyance on logout/re-login.
 
 **Confidence**: HIGH
 
@@ -442,7 +430,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | Media cache clearing on logout/wipe | NOT IMPLEMENTED (F-SC9, F-SC11) |
 | `profile_pic_version` used to bust image cache | NOT IMPLEMENTED (dead write, F-SC2) |
 | `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |
-| Language preference persistence across logout | NOT IMPLEMENTED (wiped, F-SC4) |
+| Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
 
 ---
 
