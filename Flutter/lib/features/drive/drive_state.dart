@@ -321,7 +321,7 @@ class DriveState extends BaseState with CheckpointMixin {
   // Cache management
   // ---------------------------------------------------------------------------
   Future<void> clearMediaCache() async {
-    await MediaCacheManager().emptyCache();
+    await emptyAppMediaCaches();
   }
 
   void clear() {

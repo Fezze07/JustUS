@@ -141,6 +141,8 @@ class ProfileState extends BaseState {
       final result = await _userRepo.debugWipeData();
       if (result.isSuccess) {
         await StorageService.clearAppCache();
+        await CacheService.clearAll();
+        await emptyAppMediaCaches();
         setMessage('Data wiped successfully!');
       } else {
         throw result;

@@ -210,7 +210,7 @@ gotrue's internal `_pendingRefreshes` map makes both sources share a single netw
 - JSON encode/decode **offloaded to isolates** via `compute()` (top-level isolate helpers).
 - On read of `partner_id`/`partnership_id`, `-1` is translated to `null` (legacy sentinel).
 - `saveRequestBindingSecret` also updates `ApiService._cachedRequestBindingSecret` (inline bridge across layers).
-- `clearAppCache()` clears non-secret data; `clearAll()` + `clearPartner()` for logout.
+- `clearAppCache()` clears non-secret data; `clearAll()` + `clearPartner()` for logout; wipe (`wipeAppData`) additionally runs `CacheService.clearAll()` (checkpoints) + `emptyAppMediaCaches()` (file stores).
 
 ### CacheService (`lib/core/local_storage/cache_service.dart`)
 

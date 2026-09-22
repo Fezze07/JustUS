@@ -185,10 +185,10 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 | Cache | Expiration | Eviction | Max size | Notes |
 |---|---|---|---|---|
-| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Not cleared on logout or wipe. |
-| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Not cleared on logout or wipe. |
+| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Cleared on wipe (F-SC11 resolved); not cleared on logout (F-SC9). |
+| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on wipe (F-SC11 resolved); not cleared on logout (F-SC9). |
 | SharedPreferences feature caches | **No TTL** | Never evicted | N/A | Overwritten on each fetch. Multiple concurrent writes can race (see §Edge Cases). |
-| Checkpoints | **No TTL** | Never evicted until overwritten | N/A | Reset on logout (`CacheService.clearAll`) or explicit force-refresh (`clearCheckpoints`). |
+| Checkpoints | **No TTL** | Never evicted until overwritten | N/A | Reset on logout (`CacheService.clearAll`), **wipe** (`CacheService.clearAll` from `wipeAppData`), or explicit force-refresh (`clearCheckpoints`). |
 | `PartnershipRepository._activePartnershipFuture` | In-memory only | Invalidated by `clearPartnershipCache()` or user-id mismatch detection | 1 future | Static map in `PartnershipRepository` (`:9–10`). Clears on realtime partnership event, but **not** on logout. Self-heals on next call with different user-id. |
 
 ---
@@ -210,13 +210,13 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 `ProfileState.wipeAppData()` (`:139–149` of `profile_state.dart`):
 1. Backend `POST /api/v1/user/wipe` — server deletes the user's data.
-2. `StorageService.clearAppCache()` — removes the 14 feature-cache SharedPreferences keys.
-3. Feature states `clear()` — resets in-memory state.
-4. `RealtimeSyncService.refreshChannel()` — resubscribes after suppress/resume.
+2. `StorageService.clearAppCache()` — removes the feature-cache SharedPreferences keys.
+3. `CacheService.clearAll()` — removes all 5 checkpoint keys (base + scoped variants).
+4. `emptyAppMediaCaches()` — empties the `MediaCacheManager` **and** `DefaultCacheManager` file stores (best-effort; platform failures are logged, never fail the wipe).
+5. Feature states `clear()` — resets in-memory state.
+6. `RealtimeSyncService.refreshChannel()` — resubscribes after suppress/resume.
 
-**Not wiped**: checkpoints (`chk_*`), `app_language_code`, `username`, `partner_display_name`, `drive_thumb_cache`, `profile_pic_version`. F-SC10
-
-**Not wiped**: media file cache (`MediaCacheManager`, `DefaultCacheManager`). F-SC11
+**Not wiped by wipe**: `app_language_code`, `username`, `partner_display_name` (`clearAppCache()` deliberately does not remove account-identity keys). F-SC10/F-SC11 resolved: checkpoints and media files are cleared so a fresh login genuinely starts empty and no previous media thumbnails pop from disk.
 
 ---
 
@@ -256,39 +256,15 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ---
 
-### F-SC9: Media file cache not cleared on logout or wipe
+### F-SC9: Media file cache not cleared on logout
 
-**Evidence**: `DriveState.clearMediaCache()` (`:282–283`) calls `MediaCacheManager().emptyCache()`, but this method is **never invoked from any UI or lifecycle hook** — it is dead code. `logout()` at `auth_state.dart:534–548` clears SharedPreferences and secure storage but not the flutter\_cache\_manager file store. `wipeAppData()` at `profile_state.dart:139–149` calls `clearAppCache()` (SharedPreferences only).
+**Evidence**: `logout()` at `auth_state.dart:534–548` clears SharedPreferences and secure storage but not the flutter\_cache\_manager file store — the wipe path clears it (`emptyAppMediaCaches()`, see Wipe Behavior) but logout does not. `DriveState.clearMediaCache()` (`:323–325`) delegates to `emptyAppMediaCaches()` but is still not wired into any UI/lifecycle hook.
 
 **What**: On a shared device, after logging out of account A and into account B, cached images from account A's media (profile pictures, drive images) remain on disk. If `CachedNetworkImage` is given the same URL key (e.g. a profile picture object key that happens to match), the old image from account A is shown to account B. In practice, R2 object keys include user-specific paths (e.g. `drive/42/...`), so direct cross-account display via the same key is unlikely — but the files remain on disk and are accessible via the app's cache directory.
 
 **Impact**: Privacy concern on shared devices. Cached files are not encrypted (flutter\_cache\_manager stores raw files in the app cache directory). Not a direct data-exposure bug (no R2 key reuse across accounts), but residual data persists.
 
 **Confidence**: MEDIUM (unlikely actual display cross-account, but files remain)
-
----
-
-### F-SC10: Wipe does not clear checkpoints
-
-**Evidence**: `ProfileState.wipeAppData()` (`:143`) calls `StorageService.clearAppCache()` which removes feature cache keys but **not** the `chk_*` keys (those are managed by `CacheService`, which is not called). The wipe flow in `profile_screen.dart:93–108` clears in-memory state but does not call `CacheService.clearCheckpoints()`.
-
-**What**: After a wipe, old checkpoints persist. On the next cold start, `hasChanges` compares the new (post-wipe) server timestamps (empty) against the old checkpoint. If old checkpoint was a real timestamp (not `EMPTY`), `hasChanges` returns true → refetches → empty data → writes `EMPTY` checkpoint. Self-corrects on first refresh. If old checkpoint was already `EMPTY` (server was empty before wipe too), returns false → no refetch needed → empty cache is consistent. So the wipe is functionally self-correcting, but the intermediate state depends on timing.
-
-**Impact**: Negligible — self-corrects after the first successful network refresh.
-
-**Confidence**: MEDIUM
-
----
-
-### F-SC11: Wipe does not clear media file cache
-
-**Evidence**: Same as F-SC9. `DriveState.clearMediaCache()` exists but is not called during the wipe flow (`profile_screen.dart:93–108`).
-
-**What**: After a data wipe, cached media files (thumbnails, full images) from the now-deleted drive items persist in the flutter\_cache\_manager file store.
-
-**Impact**: Disk waste. Not a privacy concern in practice (drive items deleted on server, and the files are only accessible by the same app instance). Minor.
-
-**Confidence**: HIGH
 
 ---
 
@@ -354,7 +330,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ### F-SC17: `Username` and `partner_display_name` survive wipe
 
-**Evidence**: `clearAppCache()` at `:368–387` clears 14 keys — `_keyUsername` and `_keyPartnerDisplayName` are **not** in the list. `ProfileState.wipeAppData()` calls `clearAppCache()` only.
+**Evidence**: `clearAppCache()` at `:368–387` clears 14 keys — `_keyUsername` and `_keyPartnerDisplayName` are **not** in the list. `ProfileState.wipeAppData()` runs `clearAppCache()` + `CacheService.clearAll()` + `emptyAppMediaCaches()`, none of which remove the identity keys.
 
 **What**: After a data wipe, the app retains the old username and partner display name. These are used by `GameState._resolveCachedNames` (`:51–69`) to resolve question option labels from cache, and by all `notifyPartnerOnce` calls to include a `partnerName` param. After a wipe + re-partner, the old username is correct (user's own name doesn't change), but the partner display name may be stale until re-fetched.
 
@@ -398,15 +374,17 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/test_helpers/mock_secure_storage.dart` | Mocks `flutter_secure_storage` platform channel for test isolation. |
 | `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
+| `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). |
+| `Flutter/test/test_helpers/mock_path_provider.dart` | Mocks `plugins.flutter.io/path_provider` so `flutter_cache_manager` works in widget tests. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 
-**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, `MediaCacheManager`, logout/wipe cache clearing, concurrent cache write races, `CacheService.needsRefresh`.
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, media-cache clearing on **logout**, concurrent cache write races, `CacheService.needsRefresh`.
 
 ---
 
 ## Known Issues
 
-- `DriveState.clearMediaCache()` is dead code — never called from UI or lifecycle.
+- `DriveState.clearMediaCache()` delegates to `emptyAppMediaCaches()` but is still not called from any UI/lifecycle hook (the wipe path calls the helper directly). F-SC9
 - `StorageService.getProfilePicVersion` / `saveProfilePicVersion` — write-only; no consumer exists.
 - `StorageService._keyDriveThumbCache` — declared and cleared but never written or read.
 - `reportFailedLogin` / `AuthRepository.reportFailedLogin` — defined but never called.
@@ -427,7 +405,8 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `MediaCacheManager.emptyCache()` wired to UI | NOT IMPLEMENTED (dead code) |
 | JSON encode/decode offloaded via `compute()` | IMPLEMENTED |
 | Feature cache invalidation on partnership change | IMPLEMENTED (namespaced + purged on transition) |
-| Media cache clearing on logout/wipe | NOT IMPLEMENTED (F-SC9, F-SC11) |
+| Media cache clearing on wipe | IMPLEMENTED (F-SC11: `emptyAppMediaCaches` from `wipeAppData`) |
+| Media cache clearing on logout | NOT IMPLEMENTED (F-SC9) |
 | `profile_pic_version` used to bust image cache | NOT IMPLEMENTED (dead write, F-SC2) |
 | `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |

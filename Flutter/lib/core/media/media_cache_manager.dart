@@ -21,6 +21,24 @@ class MediaCacheManager extends CacheManager with ImageCacheManager {
         ));
 }
 
+/// Empties every on-disk media cache used by the app: the custom R2 media
+/// store ([MediaCacheManager]) and the `flutter_cache_manager` default store
+/// (`DefaultCacheManager`, used by `CachedNetworkImage` without an explicit
+/// manager). Best-effort — platform failures (e.g. a cache that never existed)
+/// are logged and never fail the wipe flow (F-SC11).
+Future<void> emptyAppMediaCaches() async {
+  try {
+    await MediaCacheManager().emptyCache();
+  } catch (e) {
+    AnsiLogger.error('R2 media cache empty failed: $e', tag: 'MediaCache');
+  }
+  try {
+    await DefaultCacheManager().emptyCache();
+  } catch (e) {
+    AnsiLogger.error('default media cache empty failed: $e', tag: 'MediaCache');
+  }
+}
+
 /// Custom FileService: if the "URL" is an R2 filename (starts with "users/"),
 /// exchange it for a fresh signed URL before downloading.
 class _R2FileService extends HttpFileService {

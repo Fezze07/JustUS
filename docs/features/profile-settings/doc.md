@@ -62,7 +62,7 @@ Profile Screen (Debug) → Tap Wipe Data → Confirmation Dialog → User Confir
   → PostgreSQL deletes domain records (drive, moods, bucket, games, missyou)
   → Backend enumerates & deletes R2 objects under uploads/{userId}/, profile/{userId}/,
     uploads/{partnerId}/, profile/{partnerId}/ (r2.service deleteObjectsByPrefix)
-  → StorageService.clearAppCache() → Clear In-Memory Providers
+  → StorageService.clearAppCache() → CacheService.clearAll() → emptyAppMediaCaches() → Clear In-Memory Providers
   → RealtimeSyncService.refreshChannel() → Profile Reloaded (Empty State)
 ```
 
@@ -227,8 +227,10 @@ The Profile & Settings subsystem crosses all architectural layers:
 | **Supabase PostgreSQL** | `public.users` / `public.user_profiles` | **SURVIVES** | User account and profile rows are **NOT** deleted (profile picture URL is reset to `NULL`). Auth credentials remain valid. |
 | **Supabase Auth** | `auth.users` / `auth.sessions` | **SURVIVES** | Active auth user and JWT sessions remain active. |
 | **Cloudflare R2** | Physical Storage Files (`uploads/{userId}/`, `profile/{userId}/`, and partner prefixes) | **DELETED** | `wipeUserDataController` enumerates objects by prefix (`r2.service` `listObjectKeys` + batched `DeleteObjectsCommand`) after the DB RPC succeeds. |
-| **Local Storage** | `SharedPreferences` (App Cache) | **DELETED** | `StorageService.clearAppCache()` removes domain keys (`bucket_list`, `drive_cache`, `mood_*`, etc.). |
+| **Local Storage** | `SharedPreferences` (App Cache) | **DELETED** | `StorageService.clearAppCache()` removes feature-cache keys (`bucket_list`, `drive_cache`, `mood_*`, etc.). |
+| **Local Storage** | `SharedPreferences` (`chk_*` checkpoints) | **DELETED** | `wipeAppData` also calls `CacheService.clearAll()` (F-SC10 resolved). |
 | **Local Storage** | `SharedPreferences` (`username`, `partner_display_name`) | **SURVIVES** | Deliberate — display names are a cosmetic convenience; tokens stay for an active session. |
+| **Media Cache** | `MediaCacheManager` / `DefaultCacheManager` (on-disk files) | **DELETED** | `wipeAppData` calls `emptyAppMediaCaches()` (F-SC11 resolved). |
 | **Secure Storage** | `FlutterSecureStorage` | **SURVIVES** | Deliberate — auth tokens (`access_token`, `user_id`, `binding_secret`, `device_fingerprint`) are kept so the session remains valid after the wipe. |
 | **Cached State** | In-Memory Providers (`GameState`, `BucketState`, `DriveState`, `MoodState`, `HomepageState`) | **CLEARED** | Explicitly cleared in UI callback (`context.read<State>().clear()`). |
 
@@ -251,7 +253,7 @@ The Profile & Settings subsystem crosses all architectural layers:
   - `loadProfile()`: Throttled fetch of user and partner profile data.
   - `uploadProfilePhoto()`: Uploads image file and updates local profile version.
   - `updateDisplayName()`: Updates `user_profiles.display_name`, refreshes in-memory model + `user_profile`/`username` caches.
-  - `wipeAppData()`: Triggers backend wipe API and clears local app cache.
+  - `wipeAppData()`: Triggers backend wipe API, then clears local app cache + checkpoints + media file caches (`clearAppCache`, `CacheService.clearAll`, `emptyAppMediaCaches`).
 - [`user_repository.dart`](file:///f:/JustUS/Flutter/lib/features/settings/user_repository.dart)
   - `fetchProfile()`, `updateDisplayName()`, `uploadProfilePicture()`, `debugWipeData()`.
 - [`language_provider.dart`](file:///f:/JustUS/Flutter/lib/core/localization/language_provider.dart)

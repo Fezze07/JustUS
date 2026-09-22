@@ -8,7 +8,7 @@ Key architectural boundaries:
 - **Password Management**: Client UI stub vs Supabase Auth API capabilities.
 - **Push Device Identity**: Cross-platform resolution differentiating FCM push tokens (Android/iOS/Web) from persistent hardware UUID fingerprints (Windows Desktop), backed by PostgreSQL `user_devices` upserts.
 - **Logout Protocol**: Multi-stage cleanup purging `FlutterSecureStorage`, `SharedPreferences`, in-memory `ApiService` headers, and Supabase Realtime channels (`RealtimeSyncService`).
-- **Account Wipe**: Debug operation clearing application domain data (`debug_wipe_user_data` procedure & `StorageService.clearAppCache()`) while maintaining active session authentication.
+- **Account Wipe**: Debug operation clearing application domain data (`debug_wipe_user_data` procedure, `StorageService.clearAppCache()`, `CacheService.clearAll()`, `emptyAppMediaCaches()`) while maintaining active session authentication.
 
 ---
 
@@ -187,7 +187,7 @@ Logout Initiated (Profile / Partner Screen)
 4. **Authenticated → Account Wipe → Authenticated**:
    - Triggered via `ProfileState.wipeAppData()` ([profile_state.dart:139](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart#L139)).
    - Invokes backend `POST /api/v1/user/wipe` (executing PostgreSQL procedure `debug_wipe_user_data`).
-   - Clears domain cache via `StorageService.clearAppCache()`.
+   - Clears local caches via `StorageService.clearAppCache()` + `CacheService.clearAll()` (checkpoints) + `emptyAppMediaCaches()` (media file stores).
    - **Authentication Impact**: User session and security tokens remain completely active. Only domain data (drive files, moods, game history, miss-you counts) is erased from the database and local storage.
 
 ---
