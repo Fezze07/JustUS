@@ -376,17 +376,17 @@ Convergence is guaranteed (given connectivity) by the combination of: 15 s polli
 
 ### Correct account isolation — YES
 
-Enforced server-side by RLS on the WebSocket (a JWT only receives rows its policies allow: self/own-partnership rows on every subscribed table) and re-verified client-side by `isRelevant*`. The only leak vector is the cross-*partnership* cached-state issue (below), not account-level, because `clearAll()` on logout removes all caches.
+Enforced server-side by RLS on the WebSocket (a JWT only receives rows its policies allow: self/own-partnership rows on every subscribed table) and re-verified client-side by `isRelevant*`. Account-level data is destroyed on logout (`clearAll()` removes all caches), and partnership-level cached state is namespaced per-partnership (storage doc, F-SC8 resolved) — see below.
 
-### Correct partnership isolation — YES (at the Realtime layer)
+### Correct partnership isolation — YES
 
-`configure()` binds the channel keys and filters to the active partnership; `isPartnershipRecord` gates bucket/missyou/questions/drive; RLS gates server-side; re-partnering replaces the channel via `configure`. **Caveat (cross-doc):** feature caches + checkpoints are global and not cleared on partnership change (storage doc F-SC8), so a stale cold-start can *suppress* a refetch and show previous-partner data — this is a caching-layer issue that Realtime alone masks but does not fix.
+`configure()` binds the channel keys and filters to the active partnership; `isPartnershipRecord` gates bucket/missyou/questions/drive; RLS gates server-side; re-partnering replaces the channel via `configure`. The Realtime layer converges to server state regardless of cache, and the caching layer no longer leaks across partnerships: feature caches + checkpoints are namespaced per-partnership and purged on partnership transition (storage doc, F-SC8 resolved), so a stale cold-start can no longer suppress the refetch that would show previous-partner data.
 
 ---
 
 ## Timestamp Checkpoint Races
 
-The Realtime layer interacts with the shared checkpoint keys (`chk_moods`, `chk_game_answers`, `chk_bucket_items`, `chk_drive_items`, `chk_miss_you`). Relevant races:
+The Realtime layer interacts with the partnership-scoped checkpoint keys (`chk_moods`, `chk_game_answers`, `chk_bucket_items`, `chk_drive_items`, `chk_miss_you`). Relevant races:
 
 ### R-1: Checkpoint write-back vs. concurrent Realtime refresh (LOW)
 

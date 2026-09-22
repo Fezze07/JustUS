@@ -56,9 +56,11 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | Key constant | Storage key string | Data type | Producer | Consumer | Lifetime | Logout | Wipe | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `_keyUsername` | `username` | `String?` | `AuthState.setLoginData` | `GameState._resolveCachedNames`, `GameRepository.submitAnswer`, all `notifyPartnerOnce` calls | Account lifetime | `p.clear()` | `clearAppCache` **does not** remove this | Non-sensitive (display name prefix). |
-| `_keyPartnerDisplayName` | `partner_display_name` | `String?` | `StorageService.savePartner` | `StorageService.getPartnerDisplayName`, `AuthState.init` | Partnership lifetime | `p.clear()` | Not cleared (retained across wipe) | **Not cleared on partnership dissolution** — `clearPartner()` removes it (`:364`). |
+| `_keyPartnerDisplayName` | `partner_display_name` | `String?` | `StorageService.savePartner` | `StorageService.getPartnerDisplayName`, `AuthState.init` | Partnership lifetime | `p.clear()` | Not cleared (retained across wipe) | Removed by `clearPartner()` on dissolution. |
 
 ### SharedPreferences — Feature Caches
+
+> When a partnership is active, every key below is stored as `base:<partnership_id>` (`StorageService._feat`); with no partnership (single user) the unqualified `base` key is used. All variants are purged on partnership transitions (F-SC8, see §Cross-partnership checkpoint contamination). `user_profile`, `profile_pic_version`, `drive_thumb_cache` stay account/device-scoped and are never namespaced.
 
 | Key constant | Storage key string | Data type | Producer | Consumer | Lifetime | Logout | Wipe | Invalidation | Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -78,6 +80,8 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyDriveThumbCache` | `drive_thumb_cache` | — | **No producer** | **No consumer** | N/A | `p.clear()` | `clearAppCache` | Dead key — declared (`:47`) and cleared but never written or read | F-SC3 |
 
 ### SharedPreferences — Checkpoints (CacheService)
+
+> Checkpoint keys are stored as `chk_x:<partnership_id>` while a partnership is active and purged with the feature caches on partnership transitions (F-SC8). Cold-start compare happens inside a single partnership's namespace only.
 
 | Key constant | Storage key string | Data type | Producer | Consumer | Lifetime | Logout | Wipe | See §Checkpoints |
 |---|---|---|---|---|---|---|---|---|
@@ -132,6 +136,8 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 
 `loadWithChangeDetection` (`:46–58` of `base_state.dart`) orchestrates: load cache → if `hasChanges` → `unawaited(fetchFromNetwork)` (fire-and-forget, no await).
 
+Checkpoint keys are partnership-scoped (`chk_x:<partnership_id>` via `CacheService._scoped`), so `hasChanges` always compares within the current partnership's namespace; a partnership transition clears all checkpoint variants (F-SC8).
+
 ### Per-checkpoint analysis
 
 **chk\_game\_answers** (`CacheService.kGameAnswers`)
@@ -159,17 +165,19 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 - Updated by: `HomepageState.fetchTotalMissYou` (`:51–54` of `homepage_state.dart`) and `sendMissYou` (`:78–80`) — writes `DateTime.now().toUtc().toIso8601String()` (local clock, not server time).
 - Compared field: none — `CacheService.needsRefresh` (`:40–50`) uses this as a **time-based freshness gate** (60-second TTL). Does not compare against server data. Fine as designed.
 
-### Cross-partnership checkpoint contamination
+### Cross-partnership checkpoint contamination — solved (F-SC8)
 
-All checkpoints are **global keys** (not per-partnership). When a partnership dissolves and a new one forms:
-1. Feature caches (`drive_cache`, `bucket_list`, `game_history`, `miss_you`, etc.) still hold the old partnership's data.
-2. Checkpoints still hold timestamps derived from the old partnership's data.
-3. On the new partnership's cold start, `hasChanges` compares the new partnership's `max(created_at/updated_at)` (which is likely older or absent) against the old checkpoint. If `newMax <= oldCheckpoint`, `hasChanges` returns **false** — no refresh occurs.
-4. The UI displays the old partnership's data until a forced refresh (pull-to-refresh) or a realtime event with a higher timestamp.
+Feature caches **and** checkpoints are namespaced per-partnership: while a partnership with id `N` is active, every partnership-scoped cache key is stored as `base:N` and every checkpoint as `chk_x:N` (`StorageService._feat`, `CacheService._scoped`). The active namespace is bound at `AuthState.init` cold start (`storage_service.dart:setActivePartnership`) and after every partnership-id write.
 
-**Impact**: After partnership change, feature tabs (Drive, Bucket, Games, Mood, MissYou) can display stale data from the previous partner indefinitely under the polling fallback or cold-start path. F-SC8
+On a genuine partnership transition the old scope is purged — feature caches and checkpoints are removed for the base (legacy unscoped), old, and new scopes, in both `StorageService.savePartnershipId` and `StorageService.clearPartner` (`purgeCacheVariants` + `CacheService.purge`). Writes with an unchanged id (cold start, realtime refresh) never purge, so caching survives app restarts.
 
-**Confidence**: HIGH — `BaseRepository.hasChanges` logic at `:79–108` confirms this. `clearPartner()` at `:359–364` does not touch feature caches or checkpoints.
+1. A new partnership's cache miss → checkpoint `null` → `hasChanges` **true** → refetch.
+2. Old-partnership keys are physically removed, so no stale data can be read even if scoping were bypassed.
+3. Checkpoint-based hasChanges comparisons stay within a single partnership's namespace.
+
+**Impact**: Re-partnering no longer shows previous-partner data on Drive, Bucket, Games, Mood, or MissYou tabs under the polling fallback or cold-start path. Verified by `Flutter/test/partnership_scope_test.dart` (F-SC8: namespacing, no-purge-on-same-id, purge on transition, `clearPartner` reset, wipe/logout namespace clearing).
+
+**Assumption**: `partnerships.id` values are never reused after dissolution; combined with the transition purge this guarantees a fresh namespace per partnership history.
 
 ---
 
@@ -255,16 +263,6 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 **What**: After logout + re-login, the app resets to the system locale (or Italian fallback). This is arguably incorrect — language is a device-level preference, not an account-level one.
 
 **Impact**: Minor UX annoyance on logout/re-login.
-
-**Confidence**: HIGH
-
----
-
-### F-SC8: Cross-partnership checkpoint contamination
-
-**Evidence**: See §Cross-partnership checkpoint contamination. `clearPartner()` at `storage_service.dart:359–364` clears partner_id/partnership_id/partner_display_name but not feature caches or checkpoints. `CacheService.clearAll()` runs only on logout, not on partnership change.
-
-**Impact**: After re-partnering, old partner's mood, drive items, bucket items, game history, and miss-you count are displayed until the user pulls to refresh or a realtime event arrives with a timestamp newer than the old checkpoint.
 
 **Confidence**: HIGH
 
@@ -396,7 +394,7 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 
 1. **`StorageService.init()` must be called before any read/write.** Satisfied by `main()` (`:49`). `prefsSync` asserts in debug; `prefs` lazy-inits as safety net.
 2. **`clearAll()` must be called on every logout.** `AuthState.logout` satisfies this (`:537`). No other logout path exists.
-3. **Feature caches are global, not per-user.** There is no per-user key prefixing. Logout must clear all data. `StorageService.clearAll()` satisfies this by calling `p.clear()`.
+3. **Feature caches are partitioned per-partnership, not per-user.** Read/write keys are namespaced with the active partnership id (`base:<partnership_id>`), so one account's cached data under partnership A is never exposed under partnership B; transitions purge all variants. Logout must clear all data — `StorageService.clearAll()` satisfies this by calling `p.clear()`.
 4. **Feature caches cannot be read before `loadWithChangeDetection` completes.** This is an architectural invariant — all feature state reads (from UI) occur after `init()` completes. Violated only if realtime events arrive before init finishes (possible during startup).
 5. **`MediaCacheManager` is a singleton** (`:11–12`). Only one instance exists per process. The `Config` (stalePeriod, maxNrOfCacheObjects) is fixed at construction time.
 6. **Checkpoints are written after every successful network fetch.** Every `fetchFromNetwork` path writes a checkpoint. Partial failures (e.g. `fetchStats` succeeds but `fetchHistory` fails) may leave checkpoints inconsistent with the actual cache state. The checkpoint reflects whatever was fetched, not the full intended fetch.
@@ -410,9 +408,11 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 | `Flutter/test/mood_state_test.dart` | Verifies `updateMood` writes to `StorageService.getMood('me')` (`:67`). Verifies `initHome` reads cached moods (`:87–97`). Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/game_state_test.dart` | Verifies `fetchNewQuestion` caches the question (`:67–70`). Verifies `submitAnswer` updates history. Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/test_helpers/mock_secure_storage.dart` | Mocks `flutter_secure_storage` platform channel for test isolation. |
+| `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge. |
+| `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 
-**Not covered by tests**: `StorageService` direct read/write paths, `CacheService.checkpoints`, `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, `MediaCacheManager`, logout/wipe cache clearing, cross-partnership contamination, concurrent cache write races, `CacheService.needsRefresh`.
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, `MediaCacheManager`, logout/wipe cache clearing, concurrent cache write races, `CacheService.needsRefresh`.
 
 ---
 
@@ -438,7 +438,7 @@ All checkpoints are **global keys** (not per-partnership). When a partnership di
 | `MediaCacheManager` (R2 file cache, 30-day TTL, 300 items) | IMPLEMENTED |
 | `MediaCacheManager.emptyCache()` wired to UI | NOT IMPLEMENTED (dead code) |
 | JSON encode/decode offloaded via `compute()` | IMPLEMENTED |
-| Feature cache invalidation on partnership change | NOT IMPLEMENTED (F-SC8) |
+| Feature cache invalidation on partnership change | IMPLEMENTED (namespaced + purged on transition) |
 | Media cache clearing on logout/wipe | NOT IMPLEMENTED (F-SC9, F-SC11) |
 | `profile_pic_version` used to bust image cache | NOT IMPLEMENTED (dead write, F-SC2) |
 | `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |

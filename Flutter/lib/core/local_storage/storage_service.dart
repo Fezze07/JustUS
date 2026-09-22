@@ -52,6 +52,24 @@ class StorageService {
   static SharedPreferences? _prefs;
   static const _secureStorage = FlutterSecureStorage();
 
+  static int? _activePartnershipId;
+
+  /// Feature cache keys that hold partnership-scoped data. Namespaced with the
+  /// active partnership id (F-SC8) and purged on partnership transitions.
+  static const _partnershipScopedCacheKeys = [
+    _keyMissYouTotal,
+    _keyMoodMe,
+    _keyMoodPartner,
+    _keyRecentEmojis,
+    _keyTimeline,
+    _keyBucketList,
+    _keyGameMatches,
+    _keyGameQuestion,
+    _keyGameHistory,
+    _keyDriveCache,
+    _keyPartnerProfile,
+  ];
+
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
   }
@@ -69,9 +87,39 @@ class StorageService {
 
   static void resetForTest() {
     _prefs = null;
+    _activePartnershipId = null;
+    CacheService.setPartnership(null);
   }
 
   // -------------------- Helpers --------------------
+
+  /// Namespaces a partnership-scoped feature cache key with the active
+  /// partnership id, so a partnership change never exposes the previous
+  /// partner's cached data (F-SC8).
+  static String _feat(String base) =>
+      _activePartnershipId == null ? base : '$base:$_activePartnershipId';
+
+  /// Sets the active partnership used to namespace feature caches and
+  /// checkpoints. Called on cold start (`AuthState.init`) and after every
+  /// partnership id write. Does not clear any cached data.
+  static void setActivePartnership(int? partnershipId) {
+    _activePartnershipId = partnershipId;
+    CacheService.setPartnership(partnershipId);
+  }
+
+  /// Removes partnership-scoped feature cache and checkpoint variants for the
+  /// previous/next scope plus the unscoped legacy variant.
+  static Future<void> purgeCacheVariants({int? oldId, int? newId}) async {
+    final p = await prefs;
+    final oldScope = oldId?.toString();
+    final newScope = newId?.toString();
+    for (final base in _partnershipScopedCacheKeys) {
+      await p.remove(base);
+      if (oldScope != null) await p.remove('$base:$oldScope');
+      if (newScope != null) await p.remove('$base:$newScope');
+    }
+    await CacheService.purge(oldId: oldId, newId: newId);
+  }
 
   static Future<void> _saveJson(String key, Map<String, dynamic> json) async {
     final p = await prefs;
@@ -214,7 +262,13 @@ class StorageService {
   }
 
   static Future<void> savePartnershipId(int partnershipId) async {
-    await _secureStorage.write(key: _keyPartnershipId, value: partnershipId.toString());
+    final oldId = await getPartnershipId();
+    await _secureStorage.write(
+        key: _keyPartnershipId, value: partnershipId.toString());
+    if (oldId != partnershipId) {
+      await purgeCacheVariants(oldId: oldId, newId: partnershipId);
+    }
+    setActivePartnership(partnershipId);
   }
 
   static Future<int?> getPartnershipId() async {
@@ -228,67 +282,69 @@ class StorageService {
 
   static Future<void> saveTotalMissYou(int total) async {
     final p = await prefs;
-    await p.setInt(_keyMissYouTotal, total);
+    await p.setInt(_feat(_keyMissYouTotal), total);
   }
 
   static Future<int?> getTotalMissYou() async {
     final p = await prefs;
 
-    return p.containsKey(_keyMissYouTotal) ? p.getInt(_keyMissYouTotal) : null;
+    return p.containsKey(_feat(_keyMissYouTotal))
+        ? p.getInt(_feat(_keyMissYouTotal))
+        : null;
   }
 
   // -------------------- Bucket List --------------------
 
   static Future<void> saveBucketList(List<BucketItem> list) async {
-    await _saveJsonList(_keyBucketList, list, (e) => e.toJson());
+    await _saveJsonList(_feat(_keyBucketList), list, (e) => e.toJson());
   }
 
   static Future<List<BucketItem>> getBucketList() async {
-    return _getJsonList(_keyBucketList, BucketItem.fromJson);
+    return _getJsonList(_feat(_keyBucketList), BucketItem.fromJson);
   }
 
   // -------------------- Game --------------------
 
   static Future<void> saveGameMatches(int total) async {
     final p = await prefs;
-    await p.setInt(_keyGameMatches, total);
+    await p.setInt(_feat(_keyGameMatches), total);
   }
 
   static Future<int> getGameMatches() async {
     final p = await prefs;
 
-    return p.getInt(_keyGameMatches) ?? 0;
+    return p.getInt(_feat(_keyGameMatches)) ?? 0;
   }
 
   static Future<void> saveGameQuestion(GameNewQuestionResponse question) async {
-    await _saveJson(_keyGameQuestion, question.toJson());
+    await _saveJson(_feat(_keyGameQuestion), question.toJson());
   }
 
   static Future<GameNewQuestionResponse?> getCachedGameQuestion() async {
-    return _getJson(_keyGameQuestion, GameNewQuestionResponse.fromJson);
+    return _getJson(_feat(_keyGameQuestion), GameNewQuestionResponse.fromJson);
   }
 
   static Future<void> clearCachedGameQuestion() async {
     final p = await prefs;
-    await p.remove(_keyGameQuestion);
+    await p.remove(_feat(_keyGameQuestion));
   }
 
   static Future<void> saveGameHistory(List<GameHistoryItem> items) async {
-    await _saveJsonList(_keyGameHistory, items, (e) => e.toJson());
+    await _saveJsonList(_feat(_keyGameHistory), items, (e) => e.toJson());
   }
 
   static Future<List<GameHistoryItem>> getGameHistory() async {
-    return _getJsonList(_keyGameHistory, GameHistoryItem.fromJson);
+    return _getJsonList(_feat(_keyGameHistory), GameHistoryItem.fromJson);
   }
 
   // -------------------- Drive --------------------
 
   static Future<void> saveDriveItems(List<DriveItem> items) async {
-    await _saveJsonList(_keyDriveCache, items, (e) => e.toJson());
+    await _saveJsonList(_feat(_keyDriveCache), items, (e) => e.toJson());
   }
 
   static Future<List<DriveItem>> getDriveItems() async {
-    return _getJsonList(_keyDriveCache, DriveItem.fromJson);
+    return _getJsonList(_feat(_keyDriveCache), DriveItem.fromJson);
   }
 
   // -------------------- Profile --------------------
@@ -302,11 +358,11 @@ class StorageService {
   }
 
   static Future<void> savePartnerProfile(User user) async {
-    await _saveJson(_keyPartnerProfile, user.toJson());
+    await _saveJson(_feat(_keyPartnerProfile), user.toJson());
   }
 
   static Future<User?> getPartnerProfile() async {
-    return _getJson(_keyPartnerProfile, User.fromJson);
+    return _getJson(_feat(_keyPartnerProfile), User.fromJson);
   }
 
   static Future<void> saveProfilePicVersion(int version) async {
@@ -324,65 +380,61 @@ class StorageService {
 
   static Future<void> saveMood(String target, String emoji) async {
     final p = await prefs;
-    final key = target == 'me' ? _keyMoodMe : _keyMoodPartner;
+    final key = _feat(target == 'me' ? _keyMoodMe : _keyMoodPartner);
     await p.setString(key, emoji);
   }
 
   static Future<String?> getMood(String target) async {
     final p = await prefs;
-    final key = target == 'me' ? _keyMoodMe : _keyMoodPartner;
+    final key = _feat(target == 'me' ? _keyMoodMe : _keyMoodPartner);
 
     return p.getString(key);
   }
 
   static Future<void> saveRecentEmojis(List<String> emojis) async {
     final p = await prefs;
-    await p.setStringList(_keyRecentEmojis, emojis);
+    await p.setStringList(_feat(_keyRecentEmojis), emojis);
   }
 
   static Future<List<String>> getRecentEmojis() async {
     final p = await prefs;
 
-    return p.getStringList(_keyRecentEmojis) ?? [];
+    return p.getStringList(_feat(_keyRecentEmojis)) ?? [];
   }
 
   static Future<void> saveTimeline(List<MoodEntry> entries) async {
-    await _saveJsonList(_keyTimeline, entries, (e) => e.toJson());
+    await _saveJsonList(_feat(_keyTimeline), entries, (e) => e.toJson());
   }
 
   static Future<List<MoodEntry>> getTimeline() async {
-    return _getJsonList(_keyTimeline, MoodEntry.fromJson);
+    return _getJsonList(_feat(_keyTimeline), MoodEntry.fromJson);
   }
 
   // -------------------- Clear Cache --------------------
 
   static Future<void> clearPartner() async {
-    final p = await prefs;
+    final oldId = await getPartnershipId();
+    await purgeCacheVariants(oldId: oldId);
     await _secureStorage.delete(key: _keyPartnerId);
     await _secureStorage.delete(key: _keyPartnershipId);
+    final p = await prefs;
     await p.remove(_keyPartnerDisplayName);
+    setActivePartnership(null);
   }
 
   static Future<void> clearAppCache() async {
     final p = await prefs;
-    final keysToClear = [
-      _keyBucketList,
-      _keyGameMatches,
-      _keyGameQuestion,
-      _keyGameHistory,
-      _keyMissYouTotal,
-      _keyRecentEmojis,
-      _keyDriveCache,
-      _keyProfilePicVersion,
+    final scope = _activePartnershipId?.toString();
+    for (final base in _partnershipScopedCacheKeys) {
+      await p.remove(base);
+      if (scope != null) await p.remove('$base:$scope');
+    }
+    for (final base in [
       _keyDriveThumbCache,
       _keyUserProfile,
-      _keyPartnerProfile,
-      _keyMoodMe,
-      _keyMoodPartner,
-      _keyTimeline,
-    ];
-    for (final key in keysToClear) {
-      await p.remove(key);
+      _keyProfilePicVersion,
+    ]) {
+      await p.remove(base);
     }
   }
 
@@ -390,5 +442,7 @@ class StorageService {
     final p = await prefs;
     await p.clear();
     await _secureStorage.deleteAll();
+    _activePartnershipId = null;
+    CacheService.setPartnership(null);
   }
 }

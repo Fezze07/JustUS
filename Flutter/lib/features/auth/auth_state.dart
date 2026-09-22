@@ -119,6 +119,11 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     _partnerDisplayName = results[5] as String?;
     _partnershipId = results[6] as int?;
 
+    // Bind the storage namespace to the persisted partnership so feature
+    // caches and checkpoints are never read under a different partnership
+    // (F-SC8). No cache clearing at cold start — the same partnership.
+    StorageService.setActivePartnership(_partnershipId);
+
     // 2. Check Supabase session
     final session = _authRepo.currentSession;
     if (session == null) {
