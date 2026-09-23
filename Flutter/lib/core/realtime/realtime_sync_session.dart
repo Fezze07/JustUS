@@ -20,10 +20,21 @@ class RealtimeSyncSession {
   final Set<String> _recentEventKeySet = <String>{};
 
   /// Returns `true` if [payload] is new, recording its dedup key. Replayed
-  /// events (same table + event type + row id + commit timestamp) are dropped.
+  /// events (same table + event type + row identity + commit timestamp) are
+  /// dropped.
+  ///
+  /// `game_answers` has a composite PK (`game_id`, `user_id`) and no `id`
+  /// column, so its row identity must be built from both columns; a key based
+  /// on `user_id` alone would collide for two answers by the same user inside
+  /// one transaction and drop the second event (F-RT6).
   bool markSeen(sb.PostgresChangePayload payload) {
     final row = currentRecord(payload);
-    final id = row['id'] ?? row['partnership_id'] ?? row['user_id'] ?? '';
+    final String id;
+    if (payload.table == 'game_answers') {
+      id = '${row['game_id'] ?? '-'}:${row['user_id'] ?? '-'}';
+    } else {
+      id = '${row['id'] ?? row['partnership_id'] ?? row['user_id'] ?? ''}';
+    }
     final key = [
       payload.table,
       payload.eventType.name,
@@ -126,15 +137,19 @@ class RealtimeSyncSession {
     return rowUserId == userId || rowUserId == partnerId;
   }
 
-  bool isRelevantDrive(sb.PostgresChangePayload payload,
-      {required List<DriveItem> driveItems}) {
+  bool isRelevantDrive(sb.PostgresChangePayload payload) {
     if (payload.table == 'drive_items') {
       return isPartnershipRecord(payload);
     }
 
-    final itemId = rowInt(currentRecord(payload), 'item_id');
-    if (itemId == null) return partnershipId != null;
+    // `drive_item_reactions` rows carry no partnership_id, so scope by the
+    // reacting user (own or partner); RLS already restricts delivery to items
+    // in the active partnership. Requiring the item to be present in the
+    // in-memory list used to DROP reactions on not-yet-loaded items (F-RT8) —
+    // the debounced refresh now loads the item and its reaction state.
+    final reactionUserId = rowInt(currentRecord(payload), 'user_id');
+    if (reactionUserId == null) return partnershipId != null;
 
-    return driveItems.any((item) => item.id == itemId);
+    return reactionUserId == userId || reactionUserId == partnerId;
   }
 }

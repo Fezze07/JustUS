@@ -20,7 +20,9 @@ class MissYouRealtimeHandler extends RealtimeHandler {
   @override
   void onNewEvent(sb.PostgresChangePayload payload) {
     if (payload.eventType.name == 'insert') {
-      _homepageState.addMissYou();
+      _homepageState.addMissYou(
+        rowId: session.rowInt(payload.newRecord, 'id'),
+      );
     } else if (payload.eventType.name == 'delete') {
       unawaited(_homepageState.refreshFromRealtime());
     }

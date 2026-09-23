@@ -21,6 +21,11 @@ class BucketState extends BaseState
   Timer? _cacheDebounceTimer;
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
 
+  /// Monotonic counter bumped by every incremental realtime mutation. A full
+  /// snapshot fetch that captured an older value will NOT clobber the list —
+  /// the already-applied events are the fresher source of truth (F-RT4).
+  int _itemsVersion = 0;
+
   List<BucketItem> get items => _items;
 
   @override
@@ -98,8 +103,10 @@ class BucketState extends BaseState
 
   Future<void> fetchBucket({required int epoch}) async {
     await runSafe(() async {
+      final versionAtFetchStart = _itemsVersion;
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
+        if (versionAtFetchStart != _itemsVersion) return;
         _items = value;
         _knownIds
           ..clear()
@@ -112,8 +119,10 @@ class BucketState extends BaseState
   Future<void> refreshFromRealtime() async {
     final epoch = CacheService.checkpointEpoch;
     await runSafe(() async {
+      final versionAtFetchStart = _itemsVersion;
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
+        if (versionAtFetchStart != _itemsVersion) return;
         _items = value;
         _knownIds
           ..clear()
@@ -190,6 +199,7 @@ class BucketState extends BaseState
     }
 
     if (changed) {
+      _itemsVersion++;
       _scheduleCacheSave(epoch);
       notifyListeners();
     }
@@ -216,6 +226,7 @@ class BucketState extends BaseState
   void clear() {
     _cacheDebounceTimer?.cancel();
     _cacheDebounceTimer = null;
+    _itemsVersion++;
     _items = [];
     _knownIds.clear();
     notifyListeners();

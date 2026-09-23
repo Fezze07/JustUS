@@ -14,6 +14,13 @@ class GameState extends BaseState with CheckpointMixin {
   bool _isFetchingQuestion = false;
   int? _currentUserId;
 
+  /// Monotonic checkpoint writer token (F-RT10): bumped at the start of every
+  /// checkpoint-writing operation; only the latest-started operation may write
+  /// the checkpoint, so an older-observed refresh can never regress it.
+  int _checkpointToken = 0;
+
+  int _beginCheckpointToken() => ++_checkpointToken;
+
   GameNewQuestionResponse? get currentQuestion => _currentQuestion;
   List<GameHistoryItem> get history => _history;
   int get gameStats => _gameStats;
@@ -80,15 +87,17 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> _fetchAllInBackground({required int epoch}) async {
+    final token = _beginCheckpointToken();
     await Future.wait([
       fetchStats(),
-      fetchHistory(epoch: epoch),
+      fetchHistory(epoch: epoch, token: token),
     ]);
 
-    await _updateGameCheckpoint(epoch: epoch);
+    await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
-  Future<void> _updateGameCheckpoint({required int epoch}) async {
+  Future<void> _updateGameCheckpoint(
+      {required int epoch, int? token}) async {
     final uid = await StorageService.getUserId();
     final partnerId = await StorageService.getPartnerId();
     if (uid == null || partnerId == null) return;
@@ -104,6 +113,8 @@ class GameState extends BaseState with CheckpointMixin {
         ),
       ],
       epoch: epoch,
+      writerToken: token,
+      currentToken: token == null ? null : _checkpointToken,
     );
   }
 
@@ -144,6 +155,7 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> submitAnswer(String votedFor) async {
     final epoch = CacheService.checkpointEpoch;
+    final token = _beginCheckpointToken();
     if (_currentQuestion == null) return;
 
     _isLoading = true;
@@ -209,7 +221,7 @@ class GameState extends BaseState with CheckpointMixin {
           await StorageService.clearCachedGameQuestion();
           await fetchStats();
         }
-        await _updateGameCheckpoint(epoch: epoch);
+        await _updateGameCheckpoint(epoch: epoch, token: token);
       },
     );
 
@@ -229,14 +241,15 @@ class GameState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<void> fetchHistory({required int epoch}) async {
+  Future<void> fetchHistory({required int epoch, int? token}) async {
+    final writeToken = token ?? _beginCheckpointToken();
     final result = await _repo.fetchGameHistory();
 
     await result.handleAsync(
       onSuccess: (value) async {
         _history = value;
         await StorageService.saveGameHistory(value);
-        await _updateGameCheckpoint(epoch: epoch);
+        await _updateGameCheckpoint(epoch: epoch, token: writeToken);
       },
     );
     notifyListeners();
@@ -244,12 +257,13 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> refreshFromRealtime() async {
     final epoch = CacheService.checkpointEpoch;
+    final token = _beginCheckpointToken();
     await Future.wait([
       fetchStats(),
-      fetchHistory(epoch: epoch),
+      fetchHistory(epoch: epoch, token: token),
     ]);
 
-    await _updateGameCheckpoint(epoch: epoch);
+    await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
   Future<void> handleAnswerDelete(Map<String, dynamic> oldRecord) async {
@@ -341,6 +355,7 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> handleAnswerInsert(Map<String, dynamic> newRecord) async {
     final epoch = CacheService.checkpointEpoch;
+    final token = _beginCheckpointToken();
     final gameId = _rowInt(newRecord, 'game_id');
     final userId = _rowInt(newRecord, 'user_id');
     final selectedOption = _rowInt(newRecord, 'selected_option');
@@ -402,7 +417,7 @@ class GameState extends BaseState with CheckpointMixin {
         _history = newHistory;
         await StorageService.saveGameHistory(_history);
       } else {
-        await fetchHistory(epoch: epoch);
+        await fetchHistory(epoch: epoch, token: token);
       }
     } else {
       _history = newHistory;
@@ -410,7 +425,7 @@ class GameState extends BaseState with CheckpointMixin {
     }
 
 
-    await _updateGameCheckpoint(epoch: epoch);
+    await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
   Future<void> handleAnswerUpdate(Map<String, dynamic> newRecord) async {

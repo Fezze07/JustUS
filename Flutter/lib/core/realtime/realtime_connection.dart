@@ -119,9 +119,26 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
     }
 
     if (_reconnectAttempt > 20) {
-      AnsiLogger.realtime(
-          '_scheduleReconnect() - max retries (20) reached, giving up (will reset on next configure)');
-      _reconnectAttempt = 0;
+      if (_usePollingFallback) {
+        // Polling fallback keeps data fresh, so never give up permanently
+        // (F-RT7): retry on a slow, flat cadence until the channel recovers.
+        const slowDelayMs = 60000;
+        final slowJitter = (slowDelayMs * 0.25).round();
+        final slowFinal = slowDelayMs +
+            (DateTime.now().microsecondsSinceEpoch %
+                    (slowJitter * 2 + 1) -
+                slowJitter);
+        AnsiLogger.realtime(
+            '_scheduleReconnect() - max fast retries (20) reached; slow retry in ${slowFinal}ms while polling fallback active (F-RT7)');
+        _reconnectTimer?.cancel();
+        _reconnectTimer = Timer(Duration(milliseconds: slowFinal), () {
+          unawaited(subscribe(refreshAfterSubscribe: false));
+        });
+      } else {
+        AnsiLogger.realtime(
+            '_scheduleReconnect() - max retries (20) reached, giving up (will reset on next configure)');
+        _reconnectAttempt = 0;
+      }
       return;
     }
 

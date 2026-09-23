@@ -346,10 +346,9 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 ### No duplicate processing — PARTIAL
 
 - Dedup (80-entry LRU) absorbs replay-after-reconnect within the window; all resubscribes use a new channel name, so replays are expected and filtered.
-- Most handlers are idempotent: full-refetch handlers (mood, drive, partnership, missyou-delete, game question insert), guarded handlers (`_knownIds` in bucket), keyed replace/remove in game history.
-- **Exceptions**:
-  - `addMissYou()` is a raw counter increment — a replay beyond the 80-event window double-counts (F-RT5). LOW likelihood.
-  - `game_answers` dedup key can **collide** (false duplicate → event dropped), which errs in the *missed-event* direction, not duplicate (F-RT6).
+- Most handlers are idempotent: full-refetch handlers (mood, drive, partnership, missyou-delete, game question insert), guarded handlers (`_knownIds` in bucket, per-row idempotent `addMissYou`), keyed replace/remove in game history.
+- **Dedup-key correctness** (F-RT5/F-RT6 resolved): `game_answers` dedup keys composite on `game_id:user_id` so same-user multi-answer transactions cannot collide (`realtime_sync_session.dart` markSeen); `addMissYou` is idempotent per `missyou` row id via a bounded 200-key FIFO that backs the 80-event LRU (`homepage_state.dart:64-68`).
+- **Residual dedup edge**: only the bounded windows themselves — a replay of >200 distinct miss-you rows or >80 intervening events beyond the window is re-processed; both are self-healing (`kMissYou` 60 s authoritative total / checkpoint refetch) and err in the *duplicate* direction, never *missed events*.
 - `BaseState.notifyListeners()` coalesces same-frame rebuild storms (frame-by-frame), not event-level — this is UI coalescing, separate from event dedup.
 
 ### No missed events — PARTIAL
@@ -359,7 +358,7 @@ Events are dropped in normal operation in three ways:
 1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
    - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync.
    - Mood: the distinct `changedUserId` union of the burst is refreshed; a mixed-user burst refreshes both sides (`mood_change_batch.dart`).
-2. **Reaction filtering** — `drive_item_reactions` events for items *not currently in the local drive list* are filtered out (`isRelevantDrive`); reaction state for a not-yet-loaded item is unavailable until next refresh (F-RT8).
+2. **Reaction scoping** — `drive_item_reactions` are processed whenever the *reacting user* is self or partner (independent of the in-memory drive list), then trigger a trailing-edge full drive refresh that loads the item and its reaction state — a reaction on a not-yet-loaded item is applied once the refresh completes (F-RT8 resolved). Residual cost: every reaction lands as a debounced full drive refresh rather than a surgical update.
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
 
 **Backstops that recover dropped events** (eventual sync):
@@ -390,7 +389,7 @@ The Realtime layer interacts with the partnership-scoped checkpoint keys (`chk_m
 
 ### R-1: Checkpoint write-back vs. concurrent Realtime refresh (LOW)
 
-Every refresh writes a checkpoint computed from *its own* SELECT snapshot (`fetchTimeline` → `_updateMoodsCheckpoint`, `refreshFromRealtime` → `_updateDriveCheckpointFromItems`, etc.). When a fast refresh completes **after** a slower one that observed newer data, the checkpoint can be written *backwards* (regress). Because `checkpoint == null → hasChanges → true` and `serverDate.isAfter(checkpoint)` triggers refetch, a regression only causes a **redundant refetch**, never data loss. Net: self-healing; wasted round-trips.
+Every refresh writes a checkpoint computed from *its own* SELECT snapshot (`fetchTimeline` → `_updateMoodsCheckpoint`, `refreshFromRealtime` → `_updateDriveCheckpointFromItems`, etc.). A fast refresh completing **after** a slower one that observed newer data would regress the checkpoint. Guarded since 4.11 (F-RT10 resolved): `CheckpointMixin.saveMaxTimestampCheckpoint(…, writerToken:, currentToken:)` skips the write when the writer's token was superseded, so an older-observed snapshot can no longer land after a newer one. Because `checkpoint == null → hasChanges → true` and `serverDate.isAfter(checkpoint)` triggers refetch, any residual corner only causes a **redundant refetch**, never data loss. Net: self-healing; wasted round-trips prevented at the write.
 
 ### R-2: Checkpoint covering undelivered events (LOW)
 
@@ -411,7 +410,7 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 - Supabase delivers events per channel in commit order. The client does not re-sort.
 - **Order-insensitive consumers** (full-refetch handlers): mood, drive, partnership, missyou-delete — safe under reordering/replay.
 - **Order-sensitive consumers**:
-  - `bucket applyRealtimeEvent` — applied immediately in delivery order; correct while the channel is healthy. The bucket/refresh race (F-RT4) is the ordering hazard.
+  - `bucket applyRealtimeEvent` — applied immediately in delivery order; correct while the channel is healthy. A concurrent full-refresh snapshot cannot overwrite applied events: `BucketState` captures a version at snapshot start and drops the replace if realtime events landed in between (F-RT4 resolved).
   - `game` granular handlers — buffered FIFO (`game_event_buffer.dart`) and drained in delivery order, so bursts are applied without reordering or loss. The immediate question insert/delete paths bypass the buffer and preserve order.
 - **Reconnect replay ordering**: Supabase replays recent commits after resubscribe; the dedup + post-resume `_refreshAll` normalize any out-of-order application.
 
@@ -419,52 +418,7 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 
 ## Findings
 
-### F-RT4: Bucket realtime-apply vs. full-refresh replacement race (MEDIUM)
-
-- **WHAT**: `BucketState.applyRealtimeEvent` mutates `_items` incrementally while `BucketState.refreshFromRealtime` (from `_refreshAll`, polling, resume) **replaces** `_items` with a snapshot. A full-refetch snapshot taken *before* an insert commits can complete *after* the event was applied and overwrite it.
-- **WHERE**: `bucket_state.dart:80-91` (refresh) vs `130-162` (apply).
-- **WHEN**: Any overlap of realtime events with a 15 s poll, resume refresh, or `refreshChannel`.
-- **IMPACT**: Newly inserted item disappears from the list until the next event or refresh. `_knownIds` still contains its id (so a replay won't re-add it and the item is simply absent). Transient but persistent until a full refresh.
-- **CONFIDENCE**: MEDIUM.
-
-### F-RT5: `addMissYou()` is non-idempotent; dedup window overflow double-counts (LOW)
-
-- **WHAT**: `HomepageState.addMissYou` unconditionally `_totalMissYou += 1` + persist. If a replay passes dedup (>80 intervening events, or key collision), the count is incremented twice for one server row. Also races an in-flight `fetchTotalMissYou` (snapshot overwrite).
-- **WHERE**: `homepage_state.dart:64-68`; dedup window at `realtime_sync_session.dart` (`markSeen`).
-- **WHEN**: Replays after long disconnect periods on a busy channel, or burst >80 events between delivery and replay.
-- **IMPACT**: Transient wrong count; self-corrects on the next authoritative `fetchTotalMissYou` (60 s `kMissYou` freshness gate or any refresh). Nobody blocks on it — LOW.
-- **CONFIDENCE**: LOW for occurrence, HIGH for non-idempotency of the path.
-
-### F-RT6: `game_answers` dedup key omits `game_id` (LOW)
-
-- **WHAT**: `markSeen` keys on `row['id'] ?? ... ?? row['user_id']`. `game_answers` has a composite PK and no `id` column (schema), so the key degrades to `game_answers:<event>:<user_id>:<commitTimestamp>`. Two answers by the same user in one transaction → identical key → second dropped.
-- **WHERE**: `realtime_sync_session.dart` (`markSeen`); schema `game_answers` (composite `game_id,user_id`).
-- **WHEN**: Batch/transactional multi-answer submits for one user (not produced by the current single-row `submitAnswer` path).
-- **IMPACT**: Dropped event → stale history until refresh. The game-event FIFO buffer does not address dedup-key collisions.
-- **CONFIDENCE**: LOW (occurrence), HIGH (key construction).
-
-### F-RT7: Reconnect gives up permanently until lifecycle/configure (LOW)
-
-- **WHAT**: After 20 reconnect attempts, `scheduleReconnect` stops. With polling fallback active, no further subscribe is ever attempted until `configure()` or app `resume` — a sustained outage leaves the app in 15 s polling indefinitely in the background whereas the WebSocket could have recovered.
-- **WHERE**: `realtime_connection.dart` (`scheduleReconnect`, `activatePollingFallback`).
-- **WHEN**: Network outage > ~15 minutes while the app stays foregrounded.
-- **IMPACT**: Data freshness preserved (15 s polling) but realtime pushes are not resumed until user action. Acceptable degradation; deliberately chosen.
-- **CONFIDENCE**: MEDIUM.
-
-### F-RT8: Reaction events for unloaded drive items are filtered out (LOW)
-
-- **WHAT**: `isRelevantDrive` for `drive_item_reactions` requires `item_id` present in the *current in-memory* drive list. A reaction on an item not in the local list is dropped — including reactions on items the local drive list is about to load.
-- **WHERE**: `realtime_sync_session.dart` (`isRelevantDrive`).
-- **WHEN**: Partner reacts to an item the user hasn't loaded (paged-out history).
-- **IMPACT**: Reaction does not appear in the detail view until a full refresh. Minor.
-- **CONFIDENCE**: HIGH.
-
-### F-RT10: Checkpoint write-back can regress under concurrent refreshes (LOW)
-
-- **WHAT**: Refresh A with an older snapshot can land *after* refresh B with a newer one and write a lower checkpoint max (R-1). Only causes a redundant refetch on next init.
-- **WHERE**: shared checkpoints — `mood_state.dart:74-84`, `game_state.dart:91-108`, `drive_state.dart:193-201`, `base_repository.dart:79-108`.
-- **IMPACT**: Extra round-trip; never data loss. Noted for completeness.
-- **CONFIDENCE**: MEDIUM.
+_(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` dedup key, F-RT7 reconnect retry, F-RT8 drive-reaction relevance, and F-RT10 checkpoint write-order are fixed in 4.11; see Implementation Status. No open findings remain in the Realtime doc.)_
 
 ---
 
@@ -484,13 +438,18 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 | JWT `setAuth` on token refresh (no reconnect) | IMPLEMENTED |
 | Wipe suppression (`suppress`/`resume`/`refreshChannel`) | IMPLEMENTED |
 | Bucket granular in-order application | IMPLEMENTED |
+| Bucket version gate vs concurrent refresh (F-RT4) | IMPLEMENTED (`bucket_state.dart`) |
 | Game question insert/delete bypassing debounce | IMPLEMENTED |
 | Game answer debounce lossless in bursts (FIFO buffer) | IMPLEMENTED |
 | Mood debounce distinct-user burst handling | IMPLEMENTED |
 | Service split into facade + connection + session + handlers | IMPLEMENTED |
 | Unified `RealtimeHandler` template (shared suppress/relevance/dedup preamble) | IMPLEMENTED |
 | `RefetchRealtimeHandler` unifies partnership/drive/user_profiles full-refetch strategy | IMPLEMENTED |
-| Realtime auto-recovery while polling fallback active | NOT IMPLEMENTED (F-RT7) |
+| Realtime auto-recovery while polling fallback active (F-RT7) | IMPLEMENTED (~60 s flat retry with jitter past attempt 20, `realtime_connection.dart`) |
+| Idempotent miss-you per row id (F-RT5) | IMPLEMENTED (bounded 200-key FIFO, `homepage_state.dart`) |
+| `game_answers` composite dedup key (F-RT6) | IMPLEMENTED (`game_id:user_id`, `realtime_sync_session.dart`) |
+| Drive-reaction relevance on reacting user, not in-memory list (F-RT8) | IMPLEMENTED (`realtime_sync_session.dart`) |
+| Checkpoint write-order guard (F-RT10) | IMPLEMENTED (`CheckpointMixin` writer token, `game_state.dart`, `mood_state.dart`) |
 
 ---
 
@@ -498,7 +457,7 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 
 No automated tests exercise the full realtime pipeline (`realtime_sync_scope.dart` and the `realtime_connection.dart`/handler classes are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`), the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`), and the mood distinct-user coalescing is covered at unit level (`test/mood_change_batch_test.dart`).
 
-**Not covered**: subscription/channel lifecycle, generation guard, dedup LRU behavior, relevance filtering, backoff/polling transitions, resume/detach behavior, wipe suppression, and the remaining F-RT4–F-RT10 scenarios (full pipeline coverage planned in Phase 8).
+**Not covered**: subscription/channel lifecycle, generation guard, reconnect retry cadence (F-RT7, connection class requires a Supabase client), resume/detach behavior, and wipe suppression (full pipeline coverage planned in Phase 8).
 
 ---
 
@@ -508,4 +467,4 @@ No automated tests exercise the full realtime pipeline (`realtime_sync_scope.dar
 - **Mutations are fire-and-forget**: `submitAnswer`, `addBucketItem`, `toggleDone`, `uploadDriveItemToR2`, `deleteItem`, `addReaction` do not await server confirmation; state reconciliation relies on Realtime echoes + periodic refetches. No optimistic rollback exists for bucket/drive mutations — only mood implements optimistic update with rollback (`mood_state.dart:233-282`).
 - **Realtime echo self-loop is handled**: the app receives its **own** mutations back on the channel. Bucket uses `_knownIds`; game uses `isOwnInsert`; mood uses the `changedUserId == self` no-op; drive/missyou use full refetch/idempotent increment. No duplicates arise from the self-echo path.
 - **`notifyListeners()` is frame-coalesced** (`base_state.dart:22-29`): bursts of state writes during realtime refreshes produce a single rebuild per frame — this is UI coalescing, not event coalescing.
-- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed in general (F-RT4), but game-answer bursts are lossless via the FIFO buffer and mood bursts refresh every distinct changed user.
+- **Realtime is the fast path, not the source of truth**: every consumer eventually re-fetches from the server (refresh handlers, polling, checkpoint-gated init). The system is eventually consistent by construction; per-event losslessness is not guaranteed in general, but game-answer bursts are lossless via the FIFO buffer, mood bursts refresh every distinct changed user, bucket events apply in-order without snapshot clobbering (F-RT4), and checkpoint writes never regress under concurrent refreshes (F-RT10).

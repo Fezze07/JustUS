@@ -53,8 +53,7 @@ class RealtimeSyncService {
         GameRealtimeHandler(session: _session, gameState: _gameState);
     _driveHandler = RefetchRealtimeHandler(
       session: _session,
-      isRelevant: (payload) =>
-          _session.isRelevantDrive(payload, driveItems: _driveState.driveItems),
+      isRelevant: _session.isRelevantDrive,
       refetch: () => _driveState.refreshFromRealtime(),
     );
     _userProfileHandler = RefetchRealtimeHandler(
