@@ -181,7 +181,7 @@ All 18 PostgreSQL functions in `supabase/schemas/public/functions/`:
 12. `is_partner_of(other_user_id integer)`: RLS validation helper returning `true` only when the caller and the target share a partnership whose `status = 'accepted'`.
 13. `send_missyou()`: Inserts `missyou` record for caller's active partnership.
 14. `set_mood(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji.
-15. `cleanup_old_logs()`: `SECURITY DEFINER` function deleting logs > 30 days old.
+15. `cleanup_old_logs(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver.
 16. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
 17. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 18. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.

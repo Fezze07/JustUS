@@ -16,7 +16,6 @@ All findings are backed by empirical code search and file analysis across the No
 | **Unused Dependency** | `multer` package | [`Backend/package.json:24`](file:///f:/JustUS/Backend/package.json#L24) | **DEAD DEPENDENCY** (Zero imports/requires in `Backend/`) | Low (Unnecessary npm bundle bloat) |
 | **Unused Extension Helpers** | `maybeGt` & `toSingle` | [`shared/utils/extensions/supabase_query_extensions.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart#L20-L35) | **DEAD CODE** (Zero callers across Flutter app) | Low (Dead code deadweight) |
 | **Unused Capability** | `can_send_email` | [`Backend/features/auth/authorization.service.js:25`](file:///f:/JustUS/Backend/features/auth/authorization.service.js#L25) | **DECLARED BUT UNUSED** (Zero route middleware checks) | Low (Configuration noise) |
-| **Inconsistent DB Function** | `cleanup_old_logs()` | [`supabase/schemas/public/functions/cleanup_old_logs.sql`](file:///f:/JustUS/supabase/schemas/public/functions/cleanup_old_logs.sql) | **PARTIALLY OBSOLETE** (30-day SQL cutoff conflicts with active Node 90-day retention) | Medium (Risk of data loss if executed) |
 
 ---
 
@@ -78,15 +77,6 @@ All findings are backed by empirical code search and file analysis across the No
 * **Remediation**: Remove `can_send_email` from `authorization.service.js`.
 
 ---
-
-### 5. `cleanup_old_logs()` SQL Function
-
-* **File**: [`supabase/schemas/public/functions/cleanup_old_logs.sql`](file:///f:/JustUS/supabase/schemas/public/functions/cleanup_old_logs.sql)
-* **Evidence**:
-  - Hardcodes a 30-day cutoff (`now() - interval '30 days'`), while the active Node backend `retentionJob.js` defaults to a 90-day retention window (`LOG_RETENTION_DAYS = 90`).
-  - Is not registered in any active `pg_cron` schedule migration.
-* **Classification**: **OBSOLETE / INCONSISTENT SQL DEFINITION**.
-* **Remediation**: Update `cleanup_old_logs.sql` to accept an explicit retention parameter defaulting to 90 days, matching `LOG_RETENTION_DAYS`.
 
 ---
 

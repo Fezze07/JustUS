@@ -144,15 +144,15 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `cleanup_old_logs()`
+### `cleanup_old_logs(p_days integer DEFAULT 90)`
 * **SQL Source:** `supabase/schemas/public/functions/cleanup_old_logs.sql`
-* **Purpose:** Scheduled database maintenance. Deletes API access logs, error logs, security events, and notification logs older than 30 days.
+* **Purpose:** Database maintenance. Deletes API access logs, error logs, security events, and notification logs older than `p_days` days (default **90**, matching the Node `LOG_RETENTION_DAYS` window).
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
-* **Inputs:** None.
+* **Inputs:** `p_days` (default `90`); raises an exception when NULL or `< 1`.
 * **Outputs:** `void`.
 * **Tables Touched:** `logs_api_access` (DELETE), `logs_api_errors` (DELETE), `logs_security_events` (DELETE), `logs_notifications` (DELETE).
-* **Execution Condition:** `created_at < NOW() - INTERVAL '30 days'`.
-* **Caller:** Scheduled `pg_cron` background job (03:00 AM daily).
+* **Execution Condition:** `created_at < NOW() - make_interval(days => p_days)`.
+* **Caller:** Not `pg_cron`-scheduled. Node.js `retentionJob.js` (`sweepOldLogs`) is the single active retention driver (daily, `LOG_RETENTION_DAYS = 90`); the SQL function may be invoked manually with the same 90-day default.
 
 ---
 
@@ -198,4 +198,4 @@ This document provides a technical specification and analysis of all **Supabase-
 - **Automated Sign-Up Trigger (`handle_new_auth_user`):** **100% IMPLEMENTED**
 - **Security Invoker Views (`v_active_partnership`, `v_drive_dashboard`):** **100% IMPLEMENTED**
 - **RPC Stored Procedures & Validation:** **100% IMPLEMENTED**
-- **Daily Maintenance Cron Job (`cleanup_old_logs`):** **100% IMPLEMENTED**
+- **Log Cleanup (`cleanup_old_logs(p_days)`):** **IMPLEMENTED** (parameterized, `DEFAULT 90`; not `pg_cron`-scheduled — Node `retentionJob.js` is the single active driver)
