@@ -54,6 +54,10 @@ class AuthState extends BaseState with WidgetsBindingObserver {
 
   User? user;
 
+  /// Invoked at the end of [logout] once auth data, storage and checkpoints are
+  /// cleared, so the app root can reset the feature states (F-SM7).
+  void Function()? onClearFeatureStates;
+
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
   String? get username => _username;
@@ -702,6 +706,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     _partnerDisplayName = null;
     _sentInvitations = [];
     user = null;
+    onClearFeatureStates?.call();
     notifyListeners();
   }
 }

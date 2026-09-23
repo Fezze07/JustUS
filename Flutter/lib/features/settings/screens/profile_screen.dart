@@ -142,6 +142,7 @@ Future<void> _editDisplayName(User user) async {
         context.read<DriveState>().clear();
         context.read<MoodState>().clear();
         context.read<HomepageState>().clear();
+        context.read<ProfileState>().clear();
 
         UIUtils.showSnackBar(context, context.loc.profile_dataWiped);
         unawaited(context.read<ProfileState>().loadProfile(force: true));

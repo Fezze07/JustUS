@@ -481,6 +481,8 @@ class GameState extends BaseState with CheckpointMixin {
     _currentQuestion = null;
     _history = [];
     _gameStats = 0;
+    _currentUserId = null;
+    _isFetchingQuestion = false;
     notifyListeners();
   }
 }

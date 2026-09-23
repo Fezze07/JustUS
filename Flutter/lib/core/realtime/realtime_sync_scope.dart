@@ -21,16 +21,36 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _service ??= RealtimeSyncService(
-      authState: context.read<AuthState>(),
-      moodState: context.read<MoodState>(),
-      homepageState: context.read<HomepageState>(),
-      partnerState: context.read<PartnerState>(),
-      bucketState: context.read<BucketState>(),
-      gameState: context.read<GameState>(),
-      driveState: context.read<DriveState>(),
-      profileState: context.read<ProfileState>(),
+    if (_service != null) return;
+
+    final authState = context.read<AuthState>();
+    final moodState = context.read<MoodState>();
+    final homepageState = context.read<HomepageState>();
+    final partnerState = context.read<PartnerState>();
+    final bucketState = context.read<BucketState>();
+    final gameState = context.read<GameState>();
+    final driveState = context.read<DriveState>();
+    final profileState = context.read<ProfileState>();
+
+    _service = RealtimeSyncService(
+      authState: authState,
+      moodState: moodState,
+      homepageState: homepageState,
+      partnerState: partnerState,
+      bucketState: bucketState,
+      gameState: gameState,
+      driveState: driveState,
+      profileState: profileState,
     )..start();
+
+    authState.onClearFeatureStates = () {
+      moodState.clear();
+      homepageState.clear();
+      bucketState.clear();
+      gameState.clear();
+      driveState.clear();
+      profileState.clear();
+    };
     AnsiLogger.realtime('RealtimeSyncScope created');
   }
 

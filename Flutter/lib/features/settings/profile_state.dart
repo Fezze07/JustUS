@@ -149,4 +149,14 @@ class ProfileState extends BaseState {
       }
     });
   }
+
+  void clear() {
+    _userProfile = null;
+    _partnerProfile = null;
+    _localProfileImagePath = null;
+    _isUploading = false;
+    _lastFetch = null;
+    _anniversaryDate = null;
+    notifyListeners();
+  }
 }

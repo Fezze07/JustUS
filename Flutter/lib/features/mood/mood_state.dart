@@ -295,6 +295,11 @@ class MoodState extends BaseState with CheckpointMixin {
     _userMood = '😐';
     _partnerMood = '😐';
     _recentEmojis = [];
+    _userMoodUpdatedAt = null;
+    _partnerMoodUpdatedAt = null;
+    _timeline = [];
+    _timelineOffset = 0;
+    _hasMoreTimeline = false;
     notifyListeners();
   }
 }
