@@ -42,6 +42,7 @@ class HomepageState extends BaseState {
   }
 
   Future<void> fetchTotalMissYou() async {
+    final epoch = CacheService.checkpointEpoch;
     final result = await _repo.fetchMissYouTotal();
 
     await result.handleAsync(
@@ -51,6 +52,7 @@ class HomepageState extends BaseState {
         await CacheService.saveCheckpoint(
           CacheService.kMissYou,
           DateTime.now().toUtc().toIso8601String(),
+          epoch: epoch,
         );
       },
     );
@@ -81,6 +83,7 @@ class HomepageState extends BaseState {
     _lastMissYouSentAt = now;
     _isLoading = true;
     notifyListeners();
+    final epoch = CacheService.checkpointEpoch;
 
     var success = false;
     try {
@@ -92,6 +95,7 @@ class HomepageState extends BaseState {
           await CacheService.saveCheckpoint(
             CacheService.kMissYou,
             DateTime.now().toUtc().toIso8601String(),
+            epoch: epoch,
           );
           _message = 'Mi manchi inviato!';
         },

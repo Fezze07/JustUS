@@ -47,22 +47,24 @@ class DriveState extends BaseState with CheckpointMixin {
   Future<void> initialLoad() async {
     if (_initialLoading) return;
     _initialLoading = true;
+    final epoch = CacheService.checkpointEpoch;
     try {
       await loadWithChangeDetection(
         loadFromCache: _loadFromCache,
-        hasChanges: _hasDriveChanges,
-        fetchFromNetwork: syncDriveItems,
+        hasChanges: () => _hasDriveChanges(epoch: epoch),
+        fetchFromNetwork: () => syncDriveItems(epoch: epoch),
       );
     } finally {
       _initialLoading = false;
     }
   }
 
-  Future<bool> _hasDriveChanges() async {
+  Future<bool> _hasDriveChanges({required int epoch}) async {
     final changed = await _repo.hasNewDriveItems();
     if (changed) {
       await CacheService.saveCheckpoint(
-          CacheService.kDriveItems, CacheService.kCheckpointEmpty);
+          CacheService.kDriveItems, CacheService.kCheckpointEmpty,
+          epoch: epoch);
       return true;
     }
 
@@ -72,7 +74,8 @@ class DriveState extends BaseState with CheckpointMixin {
         _driveItems.isNotEmpty &&
         serverCount != _driveItems.length) {
       await CacheService.saveCheckpoint(
-          CacheService.kDriveItems, CacheService.kCheckpointEmpty);
+          CacheService.kDriveItems, CacheService.kCheckpointEmpty,
+          epoch: epoch);
       return true;
     }
 
@@ -92,9 +95,10 @@ class DriveState extends BaseState with CheckpointMixin {
   // ---------------------------------------------------------------------------
   // Incremental sync: only fetch records with updated_at > last_sync_timestamp
   // ---------------------------------------------------------------------------
-  Future<void> syncDriveItems() async {
+  Future<void> syncDriveItems({int? epoch}) async {
     if (_isSyncing) return; // Debounce multiple simultaneous sync calls
     _isSyncing = true;
+    final effectiveEpoch = epoch ?? CacheService.checkpointEpoch;
 
     await runSafe(() async {
       final countResult = await _repo.fetchDriveItemCount();
@@ -125,6 +129,7 @@ class DriveState extends BaseState with CheckpointMixin {
             checkpointKey: CacheService.kDriveItems,
             items: value,
             timestampField: (item) => (item as DriveItem).updatedAt,
+            epoch: effectiveEpoch,
           );
           return;
         }
@@ -142,12 +147,14 @@ class DriveState extends BaseState with CheckpointMixin {
             checkpointKey: CacheService.kDriveItems,
             items: value,
             timestampField: (item) => (item as DriveItem).updatedAt,
+            epoch: effectiveEpoch,
           );
         } else if (await CacheService.getCheckpoint(CacheService.kDriveItems) ==
             null) {
           await CacheService.saveCheckpoint(
             CacheService.kDriveItems,
             DateTime.now().toUtc().toIso8601String(),
+            epoch: effectiveEpoch,
           );
         }
       });
@@ -160,6 +167,7 @@ class DriveState extends BaseState with CheckpointMixin {
   Future<void> refreshFromRealtime() async {
     if (_isSyncing) return;
     _isSyncing = true;
+    final epoch = CacheService.checkpointEpoch;
 
     await runSafe(() async {
       final result = await _repo.fetchDriveItems();
@@ -174,7 +182,7 @@ class DriveState extends BaseState with CheckpointMixin {
           _singleItem = index == -1 ? null : _driveItems[index];
         }
         await _persistDriveCache();
-        await _updateDriveCheckpointFromItems();
+        await _updateDriveCheckpointFromItems(epoch: epoch);
       });
     }, showLoading: false);
 
@@ -182,11 +190,12 @@ class DriveState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<void> _updateDriveCheckpointFromItems() async {
+  Future<void> _updateDriveCheckpointFromItems({required int epoch}) async {
     await saveMaxTimestampCheckpointFromItems(
       checkpointKey: CacheService.kDriveItems,
       items: _driveItems,
       timestampField: (item) => (item as DriveItem).updatedAt,
+      epoch: epoch,
     );
   }
 

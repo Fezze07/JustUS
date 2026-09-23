@@ -126,7 +126,7 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 
 ### How checkpoints work
 
-`CheckpointMixin.saveMaxTimestampCheckpoint` (`:4–26` of `checkpoint_mixin.dart`) takes a list of ISO-8601 timestamp strings, parses them, sorts descending, and writes the maximum as the new checkpoint. If the list is empty, it writes `CacheService.kCheckpointEmpty = 'EMPTY'`.
+`CheckpointMixin.saveMaxTimestampCheckpoint` (`:4–31` of `checkpoint_mixin.dart`) takes a list of ISO-8601 timestamp strings, parses them, sorts descending, and writes the maximum as the new checkpoint. If the list is empty, it writes `CacheService.kCheckpointEmpty = 'EMPTY'`. Every write is epoch-gated on the fetch that produced it (see state-management doc, F-SM14 resolved).
 
 `BaseRepository.hasChanges` (`:79–108` of `base_repository.dart`) compares the checkpoint against the server's `max(field)` queried from Supabase:
 - `checkpoint == null` → true (never synced)

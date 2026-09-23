@@ -9,7 +9,7 @@ The four building blocks are:
 1. `BaseState` (`Flutter/lib/shared/utils/state/base_state.dart`, 99 lines) — abstract `ChangeNotifier` with frame-coalesced `notifyListeners`, `setLoading`/`setMessage`, `runSafe`, `handleResult`, and `loadWithChangeDetection`.
 2. Feature states — nine classes extending `BaseState` (some with `CheckpointMixin`).
 3. `ResultWrapper<T>` (`Flutter/lib/core/network/result_wrapper.dart`, 25 lines) — sealed Success / GenericError / NetworkError.
-4. `CheckpointMixin` (`Flutter/lib/core/local_storage/checkpoint_mixin.dart`, 53 lines) — writes max-timestamp checkpoints into `CacheService` (SharedPreferences).
+4. `CheckpointMixin` (`Flutter/lib/core/local_storage/checkpoint_mixin.dart`, 57 lines) — writes max-timestamp checkpoints into `CacheService` (SharedPreferences).
 
 State definition sites:
 
@@ -83,8 +83,8 @@ if (changed) {
 
 The user-supplied pipeline "cache → checkpoint → network → comparison → state update" maps to:
 1. **cache**: `loadFromCache` populates in-memory state from `StorageService` (SharedPreferences) and is expected to call `notifyListeners()` itself (e.g. `bucket_state.dart:41-45`, `mood_state.dart:81-101`).
-2. **checkpoint**: the `<state>Changes()` callback reads the checkpoint and compares against server max-timestamp — via `CheckpointMixin`-persisted values and repository helpers (`base_repository.dart:79-108` `hasChanges`, `CacheService.needsRefresh` `cache_service.dart:40-50`). Some states perform an extra network RPC inside `hasChanges` (e.g. `_hasBucketChanges` calls `getActivePartnership` + `hasNewBucketItems`, bucket_state.dart:47-57).
-3. **network**: `fetchFromNetwork` is invoked **unawaited** only if `hasChanges` returned `true`. Each state's `fetchFromNetwork` runs its own repo fetches, writes StorageService, writes the checkpoint (optimistically cleared in some states: `mood_state.dart:63-67`, `bucket_state.dart:52-55`, `drive_state.dart:48-55`).
+2. **checkpoint**: the `<state>Changes()` callback reads the checkpoint and compares against server max-timestamp — via `CheckpointMixin`-persisted values and repository helpers (`base_repository.dart:79-108` `hasChanges`, `CacheService.needsRefresh` `cache_service.dart:66-77`). Some states perform an extra network RPC inside `hasChanges` (e.g. `_hasBucketChanges` calls `getActivePartnership` + `hasNewBucketItems`, bucket_state.dart:47-57).
+3. **network**: `fetchFromNetwork` is invoked **unawaited** only if `hasChanges` returned `true`. Each state's `fetchFromNetwork` runs its own repo fetches, writes StorageService, writes the checkpoint (optimistically cleared in some states: `mood_state.dart:63-67`, `bucket_state.dart:52-55`, `drive_state.dart:48-55`). Checkpoint writes carry the `CacheService.checkpointEpoch` captured at operation start; a logout/wipe `clearAll` bumps the epoch, so an in-flight fetch that completes afterwards drops its write-back instead of re-persisting the previous user's checkpoint (F-SM14 resolved).
 4. **comparison**: the ONLY comparison is the boolean `hasChanges` decision. The network result is unconditionally applied — there is no merge, no diff, no conflict resolution. The "comparison" is purely a gate that decides *whether to fetch*, not *how to apply*.
 5. **state update**: occurs inside each state's success handler (`handleResult`/`handleAsync` onSuccess) which replaces the whole collection/object, then persists.
 
@@ -225,7 +225,6 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - **F-SM10** — `DriveState._singleItem` is a manually mirrored copy of an element of `_driveItems`. `WHAT`: separate fields updated in refreshFromRealtime/addReaction/toggleFavorite. `WHERE`: drive_state.dart:16,117-121,239-243,263,273. `WHY`: detail screen needs a stable snapshot; mirroring was copied ad hoc. `WHEN`: any operation path that skips one of the mirror statements. `IMPACT`: detail view and grid can disagree on reactions/favorites. `CONFIDENCE`: LOW (mirror statements are all present in the same code paths today).
 - **F-SM11** — GameState shadows BaseState's `_message`/`_isLoading`. `WHAT`: own fields (game_state.dart:12-13) + `@override` getters (game_state.dart:20-23) while BaseState keeps separate storage (base_state.dart:11-12) mutated by `setLoading`/`setMessage` (base_state.dart:31-39). `WHERE`: game_state.dart:12-23. `WHY`: GameState predates/parallels BaseState helpers. `WHEN`: any future `setMessage`/`handleResult(notifyOnSuccess)` usage on GameState. `IMPACT`: silent dead message/loading slots — the base helpers become no-ops for this state. `CONFIDENCE`: HIGH.
 - **F-SM13** — `HomepageState._isLoading` is declared but never used. `WHAT`: field + getter (homepage_state.dart:13,19) never set by any path except `sendMissYou` (line 71). `WHERE`: homepage_state.dart:13,19,26-88. `WHY`: legacy field retained. `WHEN`: UI wants loading state on the homepage. `IMPACT`: no loading UX for miss-you total; equivalent to F-SM11 for this state. `CONFIDENCE`: HIGH.
-- **F-SM14** — Checkpoint writes race their removals. `WHAT`: `CacheService.clearAll` (cache_service.dart:52) runs during logout/wipe while in-flight fetch success handlers re-write checkpoints afterwards (e.g. mood_state.dart:266, bucket_state.dart:54). `WHERE`: auth_state.dart:536, profile_state.dart:143-144 + per-state onSuccess writes. `WHY`: fire-and-forget fetches can still be running when logout/wipe clears checkpoints. `WHEN`: logout/wipe while a revalidation is in flight. `IMPACT`: a leftover checkpoint for the previous user makes the next init() assume data fresh (refresh skipped) — or a stale-invalidated EMPTY forces an extra network hit; lack of sequencing around clear/refresh is the root. `CONFIDENCE`: MEDIUM.
 - **F-SM15** — No automated tests cover BaseState, coalescing, or loadWithChangeDetection. `WHAT`: test tree contains only state/repo unit tests; nothing exercises `BaseState.notifyListeners`, `runSafe`, `handleResult`, `loadWithChangeDetection` (grep shows zero references outside `lib/`). `WHERE`: `Flutter/test/`. `WHY`: base-state added as internal scaffolding without dedicated specs. `WHEN`: regression in coalescing/change-detection goes undetected. `IMPACT`: the most reused infrastructure is the least tested. `CONFIDENCE`: HIGH.
 
 ## Invariants
@@ -234,7 +233,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - A state's in-memory data and StorageService copy are written together in every success path (exceptions: generated/derived slices like `_knownIds`, `_singleItem`).
 - Checkpoints are the single synchronization cursor per feature; `EMPTY` means "unknown, must re-fetch".
 - Init is a screen-driven operation (TabScreenMixin or homepage `_loadData`), never application-global; auth init is the sole exception (splash).
-- Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. Wipe clears both in-memory and media caches too (profile_screen.dart:134-150), and additionally reloads the profile.
+- Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe clears both in-memory and media caches too (profile_screen.dart:134-150), and additionally reloads the profile.
 - BaseState notification is deferred one frame; code must never rely on synchronous listener invocation.
 - ThemeProvider value survives navigation but not process restart; LanguageProvider persists via SharedPreferences.
 
@@ -254,6 +253,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 | State survival across navigation | IMPLEMENTED (root-provided) |
 | State survival across lifecycle | IMPLEMENTED (resume refresh-all; background unsubscribe) |
 | Feature state reset on logout + wipe | IMPLEMENTED (`onClearFeatureStates` in AuthState.logout, registered by RealtimeSyncScope; wipe path in profile_screen.dart) |
+| In-flight checkpoint write-back dropped on clear (epoch gate) | IMPLEMENTED (`CacheService.checkpointEpoch` bumped by `clearAll`/`purge`/`clearCheckpoints`; every checkpoint write gated on the epoch captured at fetch start) |
 | Automated tests for state layer | NOT IMPLEMENTED (F-SM15) |
 
 ## Notes

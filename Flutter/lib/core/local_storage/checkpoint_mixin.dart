@@ -4,6 +4,7 @@ mixin CheckpointMixin {
   Future<void> saveMaxTimestampCheckpoint({
     required String checkpointKey,
     required List<String?> timestamps,
+    int? epoch,
   }) async {
     final parsed = timestamps
         .whereType<String>()
@@ -16,11 +17,13 @@ mixin CheckpointMixin {
       await CacheService.saveCheckpoint(
         checkpointKey,
         parsed.first.toUtc().toIso8601String(),
+        epoch: epoch,
       );
     } else {
       await CacheService.saveCheckpoint(
         checkpointKey,
         CacheService.kCheckpointEmpty,
+        epoch: epoch,
       );
     }
   }
@@ -29,6 +32,7 @@ mixin CheckpointMixin {
     required String checkpointKey,
     required List<dynamic> items,
     required String Function(dynamic item) timestampField,
+    int? epoch,
   }) async {
     final rawTimestamps = items.map(timestampField).toList();
     final parsed = rawTimestamps
@@ -42,11 +46,13 @@ mixin CheckpointMixin {
       await CacheService.saveCheckpoint(
         checkpointKey,
         parsed.first.toUtc().toIso8601String(),
+        epoch: epoch,
       );
     } else {
       await CacheService.saveCheckpoint(
         checkpointKey,
         CacheService.kCheckpointEmpty,
+        epoch: epoch,
       );
     }
   }

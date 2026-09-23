@@ -462,7 +462,7 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 ### F-RT10: Checkpoint write-back can regress under concurrent refreshes (LOW)
 
 - **WHAT**: Refresh A with an older snapshot can land *after* refresh B with a newer one and write a lower checkpoint max (R-1). Only causes a redundant refetch on next init.
-- **WHERE**: shared checkpoints — `mood_state.dart:70-79`, `game_state.dart:90-106`, `drive_state.dart:131-137`, `base_repository.dart:79-108`.
+- **WHERE**: shared checkpoints — `mood_state.dart:74-84`, `game_state.dart:91-108`, `drive_state.dart:193-201`, `base_repository.dart:79-108`.
 - **IMPACT**: Extra round-trip; never data loss. Noted for completeness.
 - **CONFIDENCE**: MEDIUM.
 

@@ -28,7 +28,8 @@ class BucketState extends BaseState
     _cacheDebounceTimer?.cancel();
     _cacheDebounceTimer = null;
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_flushCache());
+    final epoch = CacheService.checkpointEpoch;
+    unawaited(_flushCache(epoch: epoch));
     super.dispose();
   }
 
@@ -40,7 +41,8 @@ class BucketState extends BaseState
       case AppLifecycleState.detached:
         _cacheDebounceTimer?.cancel();
         _cacheDebounceTimer = null;
-        unawaited(_flushCache());
+        final epoch = CacheService.checkpointEpoch;
+        unawaited(_flushCache(epoch: epoch));
         break;
       case AppLifecycleState.resumed:
       case AppLifecycleState.inactive:
@@ -53,11 +55,12 @@ class BucketState extends BaseState
   Future<void> init() async {
     if (_isInitLoading) return;
     _isInitLoading = true;
+    final epoch = CacheService.checkpointEpoch;
     try {
       await loadWithChangeDetection(
         loadFromCache: _loadFromCache,
-        hasChanges: _hasBucketChanges,
-        fetchFromNetwork: fetchBucket,
+        hasChanges: () => _hasBucketChanges(epoch: epoch),
+        fetchFromNetwork: () => fetchBucket(epoch: epoch),
       );
     } finally {
       _isInitLoading = false;
@@ -70,27 +73,30 @@ class BucketState extends BaseState
     notifyListeners();
   }
 
-  Future<bool> _hasBucketChanges() async {
+  Future<bool> _hasBucketChanges({required int epoch}) async {
     final partnershipData = await _repository.getActivePartnership();
     final partnershipId = partnershipData?['partnership_id'] as int?;
     if (partnershipId == null) return false;
 
     final changed = await _repository.hasNewBucketItems(partnershipId);
     if (changed) {
-      await CacheService.saveCheckpoint(CacheService.kBucketItems, CacheService.kCheckpointEmpty);
+      await CacheService.saveCheckpoint(CacheService.kBucketItems,
+          CacheService.kCheckpointEmpty,
+          epoch: epoch);
     }
     return changed;
   }
 
-  Future<void> _updateBucketCheckpoint() async {
+  Future<void> _updateBucketCheckpoint({required int epoch}) async {
     await saveMaxTimestampCheckpointFromItems(
       checkpointKey: CacheService.kBucketItems,
       items: _items,
       timestampField: (item) => (item as BucketItem).updatedAt,
+      epoch: epoch,
     );
   }
 
-  Future<void> fetchBucket() async {
+  Future<void> fetchBucket({required int epoch}) async {
     await runSafe(() async {
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
@@ -98,12 +104,13 @@ class BucketState extends BaseState
         _knownIds
           ..clear()
           ..addAll(_items.map((i) => i.id));
-        await _flushCache();
+        await _flushCache(epoch: epoch);
       });
     });
   }
 
   Future<void> refreshFromRealtime() async {
+    final epoch = CacheService.checkpointEpoch;
     await runSafe(() async {
       final result = await _repository.fetchBucketList();
       await handleResult(result, onSuccess: (value) async {
@@ -111,7 +118,7 @@ class BucketState extends BaseState
         _knownIds
           ..clear()
           ..addAll(_items.map((i) => i.id));
-        await _flushCache();
+        await _flushCache(epoch: epoch);
       });
     }, showLoading: false);
   }
@@ -158,6 +165,7 @@ class BucketState extends BaseState
     required Map<String, dynamic> newRecord,
     required Map<String, dynamic> oldRecord,
   }) async {
+    final epoch = CacheService.checkpointEpoch;
     bool changed = false;
 
     switch (eventType) {
@@ -182,26 +190,26 @@ class BucketState extends BaseState
     }
 
     if (changed) {
-      _scheduleCacheSave();
+      _scheduleCacheSave(epoch);
       notifyListeners();
     }
   }
 
   // --- Debounced cache ---
 
-  void _scheduleCacheSave() {
+  void _scheduleCacheSave(int epoch) {
     _cacheDebounceTimer?.cancel();
     _cacheDebounceTimer = Timer(const Duration(seconds: 2), () {
-      unawaited(_flushCache());
+      unawaited(_flushCache(epoch: epoch));
     });
   }
 
-  Future<void> _flushCache() {
+  Future<void> _flushCache({required int epoch}) {
     final snapshot = List<BucketItem>.from(_items);
 
     return _cacheWriteQueue.enqueue(() async {
       await StorageService.saveBucketList(snapshot);
-      await _updateBucketCheckpoint();
+      await _updateBucketCheckpoint(epoch: epoch);
     });
   }
 

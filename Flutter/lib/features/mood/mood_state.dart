@@ -28,46 +28,50 @@ class MoodState extends BaseState with CheckpointMixin {
   bool get hasMoreTimeline => _hasMoreTimeline;
 
   Future<void> initHome() async {
+    final epoch = CacheService.checkpointEpoch;
     await loadWithChangeDetection(
       loadFromCache: loadCache,
-      hasChanges: _hasMoodChanges,
+      hasChanges: () => _hasMoodChanges(epoch: epoch),
       fetchFromNetwork: () async {
         await Future.wait([
           fetchMyMood(),
           fetchPartnerMood(),
         ]);
-        await _updateMoodsCheckpoint();
+        await _updateMoodsCheckpoint(epoch: epoch);
       },
     );
   }
 
   Future<void> initMoodScreen() async {
+    final epoch = CacheService.checkpointEpoch;
     await loadWithChangeDetection(
       loadFromCache: _loadMoodScreenCache,
-      hasChanges: _hasMoodChanges,
+      hasChanges: () => _hasMoodChanges(epoch: epoch),
       fetchFromNetwork: () async {
         await Future.wait([
           fetchRecentEmojis(),
-          fetchTimeline(),
+          fetchTimeline(epoch: epoch),
         ]);
-        await _updateMoodsCheckpoint();
+        await _updateMoodsCheckpoint(epoch: epoch);
       },
     );
   }
 
-  Future<bool> _hasMoodChanges() async {
+  Future<bool> _hasMoodChanges({required int epoch}) async {
     final uid = await StorageService.getUserId();
     if (uid == null) return false;
 
     final changed = await _repo.hasNewMoods(uid, await StorageService.getPartnerId());
     if (changed) {
       // Optimistic checkpoint: prevent redundant fetches during rapid init cycles
-      await CacheService.saveCheckpoint(CacheService.kMoods, CacheService.kCheckpointEmpty);
+      await CacheService.saveCheckpoint(
+          CacheService.kMoods, CacheService.kCheckpointEmpty,
+          epoch: epoch);
     }
     return changed;
   }
 
-  Future<void> _updateMoodsCheckpoint() async {
+  Future<void> _updateMoodsCheckpoint({required int epoch}) async {
     await saveMaxTimestampCheckpoint(
       checkpointKey: CacheService.kMoods,
       timestamps: [
@@ -75,6 +79,7 @@ class MoodState extends BaseState with CheckpointMixin {
         _userMoodUpdatedAt,
         _partnerMoodUpdatedAt,
       ],
+      epoch: epoch,
     );
   }
 
@@ -172,7 +177,7 @@ class MoodState extends BaseState with CheckpointMixin {
     }, showLoading: false);
   }
 
-  Future<void> fetchTimeline() async {
+  Future<void> fetchTimeline({required int epoch}) async {
     await runSafe(() async {
       final result = await _repo.fetchTimeline();
       await result.handleAsync(
@@ -181,7 +186,7 @@ class MoodState extends BaseState with CheckpointMixin {
           _timelineOffset = value.length;
           _hasMoreTimeline = value.length >= 4;
           await StorageService.saveTimeline(value);
-          await _updateMoodsCheckpoint();
+          await _updateMoodsCheckpoint(epoch: epoch);
           notifyListeners();
         },
       );
@@ -189,6 +194,7 @@ class MoodState extends BaseState with CheckpointMixin {
   }
 
   Future<void> loadMoreTimeline() async {
+    final epoch = CacheService.checkpointEpoch;
     await runSafe(() async {
       final result = await _repo.fetchTimeline(offset: _timelineOffset);
       await result.handleAsync(
@@ -197,7 +203,7 @@ class MoodState extends BaseState with CheckpointMixin {
           _timelineOffset += value.length;
           _hasMoreTimeline = value.length >= 4;
           await StorageService.saveTimeline(_timeline);
-          await _updateMoodsCheckpoint();
+          await _updateMoodsCheckpoint(epoch: epoch);
           notifyListeners();
         },
       );
@@ -205,17 +211,18 @@ class MoodState extends BaseState with CheckpointMixin {
   }
 
   Future<void> refreshFromRealtime({int? changedUserId}) async {
+    final epoch = CacheService.checkpointEpoch;
     final uid = await StorageService.getUserId();
 
     // Own action: optimistic update already handled everything
     if (changedUserId != null && changedUserId == uid) {
-      await _updateMoodsCheckpoint();
+      await _updateMoodsCheckpoint(epoch: epoch);
       return;
     }
 
     final futures = <Future<void>>[
       fetchRecentEmojis(),
-      fetchTimeline(),
+      fetchTimeline(epoch: epoch),
     ];
 
     if (changedUserId != null) {
@@ -227,10 +234,11 @@ class MoodState extends BaseState with CheckpointMixin {
     }
 
     await Future.wait(futures);
-    await _updateMoodsCheckpoint();
+    await _updateMoodsCheckpoint(epoch: epoch);
   }
 
   Future<void> updateMood(String emoji) async {
+    final epoch = CacheService.checkpointEpoch;
     await runSafe(() async {
       final now = DateTime.now().toUtc().toIso8601String();
 
@@ -271,7 +279,7 @@ class MoodState extends BaseState with CheckpointMixin {
           await StorageService.saveMood('me', _userMood);
           await StorageService.saveRecentEmojis(_recentEmojis);
           await StorageService.saveTimeline(_timeline);
-          await _updateMoodsCheckpoint();
+          await _updateMoodsCheckpoint(epoch: epoch);
           setMessage('Mood aggiornato!');
         },
       );

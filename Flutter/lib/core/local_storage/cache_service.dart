@@ -17,6 +17,15 @@ class CacheService {
   ];
 
   static int? _partnershipId;
+  static int _checkpointEpoch = 0;
+
+  /// Monotonic generation bumped whenever checkpoints are cleared
+  /// (`clearAll`/`purge`/`clearCheckpoints`). Fetch roots capture the value at
+  /// operation start and pass it to [saveCheckpoint]; a clear that lands while
+  /// the fetch is in flight bumps the epoch, so the stale write-back is
+  /// dropped instead of surviving the logout/wipe for the previous user
+  /// (F-SM14).
+  static int get checkpointEpoch => _checkpointEpoch;
 
   /// Partitions checkpoint keys per-partnership so a new partnership never
   /// reads checkpoints written under an earlier one (F-SC8). Mirrored by
@@ -30,7 +39,12 @@ class CacheService {
   static Future<SharedPreferences> get _prefs =>
       SharedPreferences.getInstance();
 
-  static Future<void> saveCheckpoint(String key, String isoTimestamp) async {
+  static Future<void> saveCheckpoint(
+    String key,
+    String isoTimestamp, {
+    int? epoch,
+  }) async {
+    if (epoch != null && epoch != _checkpointEpoch) return;
     final p = await _prefs;
     await p.setString(_scoped(key), isoTimestamp);
   }
@@ -46,6 +60,7 @@ class CacheService {
     for (final key in keys) {
       await p.remove(_scoped(key));
     }
+    _checkpointEpoch++;
   }
 
   static Future<bool> needsRefresh(String key, {int minSeconds = 60}) async {
@@ -67,6 +82,7 @@ class CacheService {
       await p.remove(key);
       if (scope != null) await p.remove('$key:$scope');
     }
+    _checkpointEpoch++;
   }
 
   /// Removes checkpoint variants for [oldId]/[newId] partnership scopes plus
@@ -81,5 +97,6 @@ class CacheService {
       if (oldScope != null) await p.remove('$key:$oldScope');
       if (newScope != null) await p.remove('$key:$newScope');
     }
+    _checkpointEpoch++;
   }
 }
