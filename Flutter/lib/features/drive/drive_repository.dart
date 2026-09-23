@@ -92,10 +92,15 @@ class DriveRepository extends BaseRepository {
     return switch (result) {
       Success() => const Success(null),
       GenericError(:final message, :final code, :final details) =>
-        GenericError(message: message, code: code, details: details),
+        _isAlreadyDeleted(details)
+            ? const Success(null)
+            : GenericError(message: message, code: code, details: details),
       NetworkError(:final message) => NetworkError(message: message),
     };
   }
+
+  bool _isAlreadyDeleted(dynamic details) =>
+      details is AppError && details.code == ErrorCodes.dbNotFound001;
 
   Future<ResultWrapper<void>> toggleFavorite(
       int driveItemId, bool isFavorite) async {

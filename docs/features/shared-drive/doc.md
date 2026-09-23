@@ -161,19 +161,23 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
 
 ## Item Deletion Flow
 
-- Files: [drive_repository.dart:82-93](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L82-L93), [drive_state.dart:200-220](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L200-L220), [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js).
+- Files: [drive_repository.dart:88-113](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L88-L113), [drive_state.dart:263-283](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L263-L283), [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js).
 ```
 DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cache rewrite)
   → DriveRepository.deleteDriveItem(id) → ApiService.deleteMediaItem(id)
   → POST /api/v1/media/delete { id } (HMAC-signed, capability can_media_upload)
   → Backend deleteMediaController:
       - Reads drive_items(id, user_id, partner_id, filename) via adminSupabase
+      - Idempotent: row already gone → 200 no-op (stale retries never resurrect the item)
       - Rejects 403 if the caller is not user_id/partner_id (AUTH-FAIL-004)
-      - Deletes the R2 object (DeleteObjectCommand) when a filename is stored
-      - Deletes the drive_items row (favorites / reactions cascade)
-  → Success → snackbar; failure → local list restored (drive_state.dart:214-218)
+      - Deletes the drive_items row first (favorites/reactions cascade), re-asserting
+        ownership in the DELETE predicate (defense in depth)
+      - Best-effort R2 cleanup (purgeR2Object): failures logged, never block the response;
+        orphaned objects are reclaimed by retentionJob sweepStaleOrphanObjects (24 h cutoff)
+  → Success → snackbar; failure → local list restored (drive_state.dart:277-281)
 ```
-- Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so the R2 object is removed atomically with the row.
+- Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
+- The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.
 - The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes.
 
 ---
@@ -349,7 +353,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Favorites Subsystem | **IMPLEMENTED** | `public.favorites` + `v_drive_dashboard` join |
 | Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `get_or_create_emoji` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
-| R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` removes the R2 object + row; wipe purges all user-prefix objects |
+| R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
 | Post-Compression Size Check | **NOT IMPLEMENTED** | 15 MB size check runs before compression |
 | Media Thumbnail Generation | **NOT IMPLEMENTED** | Full-sized media loaded in grid view |
 | Audio / PDF Picker Button in UI | **NOT IMPLEMENTED** | Picker sheet lacks document/audio options |

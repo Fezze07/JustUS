@@ -74,6 +74,7 @@ module.exports = {
   get isConfigured() { return require('./features/media/r2.service').isConfigured; },
   get isIpRangeChanged() { return require('./features/auth/session.utils').isIpRangeChanged; },
   get listObjectKeys() { return require('./features/media/r2.service').listObjectKeys; },
+  get listObjects() { return require('./features/media/r2.service').listObjects; },
   get loadEnv() { return require('./config/loadEnv').loadEnv; },
   get logAccess() { return require('./core/logger').logAccess; },
   get logAppError() { return require('./core/logger').logAppError; },

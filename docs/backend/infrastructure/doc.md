@@ -33,7 +33,7 @@ The application initialization sequence follows a strict synchronous-to-asynchro
 5. Server Binding & Listener (index.js)
    └── app.listen(env.port, "0.0.0.0")
 6. Background Retention Jobs Launch (core/jobs/retentionJob.js: startRetentionJobs())
-   ├── Immediate initial sweeps (Nonces, Logs, R2 Multipart)
+   ├── Immediate initial sweeps (Nonces, Logs, R2 Multipart, R2 Orphans)
    └── Timed interval registrations (setInterval)
 ```
 
@@ -60,6 +60,12 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Interval**: Every 6 hours (`MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Threshold**: Aborts uploads initiated more than 48 hours ago (`MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000`).
 - **Logic**: Invokes AWS S3 SDK `ListMultipartUploadsCommand`, inspects `Initiated` timestamp, and sends `AbortMultipartUploadCommand` for expired uploads.
+
+### 4. R2 Orphaned-Object Sweep (`sweepStaleOrphanObjects`)
+- **Target**: Cloudflare R2 bucket (`env.r2BucketName`) — finalized objects under `uploads/` + `profile/`.
+- **Interval**: Every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
+- **Threshold**: Deletes unreferenced objects older than 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
+- **Logic**: Lists objects via `r2.service.listObjects` (keys + `LastModified`), builds the referenced-key set from `drive_items.filename` and `user_profiles.profile_pic_url`, then batch-deletes (`deleteObjects`) any listed object not referenced and older than the cutoff. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for failed upload completions. The 24 h cutoff exceeds the 300 s presigned-PUT lifetime so in-flight uploads are never swept.
 
 ---
 

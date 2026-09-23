@@ -114,8 +114,13 @@ async function createDownloadUrl(key) {
 }
 
 async function listObjectKeys(prefix) {
+  const objects = await listObjects(prefix);
+  return objects.map((object) => object.key);
+}
+
+async function listObjects(prefix) {
   if (!prefix) return [];
-  const keys = [];
+  const objects = [];
   let continuationToken;
 
   do {
@@ -129,7 +134,12 @@ async function listObjectKeys(prefix) {
 
     if (result.Contents) {
       for (const obj of result.Contents) {
-        if (obj.Key) keys.push(obj.Key);
+        if (obj.Key) {
+          objects.push({
+            key: obj.Key,
+            lastModified: obj.LastModified ? new Date(obj.LastModified).getTime() : null,
+          });
+        }
       }
     }
 
@@ -138,7 +148,7 @@ async function listObjectKeys(prefix) {
       : undefined;
   } while (continuationToken);
 
-  return keys;
+  return objects;
 }
 
 async function deleteObject(key) {
@@ -193,6 +203,7 @@ module.exports = {
   createUploadUrl,
   createDownloadUrl,
   listObjectKeys,
+  listObjects,
   deleteObject,
   deleteObjects,
   deleteObjectsByPrefix,

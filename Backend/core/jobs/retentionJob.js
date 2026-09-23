@@ -5,6 +5,7 @@
  *   - security_events, api_access_logs, api_error_logs → delete after LOG_RETENTION_DAYS
  *   - request_nonces → delete rows past their expires_at (default: daily sweep)
  *   - R2 incomplete multipart uploads → abort after MULTIPART_MAX_AGE_MS (default 48 h)
+ *   - R2 orphaned finalized objects → delete after ORPHAN_MAX_AGE_MS (default 24 h)
  *
  * Call `startRetentionJobs()` once at server startup.
  */
@@ -14,7 +15,14 @@ const {
   ListMultipartUploadsCommand,
   AbortMultipartUploadCommand,
 } = require("@aws-sdk/client-s3");
-const { adminSupabase, env, logError, logInfo } = require("../../all_imports");
+const {
+  adminSupabase,
+  env,
+  listObjects,
+  deleteObjects,
+  logError,
+  logInfo,
+} = require("../../all_imports");
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -23,6 +31,8 @@ const NONCE_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 const LOG_SWEEP_INTERVAL_MS   = 24 * 60 * 60 * 1000;      // every 24 h
 const MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h
 const MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000;         // 48 h
+const ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
+const ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;            // 24 h default N-days cutoff
 
 // ── Nonce sweep ───────────────────────────────────────────────────────────────
 
@@ -121,6 +131,59 @@ async function sweepStalMultipartUploads() {
   }
 }
 
+// ── R2 orphaned-object sweep ─────────────────────────────────────────────────
+
+async function fetchReferencedKeys() {
+  const referenced = new Set();
+
+  for (const { table, column } of [
+    { table: "drive_items", column: "filename" },
+    { table: "user_profiles", column: "profile_pic_url" },
+  ]) {
+    const { data, error } = await adminSupabase
+      .from(table)
+      .select(column)
+      .not(column, "is", null);
+
+    if (error) throw error;
+
+    for (const row of data || []) {
+      if (row[column]) referenced.add(row[column]);
+    }
+  }
+
+  return referenced;
+}
+
+async function sweepStaleOrphanObjects() {
+  const client = buildR2Client();
+  if (!client) return; // R2 not configured — skip silently
+
+  try {
+    const referenced = await fetchReferencedKeys();
+    const cutoff = Date.now() - ORPHAN_MAX_AGE_MS;
+    const orphans = [];
+    const prefixes = ["uploads/", "profile/"];
+
+    for (const prefix of prefixes) {
+      const objects = await listObjects(prefix);
+      for (const object of objects) {
+        const age = object.lastModified ?? Date.now();
+        if (!referenced.has(object.key) && age < cutoff) {
+          orphans.push(object.key);
+        }
+      }
+    }
+
+    if (orphans.length > 0) {
+      await deleteObjects(orphans);
+      logInfo("retention.r2_orphans", { deleted: orphans.length });
+    }
+  } catch (err) {
+    await logError({ error: { message: err.message, name: err.name }, event: "retention.r2_orphans.failed" });
+  }
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 function startRetentionJobs() {
@@ -128,15 +191,18 @@ function startRetentionJobs() {
   sweepExpiredNonces();
   sweepOldLogs();
   sweepStalMultipartUploads();
+  sweepStaleOrphanObjects();
 
   setInterval(sweepExpiredNonces, NONCE_SWEEP_INTERVAL_MS);
   setInterval(sweepOldLogs, LOG_SWEEP_INTERVAL_MS);
   setInterval(sweepStalMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS);
+  setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS);
 
   logInfo("retention.started", {
     logRetentionDays: LOG_RETENTION_DAYS,
     nonceSweepIntervalH: NONCE_SWEEP_INTERVAL_MS / 3_600_000,
     r2MultipartMaxAgeH: MULTIPART_MAX_AGE_MS / 3_600_000,
+    r2OrphanMaxAgeH: ORPHAN_MAX_AGE_MS / 3_600_000,
   });
 }
 

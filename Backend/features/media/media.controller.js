@@ -7,6 +7,7 @@ const {
   createPresignedUpload,
   registerCompletedUpload,
   getSignedDownloadUrl,
+  logError,
 } = require("../../all_imports");
 
 const presignUploadController = asyncHandler(async (req, res) => {
@@ -38,6 +39,21 @@ const redirectToSignedDownloadController = asyncHandler(async (req, res) => {
   res.redirect(url);
 });
 
+const purgeR2Object = async (item, userId) => {
+  if (!item.filename || !isConfigured()) return;
+
+  try {
+    await deleteObject(item.filename);
+  } catch (r2Error) {
+    await logError({
+      event: "media.delete.r2_cleanup_failed",
+      error: { message: r2Error?.message, name: r2Error?.name },
+      user_id: userId,
+      details: { drive_item_id: item.id, filename: item.filename },
+    });
+  }
+};
+
 const deleteMediaController = asyncHandler(async (req, res) => {
   const { id } = req.body;
   const userId = req.user.profileId;
@@ -57,10 +73,7 @@ const deleteMediaController = asyncHandler(async (req, res) => {
   }
 
   if (!item) {
-    throw new AppError({
-      errorKey: "DB_NOT_FOUND_001",
-      message: "Drive item not found",
-    });
+    return res.json({ success: true, message: "Drive item already deleted" });
   }
 
   if (item.user_id !== userId && item.partner_id !== userId) {
@@ -70,14 +83,11 @@ const deleteMediaController = asyncHandler(async (req, res) => {
     });
   }
 
-  if (item.filename && isConfigured()) {
-    await deleteObject(item.filename);
-  }
-
   const { error: deleteError } = await adminSupabase
     .from("drive_items")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .or(`user_id.eq.${userId},partner_id.eq.${userId}`);
 
   if (deleteError) {
     throw new AppError({
@@ -86,6 +96,8 @@ const deleteMediaController = asyncHandler(async (req, res) => {
       details: deleteError,
     });
   }
+
+  await purgeR2Object(item, userId);
 
   res.json({ success: true, message: "Drive item deleted" });
 });
