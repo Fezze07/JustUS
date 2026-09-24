@@ -176,6 +176,8 @@
   "drive_noFavoritesSubtitle": "Add photos and videos to favorites from Drive!",
   "drive_takePhoto": "Take Photo",
   "drive_fromGallery": "From Gallery",
+  "drive_fromAudio": "Audio",
+  "drive_fromDocuments": "Document (PDF)",
   "drive_uploadComplete": "Upload complete!",
   "drive_deleted": "Deleted!",
   "drive_uploadInProgress": "Upload in progress…",

@@ -153,6 +153,8 @@ entries = {
   'drive_noFavoritesSubtitle': ('Aggiungi foto e video ai preferiti dal Drive!', 'Add photos and videos to favorites from Drive!'),
   'drive_takePhoto': ('Scatta foto', 'Take Photo'),
   'drive_fromGallery': ('Dalla galleria', 'From Gallery'),
+  'drive_fromAudio': ('Audio', 'Audio'),
+  'drive_fromDocuments': ('Documento (PDF)', 'Document (PDF)'),
   'drive_uploadComplete': ('Upload completato ✓', 'Upload complete ✓'),
   'drive_deleted': ('Eliminato!', 'Deleted!'),
   'drive_uploadInProgress': ('Caricamento in corso…', 'Upload in progress…'),

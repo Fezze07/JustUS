@@ -224,6 +224,8 @@
   "drive_noFavoritesSubtitle": "Aggiungi foto e video ai preferiti dal Drive!",
   "drive_takePhoto": "Scatta foto",
   "drive_fromGallery": "Dalla galleria",
+  "drive_fromAudio": "Audio",
+  "drive_fromDocuments": "Documento (PDF)",
   "drive_uploadComplete": "Upload completato ✓",
   "drive_deleted": "Eliminato!",
   "drive_uploadInProgress": "Caricamento in corso…",

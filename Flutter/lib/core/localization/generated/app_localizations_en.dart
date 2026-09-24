@@ -536,6 +536,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get drive_fromGallery => 'From Gallery';
 
   @override
+  String get drive_fromAudio => 'Audio';
+
+  @override
+  String get drive_fromDocuments => 'Document (PDF)';
+
+  @override
   String get drive_uploadComplete => 'Upload complete!';
 
   @override

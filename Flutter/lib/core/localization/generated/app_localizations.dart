@@ -1112,6 +1112,18 @@ abstract class AppLocalizations {
   /// **'Dalla galleria'**
   String get drive_fromGallery;
 
+  /// No description provided for @drive_fromAudio.
+  ///
+  /// In it, this message translates to:
+  /// **'Audio'**
+  String get drive_fromAudio;
+
+  /// No description provided for @drive_fromDocuments.
+  ///
+  /// In it, this message translates to:
+  /// **'Documento (PDF)'**
+  String get drive_fromDocuments;
+
   /// No description provided for @drive_uploadComplete.
   ///
   /// In it, this message translates to:

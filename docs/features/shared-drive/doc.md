@@ -109,10 +109,10 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
 ### Detailed Component Steps
 
 1. **File Selection & Picker Bottom Sheet**
-   - File: [media_picker_service.dart:14-49](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L14-L49)
+   - File: [media_picker_service.dart:15-113](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L15-L113)
    - User taps the FAB (`+` icon) on `DriveScreen`.
-   - `MediaPickerService.showPickerSheet(context)` opens a modal bottom sheet offering "Take Photo" (`ImageSource.camera`) and "From Gallery" (`ImageSource.gallery`).
-   - Uses `image_picker` package to acquire `XFile`.
+   - `MediaPickerService.showPickerSheet(context)` opens a modal bottom sheet offering "Take Photo" (`ImageSource.camera`), "From Gallery" (`ImageSource.gallery`), "Audio" (`FileType.audio`), and "Document (PDF)" (`FileType.custom` with `['pdf']` extensions).
+   - Uses `image_picker` for camera/gallery; `file_picker` for audio/PDF; returns an `XFile` with a MIME type (inferred from the file extension when the platform does not provide one).
 
 2. **Client Validation & Compression Order**
    - File: [media_service.dart:38-60](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L38-L60) & [compression_service.dart:43-46](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L43-L46)
@@ -322,13 +322,13 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: Slower grid rendering and higher data consumption for video and legacy image tiles.
 * **CONFIDENCE**: **HIGH**
 
-### 2. LIMITATION: Unexposed UI Picker for Audio and PDF Files
+### 2. INFORMATION: Audio and PDF uploads exposed; non-image tiles render a generic placeholder
 
-* **WHAT**: `MediaService` and Backend API support uploading audio and PDF files, but `MediaPickerService` in `DriveScreen` only presents Camera and Gallery options.
-* **WHERE**: [media_picker_service.dart:27-42](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L27-L42)
-* **WHY**: Bottom sheet presents only `ImageSource.camera` and `ImageSource.gallery`. No document or audio file picker button exists in UI.
-* **WHEN**: User attempts to upload a PDF document or audio file to the drive.
-* **IMPACT**: Audio and document upload capabilities are unreachable via the primary UI picker.
+* **WHAT**: The drive bottom sheet now exposes "Audio" and "Document (PDF)" pickers via `file_picker`, so audio/PDF files can be uploaded through the same R2 presigned flow. `MediaService` treats `MediaType.audio`/`MediaType.file` as already-compressed (no re-compression). In the grid, audio and PDF items still render the generic image placeholder until tapped; the actual payload is only loaded in `DriveItemScreen` (audio is playable with `audioplayers`, PDFs display as a file card).
+* **WHERE**: [media_picker_service.dart:89-105](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L89-L105), [drive_screen.dart:317-333](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L317-L333)
+* **WHY**: Grid cells use a single image surface (`CachedNetworkImage`); no per-type tile builder exists for audio/PDF.
+* **WHEN**: Browsing the grid after uploading audio or a PDF.
+* **IMPACT**: Audio/PDF items still consume a grid cell with a generic icon; acceptable for a media gallery, but a dedicated tile (e.g. waveform/PDF preview) would better signal the type.
 * **CONFIDENCE**: **HIGH**
 
 ---
@@ -337,10 +337,10 @@ During reverse-engineering analysis, the following technical findings were ident
 
 | Subsystem / Feature | Status | Notes |
 |---|---|---|
-| Camera / Gallery Bottom Sheet | **IMPLEMENTED** | `MediaPickerService` using `image_picker` |
+| Camera / Gallery / Audio / PDF Bottom Sheet | **IMPLEMENTED** | `MediaPickerService`: `image_picker` (camera/gallery) + `file_picker` (audio/PDF) |
 | Image Upload & Compression | **IMPLEMENTED** | `FlutterImageCompress` (~80% quality JPEG) |
 | Video Upload & Compression | **IMPLEMENTED** | `VideoCompress` (`MediumQuality`) |
-| Audio & Document Upload API | **IMPLEMENTED** | Supported in `MediaService` & Backend API |
+| Audio & Document Upload API | **IMPLEMENTED** | Supported in `MediaService` & Backend API; now reachable from the bottom sheet via `file_picker` |
 | Cloudflare R2 Presigned PUT URLs | **IMPLEMENTED** | S3 `PutObjectCommand` (300s lifetime) |
 | Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/download-signed` (300s lifetime) |
 | Local Media Disk Cache | **IMPLEMENTED** | `MediaCacheManager` (30-day stale period) |
