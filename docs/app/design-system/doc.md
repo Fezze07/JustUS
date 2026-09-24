@@ -212,14 +212,11 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **A11y**: text separate from button (screen readers read both); no location hint.
 - **Usage**: login:29, register:30.
 
-### VPMiniAvatar - `vp_mini_avatar.dart:5-49`
+### VPMiniAvatar - REMOVED (todo 6.2)
 
-- **Purpose**: tiny 24px avatar for lists (game history).
-- **API**: `{String? imageUrl, double size=24}`.
-- **Behavior**: resolves URL via `ApiService.resolveProtectedMediaUrl` (line 17) then renders **`Image.network` directly** (line 29) - **not cached, no auth headers, no placeholder** (only `errorBuilder` to fallback). Distinct from `VPAvatar` (which uses `ProtectedNetworkImage` = cached + authenticated).
-- **A11y**: none.
-- **Usage**: game_history_card.dart:76,79.
-- **Design smell**: same problem-domain component as `VPAvatar` implemented a different way (see Findings F-DS3).
+- **What**: tiny 24px avatar for lists (game history).
+- **Where**: was `vp_mini_avatar.dart`; deleted in todo 6.2 (F-DS3).
+- **Migration**: `game_history_card.dart:76,79` now renders `VPAvatar(size: 24, borderColor: AppColors.backgroundDark)` - cached + authenticated, so the R2 auth-header gap is gone.
 
 ### VPCircleButton - `vp_circle_button.dart:3-53`
 
@@ -238,18 +235,15 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **Theme/Loc**: dark-only; labels pre-localized and `.toUpperCase()`-ed by the chip.
 - **Usage**: drive_screen.dart:149-157.
 
-### VPLoadingButton (DEAD CODE) - `vp_loading_button.dart:7-54`
+### VPLoadingButton - REMOVED (todo 6.2)
 
-- **Purpose**: `FilledButton` with inline 20px spinner.
-- **API**: `{required Future<void> Function()? onPressed, required String text, bool isLoading=false, IconData? icon}`.
-- **Usage**: **zero usages** across the app (only definition + barrel export). Unstale `FilledButton` that also contradicts `VPButton`'s loading semantics.
+- **What**: `FilledButton` with inline 20px spinner.
+- **Where**: was `vp_loading_button.dart`; dead code deleted in todo 6.2 (F-DS4). Loading is now handled inline inside `VPButton` (F-DS2).
 
-### VPLoadingOverlay (DEAD CODE) - `vp_loading_overlay.dart:7-48`
+### VPLoadingOverlay - REMOVED (todo 6.2)
 
-- **Purpose**: full-screen scrim + centered `Card` with spinner/optional message.
-- **API**: `{required bool isLoading, String? message, required Widget child}`.
-- **Visual/Theme**: black 50% scrim, default theme `Card` (no `AppColors` styling).
-- **Usage**: **zero usages**.
+- **What**: full-screen scrim + centered `Card` with spinner/optional message.
+- **Where**: was `vp_loading_overlay.dart`; dead code deleted in todo 6.2 (F-DS4).
 
 ### ErrorDialog - `error_dialog.dart:9-102`
 
@@ -262,7 +256,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **Deps**: `DialogUtils.showError` uses it (error_handler reauth/error dialogs path).
 - **Usage**: via `DialogUtils.showError` (error_handler.dart:240) and `ErrorDialog.show` (5 refs).
 
-### ProtectedNetworkImage - `protected_network_image.dart:7-42`
+### ProtectedNetworkImage - `shared/widgets/protected_network_image.dart:7-42`
 
 - **Purpose**: authenticated image loader wrapping `cached_network_image`.
 - **API**: `{required String url, BoxFit? fit, placeholder, errorWidget, double? width, double? height, BaseCacheManager? cacheManager}`.
@@ -270,7 +264,16 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **Auth**: YES - requires a live Supabase session token in headers.
 - **NET**: yes; caching controlled by passed manager.
 - **Deps**: `cached_network_image`, `flutter_cache_manager`, `ApiService`.
+- **Location note**: coupled to `ApiService`, so it was **relocated out of the DS** to `lib/shared/widgets/` in todo 6.2 (F-DS12) and removed from the `design_system.dart` barrel. It is intent-coupled (`ApiService`), not a generic DS asset.
 - **Usage**: `VPAvatar` (via `MediaCacheManager`); direct use 4 refs.
+
+### VPSheet - `shared/design_system/vp_sheet.dart:11-72`
+
+- **Purpose**: shared frosted bottom-sheet container (drag handle + optional title + children).
+- **API**: `{String? title, required List<Widget> children, double? maxHeightFactor}`.
+- **Behavior**: fixed-height card (`height = MediaQuery.height * maxHeightFactor` when set, else fits content) with `cardDark` fill, 32px top radius, `neonPurple` shadow; padding `fromLTRB(24, 20, 24, viewInsets.bottom + 24)`; inside a **single `Column(crossAxisAlignment: stretch)`**.
+- **Why `children` (list) and not `child`**: consumers must be able to put flex children (e.g. `Expanded`) as **direct** children of the sheet column. Nesting the content in an extra `Column` makes the modal route's intrinsic-height probe hit an `Expanded` under unbounded height -> `RenderFlex` assertion + infinite semantic-refresh loop (todo 6.2 / F-DS15; reproduced in a scratch test). Keep flex children flat.
+- **Usage**: emoji picker (mood), `MediaPickerService.showPickerSheet`, drive reaction picker.
 
 ---
 
@@ -280,24 +283,21 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 |---|---|---|
 | VpWidgets helpers | 69 refs | - |
 | VPSettingGroup / VPSettingTile / VPDivider | profile only | - |
-| VPAvatar | profile, partner, VPUserAvatar | - |
-| VPUserAvatar | game screen only | `onlineIndicator` never used |
+| VPAvatar | profile, partner, VPUserAvatar, game history (24px) | - |
+| VPUserAvatar | game screen only | - |
 | VPButton | login, register, change-password, partner-invite | - |
-| VPTextField | auth + partner-invite | - |
+| VPTextField | auth + partner-invite, bucket add dialog, emoji picker | - |
 | VPHeader | 5 screens | - |
 | VPCard | 5 refs | underused (most screens use raw Container) |
 | VPScaffold | 7 screens | bypassed by 5 screens |
 | VPSectionHeader | 9 refs | - |
 | VPDialog | 5 refs | - |
 | VPAuthLayout / VPAuthLink | login + register | - |
-| VPMiniAvatar | game history | - |
 | VPCircleButton | drive back button | deathly quiet |
 | VPFilterChip | drive | - |
-| VPLoadingButton | - | **dead** |
-| VPLoadingOverlay | - | **dead** |
+| VPSheet | emoji picker, media picker service, drive reactions | - |
 | ErrorDialog | via DialogUtils/ErrorHandler | - |
-| ProtectedNetworkImage | via VPAvatar | - |
-| PartnerUserTile / PartnerRequestTile (partner_widgets.dart) | - | **dead** |
+| ProtectedNetworkImage (relocated to shared/widgets) | via VPAvatar | - |
 
 ---
 
@@ -309,6 +309,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **Where**: vp_widgets.dart:233-280.
 **Impact**: every auth submit re-layouts; screen readers lose the button entirely.
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `VPButton` keeps its `ElevatedButton` while loading - `onPressed: null`, inline `Row(spinner + label)`, `disabledBackgroundColor` at alpha 0.6. FIXED.
 
 ### F-DS3: Two divergent avatar implementations
 
@@ -316,6 +317,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **Where**: vp_widgets.dart:162-231, vp_mini_avatar.dart:5-49.
 **Impact**: the same domain concept rendered two ways and neither variant is backed by a single component; `VPMiniAvatar` still skips the auth header (may fail on R2-protected URLs).
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `VPMiniAvatar` deleted; `game_history_card` now uses `VPAvatar(size: 24, borderColor: AppColors.backgroundDark)`. Single cached/authenticated avatar remains. FIXED.
 
 ### F-DS4: Dead/redundant components
 
@@ -323,6 +325,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **Where**: vp_loading_button.dart, vp_loading_overlay.dart, partner_widgets.dart:10-68.
 **Impact**: triples the button/spinner API surface (VPButton spinner swap, VPLoadingButton inline spinner, VPLoadingOverlay scrim) and keeps unreviewed "design system" surface alive.
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `VPLoadingButton`, `VPLoadingOverlay`, `PartnerUserTile`, `PartnerRequestTile`, `PartnerWidgets`, and `VPUserAvatar.onlineIndicator` all deleted (barrel exports removed). FIXED.
 
 ### F-DS5: Theme-vs-component radius/button mismatch
 
@@ -361,6 +364,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **What**: `VPTextField` (cardDark box, no errorText) vs raw `TextField`s re-styled inline in bucket_list_screen.dart:54-70 and emoji_picker_sheet.dart:211-232 (the latter with inline `errorText`). Validation: snackbar-based (login/register) vs inline errorText (emoji picker).
 **Impact**: inconsistent field look and error UX across screens.
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `VPTextField` gains optional `label`, `errorText`, `onChanged`, `onSubmitted`; bucket-list add dialog and emoji picker migrated to it. Auth screens intentionally keep snackbar-level validation (form-wide errors) — the field-level vs form-level split is the stated convention. FIXED.
 
 ### F-DS10: Localization gaps in the "shared" UI
 
@@ -379,6 +383,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **What**: `ProtectedNetworkImage` and `VPAvatar`/`VPMiniAvatar` depend on `ApiService` (they are the correct design for protected media, but they cement infra into the DS). `VPAuthLayout` proudly renders the brand (appTitle/appTagline) - reusable only for auth. `HomeBottomNav` is shell-specific. `VPUserAvatar.onlineIndicator` is decorative-only dead code (never materialized anywhere).
 **Impact**: "reusable component" classification is misleading; refactoring `ApiService` signature ripples into the DS.
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `ProtectedNetworkImage` + `VPAvatar`/`VPUserAvatar` physically relocated to `lib/shared/widgets/` and removed from the `design_system.dart` barrel (honest placement; the `ApiService` coupling is no longer "design system" surface). FIXED.
 
 ### F-DS13: ChangePasswordScreen styling bypass
 
@@ -393,8 +398,9 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 
 ### F-DS15: `EmojiPickerSheet`/bottom-sheet family
 
-**What**: mood bottom sheet (ScrollDraggableSheet) vs `MediaPickerService.showPickerSheet` - both bespoke bottom sheets with duplicated frosted-styling, neither part of the DS barrel.
+**What**: mood bottom sheet (bespoke, ScrollDraggableSheet) vs `MediaPickerService.showPickerSheet` - both bespoke bottom sheets with duplicated frosted-styling, neither part of the DS barrel.
 **Confidence**: HIGH.
+**Resolution** (todo 6.2): `VPSheet` added and used by the emoji picker, `MediaPickerService.showPickerSheet`, and the drive reaction picker (barrel-exported). Gotcha discovered: wrapping sheet content in an extra `Column` above an `Expanded` makes the modal route's intrinsic measurement hit an unbounded-height `RenderFlex` -> `!semantics.parentDataDirty` loop / `pumpAndSettle` timeout; content must be passed as flat `children` so flex stays a direct child of the sheet column. FIXED.
 
 ---
 
@@ -405,15 +411,16 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 | Central tokens (`AppColors`) | IMPLEMENTED (partial adoption) |
 | Central theme (`AppTheme` dark/light) | IMPLEMENTED (light unused) |
 | Branded core components (inputs, buttons, cards, dialogs, layout) | IMPLEMENTED |
-| Unified avatar component | PARTIALLY IMPLEMENTED (2 divergent variants: `VPAvatar`, `VPMiniAvatar`; homepage migrated to `VPUserAvatar`) |
-| Unified loading component | NOT IMPLEMENTED (3 contenders, 2 dead) |
+| Unified avatar component | IMPLEMENTED (`VPAvatar` + `VPUserAvatar`; `VPMiniAvatar` folded) |
+| Unified loading component | IMPLEMENTED (inline in `VPButton`; contenders removed) |
 | Unified dialog component | PARTIALLY IMPLEMENTED (VPDialog + ErrorDialog + raw AlertDialogs) |
 | Unified snackbar/toast | NOT IMPLEMENTED (2 systems) |
 | Accessibility (Semantics/Tooltip) | NOT IMPLEMENTED |
-| Localization inside DS | PARTIALLY IMPLEMENTED (emoji picker bypass) |
+| Localization inside DS | PARTIALLY IMPLEMENTED (emoji picker hint localized; hardcoded title remains for 6.3 / F-DS10) |
 | Light-mode support | NOT IMPLEMENTED |
 | Homepage alignment to DS | IMPLEMENTED (AppColors tokens, theme font, `VPUserAvatar` avatars) |
-| Dead component cleanup | NOT DONE (VPLoadingButton, VPLoadingOverlay, PartnerUserTile, PartnerRequestTile) |
+| Dead component cleanup | DONE (VPLoadingButton, VPLoadingOverlay, VPMiniAvatar, PartnerUserTile, PartnerRequestTile, onlineIndicator removed) |
+| Unified bottom sheet | PARTIALLY IMPLEMENTED (`VPSheet` in 3 call sites) |
 
 ---
 
@@ -423,4 +430,5 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - File naming is inconsistent: `vp_widgets.dart` hosts 15+ components while peer components each live in their own file; `VpWidgets` (helper class) vs `VP*` (components) capitalization differs.
 - No design-token dims/spacing file exists; every spacing (`SizedBox`, padding) is inline magic numbers.
 - No widget/storybook/golden tests exist for the DS (`Flutter/test/` has only state/API unit tests); a design-system regression is caught only visually.
-- Consistency recommendation: unify on `ProtectedNetworkImage` for all avatars (fold `VPMiniAvatar` into `VPAvatar`), delete dead components, route all buttons through one `VPButton`/`FilledButtonThemeData`, unify dialogs into `VPDialog`+`ErrorDialog`, pick one snackbar, and add `Semantics`/tooltips, plus an `errorText` slot on `VPTextField`.
+- Consistency recommendation: unify all buttons through one `VPButton`/`FilledButtonThemeData`, unify dialogs into `VPDialog`+`ErrorDialog`, pick one snackbar, and add `Semantics`/tooltips. Avatars/media loading live in `lib/shared/widgets/` (not the DS barrel) because they are coupled to `ApiService`.
+- Bottom-sheet contents: pass flex children (e.g. `Expanded`) as **direct** `VPSheet(children: ...)` entries, never nested in an intermediate `Column` (see `VPSheet` catalog note, F-DS15).

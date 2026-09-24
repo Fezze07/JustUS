@@ -51,22 +51,9 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
+              VPTextField(
                 controller: _addController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: context.loc.bucket_goalHint,
-                  hintStyle: const TextStyle(color: Colors.white54),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                        color: AppColors.neonPurple.withValues(alpha: 0.5)),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: AppColors.neonBlue),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+                hint: context.loc.bucket_goalHint,
               ),
               const SizedBox(height: 16),
               Text(context.loc.bucket_categoryLabel,

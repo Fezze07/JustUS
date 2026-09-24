@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
@@ -167,62 +166,18 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
   Widget build(BuildContext context) {
     final emojisToDisplay = _displayEmojis;
 
-    return Container(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-          color: AppColors.cardDark,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.neonPurple,
-                blurRadius: 4,
-                offset: Offset(0, -2))
-          ]),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            margin: const EdgeInsets.only(bottom: 24),
-          ),
-          Text(
-            'Scegli il tuo Mood',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
+    return VPSheet(
+      title: 'Scegli il tuo Mood',
+      maxHeightFactor: 0.85,
+      children: [
+        Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
+                child: VPTextField(
                   controller: _emojiController,
-                  style: const TextStyle(fontSize: 24, color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Inserisci un\'emoji...',
-                    hintStyle:
-                        const TextStyle(color: Colors.white30, fontSize: 16),
-                    errorText: _errorText,
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  hint: context.loc.mood_enterEmoji,
+                  errorText: _errorText,
                   onChanged: (_) {
                     if (_errorText != null) {
                       setState(() => _errorText = null);
@@ -290,7 +245,6 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
                   ),
           ),
         ],
-      ),
     );
   }
 }

@@ -159,77 +159,6 @@ class VPDivider extends StatelessWidget {
   }
 }
 
-class VPAvatar extends StatelessWidget {
-  final String? imageUrl;
-  final double size;
-  final Color borderColor;
-  final bool isUploading;
-
-  const VPAvatar({
-    super.key,
-    this.imageUrl,
-    this.size = 80,
-    this.borderColor = AppColors.neonPink,
-    this.isUploading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final resolved = ApiService.resolveProtectedMediaUrl(imageUrl);
-
-    return Stack(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: borderColor.withValues(alpha: 0.3),
-                blurRadius: 20,
-              ),
-            ],
-          ),
-          child: resolved == null
-              ? SizedBox(
-                  width: size,
-                  height: size,
-                  child:
-                      Icon(Icons.person, size: size / 2, color: Colors.white54),
-                )
-              : ClipOval(
-                  child: ProtectedNetworkImage(
-                    url: imageUrl!,
-                    cacheManager: MediaCacheManager(),
-                    fit: BoxFit.cover,
-                    width: size,
-                    height: size,
-                    placeholder: (context, url) => SizedBox(
-                      width: size,
-                      height: size,
-                      child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => SizedBox(
-                      width: size,
-                      height: size,
-                      child: const Icon(Icons.error, color: Colors.white54),
-                    ),
-                  ),
-                ),
-        ),
-        if (isUploading)
-          Positioned.fill(
-            child: Center(
-              child: CircularProgressIndicator(color: borderColor),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class VPButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -248,17 +177,13 @@ class VPButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return Center(
-          child: CircularProgressIndicator(
-              color: backgroundColor ?? AppColors.neonBlue));
-    }
-
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: backgroundColor ?? AppColors.primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: (backgroundColor ?? AppColors.primary)
+            .withValues(alpha: 0.6),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -268,37 +193,66 @@ class VPButton extends StatelessWidget {
             (backgroundColor ?? AppColors.primary).withValues(alpha: 0.5),
         minimumSize: width != null ? Size(width!, 50) : null,
       ),
-      child: Text(
-        label,
-        style: VpWidgets.googleFont(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: isLoading
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: VpWidgets.googleFont(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              label,
+              style: VpWidgets.googleFont(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 }
 
 class VPTextField extends StatelessWidget {
   final TextEditingController controller;
-  final String label;
+  final String? label;
   final String hint;
   final IconData? icon;
   final bool isPassword;
   final bool obscureText;
   final VoidCallback? onTogglePassword;
   final TextInputType inputType;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   const VPTextField({
     super.key,
     required this.controller,
-    required this.label,
+    this.label,
     required this.hint,
     this.icon,
     this.isPassword = false,
     this.obscureText = false,
     this.onTogglePassword,
     this.inputType = TextInputType.text,
+    this.errorText,
+    this.onChanged,
+    this.onSubmitted,
   });
 
   @override
@@ -306,17 +260,19 @@ class VPTextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: VpWidgets.googleFont(
-              color: Colors.white70,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+        if (label != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              label!,
+              style: VpWidgets.googleFont(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
+        ],
         DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.cardDark,
@@ -327,10 +283,13 @@ class VPTextField extends StatelessWidget {
             controller: controller,
             obscureText: obscureText,
             keyboardType: inputType,
+            onChanged: onChanged,
+            onSubmitted: onSubmitted,
             style: VpWidgets.googleFont(color: Colors.white),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: VpWidgets.googleFont(color: Colors.white24),
+              errorText: errorText,
               prefixIcon:
                   icon != null ? Icon(icon, color: Colors.white38) : null,
               suffixIcon: isPassword
@@ -441,70 +400,6 @@ class VPCard extends StatelessWidget {
         ],
       ),
       child: child,
-    );
-  }
-}
-
-class VPUserAvatar extends StatelessWidget {
-  final String name;
-  final String? imageUrl;
-  final Widget? indicator;
-  final double size;
-
-  static Widget get onlineIndicator => Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          color: AppColors.neonGreen,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.backgroundDark, width: 2),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.neonGreen.withValues(alpha: 0.5),
-                blurRadius: 8),
-          ],
-        ),
-      );
-
-  const VPUserAvatar({
-    super.key,
-    required this.name,
-    this.imageUrl,
-    this.indicator,
-    this.size = 80,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
-          children: [
-            VPAvatar(
-              imageUrl: imageUrl,
-              size: size,
-              borderColor: Colors.white.withValues(alpha: 0.1),
-            ),
-            if (indicator != null)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: indicator!,
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          name,
-          style: VpWidgets.googleFont(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-          ),
-        ),
-      ],
     );
   }
 }

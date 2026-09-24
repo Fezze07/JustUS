@@ -1,6 +1,5 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:justus/all_imports.dart';
@@ -52,17 +51,16 @@ class MediaPickerService {
 
     await showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.deepViolet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => VPSheet(
+        children: [
+          Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
-              title: Text(context.loc.drive_takePhoto, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_takePhoto, style: VpWidgets.googleFont(color: Colors.white)),
               onTap: () async {
                 pickedFile = await _picker.pickImage(
                   source: ImageSource.camera,
@@ -74,7 +72,7 @@ class MediaPickerService {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, color: AppColors.accentAqua),
-              title: Text(context.loc.drive_fromGallery, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_fromGallery, style: VpWidgets.googleFont(color: Colors.white)),
               onTap: () async {
                 pickedFile = await _picker.pickImage(
                   source: ImageSource.gallery,
@@ -86,7 +84,7 @@ class MediaPickerService {
             ),
             ListTile(
               leading: const Icon(Icons.library_music, color: AppColors.neonPurple),
-              title: Text(context.loc.drive_fromAudio, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_fromAudio, style: VpWidgets.googleFont(color: Colors.white)),
               onTap: () async {
                 pickedFile = await pickFileWith(FileType.audio);
                 if (context.mounted) Navigator.pop(context);
@@ -94,7 +92,7 @@ class MediaPickerService {
             ),
             ListTile(
               leading: const Icon(Icons.description, color: AppColors.accentAqua),
-              title: Text(context.loc.drive_fromDocuments, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              title: Text(context.loc.drive_fromDocuments, style: VpWidgets.googleFont(color: Colors.white)),
               onTap: () async {
                 pickedFile =
                     await pickFileWith(FileType.custom, allowedExtensions: ['pdf']);
@@ -103,6 +101,7 @@ class MediaPickerService {
             ),
           ],
         ),
+        ],
       ),
     );
 

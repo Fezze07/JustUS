@@ -73,10 +73,16 @@ class GameHistoryCard extends StatelessWidget {
             width: 50,
             child: Stack(
               children: [
-                VPMiniAvatar(imageUrl: userImageUrl),
+                VPAvatar(
+                    imageUrl: userImageUrl,
+                    size: 24,
+                    borderColor: AppColors.backgroundDark),
                 Positioned(
                   left: 16,
-                  child: VPMiniAvatar(imageUrl: partnerImageUrl),
+                  child: VPAvatar(
+                      imageUrl: partnerImageUrl,
+                      size: 24,
+                      borderColor: AppColors.backgroundDark),
                 ),
               ],
             ),

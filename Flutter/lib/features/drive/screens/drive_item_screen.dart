@@ -158,13 +158,14 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
 
   void _showReactionPicker() {
     const emojis = ['❤️', '😍', '🔥', '😂', '😮', '👏', '💯', '🥰'];
-    
+
     unawaited(showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => VPSheet(
+        children: [
+          Wrap(
             spacing: 16,
             runSpacing: 16,
             alignment: WrapAlignment.center,
@@ -178,7 +179,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
               );
             }).toList(),
           ),
-        ),
+        ],
       ),
     ));
   }
