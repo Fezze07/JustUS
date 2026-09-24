@@ -123,12 +123,12 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
 ## Partner Avatar Rendering & Profile Linking
 
 - File: [homepage_screen.dart:204-282](file:///f:/JustUS/Flutter/lib/features/home/screens/homepage_screen.dart#L204-L282)
-- **Layout**: Renders two circular avatar columns (`_AvatarColumn`) connected by a central glass node (`_GlassLinkNode`) and gradient line.
+- **Layout**: Renders two circular avatar columns (`VPUserAvatar`) connected by a central glass node (`_GlassLinkNode`) and gradient line.
 - **Data Binding**:
   - `ProfileState` selector listens for changes to user profile picture URL, partner profile picture URL, and anniversary date.
   - User avatar displays `context.loc.common_you` and user profile picture.
   - Partner avatar displays `auth.partnerDisplayName` and partner profile picture.
-  - Images are loaded via `Image.network` with error fallback to a default person icon (`Icons.person_rounded`).
+  - Images are loaded via `VPAvatar` → `ProtectedNetworkImage` (resolved signed R2 URL + auth headers, cached) with a person-icon placeholder.
 - **Days Together Pill**: Below avatars, if `anniversaryDate` is set, calculates days elapsed since anniversary using `AppDateUtils.daysSince(anniversary)` and displays total days together.
 
 ---
@@ -259,7 +259,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Heart Icon Pulse Animation | **IMPLEMENTED** | 2s continuous `AnimationController` loop |
 | Shared Counter Calculation | **IMPLEMENTED** | PostgreSQL row count via `missyou` table |
 | Realtime Event Broadcast & Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `missyou` INSERTs |
-| Partner Avatar & Days Together | **IMPLEMENTED** | `_AvatarColumn` + `AppDateUtils.daysSince()` |
+| Partner Avatar & Days Together | **IMPLEMENTED** | `VPUserAvatar` + `AppDateUtils.daysSince()` |
 | Local Storage & Cache Checkpoints | **IMPLEMENTED** | `StorageService` + `CacheService` checkpoints |
 | Startup App Version Check | **IMPLEMENTED** | `UpdateService.checkVersion()` via `/api/v1/app-version` |
 | Force Update UI Blocking | **IMPLEMENTED** | Non-dismissible `VPDialog` without "Later" button |

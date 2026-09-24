@@ -426,16 +426,6 @@ Three components register as `WidgetsBindingObserver`:
 
 **Confidence**: HIGH (verified at auth_state.dart:179, api_service.dart:19-23, api_service.dart:46-55).
 
-### F2: Homepage avatars bypass protected URL resolution
-
-**Evidence**: `homepage_screen.dart:674` - `_AvatarColumn` renders `Image.network(imageUrl!)` directly using `profilePicUrl` from the Supabase `user_profiles` table. Contrast with `VPAvatar` (vp_widgets.dart) and `VPMiniAvatar` (vp_mini_avatar.dart:17-29), both of which call `ApiService.resolveProtectedMediaUrl(imageUrl)` first.
-
-**What**: Profile pictures in Supabase `user_profiles.profile_pic_url` are stored as R2 object keys (e.g. `profile/{userId}/...`), not full HTTP URLs. `resolveProtectedMediaUrl()` rewrites these into `GET /api/v1/media/file?filename=...`. Without this rewrite, `Image.network` attempts to fetch a relative path as an HTTP URL and fails.
-
-**Impact**: The homepage partner avatar always fails to load and shows the errorBuilder placeholder (default person icon). The profile screen avatars work correctly because they use `VPAvatar` which resolves the URL.
-
-**Confidence**: MEDIUM - depends on the exact semantics of `profilePicUrl` at the time `HomepageScreen` renders. The upload flow (`profile_state.dart:113`) stores the r2Path from `MediaService.uploadProfilePicture`, which is the object key. If `v_active_partnership` or `fetchProfileByAuthId` returns a full URL instead, this would not be a bug. However, the codebase evidence (object key storage, backend `r2.service.js` object-key construction) strongly suggests it is an object key.
-
 ### F3: `RealtimeSyncService.resume()` is never called
 
 **Evidence**: `resume()` is declared at realtime_sync_service.dart. `suppress()` is called only at profile_screen.dart:95 (after data wipe). No call to `resume()` exists anywhere in the codebase (grep confirmed).

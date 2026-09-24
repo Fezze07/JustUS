@@ -10,18 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-class _C {
-  static const surface = Color(0xFF151219);
-  static const surfaceContainer = Color(0xFF211E26);
-  static const primary = Color(0xFFD4BBFF); // light lavender
-  static const primaryContainer = Color(0xFFB388FF); // neon purple
-  static const secondary = Color(0xFFFFB3AE); // soft red/pink
-  static const onSurface = Color(0xFFE7E0EA);
-  static const onSurfaceVariant = Color(0xFFCCC3D4);
-  static const outline = Color(0xFF958E9D);
-  static const outlineVariant = Color(0xFF4A4452);
-}
-
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
 
@@ -96,7 +84,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             top: -80,
             right: -80,
             child: _AtmosphericBlob(
-              color: _C.primaryContainer.withValues(alpha: 0.05),
+              color: AppColors.homePrimaryContainer.withValues(alpha: 0.05),
               size: MediaQuery.of(context).size.width * 0.7,
             ),
           ),
@@ -104,7 +92,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             bottom: 60,
             left: -120,
             child: _AtmosphericBlob(
-              color: const Color(0xFF46128D).withValues(alpha: 0.05),
+              color: AppColors.homeBlob.withValues(alpha: 0.05),
               size: MediaQuery.of(context).size.width * 0.85,
             ),
           ),
@@ -116,8 +104,8 @@ class _HomepageScreenState extends State<HomepageScreen>
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () => _loadData(force: true),
-                    color: _C.primaryContainer,
-                    backgroundColor: _C.surfaceContainer,
+                    color: AppColors.homePrimaryContainer,
+                    backgroundColor: AppColors.homeSurfaceContainer,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
@@ -150,7 +138,7 @@ class _HomepageScreenState extends State<HomepageScreen>
         height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          color: _C.surface.withValues(alpha: 0.8),
+          color: AppColors.homeSurface.withValues(alpha: 0.8),
           border: Border(
             bottom: BorderSide(
               color: Colors.white.withValues(alpha: 0.05),
@@ -162,7 +150,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             // Menu button
             _NavIconButton(
               icon: Icons.menu_rounded,
-              color: _C.primary,
+              color: AppColors.homePrimary,
               onTap: () {
                 unawaited(Navigator.push(
                   context,
@@ -175,10 +163,9 @@ class _HomepageScreenState extends State<HomepageScreen>
             Text(
               context.loc.appTitle,
               style: const TextStyle(
-                fontFamily: 'Inter',
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: _C.primary,
+                color: AppColors.homePrimary,
                 letterSpacing: -0.5,
               ),
             ),
@@ -188,7 +175,7 @@ class _HomepageScreenState extends State<HomepageScreen>
               scale: _pulseAnim,
               child: _NavIconButton(
                 icon: Icons.favorite_rounded,
-                color: _C.secondary,
+                color: AppColors.homeSecondary,
                   onTap: () {
                     MainShell.shellKey.currentState?.switchToTab(5);
                   },
@@ -224,7 +211,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                       borderRadius: BorderRadius.circular(120),
                       gradient: RadialGradient(
                         colors: [
-                          _C.primaryContainer.withValues(alpha: 0.15),
+                          AppColors.homePrimaryContainer.withValues(alpha: 0.15),
                           Colors.transparent,
                         ],
                       ),
@@ -243,7 +230,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                               gradient: LinearGradient(
                                 colors: [
                                   Colors.transparent,
-                                  _C.primaryContainer,
+                                  AppColors.homePrimaryContainer,
                                   Colors.transparent,
                                 ],
                               ),
@@ -253,15 +240,17 @@ class _HomepageScreenState extends State<HomepageScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _AvatarColumn(
-                              label: context.loc.common_you,
+                            VPUserAvatar(
+                              name: context.loc.common_you,
                               imageUrl: profileData.$1,
+                              size: 72,
                             ),
                             _GlassLinkNode(),
-                            _AvatarColumn(
-                              label: auth.partnerDisplayName ??
+                            VPUserAvatar(
+                              name: auth.partnerDisplayName ??
                                   context.loc.common_partnerUpper,
                               imageUrl: profileData.$2,
+                              size: 72,
                             ),
                           ],
                         ),
@@ -289,11 +278,11 @@ class _HomepageScreenState extends State<HomepageScreen>
         color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(9999),
         border: Border.all(
-          color: _C.primaryContainer.withValues(alpha: 0.3),
+          color: AppColors.homePrimaryContainer.withValues(alpha: 0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: _C.primaryContainer.withValues(alpha: 0.1),
+            color: AppColors.homePrimaryContainer.withValues(alpha: 0.1),
             blurRadius: 12,
           ),
         ],
@@ -304,10 +293,9 @@ class _HomepageScreenState extends State<HomepageScreen>
           Text(
             '$difference',
             style: const TextStyle(
-              fontFamily: 'Inter',
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: _C.primary,
+              color: AppColors.homePrimary,
               letterSpacing: -0.3,
             ),
           ),
@@ -315,10 +303,9 @@ class _HomepageScreenState extends State<HomepageScreen>
           Text(
             context.loc.home_daysTogether.toUpperCase(),
             style: const TextStyle(
-              fontFamily: 'Inter',
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: _C.onSurfaceVariant,
+              color: AppColors.homeOnSurfaceVariant,
               letterSpacing: 1.2,
             ),
           ),
@@ -343,10 +330,9 @@ class _HomepageScreenState extends State<HomepageScreen>
                     Text(
                       context.loc.home_currentMoodTitle.toUpperCase(),
                       style: const TextStyle(
-                        fontFamily: 'Inter',
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: _C.onSurfaceVariant,
+                        color: AppColors.homeOnSurfaceVariant,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -355,7 +341,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                       width: 32,
                       height: 2,
                       decoration: BoxDecoration(
-                        color: _C.primaryContainer,
+                        color: AppColors.homePrimaryContainer,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -364,7 +350,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                 const Spacer(),
                 _GlassIconButton(
                   icon: Icons.explore_rounded,
-                  color: _C.primaryContainer,
+                  color: AppColors.homePrimaryContainer,
                   onTap: () {
                     MainShell.shellKey.currentState?.switchToTab(2);
                   },
@@ -386,7 +372,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                   children: [
                     _EmojiDisplay(
                       emoji: moods.$1,
-                      glowColor: _C.primaryContainer,
+                      glowColor: AppColors.homePrimaryContainer,
                     ),
                     Container(
                       height: 48,
@@ -405,7 +391,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                     ),
                     _EmojiDisplay(
                       emoji: moods.$2,
-                      glowColor: _C.secondary,
+                      glowColor: AppColors.homeSecondary,
                     ),
                   ],
                 ),
@@ -465,10 +451,9 @@ class _HomepageScreenState extends State<HomepageScreen>
                   Text(
                     context.loc.home_bucketListTitle,
                     style: const TextStyle(
-                      fontFamily: 'Inter',
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: _C.onSurface,
+                      color: AppColors.homeOnSurface,
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -479,10 +464,9 @@ class _HomepageScreenState extends State<HomepageScreen>
                     child: Text(
                       context.loc.home_bucketListSubtitleDynamic(totalPending),
                       style: const TextStyle(
-                        fontFamily: 'Inter',
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: _C.primary,
+                        color: AppColors.homePrimary,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -500,7 +484,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: _C.primaryContainer,
+                      color: AppColors.homePrimaryContainer,
                     ),
                   ),
                 ),
@@ -511,9 +495,8 @@ class _HomepageScreenState extends State<HomepageScreen>
                 child: Text(
                   context.loc.bucket_emptyCategory,
                   style: const TextStyle(
-                    fontFamily: 'Inter',
                     fontSize: 14,
-                    color: _C.outlineVariant,
+                    color: AppColors.homeOutlineVariant,
                   ),
                 ),
               )
@@ -555,7 +538,6 @@ class _HomepageScreenState extends State<HomepageScreen>
               child: Text(
                 BucketCategory.localizedLabel(item.category, context.loc).toUpperCase(),
             style: TextStyle(
-                  fontFamily: 'Inter',
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: BucketCategory.colorFor(item.category),
@@ -568,10 +550,9 @@ class _HomepageScreenState extends State<HomepageScreen>
               child: Text(
                 item.text,
                 style: const TextStyle(
-                  fontFamily: 'Inter',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: _C.onSurfaceVariant,
+                  color: AppColors.homeOnSurfaceVariant,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -580,7 +561,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             const SizedBox(width: 8),
             const Icon(
               Icons.chevron_right_rounded,
-              color: _C.outline,
+              color: AppColors.homeOutline,
               size: 20,
             ),
           ],
@@ -611,7 +592,7 @@ class _GlassCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: const Color(0x661E1E1E), // rgba(30,30,30,0.4)
+        color: AppColors.homeGlass, // rgba(30,30,30,0.4)
         borderRadius: borderRadius ?? BorderRadius.circular(24),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.05),
@@ -652,60 +633,6 @@ class _NavIconButton extends StatelessWidget {
   }
 }
 
-/// Avatar + label column for the profile section.
-class _AvatarColumn extends StatelessWidget {
-  final String label;
-  final String? imageUrl;
-
-  const _AvatarColumn({required this.label, this.imageUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: _C.primaryContainer.withValues(alpha: 0.3),
-              width: 2,
-            ),
-            color: _C.surfaceContainer,
-          ),
-          child: ClipOval(
-            child: imageUrl != null && imageUrl!.isNotEmpty
-                ? Image.network(
-                    imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _defaultAvatar(),
-                  )
-                : _defaultAvatar(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: _C.onSurfaceVariant,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _defaultAvatar() => Container(
-        color: _C.surfaceContainer,
-        child: const Icon(Icons.person_rounded, color: _C.onSurfaceVariant),
-      );
-}
-
 /// The glassmorphic link node between the two avatars.
 class _GlassLinkNode extends StatelessWidget {
   @override
@@ -717,18 +644,18 @@ class _GlassLinkNode extends StatelessWidget {
         shape: BoxShape.circle,
         color: Colors.white.withValues(alpha: 0.06),
         border: Border.all(
-          color: _C.primaryContainer.withValues(alpha: 0.2),
+          color: AppColors.homePrimaryContainer.withValues(alpha: 0.2),
         ),
         boxShadow: [
           BoxShadow(
-            color: _C.primaryContainer.withValues(alpha: 0.3),
+            color: AppColors.homePrimaryContainer.withValues(alpha: 0.3),
             blurRadius: 14,
           ),
         ],
       ),
       child: const Icon(
         Icons.link_rounded,
-        color: _C.primary,
+        color: AppColors.homePrimary,
         size: 20,
       ),
     );
@@ -783,13 +710,13 @@ class _MissYouButton extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         gradient: LinearGradient(
           colors: [
-            _C.primaryContainer.withValues(alpha: 0.2),
-            _C.secondary.withValues(alpha: 0.2),
+            AppColors.homePrimaryContainer.withValues(alpha: 0.2),
+            AppColors.homeSecondary.withValues(alpha: 0.2),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: _C.primaryContainer.withValues(alpha: 0.15),
+            color: AppColors.homePrimaryContainer.withValues(alpha: 0.15),
             blurRadius: 20,
           ),
         ],
@@ -801,7 +728,7 @@ class _MissYouButton extends StatelessWidget {
             scale: pulseAnim,
             child: const Icon(
               Icons.favorite_rounded,
-              color: _C.secondary,
+              color: AppColors.homeSecondary,
               size: 18,
             ),
           ),
@@ -809,10 +736,9 @@ class _MissYouButton extends StatelessWidget {
           Text(
             context.loc.home_nudgeTitle.toUpperCase(),
             style: const TextStyle(
-              fontFamily: 'Inter',
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: _C.onSurface,
+              color: AppColors.homeOnSurface,
               letterSpacing: 1.5,
             ),
           ),
@@ -825,11 +751,10 @@ class _MissYouButton extends StatelessWidget {
             ),
             child: Text(
               '$count',
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _C.onSurface,
+style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.homeOnSurface,
               ),
             ),
           ),

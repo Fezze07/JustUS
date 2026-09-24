@@ -18,7 +18,7 @@ Design tokens are centralized in `core/theme/`:
 - `app_theme.dart` - `AppTheme.dark` / `AppTheme.light` Material 3 themes (Plus Jakarta Sans text theme, seeded color scheme, appBar/card/input/filledButton/dialog theme data).
 - `theme_provider.dart` - runtime mode holder; always starts `ThemeMode.dark`, reads/writes nothing (preference is never persisted).
 
-**Two coexisting design languages.** The VP system (deep-violet glass/punk) is used by all feature screens EXCEPT `HomepageScreen`, which ships a second, private "Midnight Glass" design (`homepage_screen.dart` lines 13-23 `_C` tokens, `_GlassCard`, `_GlassIconButton`, `_AvatarColumn`, `_MissYouButton`, ...). The homepage uses **zero** `AppColors` references (0 mentions), **11** hardcoded `Color(0x...)` values and **38** uses of its private `_C` palette; it also forces the `Inter` font family while the rest of the app uses Plus Jakarta Sans. This is a wholesale design-system bypass (see Findings F-DS1).
+**One design language.** All feature screens — including `HomepageScreen` — use the VP system (deep-violet glass/punk). The homepage no longer ships a private "Midnight Glass" palette: its former `_C` tokens were promoted into `AppColors` (the `AppColors.home*` family, app_colors.dart), it uses the theme's Plus Jakarta Sans font, and its avatars go through `VPAvatar`/`VPUserAvatar` (which resolves protected R2 URLs + auth headers). Still specialized to the homepage are the glass widgets (`_GlassCard`, `_GlassIconButton`, `_GlassLinkNode`, `_MissYouButton`, ...). (Finding F-DS1 resolved.)
 
 ---
 
@@ -303,13 +303,6 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 
 ## Findings
 
-### F-DS1: HomepageScreen bypasses the entire design system
-
-**What**: `HomepageScreen` defines a private token class `_C` (9 colors), 11 hardcoded `Color(0x...)` literals, zero `AppColors` usage, its own font family (`Inter`) instead of Plus Jakarta Sans, and 8 private "glass" widgets (`_GlassCard` 592, `_NavIconButton` 629, `_AvatarColumn` 650, `_GlassLinkNode` 704, `_EmojiDisplay` 733, `_MissYouButton` 764, `_GlassIconButton` 837, `_AtmosphericBlob` 867). It is the app's landing screen (tab 0).
-**Where**: homepage_screen.dart:13-23, 592-884.
-**Impact**: visual fragmentation; the main screen doesn't share the spacing/typography/radius language of every other screen; tokens duplicated and drift-prone.
-**Confidence**: HIGH.
-
 ### F-DS2: `VPButton` loading state collapses the layout
 
 **What**: when `isLoading` is set, `VPButton` returns a bare centered `CircularProgressIndicator` (vp_widgets.dart:251-255). The button vanishes, form layout jumps, and there is no disabled/loading semantics.
@@ -317,11 +310,11 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 **Impact**: every auth submit re-layouts; screen readers lose the button entirely.
 **Confidence**: HIGH.
 
-### F-DS3: Three divergent avatar implementations
+### F-DS3: Two divergent avatar implementations
 
-**What**: `VPAvatar` (resolved URL + cached + auth headers + placeholder/error), `VPMiniAvatar` (resolved URL + uncached `Image.network`, no auth header, error-only), and homepage `_AvatarColumn` (raw `Image.network` **without** `resolveProtectedMediaUrl`, homepage_screen.dart:674).
-**Where**: vp_widgets.dart:162-231, vp_mini_avatar.dart:5-49, homepage_screen.dart:650-701.
-**Impact**: the same domain concept rendered three ways; the homepage variant breaks on R2-protected URLs (no resolution → HTTP-scheme-less path fails) and none of the three are backed by a single component. The `_AvatarColumn` instance is also the reason homepage avatars are broken (see architecture doc F2).
+**What**: `VPAvatar` (resolved URL + cached + auth headers + placeholder/error) and `VPMiniAvatar` (resolved URL + uncached `Image.network`, no auth header, error-only). A third variant (`_AvatarColumn`, raw `Image.network` without `resolveProtectedMediaUrl`) existed on the homepage and was removed in todo 6.1 — the homepage now uses `VPUserAvatar` → `VPAvatar`.
+**Where**: vp_widgets.dart:162-231, vp_mini_avatar.dart:5-49.
+**Impact**: the same domain concept rendered two ways and neither variant is backed by a single component; `VPMiniAvatar` still skips the auth header (may fail on R2-protected URLs).
 **Confidence**: HIGH.
 
 ### F-DS4: Dead/redundant components
@@ -342,9 +335,9 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 
 **What**:
 - `VPFilterChip` inactive `Color(0xFF1E0B36)` (vp_filter_chip.dart:29) - a near-duplicate of `cardDark` `0xFF1A0B2E`; also `Colors.grey[300]`.
-- homepage `_C` palette + `Color(0x661E1E1E)` (homepage_screen.dart:608,107).
 - emoji picker `Color(0xFFA855F7)` (emoji_picker_sheet.dart:242).
 - pervasive `Colors.white54/70/24/38` literals across all feature screens (38+ hits outside `design_system`), hardcoded 40px/48px icon-box sizes, `Colors.red`/`green` for accept/reject and wipe buttons.
+- `homepage_screen.dart` translucent whites (`Colors.white.withValues(alpha: ...)`) for glass borders/sheen (the former `_C` palette + `0x661E1E1E` + `0xFF46128D` were promoted to `AppColors.home*` in todo 6.1).
 **Where**: multiple files ('features/**', 'shared/**').
 **Impact**: token drift; the centralized palette is not authoritative.
 **Confidence**: HIGH.
@@ -412,14 +405,14 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 | Central tokens (`AppColors`) | IMPLEMENTED (partial adoption) |
 | Central theme (`AppTheme` dark/light) | IMPLEMENTED (light unused) |
 | Branded core components (inputs, buttons, cards, dialogs, layout) | IMPLEMENTED |
-| Unified avatar component | PARTIALLY IMPLEMENTED (3 divergent variants) |
+| Unified avatar component | PARTIALLY IMPLEMENTED (2 divergent variants: `VPAvatar`, `VPMiniAvatar`; homepage migrated to `VPUserAvatar`) |
 | Unified loading component | NOT IMPLEMENTED (3 contenders, 2 dead) |
 | Unified dialog component | PARTIALLY IMPLEMENTED (VPDialog + ErrorDialog + raw AlertDialogs) |
 | Unified snackbar/toast | NOT IMPLEMENTED (2 systems) |
 | Accessibility (Semantics/Tooltip) | NOT IMPLEMENTED |
 | Localization inside DS | PARTIALLY IMPLEMENTED (emoji picker bypass) |
 | Light-mode support | NOT IMPLEMENTED |
-| Homepage alignment to DS | NOT IMPLEMENTED (wholesale bypass) |
+| Homepage alignment to DS | IMPLEMENTED (AppColors tokens, theme font, `VPUserAvatar` avatars) |
 | Dead component cleanup | NOT DONE (VPLoadingButton, VPLoadingOverlay, PartnerUserTile, PartnerRequestTile) |
 
 ---
@@ -430,4 +423,4 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - File naming is inconsistent: `vp_widgets.dart` hosts 15+ components while peer components each live in their own file; `VpWidgets` (helper class) vs `VP*` (components) capitalization differs.
 - No design-token dims/spacing file exists; every spacing (`SizedBox`, padding) is inline magic numbers.
 - No widget/storybook/golden tests exist for the DS (`Flutter/test/` has only state/API unit tests); a design-system regression is caught only visually.
-- Consistency recommendation: promote homepage `_C` into `AppColors`, unify on `ProtectedNetworkImage` for all avatars, delete dead components, route all buttons through one `VPButton`/`FilledButtonThemeData`, unify dialogs into `VPDialog`+`ErrorDialog`, pick one snackbar, and add `Semantics`/tooltips, plus an `errorText` slot on `VPTextField`.
+- Consistency recommendation: unify on `ProtectedNetworkImage` for all avatars (fold `VPMiniAvatar` into `VPAvatar`), delete dead components, route all buttons through one `VPButton`/`FilledButtonThemeData`, unify dialogs into `VPDialog`+`ErrorDialog`, pick one snackbar, and add `Semantics`/tooltips, plus an `errorText` slot on `VPTextField`.
