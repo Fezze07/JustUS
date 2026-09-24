@@ -22,6 +22,25 @@ class CompressionService {
     return File(result.path);
   }
 
+  /// Produces a small (<=320px) low-res JPEG thumbnail for gallery grids.
+  static Future<File> createThumbnail(File file) async {
+    final tempDir = await getTemporaryDirectory();
+    final targetPath =
+        '${tempDir.path}/thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      minWidth: 320,
+      minHeight: 320,
+      quality: 70,
+    );
+
+    if (result == null) return file;
+
+    return File(result.path);
+  }
+
   /// Compresses a video using medium H.264 quality.
   static Future<File> compressVideo(File file) async {
     final result = await LightCompressor().compressVideo(

@@ -65,7 +65,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Target**: Cloudflare R2 bucket (`env.r2BucketName`) — finalized objects under `uploads/` + `profile/`.
 - **Interval**: Every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Threshold**: Deletes unreferenced objects older than 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
-- **Logic**: Lists objects via `r2.service.listObjects` (keys + `LastModified`), builds the referenced-key set from `drive_items.filename` and `user_profiles.profile_pic_url`, then batch-deletes (`deleteObjects`) any listed object not referenced and older than the cutoff. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for failed upload completions. The 24 h cutoff exceeds the 300 s presigned-PUT lifetime so in-flight uploads are never swept.
+- **Logic**: Lists objects via `r2.service.listObjects` (keys + `LastModified`), builds the referenced-key set from `drive_items.filename`, `drive_items.metadata.thumbnail` (thumbnail objects), and `user_profiles.profile_pic_url`, then batch-deletes (`deleteObjects`) any listed object not referenced and older than the cutoff. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for failed upload completions. The 24 h cutoff exceeds the 300 s presigned-PUT lifetime so in-flight uploads are never swept.
 
 ---
 

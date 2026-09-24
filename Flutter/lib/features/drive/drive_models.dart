@@ -76,6 +76,13 @@ class DriveItem {
     };
   }
 
+  /// Grid-display R2 key: the small thumbnail when one exists (image uploads
+  /// after the thumbnail pipeline), otherwise the full-size key.
+  String get contentThumb {
+    final thumb = metadata?['thumbnail'];
+    return (thumb != null && thumb.isNotEmpty) ? thumb : content;
+  }
+
   DriveItem copyWith({
     int? id,
     String? type,

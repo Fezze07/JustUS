@@ -65,7 +65,7 @@ class DriveGridItem extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    final mediaUrl = ApiService.resolveProtectedMediaUrl(item.content);
+    final mediaUrl = ApiService.resolveProtectedMediaUrl(item.contentThumb);
 
     switch (item.type) {
       case 'image':

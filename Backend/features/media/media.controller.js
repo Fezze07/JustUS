@@ -40,17 +40,21 @@ const redirectToSignedDownloadController = asyncHandler(async (req, res) => {
 });
 
 const purgeR2Object = async (item, userId) => {
-  if (!item.filename || !isConfigured()) return;
+  if (!isConfigured()) return;
 
-  try {
-    await deleteObject(item.filename);
-  } catch (r2Error) {
-    await logError({
-      event: "media.delete.r2_cleanup_failed",
-      error: { message: r2Error?.message, name: r2Error?.name },
-      user_id: userId,
-      details: { drive_item_id: item.id, filename: item.filename },
-    });
+  const keys = [item.filename, item.metadata?.thumbnail ?? null].filter(Boolean);
+
+  for (const key of keys) {
+    try {
+      await deleteObject(key);
+    } catch (r2Error) {
+      await logError({
+        event: "media.delete.r2_cleanup_failed",
+        error: { message: r2Error?.message, name: r2Error?.name },
+        user_id: userId,
+        details: { drive_item_id: item.id, filename: key },
+      });
+    }
   }
 };
 
@@ -60,7 +64,7 @@ const deleteMediaController = asyncHandler(async (req, res) => {
 
   const { data: item, error } = await adminSupabase
     .from("drive_items")
-    .select("id, user_id, partner_id, filename")
+    .select("id, user_id, partner_id, filename, metadata")
     .eq("id", id)
     .maybeSingle();
 

@@ -93,6 +93,15 @@ class MediaService {
             'R2 upload failed [${uploadResult.statusCode}]: ${uploadResult.body}');
       }
 
+      // 5b. Thumbnail generation + upload (image drive items, best-effort)
+      String? thumbnailKey;
+      if (!skipRegistration && type == MediaType.image) {
+        thumbnailKey = await _uploadThumbnail(
+          source: file,
+          customFolder: customFolder,
+        );
+      }
+
       // 6. Register metadata via backend
       _logger.i('[MediaService] Registering metadata in backend...');
       final completeResult = await _api.completeMediaUpload({
@@ -104,6 +113,7 @@ class MediaService {
         'size': finalSize,
         'metadata': {
           'compressed': type == MediaType.image || type == MediaType.video,
+          if (thumbnailKey != null) 'thumbnail': thumbnailKey,
           if (partnerId != null) 'partner_id': partnerId,
         },
       });
@@ -141,6 +151,49 @@ class MediaService {
     );
 
     return result?['filename'] as String?;
+  }
+
+  /// Generates a low-res thumbnail and uploads it to R2 under the same prefix.
+  /// Returns the `uploads/...` storage key of the thumbnail, or `null` on any
+  /// failure (best-effort: a failed thumbnail never fails the main upload).
+  Future<String?> _uploadThumbnail({
+    required File source,
+    String? customFolder,
+  }) async {
+    try {
+      final thumbnail = await CompressionService.createThumbnail(source);
+      final thumbSize = await thumbnail.length();
+
+      final presignResult = await _api.createMediaUploadUrl({
+        'type': 'image',
+        'filename': 'thumb.jpg',
+        'mimeType': 'image/jpeg',
+        'size': thumbSize,
+        if (customFolder != null) 'folder': customFolder,
+      });
+
+      if (presignResult is! Success<Map<String, dynamic>>) return null;
+
+      final uploadUrl = presignResult.value['uploadUrl'] as String;
+      final thumbKey = presignResult.value['filename'] as String;
+
+      final result = await http.put(
+        Uri.parse(uploadUrl),
+        body: await thumbnail.readAsBytes(),
+        headers: {'Content-Type': 'image/jpeg'},
+      );
+
+      if (result.statusCode != 200) {
+        _logger.e('[MediaService] Thumbnail upload failed [${result.statusCode}]');
+        return null;
+      }
+
+      return thumbKey;
+    } catch (e, st) {
+      _logger.e('[MediaService] Thumbnail generation/upload failed',
+          error: e, stackTrace: st);
+      return null;
+    }
   }
 
   // ---------------------------------------------------------------------------

@@ -15,7 +15,8 @@ CREATE VIEW "public"."v_drive_dashboard" WITH (security_invoker=true) AS  SELECT
     ( SELECT json_agg(json_build_object('user_id', r.user_id, 'emoji_char', e.emoji_char)) AS json_agg
            FROM (public.drive_item_reactions r
              JOIN public.emojis e ON ((e.id = r.emoji_id)))
-          WHERE (r.item_id = d.id)) AS reactions
+          WHERE (r.item_id = d.id)) AS reactions,
+    d.metadata
    FROM (public.drive_items d
      LEFT JOIN public.drive_file_types ft ON ((ft.id = d.file_type_id)))
   WHERE public.is_in_partnership(d.partnership_id);

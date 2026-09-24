@@ -136,20 +136,28 @@ async function sweepStalMultipartUploads() {
 async function fetchReferencedKeys() {
   const referenced = new Set();
 
-  for (const { table, column } of [
-    { table: "drive_items", column: "filename" },
-    { table: "user_profiles", column: "profile_pic_url" },
-  ]) {
-    const { data, error } = await adminSupabase
-      .from(table)
-      .select(column)
-      .not(column, "is", null);
+  const drive = await adminSupabase
+    .from("drive_items")
+    .select("filename, metadata")
+    .not("filename", "is", null);
 
-    if (error) throw error;
+  if (drive.error) throw drive.error;
 
-    for (const row of data || []) {
-      if (row[column]) referenced.add(row[column]);
-    }
+  for (const row of drive.data || []) {
+    if (row.filename) referenced.add(row.filename);
+    const thumb = row.metadata?.thumbnail ?? row.metadata?.["thumbnail"];
+    if (typeof thumb === "string" && thumb) referenced.add(thumb);
+  }
+
+  const profile = await adminSupabase
+    .from("user_profiles")
+    .select("profile_pic_url")
+    .not("profile_pic_url", "is", null);
+
+  if (profile.error) throw profile.error;
+
+  for (const row of profile.data || []) {
+    if (row.profile_pic_url) referenced.add(row.profile_pic_url);
   }
 
   return referenced;

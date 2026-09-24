@@ -17,7 +17,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 | **Node.js Nonce Sweep** | `request_nonces` | Every 6h via `retentionJob.js` (`sweepExpiredNonces`) | Expired timestamp (`lt("expires_at", now)`) | **ACTIVE** | None |
 | **Node.js In-Memory Nonce Sweep** | `consumedNonces` Map | Every 10 min via `_sweepExpiredNonces()` | Expired timestamp | **ACTIVE** | None (Dual-layer) |
 | **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStalMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
-| **Node.js R2 Orphaned-Object Sweep** | Cloudflare R2 finalized objects under `uploads/` + `profile/` not referenced by `drive_items.filename` / `user_profiles.profile_pic_url` | Every 6h via `retentionJob.js` (`sweepStaleOrphanObjects`) | **24 hours** (`ORPHAN_MAX_AGE_MS`) | **ACTIVE** | None |
+| **Node.js R2 Orphaned-Object Sweep** | Cloudflare R2 finalized objects under `uploads/` + `profile/` not referenced by `drive_items.filename` / `drive_items.metadata.thumbnail` / `user_profiles.profile_pic_url` | Every 6h via `retentionJob.js` (`sweepStaleOrphanObjects`) | **24 hours** (`ORPHAN_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Flutter Media Cache** | Local R2 image/video files | Automated via `MediaCacheManager` (`flutter_cache_manager`) | **30 days** (`stalePeriod`) / **300 objects** | **ACTIVE** | None |
 | **Flutter Local Checkpoints** | `SharedPreferences` checkpoint keys | Cleared on user logout / data wipe | Indefinite until manual clear or logout | **ACTIVE** | None |
 
@@ -103,7 +103,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 ### 3b. Cloudflare R2 Orphaned-Finalized-Object Cleanup
 * **Target Bucket**: Cloudflare R2 `just-us` storage bucket — finalized objects under `uploads/` + `profile/`.
-* **Mechanism**: `sweepStaleOrphanObjects()` lists objects via `r2.service.listObjects` (returns `LastModified`), compares against referenced keys from `drive_items.filename` and `user_profiles.profile_pic_url`, and batch-deletes unreferenced objects (`deleteObjects`) older than the cutoff.
+* **Mechanism**: `sweepStaleOrphanObjects()` lists objects via `r2.service.listObjects` (returns `LastModified`), compares against referenced keys from `drive_items.filename`, `drive_items.metadata.thumbnail` (thumbnail objects from the 5.5 pipeline), and `user_profiles.profile_pic_url`, and batch-deletes unreferenced objects (`deleteObjects`) older than the cutoff.
 * **Execution Schedule**: Runs every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS`).
 * **Cutoff Period**: 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
 * **Grace Window Rationale**: A 24 h cutoff is well above the 300 s presigned-PUT lifetime, so uploads in flight (PUT done, `/complete` pending) are never swept.

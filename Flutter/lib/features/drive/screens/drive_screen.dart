@@ -315,7 +315,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
           children: [
             // CachedNetworkImage via MediaCacheManager: R2 filename → signed URL → cached locally
             CachedNetworkImage(
-              imageUrl: item.content,
+              imageUrl: item.contentThumb,
               cacheManager: MediaCacheManager(),
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(

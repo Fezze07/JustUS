@@ -47,15 +47,19 @@ class _R2FileService extends HttpFileService {
   @override
   Future<FileServiceResponse> get(String url,
       {Map<String, String>? headers}) async {
-    // Path validation: Must start with "users/" and have a minimum length to be a valid R2 path
-    // (e.g., "users/1/a.jpg" is 13 chars)
-    if (!url.startsWith('http') && url.startsWith('users/') && url.length > 10) {
+    // Path validation: Must be a bare R2 key (users/ | uploads/ | profile/)
+    // with a minimum length to be a valid R2 path (e.g., "users/1/a.jpg" = 13 chars)
+    final prefixes = ['users/', 'uploads/', 'profile/'];
+    final isBareKey = !url.startsWith('http') &&
+        prefixes.any((p) => url.startsWith(p)) &&
+        url.length > 10;
+    if (isBareKey) {
       final signedUrl = await _media.getDownloadUrl(url);
       if (signedUrl != null) {
         return super.get(signedUrl, headers: headers);
       }
     }
-    
+
     return super.get(url, headers: headers);
   }
 }
