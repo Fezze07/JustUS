@@ -206,13 +206,12 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 3. **Compression**: Executed third in `MediaService.uploadMedia()` ([media_service.dart:52-59](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L52-L59)). Compresses images/videos.
 4. **Upload**: Executed fourth after acquiring backend presigned PUT URL.
 
-### 15 MB Limit Analysis
+### 15 MB Size Limit (intended behavior)
 
-> [!IMPORTANT]
-> **Finding**: The 15 MB size limit (`15 * 1024 * 1024` bytes) is evaluated **BEFORE compression** on the client application ([media_service.dart:46](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46)).
->
-> - **Behavior**: If an uncompressed high-resolution image or raw video file is 16 MB on disk, `CompressionService.isWithinSizeLimit(file)` returns `false` and aborts upload immediately, even though client compression would have reduced its final size to ~2 MB.
-> - **Backend Check**: The backend API (`r2.service.js:59`) also validates file size against `env.maxUploadBytes` (15 MB), but receives `finalSize` (the post-compression size).
+The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source files**, evaluated **BEFORE compression** as a fast-fail guard on the client ([media_service.dart:46](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46)). This is intended behavior, not a defect (todo 5.4):
+
+- **Client Guard**: `CompressionService.isWithinSizeLimit(file)` rejects any original file larger than 15 MB immediately, before any compression work is started. Files at or under the cap are then compressed (~80% quality JPEG / medium H.264) so the payload that actually reaches R2 is typically far smaller.
+- **Backend Check**: The backend additionally validates the size sent at presign against `env.maxUploadBytes` (15 MB) in `r2.service.js`. That size is the **post-compression** `finalSize`, so the R2 upload itself never exceeds the cap.
 
 ---
 
@@ -300,25 +299,7 @@ Profile picture uploads share the underlying R2 storage pipeline with the Shared
 
 During reverse-engineering analysis, the following technical findings were identified:
 
-### 1. DEFECT: Orphaned R2 Storage Objects on Failed Upload Completion
-
-* **WHAT**: If direct HTTP PUT upload to R2 succeeds, but `completeMediaUpload` fails (due to network drop or app crash), the R2 object is orphaned.
-* **WHERE**: [media_service.dart:85-116](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L85-L116)
-* **WHY**: Upload to R2 and metadata registration in Supabase DB are two separate un-transactional HTTP calls.
-* **WHEN**: Network drops right after S3 PUT completes before sending `/complete-upload`.
-* **IMPACT**: Storage leak in R2 bucket with no corresponding database record.
-* **CONFIDENCE**: **HIGH**
-
-### 2. INCONSISTENCY: Pre-Compression Fast-Fail Rejects Valid Files
-
-* **WHAT**: Files larger than 15 MB on disk are rejected before compression is attempted.
-* **WHERE**: [media_service.dart:46](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46)
-* **WHY**: `CompressionService.isWithinSizeLimit(file)` checks `file.lengthSync() <= 15 MB` prior to calling `compressImage` / `compressVideo`.
-* **WHEN**: User selects a 16 MB high-resolution camera photo or video.
-* **IMPACT**: User receives a "File exceeds 15 MB limit" error, even though compression would have reduced file size well below 15 MB.
-* **CONFIDENCE**: **HIGH**
-
-### 3. LIMITATION: Missing Thumbnail Generation
+### 1. LIMITATION: Missing Thumbnail Generation
 
 * **WHAT**: Full-sized compressed media files are loaded directly into 3-column gallery grid views.
 * **WHERE**: [drive_screen.dart:317-333](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L317-L333)
@@ -327,7 +308,7 @@ During reverse-engineering analysis, the following technical findings were ident
 * **IMPACT**: Increased data consumption and slower grid rendering on mobile networks.
 * **CONFIDENCE**: **HIGH**
 
-### 4. LIMITATION: Unexposed UI Picker for Audio and PDF Files
+### 2. LIMITATION: Unexposed UI Picker for Audio and PDF Files
 
 * **WHAT**: `MediaService` and Backend API support uploading audio and PDF files, but `MediaPickerService` in `DriveScreen` only presents Camera and Gallery options.
 * **WHERE**: [media_picker_service.dart:27-42](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L27-L42)
@@ -354,6 +335,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `get_or_create_emoji` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
-| Post-Compression Size Check | **NOT IMPLEMENTED** | 15 MB size check runs before compression |
+| Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.filename` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
+| 15 MB Upload Size Cap | **IMPLEMENTED** | Deliberate 15 MB hard cap on source files: client fast-fail pre-compression (`CompressionService.isWithinSizeLimit`, media_service.dart:46) + backend presign validation on the post-compression `size` (`env.maxUploadBytes`) — intended behavior (todo 5.4), not a defect |
 | Media Thumbnail Generation | **NOT IMPLEMENTED** | Full-sized media loaded in grid view |
 | Audio / PDF Picker Button in UI | **NOT IMPLEMENTED** | Picker sheet lacks document/audio options |

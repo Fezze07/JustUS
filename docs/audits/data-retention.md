@@ -107,7 +107,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 * **Execution Schedule**: Runs every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS`).
 * **Cutoff Period**: 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
 * **Grace Window Rationale**: A 24 h cutoff is well above the 300 s presigned-PUT lifetime, so uploads in flight (PUT done, `/complete` pending) are never swept.
-* **Effectiveness**: **ACTIVE & NECESSARY**. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for aborted upload-completion (todo 5.3), guaranteeing no unbounded orphan accumulation.
+* **Effectiveness**: **ACTIVE & NECESSARY**. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for aborted upload-completions (todo 5.3, done 2026-09-23), guaranteeing no unbounded orphan accumulation.
 
 ---
 
