@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return result?.trim();
   }
 
-Future<void> _editDisplayName(User user) async {
+  Future<void> _editDisplayName(User user) async {
     final value = await _showTextEditDialog(
       title: context.loc.profile_displayNameTitle,
       fieldHint: context.loc.profile_displayNameTitle,
@@ -95,8 +95,7 @@ Future<void> _editDisplayName(User user) async {
     );
     if (!mounted || value == null || value == user.username) return;
 
-    final saved =
-        await context.read<ProfileState>().updateDisplayName(value);
+    final saved = await context.read<ProfileState>().updateDisplayName(value);
     if (saved && mounted) {
       UIUtils.showSnackBar(context, context.loc.profile_saved);
     }
@@ -106,24 +105,23 @@ Future<void> _editDisplayName(User user) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.deepViolet,
         title: Text(
           context.loc.profile_wipeConfirmTitle,
-          style:
-              const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              color: AppColors.danger, fontWeight: FontWeight.bold),
         ),
-        content: Text(
-          context.loc.profile_wipeConfirmContent,
-          style: const TextStyle(color: Colors.white70),
-        ),
+        content: Text(context.loc.profile_wipeConfirmContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.loc.profile_wipeCancel,
-                style: const TextStyle(color: Colors.white54)),
+            child: Text(context.loc.profile_wipeCancel),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              disabledBackgroundColor:
+                  AppButtonStyle.disabledBackground(AppColors.danger),
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: Text(context.loc.profile_wipeConfirm),
           ),
@@ -157,7 +155,8 @@ Future<void> _editDisplayName(User user) async {
       backgroundColor: AppColors.deepViolet,
       showAppBar: false,
       body: Selector<ProfileState, (User?, User?, bool, DateTime?)>(
-        selector: (_, s) => (s.userProfile, s.partnerProfile, s.isUploading, s.anniversaryDate),
+        selector: (_, s) =>
+            (s.userProfile, s.partnerProfile, s.isUploading, s.anniversaryDate),
         builder: (context, profileData, _) {
           final user = profileData.$1;
           final partner = profileData.$2;
@@ -215,7 +214,7 @@ Future<void> _editDisplayName(User user) async {
                             ],
                           ),
                           child: const Icon(Icons.favorite,
-                              color: Colors.white, size: 28),
+                              color: AppColors.contentPrimary, size: 28),
                         ),
                         // User Avatar (Left)
                         Positioned(
@@ -249,7 +248,7 @@ Future<void> _editDisplayName(User user) async {
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
                       fontStyle: FontStyle.italic,
-                      color: Colors.white,
+                      color: AppColors.contentPrimary,
                     ),
                   ),
 
@@ -261,7 +260,7 @@ Future<void> _editDisplayName(User user) async {
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppColors.punkPurple,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(
                           color: AppColors.neonPurple.withValues(alpha: 0.3)),
                     ),
@@ -287,16 +286,18 @@ Future<void> _editDisplayName(User user) async {
                   const SizedBox(height: 48),
 
                   // Settings Sections
-                  VPSectionHeader(title: context.loc.systemOverrideSectionTitle),
+                  VPSectionHeader(
+                      title: context.loc.systemOverrideSectionTitle),
                   VPSettingGroup(children: [
                     VPSettingTile(
                       icon: Icons.settings,
                       title: context.loc.languageSettingTitle,
                       subtitle: context.loc.languageSettingSubtitle,
                       trailing: const Icon(Icons.chevron_right,
-                          color: Colors.white54),
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonPurple,
-                      onTap: () => Navigator.pushNamed(context, '/localization'),
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/localization'),
                     ),
                     const VPDivider(),
                     VPSettingTile(
@@ -326,15 +327,17 @@ Future<void> _editDisplayName(User user) async {
                       title: context.loc.update_checkTitle,
                       subtitle: context.loc.update_checkSubtitle,
                       trailing: const Icon(Icons.chevron_right,
-                          color: Colors.white54),
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonBlue,
-                      onTap: () => UpdateService().checkVersion(context, showNoUpdateToast: true),
+                      onTap: () => UpdateService()
+                          .checkVersion(context, showNoUpdateToast: true),
                     ),
                   ]),
 
                   const SizedBox(height: 24),
 
-                  VPSectionHeader(title: context.loc.profile_coreConnectionSection),
+                  VPSectionHeader(
+                      title: context.loc.profile_coreConnectionSection),
                   VPSettingGroup(children: [
                     if (user?.partnershipCode != null) ...[
                       VPSettingTile(
@@ -342,14 +345,16 @@ Future<void> _editDisplayName(User user) async {
                         title: context.loc.profile_yourPartnerCodeTitle,
                         subtitle: context.loc
                             .profile_shareToConnect(user!.partnershipCode!),
-                        trailing: const Icon(Icons.copy, color: Colors.white54),
+                        trailing: const Icon(Icons.copy,
+                            color: AppColors.contentTertiary),
                         color: AppColors.neonPink,
                         onTap: () {
                           unawaited(Clipboard.setData(
                               ClipboardData(text: user.partnershipCode!)));
                           UIUtils.showSnackBar(
                               context,
-                              context.loc.profile_copiedCode(user.partnershipCode!),
+                              context.loc
+                                  .profile_copiedCode(user.partnershipCode!),
                               backgroundColor: AppColors.neonPink);
                         },
                       ),
@@ -360,7 +365,7 @@ Future<void> _editDisplayName(User user) async {
                       title: context.loc.auth_changePasswordTitle,
                       subtitle: context.loc.profile_changePasswordSubtitle,
                       trailing: const Icon(Icons.chevron_right,
-                          color: Colors.white54),
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonPurple,
                       onTap: () =>
                           Navigator.pushNamed(context, '/change-password'),
@@ -372,7 +377,8 @@ Future<void> _editDisplayName(User user) async {
                       subtitle: profileData.$4 != null
                           ? "${profileData.$4!.day}/${profileData.$4!.month}/${profileData.$4!.year}"
                           : context.loc.profile_anniversaryEmpty,
-                      trailing: const Icon(Icons.edit, color: Colors.white54),
+                      trailing: const Icon(Icons.edit,
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonPurple,
                       onTap: () async {
                         final profileState = context.read<ProfileState>();
@@ -386,7 +392,7 @@ Future<void> _editDisplayName(User user) async {
                               data: Theme.of(context).copyWith(
                                 colorScheme: const ColorScheme.dark(
                                   primary: AppColors.neonPurple,
-                                  onPrimary: Colors.white,
+                                  onPrimary: AppColors.contentPrimary,
                                   surface: AppColors.deepViolet,
                                 ),
                               ),
@@ -409,8 +415,8 @@ Future<void> _editDisplayName(User user) async {
                       icon: Icons.badge_outlined,
                       title: context.loc.profile_displayNameTitle,
                       subtitle: user?.username ?? context.loc.common_youTitle,
-                      trailing:
-                          const Icon(Icons.edit, color: Colors.white54),
+                      trailing: const Icon(Icons.edit,
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonGreen,
                       onTap: () {
                         if (user != null) unawaited(_editDisplayName(user));
@@ -420,15 +426,16 @@ Future<void> _editDisplayName(User user) async {
 
                   if (kDebugMode) ...[
                     const SizedBox(height: 48),
-                    VPSectionHeader(title: context.loc.profile_debugUtilitiesSection),
+                    VPSectionHeader(
+                        title: context.loc.profile_debugUtilitiesSection),
                     VPSettingGroup(children: [
                       VPSettingTile(
                         icon: Icons.delete_forever,
                         title: context.loc.profile_wipeDataTitle,
                         subtitle: context.loc.profile_wipeDataSubtitle,
                         trailing: const Icon(Icons.warning_amber_rounded,
-                            color: Colors.orange),
-                        color: Colors.orange,
+                            color: AppColors.warning),
+                        color: AppColors.warning,
                         onTap: _showWipeConfirmation,
                       ),
                     ]),
@@ -439,27 +446,27 @@ Future<void> _editDisplayName(User user) async {
                   // Logout Button
                   InkWell(
                     onTap: _logout,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: AppColors.deepViolet,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                            color: Colors.red.withValues(alpha: 0.5)),
+                            color: AppColors.danger.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.power_settings_new,
-                              color: Colors.red),
+                              color: AppColors.danger),
                           const SizedBox(width: 12),
                           Text(
                             context.loc.profile_disconnectSession,
                             style: VpWidgets.googleFont(
                               fontWeight: FontWeight.w900,
                               letterSpacing: 2,
-                              color: Colors.red,
+                              color: AppColors.danger,
                               fontSize: 12,
                             ),
                           ),
@@ -470,13 +477,14 @@ Future<void> _editDisplayName(User user) async {
 
                   const SizedBox(height: 32),
                   GestureDetector(
-                    onTap: () => UpdateService().checkVersion(context, showNoUpdateToast: true),
+                    onTap: () => UpdateService()
+                        .checkVersion(context, showNoUpdateToast: true),
                     child: Text(
                       context.loc.profile_appVersion(_appVersion),
                       style: VpWidgets.googleFont(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white30,
+                        color: AppColors.contentPlaceholder,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -533,13 +541,9 @@ class _TextEditDialogState extends State<_TextEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.deepViolet,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24)),
       title: Text(
         widget.title,
         style: VpWidgets.googleFont(
-          color: Colors.white,
           fontWeight: FontWeight.bold,
           fontSize: 18,
         ),
@@ -551,19 +555,19 @@ class _TextEditDialogState extends State<_TextEditDialog> {
         maxLines: widget.maxLines,
         minLines: widget.maxLines > 1 ? 2 : 1,
         maxLength: widget.maxLength,
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(color: AppColors.contentPrimary),
         decoration: InputDecoration(
           hintText: widget.fieldHint,
-          hintStyle: const TextStyle(color: Colors.white38),
+          hintStyle: const TextStyle(color: AppColors.contentDisabled),
           errorText: _errorText,
-          counterStyle: const TextStyle(color: Colors.white38),
+          counterStyle: const TextStyle(color: AppColors.contentDisabled),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-                color: AppColors.neonPurple.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderSide:
+                BorderSide(color: AppColors.neonPurple.withValues(alpha: 0.3)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             borderSide: const BorderSide(color: AppColors.neonPurple),
           ),
         ),
@@ -571,12 +575,9 @@ class _TextEditDialogState extends State<_TextEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(context.loc.common_cancel,
-              style: const TextStyle(color: Colors.white54)),
+          child: Text(context.loc.common_cancel),
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.neonPurple),
+        FilledButton(
           onPressed: () {
             final value = _controller.text.trim();
             if (!widget.allowEmpty && value.isEmpty) {
@@ -585,8 +586,7 @@ class _TextEditDialogState extends State<_TextEditDialog> {
             }
             Navigator.pop(context, value);
           },
-          child: Text(context.loc.common_save,
-              style: const TextStyle(color: Colors.white)),
+          child: Text(context.loc.common_save),
         ),
       ],
     );

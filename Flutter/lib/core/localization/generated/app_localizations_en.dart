@@ -97,6 +97,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get common_audio => 'Audio';
 
   @override
+  String get common_back => 'Back';
+
+  @override
+  String get common_more => 'More';
+
+  @override
+  String get common_showPassword => 'Show password';
+
+  @override
+  String get common_hidePassword => 'Hide password';
+
+  @override
+  String get nav_home => 'Home';
+
+  @override
+  String get nav_games => 'Games';
+
+  @override
+  String get nav_mood => 'Mood';
+
+  @override
+  String get nav_list => 'List';
+
+  @override
+  String get nav_drive => 'Drive';
+
+  @override
+  String get nav_favorites => 'Favorites';
+
+  @override
+  String get nav_profile => 'Profile';
+
+  @override
   String get auth_loginTitle => 'Welcome Back';
 
   @override
@@ -549,6 +582,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get drive_uploadInProgress => 'Upload in progress…';
+
+  @override
+  String get drive_addFavoriteTooltip => 'Add to favorites';
+
+  @override
+  String get drive_removeFavoriteTooltip => 'Remove from favorites';
+
+  @override
+  String get drive_reactTooltip => 'Add reaction';
+
+  @override
+  String get drive_playTooltip => 'Play';
+
+  @override
+  String get drive_pauseTooltip => 'Pause';
+
+  @override
+  String get drive_openTooltip => 'Open';
 
   @override
   String get bucket_categoryAll => 'All';

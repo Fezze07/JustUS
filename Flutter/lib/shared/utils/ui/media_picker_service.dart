@@ -55,52 +55,63 @@ class MediaPickerService {
       isScrollControlled: true,
       builder: (context) => VPSheet(
         children: [
-          Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
-              title: Text(context.loc.drive_takePhoto, style: VpWidgets.googleFont(color: Colors.white)),
-              onTap: () async {
-                pickedFile = await _picker.pickImage(
-                  source: ImageSource.camera,
-                  maxWidth: maxWidth,
-                  maxHeight: maxHeight,
-                );
-                if (context.mounted) Navigator.pop(context);
-              },
+          ListTile(
+            leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
+            title: Text(
+              context.loc.drive_takePhoto,
+              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: AppColors.accentAqua),
-              title: Text(context.loc.drive_fromGallery, style: VpWidgets.googleFont(color: Colors.white)),
-              onTap: () async {
-                pickedFile = await _picker.pickImage(
-                  source: ImageSource.gallery,
-                  maxWidth: maxWidth,
-                  maxHeight: maxHeight,
-                );
-                if (context.mounted) Navigator.pop(context);
-              },
+            onTap: () async {
+              pickedFile = await _picker.pickImage(
+                source: ImageSource.camera,
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
+              );
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading:
+                const Icon(Icons.photo_library, color: AppColors.accentAqua),
+            title: Text(
+              context.loc.drive_fromGallery,
+              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
             ),
-            ListTile(
-              leading: const Icon(Icons.library_music, color: AppColors.neonPurple),
-              title: Text(context.loc.drive_fromAudio, style: VpWidgets.googleFont(color: Colors.white)),
-              onTap: () async {
-                pickedFile = await pickFileWith(FileType.audio);
-                if (context.mounted) Navigator.pop(context);
-              },
+            onTap: () async {
+              pickedFile = await _picker.pickImage(
+                source: ImageSource.gallery,
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
+              );
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading:
+                const Icon(Icons.library_music, color: AppColors.neonPurple),
+            title: Text(
+              context.loc.drive_fromAudio,
+              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
             ),
-            ListTile(
-              leading: const Icon(Icons.description, color: AppColors.accentAqua),
-              title: Text(context.loc.drive_fromDocuments, style: VpWidgets.googleFont(color: Colors.white)),
-              onTap: () async {
-                pickedFile =
-                    await pickFileWith(FileType.custom, allowedExtensions: ['pdf']);
-                if (context.mounted) Navigator.pop(context);
-              },
+            onTap: () async {
+              pickedFile = await pickFileWith(FileType.audio);
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.description, color: AppColors.accentAqua),
+            title: Text(
+              context.loc.drive_fromDocuments,
+              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
             ),
-          ],
-        ),
+            onTap: () async {
+              pickedFile = await pickFileWith(
+                FileType.custom,
+                allowedExtensions: ['pdf'],
+              );
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
         ],
       ),
     );

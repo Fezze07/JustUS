@@ -167,84 +167,84 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
     final emojisToDisplay = _displayEmojis;
 
     return VPSheet(
-      title: 'Scegli il tuo Mood',
+      title: context.loc.mood_sheetTitle,
       maxHeightFactor: 0.85,
       children: [
         Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: VPTextField(
-                  controller: _emojiController,
-                  hint: context.loc.mood_enterEmoji,
-                  errorText: _errorText,
-                  onChanged: (_) {
-                    if (_errorText != null) {
-                      setState(() => _errorText = null);
-                    }
-                  },
-                  onSubmitted: (_) => _addEmoji(),
-                ),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: VPTextField(
+                controller: _emojiController,
+                hint: context.loc.mood_enterEmoji,
+                errorText: _errorText,
+                onChanged: (_) {
+                  if (_errorText != null) {
+                    setState(() => _errorText = null);
+                  }
+                },
+                onSubmitted: (_) => _addEmoji(),
               ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: _addEmoji,
-                child: Container(
-                  height: 56, // Match the typical TextField height
-                  width: 56,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFA855F7), AppColors.primary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+            ),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: _addEmoji,
+              child: Container(
+                height: 56, // Match the typical TextField height
+                width: 56,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.gradientAccent, AppColors.primary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 28),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _isLoadingEmojis
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary))
-                : GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 6,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                    itemCount: emojisToDisplay.length,
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        onTap: () =>
-                            _selectPredefinedEmoji(emojisToDisplay[index]),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(emojisToDisplay[index],
-                              style: const TextStyle(fontSize: 24)),
+                  ],
+                ),
+                child: const Icon(Icons.add,
+                    color: AppColors.contentPrimary, size: 28),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Divider(color: AppColors.surfaceOverlay),
+        const SizedBox(height: 16),
+        Expanded(
+          child: _isLoadingEmojis
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary))
+              : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 6,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: emojisToDisplay.length,
+                  itemBuilder: (context, index) {
+                    return GestureDetector(
+                      onTap: () =>
+                          _selectPredefinedEmoji(emojisToDisplay[index]),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.borderDark,
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        alignment: Alignment.center,
+                        child: Text(emojisToDisplay[index],
+                            style: const TextStyle(fontSize: 24)),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

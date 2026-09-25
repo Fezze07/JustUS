@@ -23,7 +23,7 @@ class DriveItemScreen extends StatefulWidget {
 class _DriveItemScreenState extends State<DriveItemScreen> {
   // Video handles
   VideoPlayerController? _videoController;
-  
+
   // Audio handles
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isAudioPlaying = false;
@@ -43,7 +43,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   Future<void> _initMedia() async {
     final driveState = context.read<DriveState>();
     final item = driveState.singleItem;
-    
+
     if (item == null) {
       return;
     }
@@ -138,7 +138,8 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
       if (_isAudioPlaying) {
         await _audioPlayer.pause();
       } else {
-        if (_audioPlayer.state == PlayerState.paused || _audioPlayer.state == PlayerState.completed) {
+        if (_audioPlayer.state == PlayerState.paused ||
+            _audioPlayer.state == PlayerState.completed) {
           await _audioPlayer.resume();
         } else {
           await _audioPlayer.play(UrlSource(url));
@@ -166,16 +167,22 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
       builder: (context) => VPSheet(
         children: [
           Wrap(
-            spacing: 16,
-            runSpacing: 16,
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.md,
             alignment: WrapAlignment.center,
             children: emojis.map((emoji) {
-              return InkWell(
-                onTap: () {
-                  unawaited(context.read<DriveState>().addReaction(widget.itemId, emoji));
-                  Navigator.pop(context);
-                },
-                child: Text(emoji, style: const TextStyle(fontSize: 40)),
+              return Semantics(
+                button: true,
+                label: context.loc.drive_reactTooltip,
+                child: InkWell(
+                  onTap: () {
+                    unawaited(context
+                        .read<DriveState>()
+                        .addReaction(widget.itemId, emoji));
+                    Navigator.pop(context);
+                  },
+                  child: Text(emoji, style: const TextStyle(fontSize: 40)),
+                ),
               );
             }).toList(),
           ),
@@ -197,7 +204,8 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
           ),
           FilledButton(
             onPressed: () {
-              unawaited(this.context.read<DriveState>().deleteItem(widget.itemId));
+              unawaited(
+                  this.context.read<DriveState>().deleteItem(widget.itemId));
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back
             },
@@ -211,10 +219,10 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12091D),
+      backgroundColor: AppColors.viewerBackdrop,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12091D),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.viewerBackdrop,
+        foregroundColor: AppColors.contentPrimary,
         actions: [
           Selector<DriveState, bool>(
             selector: (_, s) => s.singleItem?.isFavorite == 1,
@@ -223,17 +231,24 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
               return Row(
                 children: [
                   IconButton(
+                    tooltip: isFav
+                        ? context.loc.drive_removeFavoriteTooltip
+                        : context.loc.drive_addFavoriteTooltip,
                     icon: Icon(
                       isFav ? Icons.favorite : Icons.favorite_border,
-                      color: isFav ? Colors.red : Colors.white,
+                      color:
+                          isFav ? AppColors.danger : AppColors.contentPrimary,
                     ),
-                    onPressed: () => unawaited(driveState.toggleFavorite(widget.itemId)),
+                    onPressed: () =>
+                        unawaited(driveState.toggleFavorite(widget.itemId)),
                   ),
                   IconButton(
+                    tooltip: context.loc.drive_reactTooltip,
                     icon: const Icon(Icons.add_reaction_outlined),
                     onPressed: _showReactionPicker,
                   ),
                   IconButton(
+                    tooltip: context.loc.common_delete,
                     icon: const Icon(Icons.delete_outline),
                     onPressed: _confirmDelete,
                   ),
@@ -257,10 +272,9 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                   child: _buildContent(item),
                 ),
               ),
-              
               if (item.reactions.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Wrap(
                     spacing: 8,
                     children: item.reactions.map((emoji) {
@@ -284,60 +298,81 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
             fit: BoxFit.contain,
           ),
         );
-      
+
       case 'video':
         if (_hasError) {
           return _buildErrorWidget(context.loc.drive_videoError);
         }
         if (_videoController != null && _videoController!.value.isInitialized) {
-          return GestureDetector(
-            onTap: () {
-              if (_videoController!.value.isPlaying) {
-                unawaited(_videoController!.pause());
-              } else {
-                unawaited(_videoController!.play());
-              }
-              setState(() {});
-            },
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AspectRatio(
-                  aspectRatio: _videoController!.value.aspectRatio,
-                  child: VideoPlayer(_videoController!),
-                ),
-                if (!_videoController!.value.isPlaying)
-                  const Icon(Icons.play_circle, size: 80, color: Colors.white70),
-              ],
+          return Semantics(
+            button: true,
+            label: _videoController!.value.isPlaying
+                ? context.loc.drive_pauseTooltip
+                : context.loc.drive_playTooltip,
+            child: GestureDetector(
+              onTap: () {
+                if (_videoController!.value.isPlaying) {
+                  unawaited(_videoController!.pause());
+                } else {
+                  unawaited(_videoController!.play());
+                }
+                setState(() {});
+              },
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AspectRatio(
+                    aspectRatio: _videoController!.value.aspectRatio,
+                    child: VideoPlayer(_videoController!),
+                  ),
+                  if (!_videoController!.value.isPlaying)
+                    const Icon(Icons.play_circle,
+                        size: 80, color: AppColors.contentSecondary),
+                ],
+              ),
             ),
           );
         }
 
         return const CircularProgressIndicator();
-      
+
       case 'audio':
         if (_hasError) {
           return _buildErrorWidget(context.loc.drive_audioError);
         }
-        
+
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.audiotrack, size: 80, color: Colors.white),
-            const SizedBox(height: 24),
+            const Icon(Icons.audiotrack,
+                size: 80, color: AppColors.contentPrimary),
+            const SizedBox(height: AppSpacing.lg),
             Text(
               item.metadata?['filename'] ?? context.loc.common_audio,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+              style: const TextStyle(
+                  color: AppColors.contentPrimary, fontSize: 18),
             ),
-            const SizedBox(height: 32),
-            IconButton(
-              iconSize: 64,
-              icon: Icon(
-                _isAudioPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                color: Colors.white,
-              ),
-              onPressed: () => _toggleAudio(
-                ApiService.resolveProtectedMediaUrl(item.content) ?? item.content,
+            const SizedBox(height: AppSpacing.xl),
+            Semantics(
+              button: true,
+              label: _isAudioPlaying
+                  ? context.loc.drive_pauseTooltip
+                  : context.loc.drive_playTooltip,
+              child: IconButton(
+                iconSize: 64,
+                tooltip: _isAudioPlaying
+                    ? context.loc.drive_pauseTooltip
+                    : context.loc.drive_playTooltip,
+                icon: Icon(
+                  _isAudioPlaying
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_filled,
+                  color: AppColors.contentPrimary,
+                ),
+                onPressed: () => _toggleAudio(
+                  ApiService.resolveProtectedMediaUrl(item.content) ??
+                      item.content,
+                ),
               ),
             ),
             if (_audioMsgDuration.inSeconds > 0)
@@ -346,15 +381,22 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                 child: Column(
                   children: [
                     Slider(
-                      value: _audioMsgPosition.inSeconds.toDouble().clamp(0, _audioMsgDuration.inSeconds.toDouble()),
+                      value: _audioMsgPosition.inSeconds
+                          .toDouble()
+                          .clamp(0, _audioMsgDuration.inSeconds.toDouble()),
                       max: _audioMsgDuration.inSeconds.toDouble(),
-                      onChanged: (v) => unawaited(_audioPlayer.seek(Duration(seconds: v.toInt()))),
+                      onChanged: (v) => unawaited(
+                          _audioPlayer.seek(Duration(seconds: v.toInt()))),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(_formatDuration(_audioMsgPosition), style: const TextStyle(color: Colors.grey)),
-                        Text(_formatDuration(_audioMsgDuration), style: const TextStyle(color: Colors.grey)),
+                        Text(_formatDuration(_audioMsgPosition),
+                            style:
+                                const TextStyle(color: AppColors.neutralText)),
+                        Text(_formatDuration(_audioMsgDuration),
+                            style:
+                                const TextStyle(color: AppColors.neutralText)),
                       ],
                     ),
                   ],
@@ -362,16 +404,18 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
               ),
           ],
         );
-      
+
       default:
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.insert_drive_file, size: 100, color: Colors.white),
-            const SizedBox(height: 16),
+            const Icon(Icons.insert_drive_file,
+                size: 100, color: AppColors.contentPrimary),
+            const SizedBox(height: AppSpacing.md),
             Text(
               item.metadata?['filename'] ?? context.loc.common_file,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+              style: const TextStyle(
+                  color: AppColors.contentPrimary, fontSize: 18),
             ),
           ],
         );
@@ -382,13 +426,16 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.error_outline, size: 80, color: Colors.red),
-        const SizedBox(height: 16),
-        Text(title, style: const TextStyle(color: Colors.white)),
+        const Icon(Icons.error_outline, size: 80, color: AppColors.danger),
+        const SizedBox(height: AppSpacing.md),
+        Text(title, style: const TextStyle(color: AppColors.contentPrimary)),
         if (_errorMessage != null)
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(_errorMessage!, style: const TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Text(_errorMessage!,
+                style:
+                    const TextStyle(color: AppColors.neutralText, fontSize: 12),
+                textAlign: TextAlign.center),
           ),
       ],
     );

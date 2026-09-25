@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:justus/core/localization/localization_extensions.dart';
+import 'package:justus/all_imports.dart';
 
 class UIUtils {
   /// Mostra una SnackBar con logica speciale per il Debug:
   /// Se siamo in debug e c'è un errore, la SnackBar non si chiude finché l'utente non preme "CHIUDI".
   static void showSnackBar(
-    BuildContext context, 
+    BuildContext context,
     String message, {
     bool isError = false,
     Color? backgroundColor,
@@ -34,15 +34,16 @@ class UIUtils {
   }) {
     final snackBar = SnackBar(
       content: Text(message, key: UniqueKey()),
-      backgroundColor: backgroundColor ?? (isError ? Colors.red.shade800 : null),
+      backgroundColor:
+          backgroundColor ?? (isError ? AppColors.dangerSurface : null),
       behavior: SnackBarBehavior.floating,
-      duration: (isError && kDebugMode) 
+      duration: (isError && kDebugMode)
           ? const Duration(days: 365)
           : const Duration(seconds: 4),
       action: (isError && kDebugMode)
           ? SnackBarAction(
               label: closeLabel,
-              textColor: Colors.white,
+              textColor: AppColors.contentPrimary,
               onPressed: () {
                 messenger.hideCurrentSnackBar();
               },

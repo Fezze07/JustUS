@@ -55,7 +55,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     context.loc.partner_title,
                     textAlign: TextAlign.center,
                     style: VpWidgets.googleFont(
-                      color: Colors.white,
+                      color: AppColors.contentPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
@@ -71,7 +71,9 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   final partner = profileState.partnerProfile;
                   final sentInvitations = authState.sentInvitations;
                   final receivedInvitations = authState.receivedInvitations;
-                  AnsiLogger.auth('Building with ${sentInvitations.length} sent, ${receivedInvitations.length} received', tag: 'PartnerScreen');
+                  AnsiLogger.auth(
+                      'Building with ${sentInvitations.length} sent, ${receivedInvitations.length} received',
+                      tag: 'PartnerScreen');
 
                   return RefreshIndicator(
                     onRefresh: () async {
@@ -113,8 +115,8 @@ class _PartnerScreenState extends State<PartnerScreen> {
                                         unawaited(Navigator.pushReplacement(
                                           context,
                                           MaterialPageRoute(
-                                              builder: (_) =>
-                                                  MainShell(key: MainShell.shellKey)),
+                                              builder: (_) => MainShell(
+                                                  key: MainShell.shellKey)),
                                         ));
                                       },
                                     ),
@@ -136,21 +138,24 @@ class _PartnerScreenState extends State<PartnerScreen> {
                           if (receivedInvitations.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _buildInvitationsList(
-                                context.loc.partner_receivedRequests, receivedInvitations,
+                                context.loc.partner_receivedRequests,
+                                receivedInvitations,
                                 isReceived: true),
                           ],
 
                           if (sentInvitations.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _buildInvitationsList(
-                                context.loc.partner_sentRequests, sentInvitations,
+                                context.loc.partner_sentRequests,
+                                sentInvitations,
                                 isReceived: false),
                           ] else if (sentInvitations.isEmpty &&
                               receivedInvitations.isEmpty &&
                               kDebugMode) ...[
                             const SizedBox(height: 32),
                             Text(context.loc.partner_noPendingInvites,
-                                style: const TextStyle(color: Colors.white24)),
+                                style: const TextStyle(
+                                    color: AppColors.contentHint)),
                           ],
                         ],
                       ),
@@ -168,12 +173,12 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   LogoutUtils.showLogoutDialog(
                       context, () => LogoutUtils.performLogout(context));
                 },
-                icon: const Icon(Icons.logout, color: Colors.white),
+                icon: const Icon(Icons.logout, color: AppColors.contentPrimary),
                 label: Text(
                   context.loc.partner_logout,
                   style: VpWidgets.googleFont(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.contentPrimary,
                   ),
                 ),
               ),
@@ -224,11 +229,11 @@ class _PartnerScreenState extends State<PartnerScreen> {
                         color: AppColors.primary,
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: Colors.black26, blurRadius: 4)
+                          BoxShadow(color: AppColors.shadowSoft, blurRadius: 4)
                         ],
                       ),
                       child: const Icon(Icons.favorite,
-                          size: 16, color: Colors.white),
+                          size: 16, color: AppColors.contentPrimary),
                     ),
                   ),
               ],
@@ -240,7 +245,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.contentPrimary,
             ),
           ),
           Text(
@@ -294,7 +299,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.contentPrimary,
             ),
           ),
           Text(
@@ -321,7 +326,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
           child: Text(
             title,
             style: VpWidgets.googleFont(
-              color: Colors.white54,
+              color: AppColors.contentTertiary,
               fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -342,10 +347,12 @@ class _PartnerScreenState extends State<PartnerScreen> {
               invite: invite,
               isReceived: isReceived,
               onAccept: () async {
-                AnsiLogger.auth('Accepting invitation ${invite.id}...', tag: 'PartnerScreen');
+                AnsiLogger.auth('Accepting invitation ${invite.id}...',
+                    tag: 'PartnerScreen');
                 final success =
                     await context.read<AuthState>().acceptInvitation(invite.id);
-                AnsiLogger.auth('Acceptance success: $success', tag: 'PartnerScreen');
+                AnsiLogger.auth('Acceptance success: $success',
+                    tag: 'PartnerScreen');
 
                 if (success && mounted) {
                   if (mounted) {
@@ -362,8 +369,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     ));
                   }
                 } else if (!success && mounted) {
-                  UIUtils.showSnackBar(
-                      context, context.loc.partner_acceptError,
+                  UIUtils.showSnackBar(context, context.loc.partner_acceptError,
                       isError: true);
                 }
               },
@@ -388,7 +394,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
           Text(
             context.loc.partner_personalCodeTitle,
             style: VpWidgets.googleFont(
-              color: Colors.white54,
+              color: AppColors.contentTertiary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -401,7 +407,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
               Text(
                 code,
                 style: VpWidgets.googleFont(
-                  color: Colors.white,
+                  color: AppColors.contentPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 4,
@@ -411,8 +417,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
               IconButton(
                 onPressed: () {
                   unawaited(Clipboard.setData(ClipboardData(text: code)));
-                  UIUtils.showSnackBar(
-                      context, context.loc.partner_codeCopied);
+                  UIUtils.showSnackBar(context, context.loc.partner_codeCopied);
                 },
                 icon: const Icon(Icons.copy_rounded,
                     color: AppColors.primary, size: 24),
@@ -428,7 +433,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             context.loc.partner_personalCodeSubtitle,
             textAlign: TextAlign.center,
             style: VpWidgets.googleFont(
-              color: Colors.white38,
+              color: AppColors.contentDisabled,
               fontSize: 12,
               height: 1.4,
             ),

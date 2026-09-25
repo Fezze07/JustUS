@@ -141,7 +141,7 @@ class _HomepageScreenState extends State<HomepageScreen>
           color: AppColors.homeSurface.withValues(alpha: 0.8),
           border: Border(
             bottom: BorderSide(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.borderDark,
             ),
           ),
         ),
@@ -176,9 +176,9 @@ class _HomepageScreenState extends State<HomepageScreen>
               child: _NavIconButton(
                 icon: Icons.favorite_rounded,
                 color: AppColors.homeSecondary,
-                  onTap: () {
-                    MainShell.shellKey.currentState?.switchToTab(5);
-                  },
+                onTap: () {
+                  MainShell.shellKey.currentState?.switchToTab(5);
+                },
               ),
             ),
           ],
@@ -208,10 +208,11 @@ class _HomepageScreenState extends State<HomepageScreen>
                     width: 240,
                     height: 80,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(120),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                       gradient: RadialGradient(
                         colors: [
-                          AppColors.homePrimaryContainer.withValues(alpha: 0.15),
+                          AppColors.homePrimaryContainer
+                              .withValues(alpha: 0.15),
                           Colors.transparent,
                         ],
                       ),
@@ -275,8 +276,8 @@ class _HomepageScreenState extends State<HomepageScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(9999),
+        color: AppColors.contentPrimary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(
           color: AppColors.homePrimaryContainer.withValues(alpha: 0.3),
         ),
@@ -342,7 +343,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                       height: 2,
                       decoration: BoxDecoration(
                         color: AppColors.homePrimaryContainer,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
                     ),
                   ],
@@ -377,13 +378,13 @@ class _HomepageScreenState extends State<HomepageScreen>
                     Container(
                       height: 48,
                       width: 1,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.white.withValues(alpha: 0.2),
+                            AppColors.surfaceGlass,
                             Colors.transparent,
                           ],
                         ),
@@ -520,7 +521,7 @@ class _HomepageScreenState extends State<HomepageScreen>
       },
       child: _GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Row(
           children: [
             // Category chip
@@ -529,15 +530,16 @@ class _HomepageScreenState extends State<HomepageScreen>
               decoration: BoxDecoration(
                 color: BucketCategory.colorFor(item.category)
                     .withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(9999),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
                 border: Border.all(
                   color: BucketCategory.colorFor(item.category)
                       .withValues(alpha: 0.35),
                 ),
               ),
               child: Text(
-                BucketCategory.localizedLabel(item.category, context.loc).toUpperCase(),
-            style: TextStyle(
+                BucketCategory.localizedLabel(item.category, context.loc)
+                    .toUpperCase(),
+                style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: BucketCategory.colorFor(item.category),
@@ -593,16 +595,16 @@ class _GlassCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: AppColors.homeGlass, // rgba(30,30,30,0.4)
-        borderRadius: borderRadius ?? BorderRadius.circular(24),
+        borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppColors.borderDark,
         ),
         // Simulate backdrop-filter via gradient sheen
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: 0.04),
+            AppColors.contentPrimary.withValues(alpha: 0.04),
             Colors.transparent,
           ],
         ),
@@ -642,7 +644,7 @@ class _GlassLinkNode extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: 0.06),
+        color: AppColors.contentPrimary.withValues(alpha: 0.06),
         border: Border.all(
           color: AppColors.homePrimaryContainer.withValues(alpha: 0.2),
         ),
@@ -705,9 +707,9 @@ class _MissYouButton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(9999),
-        color: Colors.white.withValues(alpha: 0.05),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        color: AppColors.borderDark,
+        border: Border.all(color: AppColors.surfaceOverlay),
         gradient: LinearGradient(
           colors: [
             AppColors.homePrimaryContainer.withValues(alpha: 0.2),
@@ -746,15 +748,15 @@ class _MissYouButton extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(9999),
+              color: AppColors.surfaceOverlay,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Text(
               '$count',
-style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.homeOnSurface,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.homeOnSurface,
               ),
             ),
           ),
@@ -784,9 +786,10 @@ class _GlassIconButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.white.withValues(alpha: 0.08),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          color: AppColors.contentPrimary.withValues(alpha: 0.08),
+          border: Border.all(
+              color: AppColors.contentPrimary.withValues(alpha: 0.07)),
         ),
         child: Icon(icon, color: color, size: 22),
       ),

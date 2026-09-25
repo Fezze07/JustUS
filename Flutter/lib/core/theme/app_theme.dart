@@ -2,6 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
+import 'app_dimens.dart';
+import 'app_radius.dart';
+
+/// Shared button geometry and disabled palette.
+///
+/// `AppTheme` feeds this into `FilledButtonThemeData`, `VPButton` only adds a
+/// background override, and outlined variants reuse [shape]/[padding]/
+/// [minimumSize] — so every button variant in the app shares one look.
+class AppButtonStyle {
+  AppButtonStyle._();
+
+  static OutlinedBorder get shape =>
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md));
+
+  static EdgeInsetsGeometry get padding =>
+      const EdgeInsets.symmetric(vertical: AppSpacing.md);
+
+  static Size get minimumSize => const Size(0, AppDims.buttonMinHeight);
+
+  static const Color foreground = AppColors.contentPrimary;
+  static const Color disabledForeground = AppColors.contentSecondary;
+
+  /// `backgroundColor` at 60% — the disabled look of every primary action.
+  static Color disabledBackground(Color background) =>
+      background.withValues(alpha: 0.6);
+}
 
 class AppTheme {
   AppTheme._();
@@ -55,7 +81,7 @@ class AppTheme {
         elevation: 0,
         color: isDark ? AppColors.cardDark : AppColors.cardLight,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           side: isDark
               ? BorderSide(color: AppColors.borderDark)
               : BorderSide.none,
@@ -63,25 +89,42 @@ class AppTheme {
         margin: EdgeInsets.zero,
       ),
       inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          foregroundColor: AppButtonStyle.foreground,
+          disabledBackgroundColor:
+              AppButtonStyle.disabledBackground(AppColors.primary),
+          disabledForegroundColor: AppButtonStyle.disabledForeground,
+          padding: AppButtonStyle.padding,
+          minimumSize: AppButtonStyle.minimumSize,
+          shape: AppButtonStyle.shape,
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.neonBlue),
+      ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.cardDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
         titleTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: isDark ? AppColors.contentPrimary : AppColors.textLight,
+        ),
+        contentTextStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          color: isDark ? AppColors.contentSecondary : AppColors.textLight,
         ),
       ),
     );

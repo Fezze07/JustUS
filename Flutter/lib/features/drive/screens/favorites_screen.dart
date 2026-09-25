@@ -10,7 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class FavoritesScreen extends TabScreen {
-  const FavoritesScreen({super.key, required super.tabIndex, required super.tabNotifier});
+  const FavoritesScreen(
+      {super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
@@ -38,7 +39,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
         elevation: 0,
         titleTextStyle: VpWidgets.googleFont(
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: AppColors.contentPrimary,
           fontSize: 18,
         ),
       ),
@@ -73,7 +74,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
                   Text(
                     context.loc.drive_noFavoritesSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey,
+                          color: AppColors.neutralText,
                         ),
                     textAlign: TextAlign.center,
                   ),

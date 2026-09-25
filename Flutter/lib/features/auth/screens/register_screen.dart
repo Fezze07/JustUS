@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // RegisterScreen - Violet-Punk Style
 // =============================================================================
 
@@ -53,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         VPTextField(
           controller: _passwordController,
           label: context.loc.auth_passwordLabel,
-          hint: '••••••••••',
+          hint: '����������',
           icon: Icons.lock_outline,
           isPassword: true,
           obscureText: _obscurePassword,
@@ -110,7 +110,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       title: context.loc.auth_confirmEmailTitle,
                       content: Text(
                         context.loc.auth_confirmEmailMessage(email),
-                        style: VpWidgets.googleFont(color: Colors.white70),
+                        style: VpWidgets.googleFont(
+                            color: AppColors.contentSecondary),
                       ),
                       actions: [
                         TextButton(
@@ -120,8 +121,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                           child: Text(
                             context.loc.auth_goToLogin,
-                            style: VpWidgets.googleFont(
-                                color: AppColors.primary),
+                            style:
+                                VpWidgets.googleFont(color: AppColors.primary),
                           ),
                         ),
                       ],

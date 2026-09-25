@@ -44,7 +44,8 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
         children: [
           Text(
             context.loc.partner_inviteDescription,
-            style: VpWidgets.googleFont(color: Colors.white70, fontSize: 14),
+            style: VpWidgets.googleFont(
+                color: AppColors.contentSecondary, fontSize: 14),
           ),
           const SizedBox(height: 16),
           VPTextField(
@@ -66,7 +67,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             context.loc.common_cancel,
-            style: VpWidgets.googleFont(color: Colors.white60),
+            style: VpWidgets.googleFont(color: AppColors.contentFaint),
           ),
         ),
         Consumer<AuthState>(
@@ -79,7 +80,8 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
                 final email = emailController.text.trim();
                 final code = codeController.text.trim();
                 if (email.isEmpty || code.isEmpty) {
-                  UIUtils.showSnackBar(context, context.loc.partner_fillAllFields,
+                  UIUtils.showSnackBar(
+                      context, context.loc.partner_fillAllFields,
                       isError: true);
 
                   return;
@@ -90,7 +92,8 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
 
                 if (success) {
                   Navigator.pop(context);
-                  UIUtils.showSnackBar(context, context.loc.partner_inviteSuccess);
+                  UIUtils.showSnackBar(
+                      context, context.loc.partner_inviteSuccess);
                 }
               },
             );

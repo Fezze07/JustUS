@@ -10,13 +10,15 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 class BucketListScreen extends TabScreen {
-  const BucketListScreen({super.key, required super.tabIndex, required super.tabNotifier});
+  const BucketListScreen(
+      {super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<BucketListScreen> createState() => _BucketListScreenState();
 }
 
-class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin {
+class _BucketListScreenState extends State<BucketListScreen>
+    with TabScreenMixin {
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
@@ -44,9 +46,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.cardDark,
-          title: Text(context.loc.bucket_addGoalTitle,
-              style: const TextStyle(color: Colors.white)),
+          title: Text(context.loc.bucket_addGoalTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,23 +55,24 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                 controller: _addController,
                 hint: context.loc.bucket_goalHint,
               ),
-              const SizedBox(height: 16),
-              Text(context.loc.bucket_categoryLabel,
-                  style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.md),
+              Text(context.loc.bucket_categoryLabel),
+              const SizedBox(height: AppSpacing.sm),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: BucketCategory.items
                     .map((cat) => ChoiceChip(
-                          label: Text(BucketCategory.localizedLabel(cat, context.loc)),
+                          label: Text(
+                              BucketCategory.localizedLabel(cat, context.loc)),
                           selected: selectedAddCategory == cat,
                           selectedColor: BucketCategory.colorFor(cat),
                           backgroundColor: AppColors.backgroundDark,
                           labelStyle: TextStyle(
                             color: selectedAddCategory == cat
-                                ? Colors.white
-                                : BucketCategory.colorFor(cat).withValues(alpha: 0.7),
+                                ? AppColors.contentPrimary
+                                : BucketCategory.colorFor(cat)
+                                    .withValues(alpha: 0.7),
                           ),
                           onSelected: (selected) {
                             if (selected) {
@@ -86,8 +87,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.loc.common_cancel,
-                  style: const TextStyle(color: Colors.white54)),
+              child: Text(context.loc.common_cancel),
             ),
             TextButton(
               onPressed: () {
@@ -100,8 +100,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                 }
                 Navigator.pop(context);
               },
-              child: Text(context.loc.bucket_add,
-                  style: const TextStyle(color: AppColors.neonBlue)),
+              child: Text(context.loc.bucket_add),
             ),
           ],
         ),
@@ -114,6 +113,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
     return VPScaffold(
       showAppBar: false,
       floatingActionButton: FloatingActionButton(
+        tooltip: context.loc.bucket_add,
         onPressed: _showAddDialog,
         backgroundColor: AppColors.neonBlue,
         child: const Icon(Icons.add, color: AppColors.backgroundDark),
@@ -135,7 +135,8 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                     .map((cat) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text(BucketCategory.localizedLabel(cat, context.loc)),
+                            label: Text(BucketCategory.localizedLabel(
+                                cat, context.loc)),
                             selected: _selectedCategory == cat,
                             selectedColor: cat == BucketCategory.all
                                 ? AppColors.neonBlue
@@ -145,8 +146,9 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                               color: _selectedCategory == cat
                                   ? AppColors.backgroundDark
                                   : cat == BucketCategory.all
-                                      ? Colors.white70
-                                      : BucketCategory.colorFor(cat).withValues(alpha: 0.7),
+                                      ? AppColors.contentSecondary
+                                      : BucketCategory.colorFor(cat)
+                                          .withValues(alpha: 0.7),
                               fontWeight: _selectedCategory == cat
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -197,11 +199,12 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                       );
                     }
 
-                    final filteredItems = _selectedCategory == BucketCategory.all
-                        ? items
-                        : items
-                            .where((i) => i.category == _selectedCategory)
-                            .toList();
+                    final filteredItems =
+                        _selectedCategory == BucketCategory.all
+                            ? items
+                            : items
+                                .where((i) => i.category == _selectedCategory)
+                                .toList();
 
                     if (filteredItems.isEmpty) {
                       return ListView(
@@ -225,7 +228,8 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                       itemBuilder: (context, index) {
                         final item = filteredItems[index];
 
-                        return _buildBucketItem(item, context.read<BucketState>());
+                        return _buildBucketItem(
+                            item, context.read<BucketState>());
                       },
                     );
                   },
@@ -248,10 +252,10 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.danger.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete, color: AppColors.contentPrimary),
       ),
       onDismissed: (direction) {
         // Optimistic local removal — filters the item out on the very next
@@ -260,12 +264,10 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
         unawaited(state.deleteItem(item.id));
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDone
-              ? Colors.white.withValues(alpha: 0.05)
-              : AppColors.cardDark,
-          borderRadius: BorderRadius.circular(16),
+          color: isDone ? AppColors.borderDark : AppColors.cardDark,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isDone
                 ? Colors.transparent
@@ -275,7 +277,8 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
               ? []
               : [
                   BoxShadow(
-                    color: BucketCategory.colorFor(item.category).withValues(alpha: 0.1),
+                    color: BucketCategory.colorFor(item.category)
+                        .withValues(alpha: 0.1),
                     blurRadius: 10,
                   )
                 ],
@@ -283,41 +286,45 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
         child: Row(
           children: [
             // Checkbox
-            GestureDetector(
-              onTap: () {
-                final originalItem =
-                    state.items.firstWhere((i) => i.id == item.id);
-                final currentDone = _pendingChanges.containsKey(item.id)
-                    ? _pendingChanges[item.id] ?? originalItem.done
-                    : originalItem.done;
-                final newDone = !currentDone;
-                setState(() {
-                  if (newDone == originalItem.done) {
-                    _pendingChanges.remove(item.id);
-                  } else {
-                    _pendingChanges[item.id] = newDone;
-                  }
-                });
-                unawaited(state.toggleDone(item.id, newDone));
-              },
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: isDone ? AppColors.neonBlue : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: AppColors.neonBlue,
-                    width: 2,
+            Semantics(
+              checked: isDone,
+              label: item.text,
+              child: GestureDetector(
+                onTap: () {
+                  final originalItem =
+                      state.items.firstWhere((i) => i.id == item.id);
+                  final currentDone = _pendingChanges.containsKey(item.id)
+                      ? _pendingChanges[item.id] ?? originalItem.done
+                      : originalItem.done;
+                  final newDone = !currentDone;
+                  setState(() {
+                    if (newDone == originalItem.done) {
+                      _pendingChanges.remove(item.id);
+                    } else {
+                      _pendingChanges[item.id] = newDone;
+                    }
+                  });
+                  unawaited(state.toggleDone(item.id, newDone));
+                },
+                child: Container(
+                  width: AppDims.checkbox,
+                  height: AppDims.checkbox,
+                  decoration: BoxDecoration(
+                    color: isDone ? AppColors.neonBlue : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                    border: Border.all(
+                      color: AppColors.neonBlue,
+                      width: AppDims.hairline * 2,
+                    ),
                   ),
+                  child: isDone
+                      ? const Icon(Icons.check,
+                          size: 16, color: AppColors.backgroundDark)
+                      : null,
                 ),
-                child: isDone
-                    ? const Icon(Icons.check,
-                        size: 16, color: AppColors.backgroundDark)
-                    : null,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppSpacing.md),
             // Content
             Expanded(
               child: Column(
@@ -332,27 +339,30 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                           style: VpWidgets.googleFont(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: isDone ? Colors.white38 : Colors.white,
+                            color: isDone
+                                ? AppColors.contentDisabled
+                                : AppColors.contentPrimary,
                             decoration:
                                 isDone ? TextDecoration.lineThrough : null,
-                            decorationColor: Colors.white38,
+                            decorationColor: AppColors.contentDisabled,
                           ),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
                         decoration: BoxDecoration(
                           color: BucketCategory.colorFor(item.category)
                               .withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(
                             color: BucketCategory.colorFor(item.category)
                                 .withValues(alpha: 0.5),
                           ),
                         ),
                         child: Text(
-                          BucketCategory.localizedLabel(item.category, context.loc),
+                          BucketCategory.localizedLabel(
+                              item.category, context.loc),
                           style: VpWidgets.googleFont(
                             fontSize: 10,
                             color: BucketCategory.colorFor(item.category),
@@ -368,7 +378,7 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
                         .bucket_createdOn(item.createdAt.split('T').first),
                     style: VpWidgets.googleFont(
                       fontSize: 12,
-                      color: Colors.white38,
+                      color: AppColors.contentDisabled,
                     ),
                   ),
                 ],
@@ -386,12 +396,10 @@ class _BucketListScreenState extends State<BucketListScreen> with TabScreenMixin
         text,
         textAlign: TextAlign.center,
         style: VpWidgets.googleFont(
-          color: Colors.white54,
+          color: AppColors.contentTertiary,
           fontSize: 16,
         ),
       ),
     );
   }
-
-
 }

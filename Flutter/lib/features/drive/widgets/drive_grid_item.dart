@@ -22,44 +22,50 @@ class DriveGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Content
-          ClipRect(child: _buildContent()),
+    return Semantics(
+      button: true,
+      label: context.loc.drive_openTooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Content
+            ClipRect(child: _buildContent()),
 
-          // Favorite indicator
-          if (item.isFavorite == 1)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
+            // Favorite indicator
+            if (item.isFavorite == 1)
+              Positioned(
+                top: AppSpacing.xs,
+                right: AppSpacing.xs,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: AppColors.scrim,
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                  ),
+                  child: const Icon(Icons.favorite,
+                      color: AppColors.danger, size: 16),
                 ),
-                child: const Icon(Icons.favorite, color: Colors.red, size: 16),
               ),
-            ),
 
-          // Video indicator
-          if (item.type == 'video')
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
+            // Video indicator
+            if (item.type == 'video')
+              Positioned(
+                bottom: AppSpacing.xs,
+                right: AppSpacing.xs,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: AppColors.scrim,
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                  ),
+                  child: const Icon(Icons.videocam,
+                      color: AppColors.contentPrimary, size: 14),
                 ),
-                child: const Icon(Icons.videocam, color: Colors.white, size: 14),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -71,7 +77,7 @@ class DriveGridItem extends StatelessWidget {
       case 'image':
         if (mediaUrl == null) {
           return Container(
-            color: Colors.grey[300],
+            color: AppColors.neutralMuted,
             child: const Icon(Icons.broken_image),
           );
         }
@@ -81,31 +87,31 @@ class DriveGridItem extends StatelessWidget {
           httpHeaders: ApiService.authHeaders,
           fit: BoxFit.cover,
           placeholder: (_, __) => Container(
-            color: Colors.grey[300],
+            color: AppColors.neutralMuted,
             child: const Center(child: CircularProgressIndicator()),
           ),
           errorWidget: (_, __, ___) => Container(
-            color: Colors.grey[300],
+            color: AppColors.neutralMuted,
             child: const Icon(Icons.broken_image),
           ),
         );
       case 'video':
         return mediaUrl == null
             ? Container(
-                color: Colors.grey[300],
+                color: AppColors.neutralMuted,
                 child: const Icon(Icons.broken_image),
               )
             : _VideoThumbnail(url: mediaUrl);
       case 'audio':
         return Container(
-          color: Colors.blue[100],
+          color: AppColors.infoSurface,
           child: const Center(
-            child: Icon(Icons.audiotrack, size: 48, color: Colors.blue),
+            child: Icon(Icons.audiotrack, size: 48, color: AppColors.info),
           ),
         );
       default:
         return Container(
-          color: Colors.grey[300],
+          color: AppColors.neutralMuted,
           child: const Center(
             child: Icon(Icons.insert_drive_file, size: 48),
           ),
@@ -157,7 +163,7 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
   Widget build(BuildContext context) {
     if (!_initialized) {
       return Container(
-        color: Colors.grey[800],
+        color: AppColors.neutralStrong,
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
@@ -174,9 +180,10 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
           ),
         ),
         Container(
-          color: Colors.black26,
+          color: AppColors.shadowSoft,
           child: const Center(
-            child: Icon(Icons.play_circle_outline, size: 40, color: Colors.white70),
+            child: Icon(Icons.play_circle_outline,
+                size: 40, color: AppColors.contentSecondary),
           ),
         ),
       ],

@@ -23,15 +23,14 @@ class VPSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    const shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(AppRadius.sheet),
+      ),
+    );
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(24, 20, 24, bottomInset + 24),
-      height: maxHeightFactor != null
-          ? MediaQuery.of(context).size.height * maxHeightFactor!
-          : null,
+    return DecoratedBox(
       decoration: const BoxDecoration(
-        color: AppColors.cardDark,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
           BoxShadow(
             color: AppColors.neonPurple,
@@ -40,32 +39,50 @@ class VPSheet extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            margin: const EdgeInsets.only(bottom: 24),
+      // The sheet owns its own `Material` so that Material-based children
+      // (ListTile, InkWell) paint their ink on the sheet surface. Without it
+      // they would paint on the modal route's Material hidden behind the
+      // sheet's background, and in debug mode ListTile asserts with
+      // "ListTile background color or ink splashes may be invisible".
+      child: Material(
+        color: AppColors.cardDark,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            bottomInset + AppSpacing.lg,
           ),
-          if (title != null) ...[
-            Text(
-              title!,
-              textAlign: TextAlign.center,
-              style: VpWidgets.googleFont(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: AppDims.circleButton,
+                height: AppSpacing.xs,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceTrack,
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
+                ),
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
-          ...children,
-        ],
+              if (title != null) ...[
+                Text(
+                  title!,
+                  textAlign: TextAlign.center,
+                  style: VpWidgets.googleFont(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.contentPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+              ...children,
+            ],
+          ),
+        ),
       ),
     );
   }

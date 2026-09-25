@@ -36,15 +36,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+    return VPScaffold(
+      showAppBar: false,
       body: SafeArea(
         child: Column(
           children: [
             VPHeader(title: context.loc.auth_changePasswordTitle),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -54,10 +54,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         context.loc.auth_changePasswordSubtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: Colors.white54,
+                          color: AppColors.contentTertiary,
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: AppSpacing.xl),
 
                       // Old Password
                       VPTextField(
@@ -70,7 +70,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         hint: context.loc.auth_currentPasswordHint,
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppSpacing.lg),
 
                       // New Password
                       VPTextField(
@@ -83,7 +83,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         hint: context.loc.auth_newPasswordHint,
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppSpacing.lg),
 
                       // Confirm Password
                       VPTextField(
@@ -96,7 +96,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         hint: context.loc.auth_confirmPasswordHint,
                       ),
 
-                      const SizedBox(height: 48),
+                      const SizedBox(height: AppDims.formSectionGap),
 
                       // Update Button
                       Consumer<AuthState>(

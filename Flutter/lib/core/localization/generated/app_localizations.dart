@@ -272,6 +272,72 @@ abstract class AppLocalizations {
   /// **'Audio'**
   String get common_audio;
 
+  /// No description provided for @common_back.
+  ///
+  /// In it, this message translates to:
+  /// **'Indietro'**
+  String get common_back;
+
+  /// No description provided for @common_more.
+  ///
+  /// In it, this message translates to:
+  /// **'Altro'**
+  String get common_more;
+
+  /// No description provided for @common_showPassword.
+  ///
+  /// In it, this message translates to:
+  /// **'Mostra password'**
+  String get common_showPassword;
+
+  /// No description provided for @common_hidePassword.
+  ///
+  /// In it, this message translates to:
+  /// **'Nascondi password'**
+  String get common_hidePassword;
+
+  /// No description provided for @nav_home.
+  ///
+  /// In it, this message translates to:
+  /// **'Home'**
+  String get nav_home;
+
+  /// No description provided for @nav_games.
+  ///
+  /// In it, this message translates to:
+  /// **'Giochi'**
+  String get nav_games;
+
+  /// No description provided for @nav_mood.
+  ///
+  /// In it, this message translates to:
+  /// **'Mood'**
+  String get nav_mood;
+
+  /// No description provided for @nav_list.
+  ///
+  /// In it, this message translates to:
+  /// **'Lista'**
+  String get nav_list;
+
+  /// No description provided for @nav_drive.
+  ///
+  /// In it, this message translates to:
+  /// **'Drive'**
+  String get nav_drive;
+
+  /// No description provided for @nav_favorites.
+  ///
+  /// In it, this message translates to:
+  /// **'Preferiti'**
+  String get nav_favorites;
+
+  /// No description provided for @nav_profile.
+  ///
+  /// In it, this message translates to:
+  /// **'Profilo'**
+  String get nav_profile;
+
   /// No description provided for @auth_loginTitle.
   ///
   /// In it, this message translates to:
@@ -1141,6 +1207,42 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Caricamento in corso…'**
   String get drive_uploadInProgress;
+
+  /// No description provided for @drive_addFavoriteTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi ai preferiti'**
+  String get drive_addFavoriteTooltip;
+
+  /// No description provided for @drive_removeFavoriteTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimuovi dai preferiti'**
+  String get drive_removeFavoriteTooltip;
+
+  /// No description provided for @drive_reactTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi reazione'**
+  String get drive_reactTooltip;
+
+  /// No description provided for @drive_playTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Riproduci'**
+  String get drive_playTooltip;
+
+  /// No description provided for @drive_pauseTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Pausa'**
+  String get drive_pauseTooltip;
+
+  /// No description provided for @drive_openTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri'**
+  String get drive_openTooltip;
 
   /// No description provided for @bucket_categoryAll.
   ///

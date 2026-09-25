@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
@@ -11,25 +10,24 @@ class LogoutUtils {
     unawaited(showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardDark,
-        title: Text(context.loc.logout_title,
-            style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-        content: Text(context.loc.logout_message,
-            style: GoogleFonts.plusJakartaSans(color: Colors.white70)),
+        title: Text(context.loc.logout_title),
+        content: Text(context.loc.logout_message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.loc.logout_cancel,
-                style: GoogleFonts.plusJakartaSans(color: Colors.white54)),
+            child: Text(context.loc.logout_cancel),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.neonPink),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.neonPink,
+              disabledBackgroundColor:
+                  AppButtonStyle.disabledBackground(AppColors.neonPink),
+            ),
             onPressed: () {
               Navigator.pop(context);
               onConfirm();
             },
-            child: Text(context.loc.logout_confirm,
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+            child: Text(context.loc.logout_confirm),
           ),
         ],
       ),

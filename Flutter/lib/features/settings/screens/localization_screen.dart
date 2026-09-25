@@ -28,7 +28,7 @@ class LocalizationScreen extends StatelessWidget {
                   loc.settingsSubtitle,
                   textAlign: TextAlign.center,
                   style: VpWidgets.googleFont(
-                    color: Colors.white54,
+                    color: AppColors.contentTertiary,
                     fontSize: 13,
                     letterSpacing: 0.4,
                   ),
@@ -37,12 +37,15 @@ class LocalizationScreen extends StatelessWidget {
                 VPSectionHeader(title: loc.languageSectionTitle),
                 VPSettingGroup(
                   children: [
-                    for (var i = 0; i < languageProvider.supportedLanguages.length; i++) ...[
+                    for (var i = 0;
+                        i < languageProvider.supportedLanguages.length;
+                        i++) ...[
                       _LanguageTile(
                         language: languageProvider.supportedLanguages[i],
                         selectedCode: languageProvider.locale.languageCode,
                       ),
-                      if (i < languageProvider.supportedLanguages.length - 1) const VPDivider(),
+                      if (i < languageProvider.supportedLanguages.length - 1)
+                        const VPDivider(),
                     ],
                   ],
                 ),
@@ -54,7 +57,8 @@ class LocalizationScreen extends StatelessWidget {
                       icon: Icons.auto_awesome,
                       title: loc.aiTranslationReadyTitle,
                       subtitle: loc.aiTranslationReadySubtitle,
-                      trailing: const Icon(Icons.psychology, color: Colors.white54),
+                      trailing: const Icon(Icons.psychology,
+                          color: AppColors.contentTertiary),
                       color: AppColors.neonPurple,
                     ),
                   ],
@@ -87,13 +91,15 @@ class _LanguageTile extends StatelessWidget {
       subtitle: '${context.loc.currentLanguageLabel}: ${language.englishName}',
       trailing: Icon(
         isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-        color: isSelected ? AppColors.neonGreen : Colors.white38,
+        color: isSelected ? AppColors.neonGreen : AppColors.contentDisabled,
       ),
       color: isSelected ? AppColors.neonGreen : AppColors.neonBlue,
       onTap: isSelected
           ? null
           : () async {
-              await context.read<LanguageProvider>().setLanguageCode(language.code);
+              await context
+                  .read<LanguageProvider>()
+                  .setLanguageCode(language.code);
               if (!context.mounted) return;
 
               UIUtils.showSnackBar(

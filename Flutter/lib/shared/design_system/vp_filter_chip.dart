@@ -21,40 +21,53 @@ class VPFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.neonPurple : const Color(0xFF1E0B36),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: AppColors.neonPurple.withValues(alpha: 0.3),
+    return Semantics(
+      button: true,
+      selected: isActive,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.sm,
           ),
-          boxShadow: isActive ? [
-            const BoxShadow(
-              color: AppColors.neonPurple,
-              blurRadius: 8,
-            )
-          ] : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: iconColor),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.plusJakartaSans(
-                color: isActive ? Colors.white : Colors.grey[300],
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.neonPurple : AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: AppColors.neonPurple.withValues(alpha: 0.3),
             ),
-          ],
+            boxShadow: isActive
+                ? const [
+                    BoxShadow(
+                      color: AppColors.neonPurple,
+                      blurRadius: 8,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: iconColor),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+              Text(
+                label.toUpperCase(),
+                style: GoogleFonts.plusJakartaSans(
+                  color: isActive
+                      ? AppColors.contentPrimary
+                      : AppColors.neutralMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

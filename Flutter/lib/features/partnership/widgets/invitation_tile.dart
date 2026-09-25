@@ -22,7 +22,7 @@ class InvitationTile extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.cardDark,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -48,7 +48,7 @@ class InvitationTile extends StatelessWidget {
                 Text(
                   invite.username,
                   style: GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
+                    color: AppColors.contentPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -58,7 +58,7 @@ class InvitationTile extends StatelessWidget {
                       ? context.loc.partner_wantsToConnect
                       : context.loc.partner_waitingResponse,
                   style: GoogleFonts.plusJakartaSans(
-                    color: Colors.white54,
+                    color: AppColors.contentTertiary,
                     fontSize: 12,
                   ),
                 ),
@@ -79,7 +79,8 @@ class InvitationTile extends StatelessWidget {
           ] else
             IconButton(
               onPressed: onReject,
-              icon: const Icon(Icons.delete_outline, color: Colors.white54),
+              icon: const Icon(Icons.delete_outline,
+                  color: AppColors.contentTertiary),
               tooltip: context.loc.partner_cancelRequestTooltip,
             ),
         ],

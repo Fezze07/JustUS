@@ -24,7 +24,8 @@ import 'package:justus/all_imports.dart';
 class ErrorHandler {
   ErrorHandler._();
 
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
   static OverlayEntry? _currentOverlay;
 
   /// Gestisce un errore con contesto (per UI).
@@ -67,7 +68,7 @@ class ErrorHandler {
 
   static AppError _toAppError(Object error) {
     if (error is AppError) return error;
-    
+
     if (error is GenericError) {
       if (error.details is AppError) {
         return error.details as AppError;
@@ -94,10 +95,16 @@ class ErrorHandler {
         return AppError(code: ErrorCodes.dbNotFound001, message: error.message);
       }
       if (error.code?.startsWith('23') ?? false) {
-        return AppError(code: ErrorCodes.dbWrite001, message: error.message, severity: ErrorSeverity.medium);
+        return AppError(
+            code: ErrorCodes.dbWrite001,
+            message: error.message,
+            severity: ErrorSeverity.medium);
       }
 
-      return AppError(code: ErrorCodes.dbRead001, message: error.message, severity: ErrorSeverity.medium);
+      return AppError(
+          code: ErrorCodes.dbRead001,
+          message: error.message,
+          severity: ErrorSeverity.medium);
     }
 
     // Errori di rete
@@ -118,7 +125,8 @@ class ErrorHandler {
   // ---------------------------------------------------------------------------
 
   static void _log(AppError err, StackTrace? stackTrace) {
-    AnsiLogger.error('┌── AppError ──────────────────────────────', tag: 'ErrorHandler');
+    AnsiLogger.error('┌── AppError ──────────────────────────────',
+        tag: 'ErrorHandler');
     AnsiLogger.error('│  code:     ${err.code}', tag: 'ErrorHandler');
     AnsiLogger.error('│  message:  ${err.message}', tag: 'ErrorHandler');
     if (err.requestId != null) {
@@ -130,7 +138,8 @@ class ErrorHandler {
     if (stackTrace != null) {
       AnsiLogger.error('│  stack:\n$stackTrace', tag: 'ErrorHandler');
     }
-    AnsiLogger.error('└──────────────────────────────────────────', tag: 'ErrorHandler');
+    AnsiLogger.error('└──────────────────────────────────────────',
+        tag: 'ErrorHandler');
   }
 
   // ---------------------------------------------------------------------------
@@ -139,8 +148,8 @@ class ErrorHandler {
 
   static void _showUI(BuildContext context, AppError err) {
     final message = kDebugMode
-        ? '[${err.code}] ${err.message}'   // debug: tecnico
-        : err.userMessage(context.loc);                  // produzione: user-friendly
+        ? '[${err.code}] ${err.message}' // debug: tecnico
+        : err.userMessage(context.loc); // produzione: user-friendly
 
     if (err.requiresReauth) {
       _showReauthDialog(context, err);
@@ -178,7 +187,7 @@ class ErrorHandler {
       builder: (context) {
         // Calcola il bottom includendo la tastiera
         final bottomOffset = MediaQuery.viewInsetsOf(context).bottom + 40;
-        
+
         return Positioned(
           bottom: bottomOffset,
           left: 16,
@@ -188,18 +197,22 @@ class ErrorHandler {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.red.shade800,
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.dangerSurface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 boxShadow: const [
-                  BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4))
+                  BoxShadow(
+                      color: AppColors.shadowToast,
+                      blurRadius: 10,
+                      offset: Offset(0, 4))
                 ],
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      message, 
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      message,
+                      style: const TextStyle(
+                          color: AppColors.contentPrimary, fontSize: 14),
                     ),
                   ),
                   if (kDebugMode)
@@ -210,7 +223,10 @@ class ErrorHandler {
                           if (_currentOverlay == entry) _currentOverlay = null;
                         }
                       },
-                      child: Text(context.loc.common_close.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(context.loc.common_close.toUpperCase(),
+                          style: const TextStyle(
+                              color: AppColors.contentPrimary,
+                              fontWeight: FontWeight.bold)),
                     ),
                 ],
               ),
@@ -235,14 +251,11 @@ class ErrorHandler {
   }
 
   // ---- Dialog (errori critici) -----------------------------------------------
-  static void _showErrorDialog(BuildContext context, AppError err, String message) {
+  static void _showErrorDialog(
+      BuildContext context, AppError err, String message) {
     if (!context.mounted) return;
-    DialogUtils.showError(
-      context, 
-      message, 
-      errorCode: err.code,
-      details: err.details?.toString()
-    );
+    DialogUtils.showError(context, message,
+        errorCode: err.code, details: err.details?.toString());
   }
 
   // ---- Dialog di reautenticazione --------------------------------------------
@@ -253,7 +266,9 @@ class ErrorHandler {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Text(ctx.loc.error_reauthTitle),
-        content: Text(kDebugMode ? '[${err.code}] ${err.message}' : err.userMessage(ctx.loc)),
+        content: Text(kDebugMode
+            ? '[${err.code}] ${err.message}'
+            : err.userMessage(ctx.loc)),
         actions: [
           FilledButton(
             onPressed: () {
@@ -286,7 +301,8 @@ class ErrorHandler {
       throw AppError.fromException(error as Object, ErrorCodes.dbRead001);
     }
     if (data == null) {
-      throw const AppError(code: ErrorCodes.dbNotFound001, message: 'No data returned');
+      throw const AppError(
+          code: ErrorCodes.dbNotFound001, message: 'No data returned');
     }
 
     return data;

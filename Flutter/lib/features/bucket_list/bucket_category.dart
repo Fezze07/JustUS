@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:justus/core/localization/generated/app_localizations.dart';
+
+import 'package:justus/all_imports.dart';
 
 class BucketCategory {
   BucketCategory._();
@@ -18,13 +19,13 @@ class BucketCategory {
 
   static List<String> get withAll => [all, ...items];
 
-  static const Color travel = Color(0xFF4FC3F7);
-  static const Color dates = Color(0xFFFF8A65);
-  static const Color goals = Color(0xFF81C784);
-  static const Color crazy = Color(0xFFCE93D8);
-  static const Color adventure = Color(0xFFFFD54F);
-  static const Color romantic = Color(0xFFF06292);
-  static const Color homemade = Color(0xFF4DD0E1);
+  static const Color travel = AppCategoryColors.travel;
+  static const Color dates = AppCategoryColors.dates;
+  static const Color goals = AppCategoryColors.goals;
+  static const Color crazy = AppCategoryColors.crazy;
+  static const Color adventure = AppCategoryColors.adventure;
+  static const Color romantic = AppCategoryColors.romantic;
+  static const Color homemade = AppCategoryColors.homemade;
 
   static const Map<String, Color> _colors = {
     'Travel': travel,
@@ -37,7 +38,7 @@ class BucketCategory {
   };
 
   static Color colorFor(String category) {
-    return _colors[category] ?? Colors.white70;
+    return _colors[category] ?? AppColors.contentSecondary;
   }
 
   static String localizedLabel(String category, AppLocalizations loc) {

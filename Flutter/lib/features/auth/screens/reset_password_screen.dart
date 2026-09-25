@@ -54,7 +54,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         context.loc.auth_resetPasswordSubtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: Colors.white54,
+                          color: AppColors.contentTertiary,
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -120,8 +120,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!context.mounted) return;
 
                               if (success) {
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
+                                final messenger = ScaffoldMessenger.of(context);
                                 final message =
                                     context.loc.auth_passwordUpdated;
                                 final closeLabel = context.loc.common_close;

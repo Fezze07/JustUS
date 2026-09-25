@@ -31,7 +31,7 @@ abstract class VpWidgets {
     Offset offset = Offset.zero,
   }) {
     return BoxShadow(
-      color: color ?? Colors.black.withValues(alpha: 0.2),
+      color: color ?? AppColors.shadow,
       blurRadius: blurRadius,
       offset: offset,
     );
@@ -39,7 +39,7 @@ abstract class VpWidgets {
 
   static BoxDecoration cardDecoration({
     Color? color,
-    double borderRadius = 24.0,
+    double borderRadius = AppRadius.lg,
     Color? borderColor,
     List<BoxShadow>? boxShadow,
   }) {
@@ -47,7 +47,7 @@ abstract class VpWidgets {
       color: color ?? AppColors.cardDark,
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: borderColor ?? Colors.white.withValues(alpha: 0.05),
+        color: borderColor ?? AppColors.borderDark,
       ),
       boxShadow:
           boxShadow ?? [VpWidgets.boxShadow(offset: const Offset(0, 10))],
@@ -68,7 +68,7 @@ class VPSettingGroup extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.punkPurple.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.punkPurple.withValues(alpha: 0.6)),
       ),
       child: Column(children: children),
@@ -96,49 +96,55 @@ class VPSettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.deepViolet,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withValues(alpha: 0.2)),
-              ),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: VpWidgets.googleFont(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
+    return Semantics(
+      container: true,
+      button: onTap != null,
+      child: MergeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Row(
+              children: [
+                Container(
+                  width: AppDims.iconBox,
+                  height: AppDims.iconBox,
+                  decoration: BoxDecoration(
+                    color: AppColors.deepViolet,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(color: color.withValues(alpha: 0.2)),
                   ),
-                  Text(
-                    subtitle,
-                    style: VpWidgets.googleFont(
-                      color: Colors.white54,
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                    ),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: VpWidgets.googleFont(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.contentPrimary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: VpWidgets.googleFont(
+                          color: AppColors.contentTertiary,
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                trailing,
+              ],
             ),
-            trailing,
-          ],
+          ),
         ),
       ),
     );
@@ -151,10 +157,10 @@ class VPDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Divider(
-      height: 1,
+      height: AppDims.hairline,
       color: AppColors.deepViolet.withValues(alpha: 0.5),
-      indent: 16,
-      endIndent: 16,
+      indent: AppSpacing.md,
+      endIndent: AppSpacing.md,
     );
   }
 }
@@ -177,21 +183,14 @@ class VPButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
+    final background = backgroundColor ?? AppColors.primary;
+
+    return FilledButton(
       onPressed: isLoading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor ?? AppColors.primary,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: (backgroundColor ?? AppColors.primary)
-            .withValues(alpha: 0.6),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 8,
-        shadowColor:
-            (backgroundColor ?? AppColors.primary).withValues(alpha: 0.5),
-        minimumSize: width != null ? Size(width!, 50) : null,
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        disabledBackgroundColor: AppButtonStyle.disabledBackground(background),
+        minimumSize: Size(width ?? 0, AppDims.buttonMinHeight),
       ),
       child: isLoading
           ? Row(
@@ -199,14 +198,14 @@ class VPButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(
-                  width: 20,
-                  height: 20,
+                  width: AppSpacing.lg,
+                  height: AppSpacing.lg,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: AppColors.contentPrimary,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.sm + AppSpacing.xs),
                 Text(
                   label,
                   style: VpWidgets.googleFont(
@@ -262,11 +261,14 @@ class VPTextField extends StatelessWidget {
       children: [
         if (label != null) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(
+              left: AppRadius.xs,
+              bottom: AppSpacing.sm,
+            ),
             child: Text(
               label!,
               style: VpWidgets.googleFont(
-                color: Colors.white70,
+                color: AppColors.contentSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -276,8 +278,8 @@ class VPTextField extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.cardDark,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.surfaceOverlay),
           ),
           child: TextField(
             controller: controller,
@@ -285,27 +287,33 @@ class VPTextField extends StatelessWidget {
             keyboardType: inputType,
             onChanged: onChanged,
             onSubmitted: onSubmitted,
-            style: VpWidgets.googleFont(color: Colors.white),
+            style: VpWidgets.googleFont(color: AppColors.contentPrimary),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: VpWidgets.googleFont(color: Colors.white24),
+              hintStyle: VpWidgets.googleFont(color: AppColors.contentHint),
               errorText: errorText,
-              prefixIcon:
-                  icon != null ? Icon(icon, color: Colors.white38) : null,
+              prefixIcon: icon != null
+                  ? Icon(icon, color: AppColors.contentDisabled)
+                  : null,
               suffixIcon: isPassword
                   ? IconButton(
+                      tooltip: obscureText
+                          ? context.loc.common_showPassword
+                          : context.loc.common_hidePassword,
                       icon: Icon(
                         obscureText
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        color: Colors.white38,
+                        color: AppColors.contentDisabled,
                       ),
                       onPressed: onTogglePassword,
                     )
                   : null,
               border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.md,
+              ),
             ),
           ),
         ),
@@ -333,18 +341,25 @@ class VPHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           leading ??
               (showBackButton
                   ? IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new,
-                          color: Colors.white70, size: 20),
+                      tooltip: context.loc.common_back,
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: AppColors.contentSecondary,
+                        size: 20,
+                      ),
                       onPressed: onBack ?? () => Navigator.pop(context),
                     )
-                  : const SizedBox(width: 40)),
+                  : const SizedBox(width: AppDims.circleButton)),
           Expanded(
             child: Text(
               title,
@@ -352,11 +367,14 @@ class VPHeader extends StatelessWidget {
               style: VpWidgets.googleFont(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.contentPrimary,
               ),
             ),
           ),
-          if (trailing != null) ...trailing! else const SizedBox(width: 40),
+          if (trailing != null)
+            ...trailing!
+          else
+            const SizedBox(width: AppDims.circleButton),
         ],
       ),
     );
@@ -377,7 +395,7 @@ class VPCard extends StatelessWidget {
     required this.child,
     this.padding,
     this.margin,
-    this.borderRadius = 24.0,
+    this.borderRadius = AppRadius.lg,
     this.borderColor,
     this.shadowColor,
     this.blurRadius = 20.0,
@@ -387,7 +405,7 @@ class VPCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: margin,
-      padding: padding ?? const EdgeInsets.all(24),
+      padding: padding ?? const EdgeInsets.all(AppSpacing.lg),
       decoration: VpWidgets.cardDecoration(
         borderRadius: borderRadius,
         borderColor: borderColor,
@@ -443,7 +461,7 @@ class VPScaffold extends StatelessWidget {
                       title!,
                       style: VpWidgets.googleFont(
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.contentPrimary,
                       ),
                     )
                   : null,
@@ -469,7 +487,10 @@ class VPSectionHeader extends StatelessWidget {
     required this.title,
     this.actionLabel,
     this.onActionTap,
-    this.padding = const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
   });
 
   @override
@@ -484,19 +505,24 @@ class VPSectionHeader extends StatelessWidget {
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Colors.white54,
+              color: AppColors.contentTertiary,
               letterSpacing: 1.2,
             ),
           ),
           if (actionLabel != null)
-            GestureDetector(
-              onTap: onActionTap,
-              child: Text(
-                actionLabel!,
-                style: VpWidgets.googleFont(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+            Semantics(
+              button: true,
+              label: actionLabel,
+              child: GestureDetector(
+                onTap: onActionTap,
+                behavior: HitTestBehavior.opaque,
+                child: Text(
+                  actionLabel!,
+                  style: VpWidgets.googleFont(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),
@@ -520,21 +546,10 @@ class VPDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData(brightness: Brightness.dark),
-      child: AlertDialog(
-        backgroundColor: AppColors.cardDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          title,
-          style: VpWidgets.googleFont(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        content: content,
-        actions: actions,
-      ),
+    return AlertDialog(
+      title: Text(title),
+      content: content,
+      actions: actions,
     );
   }
 }
@@ -585,9 +600,9 @@ class VPAuthLayout extends StatelessWidget {
                         child: Container(
                           width: 200,
                           height: 200,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: AppColors.surfaceOverlay,
                           ),
                         ),
                       ),
@@ -597,9 +612,9 @@ class VPAuthLayout extends StatelessWidget {
                         child: Container(
                           width: 150,
                           height: 150,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: AppColors.surfaceOverlay,
                           ),
                         ),
                       ),
@@ -611,21 +626,22 @@ class VPAuthLayout extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(AppSpacing.md),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(24),
+                                  color: AppColors.surfaceGlass,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.lg),
                                 ),
                                 child: const Icon(Icons.favorite,
-                                    color: Colors.white, size: 48),
+                                    color: AppColors.contentPrimary, size: 48),
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: AppSpacing.md),
                               Text(
                                 context.loc.appTitle,
                                 style: VpWidgets.googleFont(
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: AppColors.contentPrimary,
                                   letterSpacing: 1,
                                 ),
                               ),
@@ -633,7 +649,7 @@ class VPAuthLayout extends StatelessWidget {
                                 context.loc.appTagline,
                                 style: VpWidgets.googleFont(
                                   fontSize: 14,
-                                  color: Colors.white70,
+                                  color: AppColors.contentSecondary,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -651,8 +667,8 @@ class VPAuthLayout extends StatelessWidget {
                           height: 32,
                           decoration: const BoxDecoration(
                             color: AppColors.backgroundDark,
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(32)),
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(AppRadius.sheet)),
                           ),
                         ),
                       ),
@@ -663,17 +679,18 @@ class VPAuthLayout extends StatelessWidget {
                 // Form Section
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.md),
                         Text(
                           title,
                           style: VpWidgets.googleFont(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: AppColors.contentPrimary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -681,15 +698,15 @@ class VPAuthLayout extends StatelessWidget {
                           subtitle,
                           style: VpWidgets.googleFont(
                             fontSize: 14,
-                            color: Colors.white54,
+                            color: AppColors.contentTertiary,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppSpacing.xl),
                         ...children,
                         const Spacer(),
                         if (footer != null) footer!,
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppSpacing.xl),
                       ],
                     ),
                   ),
@@ -722,7 +739,8 @@ class VPAuthLink extends StatelessWidget {
       children: [
         Text(
           text,
-          style: VpWidgets.googleFont(color: Colors.white54, fontSize: 14),
+          style: VpWidgets.googleFont(
+              color: AppColors.contentTertiary, fontSize: 14),
         ),
         TextButton(
           onPressed: onTap,

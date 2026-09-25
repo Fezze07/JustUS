@@ -4,6 +4,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:justus/all_imports.dart';
+
 abstract class EmojiPickerWidget {}
 
 class EmojiButton extends StatelessWidget {
@@ -22,24 +24,29 @@ class EmojiButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: isLoading ? null : onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: isSelected 
-              ? Theme.of(context).primaryColor.withValues(alpha: 0.2) 
-              : Colors.grey.withValues(alpha: 0.1),
-          border: isSelected 
-              ? Border.all(color: Theme.of(context).primaryColor, width: 2) 
-              : null,
-        ),
-        child: FittedBox(
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 28),
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: emoji,
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            color: isSelected
+                ? Theme.of(context).primaryColor.withValues(alpha: 0.2)
+                : AppColors.neutralText.withValues(alpha: 0.1),
+            border: isSelected
+                ? Border.all(color: Theme.of(context).primaryColor, width: 2)
+                : null,
+          ),
+          child: FittedBox(
+            child: Text(
+              emoji,
+              style: const TextStyle(fontSize: 28),
+            ),
           ),
         ),
       ),

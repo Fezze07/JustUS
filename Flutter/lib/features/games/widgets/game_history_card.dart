@@ -25,7 +25,7 @@ class GameHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return VPCard(
       padding: const EdgeInsets.all(16),
-      borderColor: Colors.white.withValues(alpha: 0.05),
+      borderColor: AppColors.borderDark,
       shadowColor: badgeColor.withValues(alpha: 0.05),
       blurRadius: 10,
       child: Row(
@@ -50,7 +50,7 @@ class GameHistoryCard extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: AppColors.contentPrimary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

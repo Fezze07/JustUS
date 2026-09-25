@@ -37,8 +37,8 @@ class VPAvatar extends StatelessWidget {
               ? SizedBox(
                   width: size,
                   height: size,
-                  child:
-                      Icon(Icons.person, size: size / 2, color: Colors.white54),
+                  child: Icon(Icons.person,
+                      size: size / 2, color: AppColors.contentTertiary),
                 )
               : ClipOval(
                   child: ProtectedNetworkImage(
@@ -57,7 +57,8 @@ class VPAvatar extends StatelessWidget {
                     errorWidget: (context, url, error) => SizedBox(
                       width: size,
                       height: size,
-                      child: const Icon(Icons.error, color: Colors.white54),
+                      child: const Icon(Icons.error,
+                          color: AppColors.contentTertiary),
                     ),
                   ),
                 ),
@@ -97,7 +98,7 @@ class VPUserAvatar extends StatelessWidget {
             VPAvatar(
               imageUrl: imageUrl,
               size: size,
-              borderColor: Colors.white.withValues(alpha: 0.1),
+              borderColor: AppColors.surfaceOverlay,
             ),
             if (indicator != null)
               Positioned(
@@ -111,7 +112,7 @@ class VPUserAvatar extends StatelessWidget {
         Text(
           name,
           style: VpWidgets.googleFont(
-            color: Colors.white,
+            color: AppColors.contentPrimary,
             fontSize: 12,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.0,
