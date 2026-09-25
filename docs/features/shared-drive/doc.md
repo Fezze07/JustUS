@@ -256,14 +256,23 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 
 ## Incremental Synchronization & Checkpoint Strategy
 
+### Revalidation Probe
+
+- RPC: `public.drive_change_probe()` ([drive_change_probe.sql](file:///f:/JustUS/Supabase/schemas/public/functions/drive_change_probe.sql)) — `STABLE SECURITY INVOKER`, returns a single row `{max_updated_at, item_count}`.
+- It reads `drive_items` directly (not `v_drive_dashboard`), so the revalidation no longer materializes the view (joins over `drive_file_types`, `favorites` and the `drive_item_reactions` aggregate) only to learn two scalars. The partnership filter and RLS are the same as the view's.
+- Grants: `authenticated`, `postgres`, `service_role`; `PUBLIC` is revoked, so the function is not callable by `anon`.
+- Why both signals: `updated_at > checkpoint` sees inserts/updates but is blind to deletions, so the row count is what catches them.
+- `DriveRepository.fetchChangeProbe()` calls it. If the function is missing on the server (`PGRST202`) it falls back to the historical pair (`select(updated_at) … limit 1` + `count()` on the view) so a not-yet-migrated database degrades to two requests instead of never revalidating.
+- `DriveState` memoizes the probe for 10 s (`_probeTtl`) and shares it between the change gate and `syncDriveItems`, so one revalidation cycle costs **one** round trip. The memoized value is dropped on every local cache write (upload, delete, favorite, reaction) and in `clear()` (logout / partnership switch), so it can never leak across users.
+
 ### Sync Pipeline
 
-- File: [drive_state.dart:70-104](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L70-L104) & [drive_repository.dart:24-40](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L24-L40)
+- File: [drive_state.dart:44-136](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L44-L136) & [drive_repository.dart:44-82](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L44-L82)
 - **Checkpoint Key**: `CacheService.kDriveItems` (`chk_drive_items`).
 - **Execution Flow**:
   1. `DriveState.initialLoad()` invokes `loadWithChangeDetection()`.
-  2. Checks `_hasDriveChanges()` using `DriveRepository.hasNewDriveItems()`, which queries `v_drive_dashboard` for `updated_at > checkpoint_timestamp`.
-  3. If changes exist, `syncDriveItems()` executes `fetchDriveItemsIncremental()`:
+  2. Checks `_hasDriveChanges()` with the single-round-trip probe: `serverDate > checkpoint` → reset the checkpoint and re-sync; otherwise `itemCount != _driveItems.length` → reset the checkpoint and re-sync (deletion, F-SC7). A failed probe is treated as "cache still valid" so an unreachable server does not trigger a refetch on every visit.
+  3. If changes exist, `syncDriveItems()` reuses the memoized probe for its row count and executes `fetchDriveItemsIncremental()`:
      - Queries `v_drive_dashboard` filtering `updated_at > lastSyncTimestamp`.
      - Merges new/updated records into `_driveItems` (overwriting existing items with matching IDs).
      - Sorts list by `createdAt DESC`.

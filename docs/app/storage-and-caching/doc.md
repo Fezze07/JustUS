@@ -88,7 +88,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `kGameAnswers` | `chk_game_answers` | `String` (ISO timestamp or `EMPTY`) | `GameState._updateGameCheckpoint` | `BaseRepository.hasChanges` via `GameRepository.hasNewGameActivity` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** (survives wipe) | §Checkpoints |
 | `kMoods` | `chk_moods` | `String` (ISO timestamp or `EMPTY`) | `MoodState._updateMoodsCheckpoint` | `BaseRepository.hasChanges` via `MoodRepository.hasNewMoods` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 | `kBucketItems` | `chk_bucket_items` | `String` (ISO timestamp or `EMPTY`) | `BucketState._updateBucketCheckpoint` | `BaseRepository.hasChanges` via `BucketRepository.hasNewBucketItems` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
-| `kDriveItems` | `chk_drive_items` | `String` (ISO timestamp or `EMPTY`) | `DriveState._updateDriveCheckpointFromItems`, `syncDriveItems`, `hasDriveChanges` | `BaseRepository.hasChanges` via `DriveRepository.hasNewDriveItems`, `fetchDriveItemsIncremental` (as query bound) | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
+| `kDriveItems` | `chk_drive_items` | `String` (ISO timestamp or `EMPTY`) | `DriveState._updateDriveCheckpointFromItems`, `syncDriveItems`, `hasDriveChanges` | `DriveRepository.fetchChangeProbe` (compared against `public.drive_change_probe()`), `fetchDriveItemsIncremental` (as query bound) | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 | `kMissYou` | `chk_miss_you` | `String` (ISO timestamp or `EMPTY`) | `HomepageState.fetchTotalMissYou`, `HomepageState.sendMissYou` | `CacheService.needsRefresh` (time-based freshness gate, 60s) | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 
 ### SharedPreferences — App Preferences (outside StorageService)
@@ -156,10 +156,11 @@ Checkpoint keys are partnership-scoped (`chk_x:<partnership_id>` via `CacheServi
 - Deletion still invisible to the checkpoint (rows disappear without a timestamp to compare) — Realtime DELETE + polling `refreshFromRealtime()` cover it.
 
 **chk\_drive\_items** (`CacheService.kDriveItems`)
-- Updated by: `DriveState._updateDriveCheckpointFromItems` (`:131–137`) / `syncDriveItems` (`:87–91`) — max of `updatedAt` from fetched items.
-- Compared field: `v_drive_dashboard.updated_at`.
-- Incremental sync: `fetchDriveItemsIncremental` (`:24–40` of `drive_repository.dart`) applies `gt('updated_at', checkpoint)` — strict `>`: items with `updated_at` equal to checkpoint are skipped. Same-timestamp misses extremely unlikely (microsecond precision).
-- **Deletion detection**: incremental fetch returns only existing rows, so deletions are invisible to the cursor. `syncDriveItems` additionally compares a cheap server row count (`fetchDriveItemCount` on `v_drive_dashboard`) against the cached list length; on mismatch it does a full fetch that **replaces** the list, dropping locally-deleted rows. A same-count swap (insert + delete between refreshes) slips past the count check and is recovered by Realtime DELETE events or polling `_refreshAll`. F-SC7
+- Updated by: `DriveState._updateDriveCheckpointFromItems` / `syncDriveItems` — max of `updatedAt` from fetched items.
+- Compared field: `max(drive_items.updated_at)`, returned by the `public.drive_change_probe()` RPC.
+- Revalidation cost: one RPC per cycle. `DriveState` memoizes the probe for 10 s and shares it between the change gate and `syncDriveItems`; the memo is dropped on every local cache write and in `clear()` (logout / partnership switch).
+- Incremental sync: `fetchDriveItemsIncremental` (of `drive_repository.dart`) applies `gt('updated_at', checkpoint)` — strict `>`: items with `updated_at` equal to checkpoint are skipped. Same-timestamp misses extremely unlikely (microsecond precision).
+- **Deletion detection**: incremental fetch returns only existing rows, so deletions are invisible to the cursor. The same probe's `item_count` is compared against the cached list length (both in `_hasDriveChanges` and in `syncDriveItems`, from the memoized value); on mismatch it does a full fetch that **replaces** the list, dropping locally-deleted rows. A same-count swap (insert + delete between refreshes) slips past the count check and is recovered by Realtime DELETE events or polling `_refreshAll`. F-SC7
 
 **chk\_miss\_you** (`CacheService.kMissYou`)
 - Updated by: `HomepageState.fetchTotalMissYou` (`:51–54` of `homepage_state.dart`) and `sendMissYou` (`:78–80`) — writes `DateTime.now().toUtc().toIso8601String()` (local clock, not server time).
@@ -336,7 +337,8 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/mood_state_test.dart` | Verifies `updateMood` writes to `StorageService.getMood('me')` on success (`:67`). F-SM12/F-SC14: on error `updateMood` fully rolls back `_recentEmojis`/timeline and never writes the optimistic `id:0,userId:0` phantom to the cache; success replaces the placeholder with the server-confirmed entry. Verifies `initHome` reads cached moods (`:87–97`). Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/game_state_test.dart` | Verifies `fetchNewQuestion` caches the question (`:67–70`). Verifies `submitAnswer` updates history. Uses `SharedPreferences.setMockInitialValues({})` + mock secure storage channel. |
 | `Flutter/test/test_helpers/mock_secure_storage.dart` | Mocks `flutter_secure_storage` platform channel for test isolation. |
-| `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge. |
+| `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge; matching row counts keep the incremental cursor path; a re-entering tab inside the 10 s probe TTL issues no new probe while a local mutation invalidates it at once. |
+| `Flutter/test/logout_state_reset_test.dart` | `drive.clear()` drops the memoized change probe, so the next account never inherits it. |
 | `Flutter/test/drive_cache_serialization_test.dart` | F-SC12: concurrent optimistic mutation + trailing refresh serialize their cache writes — the cache ends equal to the final in-memory drive list (no older snapshot clobbering a newer one). |
 | `Flutter/test/bucket_flush_test.dart` | F-SC13: app-pause and `dispose()` flush the pending 2s-debounced bucket cache write immediately. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |

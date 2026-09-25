@@ -4,6 +4,20 @@
 
 abstract class DriveModels {}
 
+/// Result of the single-round-trip revalidation probe
+/// (`public.drive_change_probe()`).
+///
+/// [maxUpdatedAt] detects inserts/updates since the client checkpoint;
+/// [itemCount] detects server-side deletions, which the `updated_at > checkpoint`
+/// cursor cannot see. Both signals are needed before the drive list can be
+/// served from cache.
+class DriveChangeProbe {
+  final String? maxUpdatedAt;
+  final int? itemCount;
+
+  const DriveChangeProbe({this.maxUpdatedAt, this.itemCount});
+}
+
 class DriveItem {
   final int id;
   final String type;

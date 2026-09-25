@@ -44,6 +44,39 @@ class DriveState extends BaseState with CheckpointMixin {
   // ---------------------------------------------------------------------------
   bool _initialLoading = false;
 
+  /// Revalidation probe cache. The probe is one RPC instead of the previous
+  /// `updated_at` GET + `count()` HEAD pair, and it is memoized for [_probeTtl]
+  /// because re-entering the drive/favorites tab re-ran the whole gate on every
+  /// visit, while a partner's change is already pushed by realtime.
+  static const Duration _probeTtl = Duration(seconds: 10);
+  DriveChangeProbe? _probe;
+  DateTime? _probeAt;
+
+  void _invalidateProbe() {
+    _probe = null;
+    _probeAt = null;
+  }
+
+  Future<DriveChangeProbe?> _fetchProbe() async {
+    final probe = _probe;
+    final at = _probeAt;
+    if (probe != null &&
+        at != null &&
+        DateTime.now().difference(at) < _probeTtl) {
+      return probe;
+    }
+
+    final result = await _repo.fetchChangeProbe();
+    final fresh = result.valueOrNull;
+    // On error keep serving the cache: an unreachable server must not look like
+    // "everything changed" (that would refetch on every tab visit).
+    if (fresh == null) return null;
+
+    _probe = fresh;
+    _probeAt = DateTime.now();
+    return fresh;
+  }
+
   Future<void> initialLoad() async {
     if (_initialLoading) return;
     _initialLoading = true;
@@ -59,27 +92,55 @@ class DriveState extends BaseState with CheckpointMixin {
     }
   }
 
+  /// Returns true when the local list must be re-synced.
+  ///
+  /// Both probe signals must agree with the local state before the cache is
+  /// trusted: the `updated_at` cursor cannot observe deletions, so the row
+  /// count is what catches them (F-SC7).
   Future<bool> _hasDriveChanges({required int epoch}) async {
-    final changed = await _repo.hasNewDriveItems();
-    if (changed) {
-      await CacheService.saveCheckpoint(
-          CacheService.kDriveItems, CacheService.kCheckpointEmpty,
-          epoch: epoch);
+    final probe = await _fetchProbe();
+    if (probe == null) return false;
+
+    final checkpoint =
+        await CacheService.getCheckpoint(CacheService.kDriveItems);
+    if (checkpoint == null) return true;
+
+    final serverMax = probe.maxUpdatedAt;
+    if (serverMax == null) {
+      // No rows on server — if the checkpoint says we had data before, it was
+      // deleted
+      return checkpoint != CacheService.kCheckpointEmpty;
+    }
+
+    final serverDate = DateTime.tryParse(serverMax);
+    final checkpointDate = checkpoint == CacheService.kCheckpointEmpty
+        ? null
+        : DateTime.tryParse(checkpoint);
+
+    if (serverDate != null &&
+        checkpointDate != null &&
+        serverDate.isAfter(checkpointDate)) {
+      await _resetCheckpoint(epoch: epoch);
       return true;
     }
 
-    final countResult = await _repo.fetchDriveItemCount();
-    final serverCount = countResult.valueOrNull;
+    final serverCount = probe.itemCount;
     if (serverCount != null &&
         _driveItems.isNotEmpty &&
         serverCount != _driveItems.length) {
-      await CacheService.saveCheckpoint(
-          CacheService.kDriveItems, CacheService.kCheckpointEmpty,
-          epoch: epoch);
+      await _resetCheckpoint(epoch: epoch);
       return true;
     }
 
     return false;
+  }
+
+  Future<void> _resetCheckpoint({required int epoch}) {
+    return CacheService.saveCheckpoint(
+      CacheService.kDriveItems,
+      CacheService.kCheckpointEmpty,
+      epoch: epoch,
+    );
   }
 
   Future<void> _loadFromCache() async {
@@ -101,8 +162,9 @@ class DriveState extends BaseState with CheckpointMixin {
     final effectiveEpoch = epoch ?? CacheService.checkpointEpoch;
 
     await runSafe(() async {
-      final countResult = await _repo.fetchDriveItemCount();
-      final serverCount = countResult.valueOrNull;
+      // Same probe as the change gate: on the initial-load path it is memoized,
+      // so the deletion check costs no extra round trip.
+      final serverCount = (await _fetchProbe())?.itemCount;
 
       // A row-count mismatch against the local cache means items were deleted
       // server-side — the incremental `updated_at` cursor cannot see deletions,
@@ -124,6 +186,7 @@ class DriveState extends BaseState with CheckpointMixin {
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           _rebuildFavorites();
           await _persistDriveCache();
+          _invalidateProbe();
 
           await saveMaxTimestampCheckpointFromItems(
             checkpointKey: CacheService.kDriveItems,
@@ -142,6 +205,7 @@ class DriveState extends BaseState with CheckpointMixin {
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
           _rebuildFavorites();
           await _persistDriveCache();
+          _invalidateProbe();
 
           await saveMaxTimestampCheckpointFromItems(
             checkpointKey: CacheService.kDriveItems,
@@ -182,6 +246,7 @@ class DriveState extends BaseState with CheckpointMixin {
           _singleItem = index == -1 ? null : _driveItems[index];
         }
         await _persistDriveCache();
+        _invalidateProbe();
         await _updateDriveCheckpointFromItems(epoch: epoch);
       });
     }, showLoading: false);
@@ -248,6 +313,7 @@ class DriveState extends BaseState with CheckpointMixin {
           _driveItems = [value, ..._driveItems];
           _rebuildFavorites();
           await _persistDriveCache();
+          _invalidateProbe();
           setMessage('Upload completato ✓');
         },
       );
@@ -265,6 +331,7 @@ class DriveState extends BaseState with CheckpointMixin {
     _driveItems = _driveItems.where((item) => item.id != id).toList();
     _rebuildFavorites();
     await _persistDriveCache();
+    _invalidateProbe();
     notifyListeners();
 
     await runSafe(() async {
@@ -278,6 +345,7 @@ class DriveState extends BaseState with CheckpointMixin {
         _driveItems = currentList;
         _rebuildFavorites();
         await _persistDriveCache();
+        _invalidateProbe();
       }
     }, showLoading: false);
   }
@@ -299,6 +367,7 @@ class DriveState extends BaseState with CheckpointMixin {
           }).toList();
           _rebuildFavorites();
           await _persistDriveCache();
+          _invalidateProbe();
           if (_singleItem?.id == itemId) {
             _singleItem = _singleItem!.copyWith(
               reactions: [..._singleItem!.reactions, emoji],
@@ -323,6 +392,7 @@ class DriveState extends BaseState with CheckpointMixin {
     _driveItems[idx] = updatedItem;
     _rebuildFavorites();
     await _persistDriveCache();
+    _invalidateProbe();
     if (_singleItem?.id == itemId) _singleItem = updatedItem;
     notifyListeners();
 
@@ -333,6 +403,7 @@ class DriveState extends BaseState with CheckpointMixin {
         _driveItems[idx] = item;
         _rebuildFavorites();
         await _persistDriveCache();
+        _invalidateProbe();
         if (_singleItem?.id == itemId) _singleItem = item;
         throw result;
       }
@@ -350,6 +421,9 @@ class DriveState extends BaseState with CheckpointMixin {
     _driveItems = [];
     _rebuildFavorites();
     _singleItem = null;
+    // The memoized probe is user-scoped: never let it survive a logout or a
+    // partnership switch.
+    _invalidateProbe();
     notifyListeners();
   }
 }

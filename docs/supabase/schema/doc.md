@@ -165,7 +165,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 18 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 19 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `accept_partnership(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
 2. `request_partnership(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
@@ -185,6 +185,7 @@ All 18 PostgreSQL functions in `supabase/schemas/public/functions/`:
 16. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
 17. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 18. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
+19. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`; granted to `authenticated`, `postgres`, `service_role`.
 
 > `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 

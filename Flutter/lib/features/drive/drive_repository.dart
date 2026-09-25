@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io' as dart_io;
 
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+
 import 'package:justus/all_imports.dart';
 
 class DriveRepository extends BaseRepository {
@@ -39,18 +41,56 @@ class DriveRepository extends BaseRepository {
     });
   }
 
-  Future<bool> hasNewDriveItems() {
-    return hasChanges(
-      table: 'v_drive_dashboard',
-      field: 'updated_at',
-      cacheKey: CacheService.kDriveItems,
-    );
+  /// One round trip for the whole revalidation gate: newest `updated_at` +
+  /// server row count (see `public.drive_change_probe()` and [DriveChangeProbe]).
+  ///
+  /// Falls back to the historical two-request probe (`select(updated_at) … limit
+  /// 1` + `count()` on the view) when the function is missing on the server, so
+  /// a not-yet-migrated database degrades to "two requests" instead of "the
+  /// drive list never revalidates". The fallback self-disables once the function
+  /// exists and can be deleted after the migration is deployed everywhere.
+  Future<ResultWrapper<DriveChangeProbe>> fetchChangeProbe() {
+    return tryCall(() async {
+      try {
+        final data = await sbClient.rpc('drive_change_probe');
+        final row = (data as List<dynamic>).first as Map<String, dynamic>;
+
+        return DriveChangeProbe(
+          maxUpdatedAt: row['max_updated_at']?.toString(),
+          itemCount: (row['item_count'] as num?)?.toInt(),
+        );
+      } on PostgrestException catch (e) {
+        if (!_isMissingProbeFunction(e)) rethrow;
+
+        AnsiLogger.error(
+          'drive_change_probe unavailable, falling back to the view probe',
+          tag: 'DriveRepository',
+        );
+
+        final maxUpdatedAt = await fetchMaxTimestamp(
+          table: 'v_drive_dashboard',
+          field: 'updated_at',
+        );
+        final itemCount = await sbClient.from('v_drive_dashboard').count();
+
+        return DriveChangeProbe(
+            maxUpdatedAt: maxUpdatedAt, itemCount: itemCount);
+      }
+    });
   }
 
-  Future<ResultWrapper<int>> fetchDriveItemCount() {
-    return tryCall(() async {
-      return await sbClient.from('v_drive_dashboard').count();
-    });
+  /// PostgREST answers a call to an unknown RPC with `PGRST202`
+  /// ("Could not find the function …"); anything else is a real failure.
+  static bool _isMissingProbeFunction(PostgrestException e) {
+    final haystack = [e.code, e.message, e.details]
+        .whereType<Object>()
+        .map((part) => part.toString())
+        .join(' ')
+        .toLowerCase();
+
+    return haystack.contains('pgrst202') ||
+        haystack.contains('could not find the function') ||
+        haystack.contains('drive_change_probe');
   }
 
   Future<ResultWrapper<String?>> getMediaDownloadUrl(String filename) async {
