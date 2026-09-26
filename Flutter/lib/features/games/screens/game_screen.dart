@@ -40,9 +40,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
             // Header
             VPHeader(
               title: context.loc.appTitle,
-              showBackButton: false,
-              leading: Icon(Icons.favorite,
-                  color: context.palette.accentPurple, size: 28),
+              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
               trailing: [_buildNotificationButton()],
             ),
 

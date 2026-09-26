@@ -41,13 +41,16 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
   @override
   Widget build(BuildContext context) {
     return VPScaffold(
-      title: context.loc.mood_boardTitle,
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new,
-            color: context.palette.contentSecondary),
-        onPressed: () => Navigator.pop(context),
-      ),
-      body: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(
+      showAppBar: false,
+      body: SafeArea(
+        child: Column(
+          children: [
+            VPHeader(
+              title: context.loc.mood_boardTitle,
+              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
+            ),
+            Expanded(
+              child: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(
         selector: (_, s) => (s.recentEmojis, s.timeline, s.hasMoreTimeline),
         builder: (context, moodData, _) {
           final recentEmojis = moodData.$1;
@@ -268,6 +271,10 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
             ),
           );
         },
+      ),
+            ),
+          ],
+        ),
       ),
     );
   }

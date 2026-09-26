@@ -123,6 +123,7 @@ class _BucketListScreenState extends State<BucketListScreen>
             // Header
             VPHeader(
               title: context.loc.bucket_title,
+              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
             ),
 
             // Category Filter

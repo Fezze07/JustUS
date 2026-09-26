@@ -83,53 +83,24 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                 slivers: [
                   // Custom App Bar
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          VPCircleButton(
-                            icon: Icons.chevron_left,
-                            color: context.palette.accentPurple,
-                            onTap: () => Navigator.pop(context),
-                          ),
-                          Column(
-                            children: [
-                              Text(
-                                context.loc.drive_title,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: context.palette.contentPrimary,
-                                ),
-                              ),
-                              Text(
-                                context.loc.drive_subtitle,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: context.palette.accentPurple
-                                      .withValues(alpha: 0.8),
-                                  letterSpacing: 2.0,
-                                ),
-                              ),
-                            ],
-                          ),
-                          TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              context.loc.drive_select,
-                              style: GoogleFonts.plusJakartaSans(
-                                color: context.palette.accentAqua,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                letterSpacing: 1.0,
-                              ),
+                    child: VPHeader(
+                      title: context.loc.drive_title,
+                      onBack: () =>
+                          MainShell.shellKey.currentState?.switchToTab(0),
+                      trailing: [
+                        TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            context.loc.drive_select,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: context.palette.accentAqua,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 1.0,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 

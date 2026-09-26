@@ -168,7 +168,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Header
                   VPHeader(
                     title: context.loc.profileSettingsTitle.toUpperCase(),
-                    onBack: () => Navigator.pop(context),
+                    onBack: () =>
+                        MainShell.shellKey.currentState?.switchToTab(0),
                   ),
 
                   const SizedBox(height: 40),

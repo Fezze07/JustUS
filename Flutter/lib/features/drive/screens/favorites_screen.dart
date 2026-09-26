@@ -30,20 +30,17 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.palette.canvas,
-      appBar: AppBar(
-        title: Text(context.loc.drive_favoritesTitle),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        titleTextStyle: VpWidgets.googleFont(
-          fontWeight: FontWeight.bold,
-          color: context.palette.contentPrimary,
-          fontSize: 18,
-        ),
-      ),
-      body: Selector<DriveState, (bool, List<DriveItem>)>(
+    return VPScaffold(
+      showAppBar: false,
+      body: SafeArea(
+        child: Column(
+          children: [
+            VPHeader(
+              title: context.loc.drive_favoritesTitle,
+              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
+            ),
+            Expanded(
+              child: Selector<DriveState, (bool, List<DriveItem>)>(
         selector: (_, s) => (s.isLoading, s.favoriteItems),
         builder: (context, favData, _) {
           final isLoading = favData.$1;
@@ -109,6 +106,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
             },
           );
         },
+      ),
+            ),
+          ],
+        ),
       ),
     );
   }
