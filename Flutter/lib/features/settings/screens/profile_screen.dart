@@ -22,6 +22,18 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _appVersion = '';
+  bool _notificationsEnabled = true;
+  bool _isCheckingUpdate = false;
+
+  Future<void> _checkUpdate() async {
+    if (_isCheckingUpdate) return;
+    setState(() => _isCheckingUpdate = true);
+    try {
+      await UpdateService().checkVersion(context, showNoUpdateToast: true);
+    } finally {
+      if (mounted) setState(() => _isCheckingUpdate = false);
+    }
+  }
 
   @override
   void initState() {
@@ -30,16 +42,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(context.read<ProfileState>().loadProfile());
       unawaited(_loadAppVersion());
+      unawaited(_loadNotificationSettings());
     });
   }
 
+  Future<void> _loadNotificationSettings() async {
+    final enabled = await StorageService.getNotificationsEnabled();
+    if (mounted) setState(() => _notificationsEnabled = enabled);
+  }
+
   Future<void> _loadAppVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    if (mounted) {
-      setState(() {
-        _appVersion = 'v${info.version}';
-      });
-    }
+    final version = await StorageService.getAppVersion() ??
+        'v${(await PackageInfo.fromPlatform()).version}';
+    unawaited(StorageService.saveAppVersion(version));
+    if (mounted) setState(() => _appVersion = version);
   }
 
   Future<void> _pickProfilePhoto() async {
@@ -187,8 +203,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                context.palette.accentPink.withValues(alpha: 0.5),
-                                context.palette.accentPurple.withValues(alpha: 0.5)
+                                context.palette.accentPink
+                                    .withValues(alpha: 0.5),
+                                context.palette.accentPurple
+                                    .withValues(alpha: 0.5)
                               ],
                             ),
                           ),
@@ -206,13 +224,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             boxShadow: [
                               VpWidgets.boxShadow(
                                 context,
-                                color:
-                                    context.palette.accentPurple.withValues(alpha: 0.6),
+                                color: context.palette.accentPurple
+                                    .withValues(alpha: 0.6),
                               ),
                             ],
                           ),
-                          child: Icon(Icons.favorite,
-                              color: context.palette.contentPrimary, size: 28),
+                          child: const Icon(Icons.favorite,
+                              color: Colors.white, size: 28),
                         ),
                         // User Avatar (Left)
                         Positioned(
@@ -260,7 +278,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: context.palette.surfaceGroup,
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(
-                          color: context.palette.accentPurple.withValues(alpha: 0.3)),
+                          color: context.palette.accentPurple
+                              .withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -306,7 +325,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         value: !context.watch<ThemeProvider>().isDark,
                         onChanged: (isLight) => unawaited(context
                             .read<ThemeProvider>()
-                            .setThemeMode(isLight ? ThemeMode.light : ThemeMode.dark)),
+                            .setThemeMode(
+                                isLight ? ThemeMode.light : ThemeMode.dark)),
                         activeThumbColor: context.palette.onPrimary,
                         activeTrackColor: context.palette.primary,
                         inactiveThumbColor: context.palette.contentTertiary,
@@ -320,8 +340,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: context.loc.settings_notificationsTitle,
                       subtitle: context.loc.settings_notificationsSubtitle,
                       trailing: Switch(
-                        value: true,
-                        onChanged: (v) {},
+                        value: _notificationsEnabled,
+                        onChanged: (enabled) async {
+                          setState(() => _notificationsEnabled = enabled);
+                          await StorageService.setNotificationsEnabled(enabled);
+                        },
                         activeThumbColor: context.palette.onPrimary,
                         activeTrackColor: context.palette.primary,
                         inactiveThumbColor: context.palette.contentTertiary,
@@ -334,11 +357,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.system_update,
                       title: context.loc.update_checkTitle,
                       subtitle: context.loc.update_checkSubtitle,
-                      trailing: Icon(Icons.chevron_right,
-                          color: context.palette.contentTertiary),
+                      trailing: _isCheckingUpdate
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: context.palette.accentBlue,
+                              ),
+                            )
+                          : Icon(Icons.chevron_right,
+                              color: context.palette.contentTertiary),
                       color: context.palette.accentBlue,
-                      onTap: () => UpdateService()
-                          .checkVersion(context, showNoUpdateToast: true),
+                      onTap: _checkUpdate,
                     ),
                   ]),
 
@@ -398,12 +429,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (context, child) {
                             return Theme(
                               data: Theme.of(context).copyWith(
-                                colorScheme: Theme.of(context).colorScheme
+                                colorScheme: Theme.of(context)
+                                    .colorScheme
                                     .copyWith(
-                                  primary: context.palette.accentPurple,
-                                  onPrimary: context.palette.onPrimary,
-                                  surface: context.palette.surfaceSunken,
-                                ),
+                                      primary: context.palette.accentPurple,
+                                      onPrimary: context.palette.onPrimary,
+                                      surface: context.palette.surfaceSunken,
+                                    ),
                               ),
                               child: child!,
                             );
@@ -462,7 +494,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: context.palette.surfaceSunken,
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                            color: context.palette.danger.withValues(alpha: 0.5)),
+                            color:
+                                context.palette.danger.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -486,16 +519,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 32),
                   GestureDetector(
-                    onTap: () => UpdateService()
-                        .checkVersion(context, showNoUpdateToast: true),
-                    child: Text(
-                      context.loc.profile_appVersion(_appVersion),
-                      style: VpWidgets.googleFont(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: context.palette.contentPlaceholder,
-                        letterSpacing: 1.5,
-                      ),
+                    onTap: _checkUpdate,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          context.loc.profile_appVersion(_appVersion),
+                          style: VpWidgets.googleFont(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: context.palette.contentPlaceholder,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        if (_isCheckingUpdate) ...[
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: context.palette.contentPlaceholder,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -566,8 +614,8 @@ class _TextEditDialogState extends State<_TextEditDialog> {
           counterStyle: TextStyle(color: context.palette.contentDisabled),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
-            borderSide:
-                BorderSide(color: context.palette.accentPurple.withValues(alpha: 0.3)),
+            borderSide: BorderSide(
+                color: context.palette.accentPurple.withValues(alpha: 0.3)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),

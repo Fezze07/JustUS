@@ -607,9 +607,6 @@ class AuthState extends BaseState with WidgetsBindingObserver {
 
   Future<void> refreshPartnershipFromRealtime() async {
     try {
-      BaseRepository.clearPartnershipCache();
-      await _fetchInvitations();
-
       final partnershipResult = await _partnershipRepo.getPartnership();
       final partnership = partnershipResult.valueOrNull;
       if (partnership == null) return;

@@ -144,6 +144,7 @@ class NotificationService {
   Future<void> showRemoteMessage(RemoteMessage message,
       {bool isBackground = false}) async {
     if (kIsWeb) return;
+    if (!await StorageService.getNotificationsEnabled()) return;
 
     if (!_localInitialized) {
       await initLocalNotifications(isBackground: isBackground);

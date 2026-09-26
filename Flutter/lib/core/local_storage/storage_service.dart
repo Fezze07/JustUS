@@ -49,6 +49,8 @@ class StorageService {
   static const String _keyDeviceFingerprint = 'device_fingerprint';
   static const String _keyRequestBindingSecret = 'request_binding_secret';
   static const String _keyTimeline = 'mood_timeline';
+  static const String _keyAppVersion = 'app_version';
+  static const String _keyNotificationsEnabled = 'notifications_enabled';
 
   static SharedPreferences? _prefs;
   static const _secureStorage = FlutterSecureStorage();
@@ -156,9 +158,7 @@ class StorageService {
     if (raw == null) return [];
     try {
       final decoded = await compute(_isolateDecodeList, raw);
-      return decoded
-          .map((e) => fromJson(e as Map<String, dynamic>))
-          .toList();
+      return decoded.map((e) => fromJson(e as Map<String, dynamic>)).toList();
     } catch (_) {
       return [];
     }
@@ -377,6 +377,27 @@ class StorageService {
     return p.getInt(_keyProfilePicVersion);
   }
 
+  // -------------------- App Version --------------------
+
+  static Future<void> saveAppVersion(String version) async {
+    final p = await prefs;
+    await p.setString(_keyAppVersion, version);
+  }
+
+  static Future<String?> getAppVersion() async {
+    final p = await prefs;
+
+    return p.getString(_keyAppVersion);
+  }
+
+  // -------------------- Notifications --------------------
+
+  static Future<bool> getNotificationsEnabled() async =>
+      (await prefs).getBool(_keyNotificationsEnabled) ?? true;
+
+  static Future<void> setNotificationsEnabled(bool enabled) async =>
+      (await prefs).setBool(_keyNotificationsEnabled, enabled);
+
   // -------------------- Mood --------------------
 
   static Future<void> saveMood(String target, String emoji) async {
@@ -441,15 +462,24 @@ class StorageService {
 
   static Future<void> clearAll() async {
     final p = await prefs;
-    final preserved = <String, String?>{
+    final preservedString = <String, String?>{
       LanguageHelper.storageKey: p.getString(LanguageHelper.storageKey),
       ThemeProvider.storageKey: p.getString(ThemeProvider.storageKey),
     };
+    final preservedBool = <String, bool?>{
+      _keyNotificationsEnabled: p.getBool(_keyNotificationsEnabled),
+    };
     await p.clear();
-    for (final entry in preserved.entries) {
+    for (final entry in preservedString.entries) {
       final value = entry.value;
       if (value != null) {
         await p.setString(entry.key, value);
+      }
+    }
+    for (final entry in preservedBool.entries) {
+      final value = entry.value;
+      if (value != null) {
+        await p.setBool(entry.key, value);
       }
     }
     await _secureStorage.deleteAll();

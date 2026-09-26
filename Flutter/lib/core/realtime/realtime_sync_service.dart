@@ -39,10 +39,8 @@ class RealtimeSyncService {
       isRelevant: _session.isRelevantPartnership,
       refetch: () async {
         BaseRepository.clearPartnershipCache();
-        await Future.wait([
-          _partnerState.refreshFromRealtime(),
-          _authState.refreshPartnershipFromRealtime(),
-        ]);
+        await _partnerState.refreshFromRealtime();
+        await _authState.refreshPartnershipFromRealtime();
       },
     );
     _missYouHandler = MissYouRealtimeHandler(
@@ -63,11 +61,9 @@ class RealtimeSyncService {
           _session.isRelevantUserProfile(payload),
       refetch: () async {
         BaseRepository.clearPartnershipCache();
-        await Future.wait([
-          _profileState.loadProfile(force: true),
-          _partnerState.refreshFromRealtime(),
-          _authState.refreshPartnershipFromRealtime(),
-        ]);
+        await _profileState.loadProfile(force: true);
+        await _partnerState.refreshFromRealtime();
+        await _authState.refreshPartnershipFromRealtime();
       },
     );
     _connection = RealtimeSyncConnection(

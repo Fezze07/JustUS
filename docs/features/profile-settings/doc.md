@@ -16,10 +16,11 @@ This document provides a reverse-engineering technical analysis of the end-to-en
 4. **Partner Code Sharing**: Displays the user's unique partnership code with a single-tap copy action to the system clipboard.
 5. **Anniversary Date Selection**: Interactive date picker allowing users to set or update their partnership anniversary date.
 6. **Language & Localization Management**: Navigates to `/localization` to select between supported languages (Italian and English), persisting the preference across app restarts and dynamically switching localized string lookup.
-7. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
-8. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
-9. **App Version Display & Update Check**: Displays local app version (`v{version}`) at the footer of the profile screen. Automatic update checks run on app startup (`HomepageScreen`).
-10. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL, Cloudflare R2, and local storage without invalidating authentication tokens.
+7. **Notification Preference Toggle**: VPSettingTile switch allowing users to toggle push/local notifications on or off, persisted locally via `StorageService` (`notifications_enabled`) and enforced in `NotificationService`.
+8. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
+9. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
+10. **App Version Display & Interactive Update Check**: Displays cached/live app version (`v{version}`) loaded from `SharedPreferences` key `app_version` (falling back to `package_info_plus`). Manual update checks display an immediate inline loading spinner on the tile and footer.
+11. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL, Cloudflare R2, and local storage without invalidating authentication tokens.
 
 ---
 
@@ -164,6 +165,8 @@ The Profile & Settings subsystem crosses all architectural layers:
 | `FlutterSecureStorage` | `device_fingerprint` | Client Device UUID | **YES** | NO |
 | `FlutterSecureStorage` | `request_binding_secret` | HMAC Signing Secret | **YES** | NO |
 | `SharedPreferences` | `app_language_code` | Selected App Language Code | NO | NO |
+| `SharedPreferences` | `app_version` | Cached App Version String | NO | NO |
+| `SharedPreferences` | `notifications_enabled` | Notification Toggle Preference | NO | NO |
 | `SharedPreferences` | `user_profile` | Cached User Profile JSON | **YES** | **YES** |
 | `SharedPreferences` | `partner_profile` | Cached Partner Profile JSON | **YES** | **YES** |
 | `SharedPreferences` | `profile_pic_version` | Profile Pic Cache Timestamp | **YES** | **YES** |
