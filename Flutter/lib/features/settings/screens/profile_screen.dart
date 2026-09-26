@@ -284,37 +284,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Settings Sections
                   VPSectionHeader(
-                      title: context.loc.settings_appearanceSection),
-                  VPSettingGroup(children: [
-                    VPSettingTile(
-                      icon: Icons.palette_outlined,
-                      title: context.loc.settings_themeTitle,
-                      subtitle: context.loc.settings_themeSubtitle,
-                      trailing: VPSegmentedControl<bool>(
-                        value: !context.watch<ThemeProvider>().isDark,
-                        onChanged: (isLight) => unawaited(context
-                            .read<ThemeProvider>()
-                            .setThemeMode(isLight ? ThemeMode.light : ThemeMode.dark)),
-                        options: [
-                          VPSegmentedControlOption(
-                            value: true,
-                            label: context.loc.settings_themeLight,
-                            icon: Icons.light_mode,
-                          ),
-                          VPSegmentedControlOption(
-                            value: false,
-                            label: context.loc.settings_themeDark,
-                            icon: Icons.dark_mode,
-                          ),
-                        ],
-                      ),
-                      color: context.palette.accentPurple,
-                    ),
-                  ]),
-
-                  const SizedBox(height: 24),
-
-                  VPSectionHeader(
                       title: context.loc.systemOverrideSectionTitle),
                   VPSettingGroup(children: [
                     VPSettingTile(
@@ -329,14 +298,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const VPDivider(),
                     VPSettingTile(
+                      icon: Icons.palette_outlined,
+                      title: context.loc.settings_themeTitle,
+                      subtitle: context.loc.settings_themeSubtitle,
+                      trailing: Switch(
+                        value: !context.watch<ThemeProvider>().isDark,
+                        onChanged: (isLight) => unawaited(context
+                            .read<ThemeProvider>()
+                            .setThemeMode(isLight ? ThemeMode.light : ThemeMode.dark)),
+                        activeThumbColor: context.palette.onPrimary,
+                        activeTrackColor: context.palette.primary,
+                        inactiveThumbColor: context.palette.contentTertiary,
+                        inactiveTrackColor: context.palette.surfaceSunken,
+                      ),
+                      color: context.palette.primary,
+                    ),
+                    const VPDivider(),
+                    VPSettingTile(
                       icon: Icons.notifications_active,
                       title: context.loc.settings_notificationsTitle,
                       subtitle: context.loc.settings_notificationsSubtitle,
                       trailing: Switch(
-                          value: true,
-                          onChanged: (v) {},
-                          activeThumbColor: context.palette.accentBlue),
-                      color: context.palette.accentBlue,
+                        value: true,
+                        onChanged: (v) {},
+                        activeThumbColor: context.palette.onPrimary,
+                        activeTrackColor: context.palette.primary,
+                        inactiveThumbColor: context.palette.contentTertiary,
+                        inactiveTrackColor: context.palette.surfaceSunken,
+                      ),
+                      color: context.palette.primary,
                     ),
                     const VPDivider(),
                     VPSettingTile(

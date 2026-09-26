@@ -196,8 +196,12 @@ class ErrorHandler {
     final surface = backgroundColor ??
         (isError ? ctx.palette.dangerSurface : ctx.palette.surfaceElevated);
     final isSticky = isError && kDebugMode;
-    final foreground =
-        isError ? ctx.palette.onDanger : ctx.palette.contentPrimary;
+    final foreground = isError
+        ? ctx.palette.onDanger
+        : (backgroundColor != null
+            ? ctx.palette.onPrimary
+            : ctx.palette.contentPrimary);
+    final shadowColor = ctx.palette.shadowToast;
 
     late OverlayEntry entry;
     entry = OverlayEntry(
@@ -218,7 +222,7 @@ class ErrorHandler {
                 borderRadius: BorderRadius.circular(AppRadius.sm),
                 boxShadow: [
                   BoxShadow(
-                      color: ctx.palette.shadowToast,
+                      color: shadowColor,
                       blurRadius: 10,
                       offset: const Offset(0, 4))
                 ],

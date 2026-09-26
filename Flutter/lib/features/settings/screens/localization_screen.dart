@@ -49,20 +49,6 @@ class LocalizationScreen extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 24),
-                VPSectionHeader(title: loc.aiTranslationSectionTitle),
-                VPSettingGroup(
-                  children: [
-                    VPSettingTile(
-                      icon: Icons.auto_awesome,
-                      title: loc.aiTranslationReadyTitle,
-                      subtitle: loc.aiTranslationReadySubtitle,
-                      trailing: Icon(Icons.psychology,
-                          color: context.palette.contentTertiary),
-                      color: context.palette.accentPurple,
-                    ),
-                  ],
-                ),
               ],
             );
           },
@@ -105,7 +91,6 @@ class _LanguageTile extends StatelessWidget {
               ErrorHandler.showSnackBar(
                 context,
                 context.loc.languageSavedMessage,
-                backgroundColor: context.palette.accentPurple,
               );
             },
     );

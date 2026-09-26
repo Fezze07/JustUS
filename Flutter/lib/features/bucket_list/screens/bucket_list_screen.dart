@@ -70,9 +70,8 @@ class _BucketListScreenState extends State<BucketListScreen>
                           backgroundColor: context.palette.canvas,
                           labelStyle: TextStyle(
                             color: selectedAddCategory == cat
-                                ? context.palette.contentPrimary
-                                : BucketCategory.colorFor(context, cat)
-                                    .withValues(alpha: 0.7),
+                                ? context.palette.onAccent
+                                : BucketCategory.colorFor(context, cat),
                           ),
                           onSelected: (selected) {
                             if (selected) {
@@ -115,8 +114,8 @@ class _BucketListScreenState extends State<BucketListScreen>
       floatingActionButton: FloatingActionButton(
         tooltip: context.loc.bucket_add,
         onPressed: _showAddDialog,
-        backgroundColor: context.palette.accentBlue,
-        child: Icon(Icons.add, color: context.palette.canvas),
+        backgroundColor: context.palette.primary,
+        child: Icon(Icons.add, color: context.palette.onPrimary),
       ),
       body: SafeArea(
         child: Column(
@@ -144,11 +143,10 @@ class _BucketListScreenState extends State<BucketListScreen>
                             backgroundColor: context.palette.surface,
                             labelStyle: VpWidgets.googleFont(
                               color: _selectedCategory == cat
-                                  ? context.palette.canvas
+                                  ? context.palette.onAccent
                                   : cat == BucketCategory.all
                                       ? context.palette.contentSecondary
-                                      : BucketCategory.colorFor(context, cat)
-                                          .withValues(alpha: 0.7),
+                                      : BucketCategory.colorFor(context, cat),
                               fontWeight: _selectedCategory == cat
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -266,7 +264,7 @@ class _BucketListScreenState extends State<BucketListScreen>
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDone ? context.palette.border : context.palette.surface,
+          color: isDone ? context.palette.divider : context.palette.surfaceGroup,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isDone

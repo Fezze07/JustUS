@@ -96,20 +96,33 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 24, vertical: 20),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppPalette.brandGradientAccent,
-                              context.palette.primary
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: context.palette.isDark
+                              ? null
+                              : context.palette.surfaceGroup,
+                          gradient: context.palette.isDark
+                              ? LinearGradient(
+                                  colors: [
+                                    AppPalette.brandGradientAccent,
+                                    context.palette.primary,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
                           borderRadius: BorderRadius.circular(AppRadius.lg),
+                          border: context.palette.isDark
+                              ? null
+                              : Border.all(
+                                  color: context.palette.primary
+                                      .withValues(alpha: 0.2)),
                           boxShadow: [
                             VpWidgets.boxShadow(
                               context,
-                              color: context.palette.primary.withValues(alpha: 0.4),
-                              offset: const Offset(0, 8),
+                              color: context.palette.isDark
+                                  ? context.palette.primary
+                                      .withValues(alpha: 0.4)
+                                  : context.palette.shadowSoft,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
@@ -125,7 +138,9 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                                   style: VpWidgets.googleFont(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: context.palette.contentPrimary,
+                                    color: context.palette.isDark
+                                        ? context.palette.onPrimary
+                                        : context.palette.contentPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -134,7 +149,10 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                                   style: VpWidgets.googleFont(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: context.palette.contentSecondary,
+                                    color: context.palette.isDark
+                                        ? context.palette.onPrimary
+                                            .withValues(alpha: 0.8)
+                                        : context.palette.contentSecondary,
                                   ),
                                 ),
                               ],
@@ -143,19 +161,20 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                               width: 50,
                               height: 50,
                               decoration: BoxDecoration(
-                                color: context.palette.accentGreen,
+                                color: context.palette.primary,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   VpWidgets.boxShadow(
                                     context,
-                                    color: context.palette.shadowSoft,
+                                    color: context.palette.primary
+                                        .withValues(alpha: 0.4),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   )
                                 ],
                               ),
                               child: Icon(Icons.add,
-                                  color: context.palette.surfaceSunken, size: 30),
+                                  color: context.palette.onPrimary, size: 30),
                             ),
                           ],
                         ),

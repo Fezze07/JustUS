@@ -216,24 +216,6 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
       shadowColor: context.palette.accentPurple.withValues(alpha: 0.2),
       child: Stack(
         children: [
-          Positioned(
-            top: -20,
-            right: -20,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: context.palette.accentPurple.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                      color: context.palette.accentPurple,
-                      blurRadius: 50,
-                      spreadRadius: 10)
-                ],
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.all(32),
             child: Column(

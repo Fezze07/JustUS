@@ -37,8 +37,20 @@ class BucketCategory {
     'Homemade': homemade,
   };
 
+  static const Map<String, Color> _lightColors = {
+    'Travel': AppCategoryColors.travelLight,
+    'Dates': AppCategoryColors.datesLight,
+    'Goals': AppCategoryColors.goalsLight,
+    'Crazy': AppCategoryColors.crazyLight,
+    'Adventure': AppCategoryColors.adventureLight,
+    'Romantic': AppCategoryColors.romanticLight,
+    'Homemade': AppCategoryColors.homemadeLight,
+  };
+
   static Color colorFor(BuildContext context, String category) {
-    return _colors[category] ?? context.palette.contentSecondary;
+    final isDark = context.palette.isDark;
+    final map = isDark ? _colors : _lightColors;
+    return map[category] ?? context.palette.contentSecondary;
   }
 
   static String localizedLabel(String category, AppLocalizations loc) {

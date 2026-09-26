@@ -519,9 +519,25 @@ class _HomepageScreenState extends State<HomepageScreen>
       onTap: () {
         MainShell.shellKey.currentState?.switchToTab(3);
       },
-      child: _GlassCard(
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        decoration: BoxDecoration(
+          color: context.palette.isDark
+              ? context.palette.homeGlass
+              : context.palette.surfaceGroup,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: BucketCategory.colorFor(context, item.category)
+                .withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: BucketCategory.colorFor(context, item.category)
+                  .withValues(alpha: 0.1),
+              blurRadius: 10,
+            ),
+          ],
+        ),
         child: Row(
           children: [
             // Category chip
@@ -553,8 +569,8 @@ class _HomepageScreenState extends State<HomepageScreen>
                 item.text,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: context.palette.homeOnSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                  color: context.palette.contentPrimary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -580,34 +596,32 @@ class _HomepageScreenState extends State<HomepageScreen>
 /// Glassmorphic card container — matches `.glass-card` in Stitch HTML.
 class _GlassCard extends StatelessWidget {
   final Widget child;
-  final EdgeInsetsGeometry? padding;
-  final BorderRadius? borderRadius;
 
-  const _GlassCard({
-    required this.child,
-    this.padding,
-    this.borderRadius,
-  });
+  const _GlassCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: context.palette.homeGlass, // rgba(30,30,30,0.4)
-        borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.lg),
+        color: context.palette.isDark
+            ? context.palette.homeGlass
+            : context.palette.surfaceGroup,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: context.palette.border,
+          color: context.palette.isDark
+              ? context.palette.border
+              : context.palette.homeOutlineVariant.withValues(alpha: 0.5),
         ),
-        // Simulate backdrop-filter via gradient sheen
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            context.palette.contentPrimary.withValues(alpha: 0.04),
-            Colors.transparent,
-          ],
-        ),
+        gradient: context.palette.isDark
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  context.palette.contentPrimary.withValues(alpha: 0.04),
+                  Colors.transparent,
+                ],
+              )
+            : null,
       ),
       child: child,
     );

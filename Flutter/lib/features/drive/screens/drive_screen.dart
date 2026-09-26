@@ -102,12 +102,6 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
                                   color: context.palette.contentPrimary,
-                                  shadows: [
-                                    BoxShadow(
-                                      color: context.palette.accentPurple,
-                                      blurRadius: 8,
-                                    ),
-                                  ],
                                 ),
                               ),
                               Text(
@@ -177,12 +171,6 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                               fontWeight: FontWeight.w900,
                               color: context.palette.accentPurple,
                               letterSpacing: 2.0,
-                              shadows: [
-                                BoxShadow(
-                                  color: context.palette.accentPurple,
-                                  blurRadius: 4,
-                                ),
-                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -356,11 +344,11 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        color: context.palette.accentAqua,
+        color: context.palette.primary,
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: [
           BoxShadow(
-            color: context.palette.accentAqua.withValues(alpha: 0.5),
+            color: context.palette.primary.withValues(alpha: 0.4),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -374,7 +362,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
           child: Center(
             child: Icon(
               Icons.add_photo_alternate,
-              color: context.palette.surfaceSunken,
+              color: context.palette.onPrimary,
               size: 32,
             ),
           ),

@@ -125,7 +125,10 @@ class HomeBottomNav extends StatelessWidget {
           message: context.loc.nav_home,
           child: IconButton(
             icon: Icon(Icons.home_filled,
-                color: context.palette.contentPrimary, size: 28),
+                color: isHome
+                    ? context.palette.onPrimary
+                    : context.palette.contentSecondary,
+                size: 28),
             onPressed: () => onIndexChanged(0),
           ),
         ),
