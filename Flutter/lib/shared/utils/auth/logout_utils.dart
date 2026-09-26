@@ -9,8 +9,8 @@ class LogoutUtils {
   static void showLogoutDialog(BuildContext context, VoidCallback onConfirm) {
     unawaited(showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.loc.logout_title),
+      builder: (context) => VPDialog(
+        title: context.loc.logout_title,
         content: Text(context.loc.logout_message),
         actions: [
           TextButton(

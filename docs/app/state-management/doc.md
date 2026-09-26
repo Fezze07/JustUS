@@ -24,7 +24,7 @@ State definition sites:
 | DriveState | `features/drive/drive_state.dart` | BaseState + CheckpointMixin | StorageService.get/saveDriveItems |
 | ProfileState | `features/settings/profile_state.dart` | BaseState | StorageService (profiles) |
 | LanguageProvider | `core/localization/language_provider.dart` | ChangeNotifier (not BaseState) | SharedPreferences (direct) |
-| ThemeProvider | `core/theme/theme_provider.dart` | ChangeNotifier (not BaseState) | none (never persisted) |
+| ThemeProvider | `core/theme/theme_provider.dart` | ChangeNotifier (not BaseState) | SharedPreferences (direct) |
 | TabIndexNotifier | `shared/widgets/tab_screen.dart` | ChangeNotifier (not BaseState) | none (ephemeral) |
 
 ## BaseState
@@ -105,7 +105,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ## Provider wiring
 
-- Constructed once at root: `MultiProvider` in `main.dart:96-112` with `ChangeNotifierProvider(create: ...)` for `LanguageProvider`, `AuthState`, `PartnerState`, `ThemeProvider`, `HomepageState`, `MoodState`, `BucketState`, `GameState`, `DriveState`, `ProfileState`. All are created lazily on first `read`/`watch`? No — `create` factories run on first access by a dependent consumer; in practice all are touched during startup (splash) or first tab build.
+- Constructed once at root: `MultiProvider` in `main.dart:96-112` with `ChangeNotifierProvider.value` for `LanguageProvider` and `ThemeProvider` (both pre-loaded before `runApp`) and `ChangeNotifierProvider(create: ...)` for `AuthState`, `PartnerState`, `HomepageState`, `MoodState`, `BucketState`, `GameState`, `DriveState`, `ProfileState`. All are created lazily on first `read`/`watch`? No — `create` factories run on first access by a dependent consumer; in practice all are touched during startup (splash) or first tab build.
 - `RealtimeSyncScope` (core/realtime/realtime_sync_scope.dart:8-83) reads the states via `context.read`, builds a single `RealtimeSyncService`, starts it, and re-provides it via `Provider<RealtimeSyncService>.value`. It also registers `AuthState.onClearFeatureStates` with the six feature-state `clear()`s, so `logout()` resets them. It uses `Consumer2<AuthState, PartnerState>` to re-`configure` the service whenever auth/partner identities change. **ProfileState is not wired into RealtimeSyncService.**
 - Consumption pattern: `context.read<State>()` for fire-and-forget mutations (58 usages), `Consumer`/`Consumer2` for rebuild-on-any-change when Selector types get unwieldy (login_screen.dart:83, register_screen.dart:67, partner_screen.dart:69), and `Selector` (7 sites: profile, bucket, homepage×3, mood, game×3, drive×4, localization) to rebuild only slices. Because notifications are deferred (frame-coalesced), every provider-driven rebuild is delayed by one frame relative to plain `ChangeNotifier`.
 - Because `AuthState` and `PartnerState` are above `RealtimeSyncScope`, the service keeps direct references to live instances — states are never recreated when screens navigate.
@@ -159,7 +159,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ### Standalone providers (not BaseState)
 - `LanguageProvider` (language_provider.dart:6-44): normal `ChangeNotifier`; loads saved locale before `runApp` (main.dart:72-73), persists to SharedPreferences on change (line 41), dedupes no-op locale sets (lines 32-34).
-- `ThemeProvider` (theme_provider.dart:3-18): normal `ChangeNotifier`; `ThemeMode.dark` default, never persisted (widget root `Selector2` rebuilds MaterialApp themeMode, main.dart:114-128). Light theme is effectively unsupported (design-system scope F-DS8).
+- `ThemeProvider` (theme_provider.dart:3-45): normal `ChangeNotifier`; loads the saved mode before `runApp` (main.dart:75-76) and persists it to SharedPreferences on change, deduping no-op sets; an unrecognized stored value falls back to `ThemeMode.dark` (the widget root `Selector2` rebuilds MaterialApp themeMode, main.dart:114-128). `StorageService.clearAll()` preserves the key on logout/wipe. No screen calls `setThemeMode()`/`toggle()` yet, so the mode stays at its dark default in practice, and the light theme itself is effectively unsupported (design-system F-DS7).
 - `TabIndexNotifier` (tab_screen.dart:6-15): `index` setter notifies only on actual change; shared by MainShell (`main_shell.dart:15`) and all `TabScreen` widgets.
 
 ## Tab state
@@ -204,12 +204,12 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 - YES everywhere: all states live at the app root (`main.dart:96-112`) above `Navigator`; screens are popped/pushed but states never dispose except `AuthState` (which subscribes/unsubscribes from Supabase and never loses data). Navigation never creates or destroys feature state.
 - IndexedStack keeps tab widget states alive across tab switches (main_shell.dart:45-49), so local widget state (scroll offsets, TextEditingControllers, `_builtPages`) survives too.
-- Exception in navigation semantics: `ThemeProvider` and `LanguageProvider` are root-level too, so theme/locale survive, but ThemeProvider's value is never persisted (lost on process restart).
+- `ThemeProvider` and `LanguageProvider` are root-level too, so theme/locale survive navigation; both are also persisted, so they survive a process restart as well.
 
 ## Whether state survives app lifecycle
 
 - Paused/detached: `RealtimeSyncConnection` unsubscribes (realtime_connection.dart) — in-memory state preserved, channel dropped, events missed while backgrounded are re-fetched on resume via `refreshAfterSubscribe: true`.
-- Process death / restart: all state starts empty and is rebuilt from StorageService on next `init()`; checkpoint system ensures network refresh only happens when server `max(timestamp)` > checkpoint, so a cold start is cheap when nothing changed.
+- Process death / restart: all state starts empty and is rebuilt from StorageService on next `init()`; checkpoint system ensures network refresh only happens when server `max(timestamp)` > checkpoint, so a cold start is cheap when nothing changed. The two device-level preferences are the exception: `LanguageProvider` and `ThemeProvider` are rehydrated from `SharedPreferences` before `runApp`, so the first frame already uses the saved locale/theme.
 - Missed-events gap: while backgrounded, `RealtimeSyncSession.suppressProcessing` and unsubscribed channel mean missed events are NOT replayed by Supabase realtime — they are recovered only because `_refreshAll()` runs on resume/subscribe and `hasCheckpoint` comparisons catch up by timestamp. Confidence: HIGH that refresh-all on resume covers it; LOW that every corner (e.g. wipe-data suppress flow, `RealtimeSyncService.suppress()` in realtime_sync_service.dart) restores resume().
 
 ## Findings
@@ -235,7 +235,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - Init is a screen-driven operation (TabScreenMixin or homepage `_loadData`), never application-global; auth init is the sole exception (splash).
 - Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe clears both in-memory and media caches too (profile_screen.dart:134-150), and additionally reloads the profile.
 - BaseState notification is deferred one frame; code must never rely on synchronous listener invocation.
-- ThemeProvider value survives navigation but not process restart; LanguageProvider persists via SharedPreferences.
+- `ThemeProvider` and `LanguageProvider` both survive navigation and process restart (SharedPreferences, restored before `runApp`); both are also preserved by `StorageService.clearAll()` on logout/wipe.
 
 ## Implementation status
 
@@ -251,6 +251,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 | De-duplication of concurrent fetches | PARTIALLY IMPLEMENTED (per-state guards; homepage/mood unguarded; no shared coordinator) |
 | Stale-response handling (ordering) | NOT IMPLEMENTED |
 | State survival across navigation | IMPLEMENTED (root-provided) |
+| Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`; restored pre-`runApp`; preserved by `clearAll`) |
 | State survival across lifecycle | IMPLEMENTED (resume refresh-all; background unsubscribe) |
 | Feature state reset on logout + wipe | IMPLEMENTED (`onClearFeatureStates` in AuthState.logout, registered by RealtimeSyncScope; wipe path in profile_screen.dart) |
 | In-flight checkpoint write-back dropped on clear (epoch gate) | IMPLEMENTED (`CacheService.checkpointEpoch` bumped by `clearAll`/`purge`/`clearCheckpoints`; every checkpoint write gated on the epoch captured at fetch start) |

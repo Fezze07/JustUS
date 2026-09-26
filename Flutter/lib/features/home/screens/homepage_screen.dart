@@ -414,7 +414,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                         : () async {
                             final success = await hpState.sendMissYou();
                             if (success && context.mounted) {
-                              UIUtils.showSnackBar(
+                              ErrorHandler.showSnackBar(
                                   context, context.loc.home_missYouSent);
                             }
                           },

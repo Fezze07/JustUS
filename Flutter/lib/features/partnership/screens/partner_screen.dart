@@ -369,7 +369,8 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     ));
                   }
                 } else if (!success && mounted) {
-                  UIUtils.showSnackBar(context, context.loc.partner_acceptError,
+                  ErrorHandler.showSnackBar(
+                      context, context.loc.partner_acceptError,
                       isError: true);
                 }
               },
@@ -417,7 +418,8 @@ class _PartnerScreenState extends State<PartnerScreen> {
               IconButton(
                 onPressed: () {
                   unawaited(Clipboard.setData(ClipboardData(text: code)));
-                  UIUtils.showSnackBar(context, context.loc.partner_codeCopied);
+                  ErrorHandler.showSnackBar(
+                      context, context.loc.partner_codeCopied);
                 },
                 icon: const Icon(Icons.copy_rounded,
                     color: AppColors.primary, size: 24),

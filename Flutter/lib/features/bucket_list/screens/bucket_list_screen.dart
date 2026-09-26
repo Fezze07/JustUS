@@ -45,8 +45,8 @@ class _BucketListScreenState extends State<BucketListScreen>
     unawaited(showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(context.loc.bucket_addGoalTitle),
+        builder: (context, setState) => VPDialog(
+          title: context.loc.bucket_addGoalTitle,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

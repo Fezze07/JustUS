@@ -102,7 +102,7 @@ class _LanguageTile extends StatelessWidget {
                   .setLanguageCode(language.code);
               if (!context.mounted) return;
 
-              UIUtils.showSnackBar(
+              ErrorHandler.showSnackBar(
                 context,
                 context.loc.languageSavedMessage,
                 backgroundColor: AppColors.neonPurple,

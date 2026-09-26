@@ -441,10 +441,16 @@ class StorageService {
 
   static Future<void> clearAll() async {
     final p = await prefs;
-    final languageCode = p.getString(LanguageHelper.storageKey);
+    final preserved = <String, String?>{
+      LanguageHelper.storageKey: p.getString(LanguageHelper.storageKey),
+      ThemeProvider.storageKey: p.getString(ThemeProvider.storageKey),
+    };
     await p.clear();
-    if (languageCode != null) {
-      await p.setString(LanguageHelper.storageKey, languageCode);
+    for (final entry in preserved.entries) {
+      final value = entry.value;
+      if (value != null) {
+        await p.setString(entry.key, value);
+      }
     }
     await _secureStorage.deleteAll();
     _activePartnershipId = null;

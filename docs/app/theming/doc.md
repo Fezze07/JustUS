@@ -76,10 +76,10 @@ To maintain the Violet-Punk UI aesthetic, custom component primitives are implem
 - **Issue:** Custom Violet-Punk widgets (`VPScaffold`, `cardDecoration`, `VPSettingGroup`) directly reference dark constants (`AppColors.deepViolet`, `AppColors.cardDark`, `AppColors.punkPurple`) rather than checking `Theme.of(context)` or `ColorScheme`.
 - **Impact:** Switching `ThemeProvider` to `ThemeMode.light` updates `MaterialApp` theme properties, but Violet-Punk screens remain visually locked in dark mode because backgrounds and container fills are hardcoded.
 
-### Finding 2: Unpersisted Theme Mode State
-- **Location:** `theme_provider.dart` ([theme_provider.dart:4](file:///f:/JustUS/Flutter/lib/core/theme/theme_provider.dart#L4)).
-- **Issue:** `ThemeProvider` holds `_mode = ThemeMode.dark` strictly in memory.
-- **Impact:** If a user toggles theme mode via `ThemeProvider.toggle()`, the selection is lost when the app process is terminated or restarted.
+### Finding 2: No Theme-Selection UI
+- **Location:** `lib/features/settings/screens/` (no appearance row), `lib/main.dart`.
+- **Issue:** `ThemeProvider` persists the mode and `MaterialApp` consumes it, but no screen exposes a control that calls `setThemeMode()` / `toggle()`.
+- **Impact:** The preference is durable once written, but there is no in-app way to write it, so in practice the app still always starts dark until a selector is added.
 
 ### Finding 3: Contrast Hazards with Hardcoded White Text
 - **Location:** `localization_screen.dart`, `vp_widgets.dart` (`VPHeader`, `VPSectionHeader`).
@@ -101,4 +101,4 @@ To maintain the Violet-Punk UI aesthetic, custom component primitives are implem
 - **Plus Jakarta Sans Typography:** **100% IMPLEMENTED**
 - **Violet-Punk Dark Color Definitions:** **100% IMPLEMENTED**
 - **Light Theme Compatibility in Custom Widgets:** **PARTIALLY IMPLEMENTED** (Custom VP components hardcode dark colors)
-- **Theme Persistence in SharedPreferences:** **NOT IMPLEMENTED**
+- **Theme Persistence in SharedPreferences:** **100% IMPLEMENTED** (`ThemeProvider.storageKey`, restored pre-`runApp`)

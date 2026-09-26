@@ -30,7 +30,7 @@ VPButton(
   onPressed: () {
     if (_formKey.currentState!.validate()) {
       // Logic to update password
-      UIUtils.showSnackBar(context, context.loc.auth_passwordUpdated);
+      ErrorHandler.showSnackBar(context, context.loc.auth_passwordUpdated);
       Navigator.pop(context);
     }
   },

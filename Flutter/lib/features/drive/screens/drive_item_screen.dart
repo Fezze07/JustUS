@@ -194,8 +194,8 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   void _confirmDelete() {
     unawaited(showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.loc.drive_deleteTitle),
+      builder: (context) => VPDialog(
+        title: context.loc.drive_deleteTitle,
         content: Text(context.loc.drive_deleteConfirm),
         actions: [
           TextButton(

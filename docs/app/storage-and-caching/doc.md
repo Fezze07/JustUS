@@ -96,6 +96,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | Key | Storage key string | Producer | Consumer | Notes |
 |---|---|---|---|---|
 | `LanguageHelper.storageKey` | `app_language_code` | `LanguageProvider.setLocale` | `LanguageProvider.loadSavedLocale`, `NotificationService.showRemoteMessage` | **Preserved on logout** — `StorageService.clearAll()` re-persists it after `p.clear()` (device-level preference, F-SC4 resolved) |
+| `ThemeProvider.storageKey` | `app_theme_mode` | `ThemeProvider.setThemeMode` (stores the `ThemeMode` enum name) | `ThemeProvider.loadSavedMode` (before `runApp`), `MaterialApp.themeMode` via the root `Selector2` | **Preserved on logout** — re-persisted by `StorageService.clearAll()` alongside the language key; an unrecognized value falls back to `dark` |
 
 ### Media File Cache (flutter\_cache\_manager)
 
@@ -357,7 +358,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 - `StorageService._keyDriveThumbCache` — declared and cleared but never written or read.
 - `reportFailedLogin` / `AuthRepository.reportFailedLogin` — defined but never called.
 - `StorageService.resetForTest()` — defined but never called from tests.
-- `ThemeMode` is never persisted (`theme_provider.dart`) — always starts dark (documented in architecture doc).
 
 ---
 
@@ -378,6 +378,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `profile_pic_version` used to bust image cache | NOT IMPLEMENTED (dead write, F-SC2) |
 | `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
+| Theme preference persistence across restart + logout | IMPLEMENTED (`app_theme_mode`; restored pre-`runApp`, preserved by `clearAll`) |
 
 ---
 

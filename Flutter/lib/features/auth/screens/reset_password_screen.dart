@@ -106,7 +106,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
                               final firstError = newError ?? confirmError;
                               if (firstError != null) {
-                                UIUtils.showSnackBar(
+                                ErrorHandler.showSnackBar(
                                   context,
                                   firstError,
                                   isError: true,
@@ -120,10 +120,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!context.mounted) return;
 
                               if (success) {
-                                final messenger = ScaffoldMessenger.of(context);
                                 final message =
                                     context.loc.auth_passwordUpdated;
-                                final closeLabel = context.loc.common_close;
 
                                 final hasPartner = authState.hasPartner;
                                 unawaited(Navigator.pushReplacement(
@@ -135,11 +133,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   ),
                                 ));
 
-                                UIUtils.showSnackBarOn(
-                                  messenger,
-                                  message,
-                                  closeLabel: closeLabel,
-                                );
+                                ErrorHandler.showSnackBar(context, message);
                               }
                             },
                           );

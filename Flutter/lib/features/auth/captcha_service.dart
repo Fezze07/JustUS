@@ -49,8 +49,8 @@ class CaptchaService {
               Navigator.of(dialogContext).pop();
             }
           },
-          child: AlertDialog(
-            title: Text(context.loc.auth_captchaTitle),
+          child: VPDialog(
+            title: context.loc.auth_captchaTitle,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

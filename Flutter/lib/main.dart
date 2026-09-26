@@ -72,8 +72,12 @@ void main() {
       final languageProvider = LanguageProvider();
       await languageProvider.loadSavedLocale();
 
+      final themeProvider = ThemeProvider();
+      await themeProvider.loadSavedMode();
+
       runApp(JustUsApp(
         languageProvider: languageProvider,
+        themeProvider: themeProvider,
         analytics: analytics,
       ));
     },
@@ -83,11 +87,13 @@ void main() {
 
 class JustUsApp extends StatelessWidget {
   final LanguageProvider languageProvider;
+  final ThemeProvider themeProvider;
   final FirebaseAnalytics? analytics;
 
   const JustUsApp({
     super.key,
     required this.languageProvider,
+    required this.themeProvider,
     this.analytics,
   });
 
@@ -96,11 +102,11 @@ class JustUsApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: languageProvider),
+        ChangeNotifierProvider.value(value: themeProvider),
 
         // Global state
         ChangeNotifierProvider(create: (_) => AuthState()),
         ChangeNotifierProvider(create: (_) => PartnerState()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
 
         // Feature states
         ChangeNotifierProvider(create: (_) => HomepageState()),

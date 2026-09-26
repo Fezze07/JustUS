@@ -97,19 +97,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final saved = await context.read<ProfileState>().updateDisplayName(value);
     if (saved && mounted) {
-      UIUtils.showSnackBar(context, context.loc.profile_saved);
+      ErrorHandler.showSnackBar(context, context.loc.profile_saved);
     }
   }
 
   Future<void> _showWipeConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          context.loc.profile_wipeConfirmTitle,
-          style: const TextStyle(
-              color: AppColors.danger, fontWeight: FontWeight.bold),
-        ),
+      builder: (context) => VPDialog(
+        title: context.loc.profile_wipeConfirmTitle,
         content: Text(context.loc.profile_wipeConfirmContent),
         actions: [
           TextButton(
@@ -142,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context.read<HomepageState>().clear();
         context.read<ProfileState>().clear();
 
-        UIUtils.showSnackBar(context, context.loc.profile_dataWiped);
+        ErrorHandler.showSnackBar(context, context.loc.profile_dataWiped);
         unawaited(context.read<ProfileState>().loadProfile(force: true));
         unawaited(rt.refreshChannel());
       }
@@ -351,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () {
                           unawaited(Clipboard.setData(
                               ClipboardData(text: user.partnershipCode!)));
-                          UIUtils.showSnackBar(
+                          ErrorHandler.showSnackBar(
                               context,
                               context.loc
                                   .profile_copiedCode(user.partnershipCode!),
@@ -540,14 +536,8 @@ class _TextEditDialogState extends State<_TextEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.title,
-        style: VpWidgets.googleFont(
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      ),
+    return VPDialog(
+      title: widget.title,
       content: TextField(
         key: const ValueKey('edit-text-field'),
         controller: _controller,

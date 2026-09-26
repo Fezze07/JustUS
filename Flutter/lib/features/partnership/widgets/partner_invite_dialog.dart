@@ -80,7 +80,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
                 final email = emailController.text.trim();
                 final code = codeController.text.trim();
                 if (email.isEmpty || code.isEmpty) {
-                  UIUtils.showSnackBar(
+                  ErrorHandler.showSnackBar(
                       context, context.loc.partner_fillAllFields,
                       isError: true);
 
@@ -92,7 +92,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
 
                 if (success) {
                   Navigator.pop(context);
-                  UIUtils.showSnackBar(
+                  ErrorHandler.showSnackBar(
                       context, context.loc.partner_inviteSuccess);
                 }
               },

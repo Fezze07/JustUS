@@ -156,13 +156,23 @@ class ErrorHandler {
     } else if (err.isCritical) {
       _showErrorDialog(context, err, message);
     } else {
-      _showSnackBar(context, message);
+      showSnackBar(context, message, isError: true);
     }
   }
 
-  // ---- Snackbar (errori lievi) tramite Overlay globale -----------------------
-  static void _showSnackBar(BuildContext context, String message) {
-    if (!context.mounted) return;
+  /// Feedback non bloccante. È l'unico meccanismo di snackbar dell'app.
+  ///
+  /// Sopravvive al pop della route che lo ha generato, perché l'overlay vive
+  /// sul Navigator radice: se [context] non è più montato si ripiega su
+  /// [navigatorKey].
+  static void showSnackBar(
+    BuildContext? context,
+    String message, {
+    bool isError = false,
+    Color? backgroundColor,
+  }) {
+    final ctx = _resolveContext(context);
+    if (ctx == null) return;
 
     // Guard: if called during a build/layout/paint phase, defer to next frame.
     final phase = SchedulerBinding.instance.schedulerPhase;
@@ -170,7 +180,8 @@ class ErrorHandler {
         phase == SchedulerPhase.transientCallbacks;
     if (isMidBuild) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) _showSnackBar(context, message);
+        showSnackBar(context, message,
+            isError: isError, backgroundColor: backgroundColor);
       });
       return;
     }
@@ -179,8 +190,12 @@ class ErrorHandler {
     _currentOverlay?.remove();
     _currentOverlay = null;
 
-    final overlay = Navigator.of(context, rootNavigator: true).overlay;
+    final overlay = Navigator.of(ctx, rootNavigator: true).overlay;
     if (overlay == null) return;
+
+    final surface =
+        backgroundColor ?? (isError ? AppColors.dangerSurface : AppColors.surfaceElevated);
+    final isSticky = isError && kDebugMode;
 
     late OverlayEntry entry;
     entry = OverlayEntry(
@@ -197,7 +212,7 @@ class ErrorHandler {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.dangerSurface,
+                color: surface,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
                 boxShadow: const [
                   BoxShadow(
@@ -215,7 +230,7 @@ class ErrorHandler {
                           color: AppColors.contentPrimary, fontSize: 14),
                     ),
                   ),
-                  if (kDebugMode)
+                  if (isSticky)
                     TextButton(
                       onPressed: () {
                         if (entry.mounted) {
@@ -239,8 +254,8 @@ class ErrorHandler {
     _currentOverlay = entry;
     overlay.insert(entry);
 
-    // Rimozione automatica
-    if (!kDebugMode) {
+    // In debug un errore resta finché non viene chiuso esplicitamente.
+    if (!isSticky) {
       Future.delayed(const Duration(seconds: 4), () {
         if (entry.mounted) {
           entry.remove();
@@ -248,6 +263,11 @@ class ErrorHandler {
         }
       });
     }
+  }
+
+  static BuildContext? _resolveContext(BuildContext? context) {
+    if (context != null && context.mounted) return context;
+    return navigatorKey.currentContext;
   }
 
   // ---- Dialog (errori critici) -----------------------------------------------
@@ -264,8 +284,8 @@ class ErrorHandler {
     unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(ctx.loc.error_reauthTitle),
+      builder: (ctx) => VPDialog(
+        title: ctx.loc.error_reauthTitle,
         content: Text(kDebugMode
             ? '[${err.code}] ${err.message}'
             : err.userMessage(ctx.loc)),

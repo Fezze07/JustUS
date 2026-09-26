@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         final emailError =
                             Validators.validateEmail(context, email);
                         if (emailError != null) {
-                          UIUtils.showSnackBar(context, emailError,
+                          ErrorHandler.showSnackBar(context, emailError,
                               isError: true);
                           return;
                         }
@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         final success = await state.resetPassword(email);
                         if (!context.mounted) return;
                         if (success) {
-                          UIUtils.showSnackBar(
+                          ErrorHandler.showSnackBar(
                             context,
                             context.loc.auth_passwordResetSent,
                           );
@@ -124,7 +124,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 if (emailError != null || passwordError != null) {
                   final errorMessage = emailError ?? passwordError!;
-                  UIUtils.showSnackBar(context, errorMessage, isError: true);
+                  ErrorHandler.showSnackBar(context, errorMessage,
+                      isError: true);
 
                   return;
                 }

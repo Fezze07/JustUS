@@ -126,7 +126,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               final firstError =
                                   oldError ?? newError ?? confirmError;
                               if (firstError != null) {
-                                UIUtils.showSnackBar(
+                                ErrorHandler.showSnackBar(
                                   context,
                                   firstError,
                                   isError: true,
@@ -143,7 +143,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
                               switch (result) {
                                 case ChangePasswordResult.currentPasswordWrong:
-                                  UIUtils.showSnackBar(
+                                  ErrorHandler.showSnackBar(
                                     context,
                                     context.loc.auth_currentPasswordIncorrect,
                                     isError: true,
@@ -153,29 +153,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                   // generico (rete, captcha, sessione, …).
                                   break;
                                 case ChangePasswordResult.success:
-                                  final messenger =
-                                      ScaffoldMessenger.of(context);
                                   final message =
                                       context.loc.auth_passwordUpdated;
-                                  final closeLabel = context.loc.common_close;
-                                  final route = ModalRoute.of(context);
 
                                   Navigator.pop(context);
 
-                                  // Wait until the exit transition finishes so the
-                                  // SnackBar is shown only on the destination Scaffold;
-                                  // otherwise both scaffolds render it simultaneously
-                                  // during the pop animation, creating duplicate Hero
-                                  // tags (flutter/flutter#72139).
-                                  if (route != null) {
-                                    await route.completed;
-                                  }
-
-                                  UIUtils.showSnackBarOn(
-                                    messenger,
-                                    message,
-                                    closeLabel: closeLabel,
-                                  );
+                                  ErrorHandler.showSnackBar(context, message);
                               }
                             },
                           );

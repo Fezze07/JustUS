@@ -46,8 +46,8 @@ class ErrorDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedTitle = title.isEmpty ? context.loc.error_dialogTitle : title;
 
-    return AlertDialog(
-      title: Text(resolvedTitle),
+    return VPDialog(
+      title: resolvedTitle,
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

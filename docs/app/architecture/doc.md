@@ -344,10 +344,10 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 
 ## Theme Initialization
 
-- `ThemeProvider` (`lib/core/theme/theme_provider.dart`): `ThemeMode _mode = ThemeMode.dark`, `toggle()`, `setThemeMode()`.
+- `ThemeProvider` (`lib/core/theme/theme_provider.dart`): `ThemeMode _mode = ThemeMode.dark`, `loadSavedMode()`, `toggle()`, `setThemeMode()`.
 - `AppTheme` (`lib/core/theme/app_theme.dart`): Material 3 light/dark, seed color `AppColors.primary` (#7F13EC), Google Fonts Plus Jakarta Sans, styled AppBar/Card/Input/FilledButton/Dialog.
 - `AppColors` (`lib/core/theme/app_colors.dart`): "Violet-Punk" palette (primary `0xFF7F13EC`, neon aqua/purple/blue/green/pink, `deepViolet`, `punkPurple`, `cardDark`, etc.).
-- **No persistence**: `ThemeProvider` does not save/read the selected mode - the app always starts dark, and the light/dark preference is lost on restart.
+- **Persistence**: the mode is stored under `ThemeProvider.storageKey` (`app_theme_mode`) in `SharedPreferences` and read back by `loadSavedMode()` before `runApp` (like `LanguageProvider.loadSavedLocale()`), so a restart restores the selection with no first-frame flash. `StorageService.clearAll()` preserves the key across logout/wipe, since it is device-level rather than account-level. No screen calls `setThemeMode()`/`toggle()` yet, so the stored value stays at its `ThemeMode.dark` default (see `theming/doc.md` Finding 2).
 
 ---
 
@@ -486,16 +486,6 @@ Three components register as `WidgetsBindingObserver`:
 
 **Confidence**: MEDIUM.
 
-### F12: Two separate snackbar display mechanisms
-
-**Evidence**: `ErrorHandler._showSnackBar` (error_handler.dart:146-200) uses a root `OverlayEntry`. `UIUtils.showSnackBar` (snackbar_utils.dart:11-40) uses `ScaffoldMessenger`.
-
-**What**: Two independent snackbar mechanisms coexist. `ErrorHandler` creates a global overlay snackbar that overlays everything (including the nav bar). `UIUtils` uses the standard `ScaffoldMessenger`. Both can display simultaneously, leading to visual stacking.
-
-**Impact**: Minor UX inconsistency - error snackbars from `ErrorHandler` appear above the nav bar (global overlay) while success snackbars from `UIUtils` appear within the scaffold.
-
-**Confidence**: HIGH.
-
 ### F13: `HomepageScreen` bypasses `TabScreenMixin` and `TabIndexNotifier`
 
 **Evidence**: `HomepageScreen` (index 0) is built directly by `MainShell._pageWidget(0)` and always included in `_builtPages`. It does not take `tabIndex`/`tabNotifier` parameters and does not use `TabScreenMixin`.
@@ -551,7 +541,7 @@ Test helpers in `test_helpers/`: `mock_secure_storage.dart`, `supabase_test_help
 | `RealtimeSyncService` full lifecycle | IMPLEMENTED |
 | `NotificationService` foreground + background | IMPLEMENTED |
 | `LanguageProvider` persistence + first-frame | IMPLEMENTED |
-| `ThemeProvider` persistence | NOT IMPLEMENTED (always starts dark) |
+| `ThemeProvider` persistence | IMPLEMENTED (restored pre-`runApp`; no selection UI yet) |
 | `UpdateService` version check | IMPLEMENTED (desktop only) |
 | `ErrorHandler` global + context | IMPLEMENTED |
 | Lazy tab widget construction | IMPLEMENTED |

@@ -57,7 +57,7 @@ Flutter UI (RegisterScreen)
      - `Validators.validateRequired(context, name, 'Name')`
      - `Validators.validateEmail(context, email)`
      - `Validators.validatePassword(context, password)`
-   - If any validation fails, the first encountered error message is displayed via `UIUtils.showSnackBar` (isError: true) and the flow aborts before making any network calls.
+   - If any validation fails, the first encountered error message is displayed via `ErrorHandler.showSnackBar` (isError: true) and the flow aborts before making any network calls.
 
 3. **Cloudflare Turnstile CAPTCHA Challenge**
    - File: [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart)

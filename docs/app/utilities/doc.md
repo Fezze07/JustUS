@@ -9,7 +9,6 @@ The utilities covered include:
 * **MediaPickerService** ([`media_picker_service.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart))
 * **LogoutUtils** ([`logout_utils.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart))
 * **Validators** ([`validators.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart))
-* **UIUtils** ([`snackbar_utils.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/snackbar_utils.dart))
 * **DialogUtils** ([`dialog_utils.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/dialog_utils.dart))
 * **ResultWrapper & ResultWrapperExtensions** ([`result_wrapper.dart`](file:///f:/JustUS/Flutter/lib/core/network/result_wrapper.dart), [`result_extensions.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/result_extensions.dart))
 * **Supabase Query Extensions** ([`supabase_query_extensions.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart))
@@ -85,16 +84,17 @@ The utilities covered include:
 
 ---
 
-### 5. UIUtils
+### 5. ErrorHandler (feedback)
 
-* **Responsibility**: Contains static UI helper methods. Currently contains `showSnackBar` to display material `SnackBar` messages with special debug-mode handling for errors.
+* **Responsibility**: The app's single non-blocking feedback channel. `showSnackBar` displays a floating toast via a raw `OverlayEntry` inserted on the root Navigator's overlay; `ErrorHandler.handle` routes exceptions to a toast / error dialog / reauth dialog by severity.
 * **API**:
-  - `static void showSnackBar(BuildContext context, String message, {bool isError = false, Color? backgroundColor})`
-* **Dependencies**: `flutter/material.dart`, `flutter/foundation.dart` (`kDebugMode`), `context.loc`.
-* **Callers**: `ProfileScreen`, `LocalizationScreen`, `PartnerInviteDialog`, `PartnerScreen`, `HomepageScreen`, `RegisterScreen`, `LoginScreen`, `ChangePasswordScreen`.
-* **Expected Usage**: Show ephemeral success/info notifications or non-dismissible debug error snackbars.
-* **Error Behavior**: In `kDebugMode` when `isError = true`, duration is set to 365 days until user explicitly clicks "CHIUDI". In production, duration defaults to 4 seconds.
-* **Lifecycle Assumptions**: Clears existing snackbars via `messenger.clearSnackBars()` before showing new snackbar to avoid Hero animation tag collisions.
+  - `static void showSnackBar(BuildContext? context, String message, {bool isError = false, Color? backgroundColor})`
+  - `static void handle(Object error, {BuildContext? context, StackTrace? stackTrace, bool showUI = true})`
+* **Dependencies**: `flutter/material.dart`, `flutter/scheduler.dart` (`schedulerPhase` build guard), `flutter/foundation.dart` (`kDebugMode`), `AppColors`/`AppRadius`, `context.loc`.
+* **Callers**: every non-blocking feedback site — `ProfileScreen`, `LocalizationScreen`, `PartnerInviteDialog`, `PartnerScreen`, `HomepageScreen`, `RegisterScreen`, `LoginScreen`, `ChangePasswordScreen`, `ResetPasswordScreen`, `UpdateService`.
+* **Expected Usage**: Show ephemeral success/info notifications, or non-dismissible debug error toasts.
+* **Error Behavior**: `isError = true` paints `AppColors.dangerSurface`; otherwise `AppColors.surfaceElevated`, or `backgroundColor` when supplied. In `kDebugMode` with `isError = true` the toast persists until the user dismisses it; every other case auto-removes after 4 seconds.
+* **Lifecycle Assumptions**: A previously shown toast is removed before a new one is inserted. Because the overlay lives on the root Navigator, a toast survives the pop of the route that raised it; if the caller's context is already unmounted, the call falls back to `navigatorKey.currentContext`. This replaces the old per-`Scaffold` `ScaffoldMessenger` path, including its `await route.completed` Hero-tag workaround.
 
 ---
 
@@ -211,16 +211,11 @@ The utilities covered include:
 
 ### Duplicated Utility Logic Across Application
 
-1. **Snackbar / Toast UI Display Inconsistency**:
-   - `UIUtils.showSnackBar` ([`snackbar_utils.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/snackbar_utils.dart)) uses Flutter's `ScaffoldMessenger.of(context)`.
-   - `ErrorHandler._showSnackBar` ([`error_handler.dart:155`](file:///f:/JustUS/Flutter/lib/core/error_handling/error_handler.dart#L155)) duplicates error snackbar rendering by creating a raw floating `OverlayEntry` directly on `Navigator.of(context, rootNavigator: true).overlay`.
-   - *Finding*: Two completely separate mechanisms exist for displaying floating notification bars/toasts. `ErrorHandler` bypasses `UIUtils` entirely.
-
-2. **User Profile Image & Image Picker Duplication**:
+1. **User Profile Image & Image Picker Duplication**:
    - `MediaPickerService` ([`media_picker_service.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart)) provides camera/gallery modal sheet logic.
    - However, in `ProfileScreen` ([`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart)), image picking logic is implemented directly using `ImagePicker()` inline rather than calling `MediaPickerService`.
 
-3. **Date Formatting Utilities**:
+2. **Date Formatting Utilities**:
    - `AppDateUtils.formatToYMD` provides simple `YYYY-MM-DD` formatting.
    - However, multiple widgets (e.g. `MoodScreen`, `DriveItemScreen`) perform ad-hoc `DateTime` string formatting or manual parsing without relying on `AppDateUtils`.
 
@@ -232,8 +227,8 @@ The utilities covered include:
    - `BaseState` handles UI loading flags (`isLoading`), message storage (`message`), post-frame notification coalescing (`notifyListeners`), change-detection cache execution (`loadWithChangeDetection`), result mapping (`handleResult`), and safe action execution (`runSafe`).
    - *Finding*: `BaseState` mixes UI notification optimization with network cache strategy and result handling, making it a heavy base class for every state provider in the application.
 
-2. **UIUtils**:
-   - Despite being named `UIUtils`, the class only contains a single method (`showSnackBar`). The file is named `snackbar_utils.dart`.
+2. **ErrorHandler**:
+   - `ErrorHandler` mixes error normalization/logging with three UI surfaces (toast, error dialog, reauth dialog). The reauth dialog in particular is a navigation concern (it force-pushes `/login`) living inside a class named for error handling.
 
 ---
 
@@ -254,7 +249,6 @@ The utilities covered include:
 | **MediaPickerService** | `shared/utils/ui/media_picker_service.dart` | PARTIALLY IMPLEMENTED | Used only in `DriveScreen`. `ProfileScreen` bypasses it and instantiates `ImagePicker` inline. |
 | **LogoutUtils** | `shared/utils/auth/logout_utils.dart` | IMPLEMENTED | Clean utility used consistently across `ProfileScreen` and `PartnerScreen`. |
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |
-| **UIUtils** | `shared/utils/ui/snackbar_utils.dart` | PARTIALLY IMPLEMENTED | Inconsistent with `ErrorHandler`, which builds custom `OverlayEntry` toasts instead of using `UIUtils`. |
 | **DialogUtils** | `shared/utils/ui/dialog_utils.dart` | IMPLEMENTED | Clean wrapper around error and invite dialogs. |
 | **ResultWrapper & Extensions** | `core/network/result_wrapper.dart`, `shared/utils/extensions/result_extensions.dart` | IMPLEMENTED | Robust functional error handling pattern used throughout repositories. |
 | **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | PARTIALLY IMPLEMENTED | `maybeGt` and `toSingle` are completely unused dead code. |

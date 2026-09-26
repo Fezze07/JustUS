@@ -49,7 +49,7 @@ class UpdateService {
 
     if (localBuild >= serverBuild) {
       if (showNoUpdateToast && context.mounted) {
-        UIUtils.showSnackBar(context, context.loc.update_upToDate);
+        ErrorHandler.showSnackBar(context, context.loc.update_upToDate);
       }
       return;
     }

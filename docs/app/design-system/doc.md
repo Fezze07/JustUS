@@ -12,7 +12,7 @@ Design tokens are centralized in `core/theme/`:
 - `app_radius.dart` - `AppRadius` (`xs 4`, `sm 12`, `md 16`, `lg 24`, `sheet 32`, `pill 100`).
 - `app_dimens.dart` - `AppSpacing` (4/8/16/24/32) and `AppDims` (icon box 48, circle button 40, button min height 52, nav bar, checkbox, form gap).
 - `app_theme.dart` - `AppTheme.dark` / `AppTheme.light` Material 3 themes (Plus Jakarta Sans text theme, seeded color scheme, appBar/card/input/button/text-button/dialog theme data) and `AppButtonStyle` (the single source of button geometry + disabled colors).
-- `theme_provider.dart` - runtime mode holder; always starts `ThemeMode.dark`, reads/writes nothing (preference is never persisted).
+- `theme_provider.dart` - runtime mode holder: `loadSavedMode()` rehydrates the `ThemeMode` from `SharedPreferences` (`app_theme_mode`) before `runApp`, `setThemeMode()`/`toggle()` persist the change, and an unrecognized stored value falls back to `ThemeMode.dark`. Device-level preference, so `StorageService.clearAll()` preserves it across logout/wipe. No screen calls the setters yet (see `docs/app/theming/doc.md` Finding 2).
 
 **One design language.** All feature screens — including `HomepageScreen` — use the VP system (deep-violet glass/punk). The homepage has no private "Midnight Glass" palette: its former `_C` tokens were promoted into `AppColors` (the `AppColors.home*` family), it uses the theme's Plus Jakarta Sans font, and its avatars go through `VPAvatar`/`VPUserAvatar` (which resolves protected R2 URLs + auth headers). Still specialized to the homepage are the glass widgets (`_GlassCard`, `_GlassIconButton`, `_GlassLinkNode`, `_MissYouButton`, ...).
 
@@ -22,16 +22,15 @@ Design tokens are centralized in `core/theme/`:
 
 | File | Role |
 |---|---|
-| `core/error_handling/error_handler.dart` | Global overlay snackbar / error dialog / reauth dialog (the de facto global "toast" mechanism) |
-| `shared/utils/ui/snackbar_utils.dart` | `UIUtils.showSnackBar` - second snackbar mechanism (ScaffoldMessenger) |
+| `core/error_handling/error_handler.dart` | The app's single feedback mechanism: `showSnackBar` (root-overlay toast, `isError` + optional `backgroundColor`), plus the error dialog and reauth dialog. `navigatorKey` doubles as the fallback context so feedback survives a route pop |
 | `shared/utils/ui/dialog_utils.dart` | `DialogUtils.showError` (wraps `ErrorDialog`), `showPartnerInvite` |
 | `shared/utils/ui/validators.dart` | `Validators.validateEmail/Password/Required` - localized form validation used by auth screens |
 | `shared/utils/ui/media_picker_service.dart` | Camera/gallery bottom sheet (`VPSheet` + `ListTile`s, localized labels) |
-| `shared/utils/auth/logout_utils.dart` | Logout confirm dialog (raw `AlertDialog` inheriting `dialogTheme`, not `VPDialog`) |
+| `shared/utils/auth/logout_utils.dart` | Logout confirm dialog (`VPDialog`) |
 | `shared/widgets/tab_screen.dart` | `TabScreen`/`TabScreenMixin` - tab activation infrastructure |
 | `features/home/widgets/home_bottom_nav.dart` | Floating 7-item bottom nav (shell component, uses tokens + `Semantics(label:)`, not part of the DS barrel) |
 
-The presence of **two snackbar systems** (`ErrorHandler` overlay vs `UIUtils` ScaffoldMessenger) is a cross-cutting inconsistency (see Findings F-DS8).
+Feedback and dialogs are single-sourced: `ErrorHandler.showSnackBar` is the only snackbar/toast path and `VPDialog` is the only `AlertDialog` constructor. `test/feedback_system_test.dart` enforces both invariants.
 
 ---
 
@@ -170,7 +169,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **API**: `{required controller, required hint, String? label, IconData? icon, bool isPassword, bool obscureText, VoidCallback? onTogglePassword, TextInputType inputType, String? errorText, ValueChanged<String>? onChanged, ValueChanged<String>? onSubmitted}`.
 - **Visual**: floating label (12px `contentSecondary`, left 4/bottom 8) above a `DecoratedBox` (`cardDark` fill, `AppRadius.md`, `surfaceOverlay` border) wrapping a `TextField` with `InputBorder.none`; inside: `contentPrimary` text, `contentPlaceholder` hint, `contentHint` prefix icon, optional visibility toggle, and a red inline `errorText` when provided.
 - **State**: fully controlled (controller passed in); visibility toggle driven by caller (`obscureText` + `onTogglePassword`).
-- **Error behavior**: two sanctioned paradigms — inline `errorText` for field-scoped problems (bucket add, emoji picker) and `UIUtils.showSnackBar` for form-wide problems (login/register). The component supports the first; the second stays with the caller.
+- **Error behavior**: two sanctioned paradigms — inline `errorText` for field-scoped problems (bucket add, emoji picker) and `ErrorHandler.showSnackBar(..., isError: true)` for form-wide problems (login/register). The component supports the first; the second stays with the caller.
 - **A11y**: no `labelText`/`semanticLabel` (the visible label is a separate `Text`), no `autofillHints`, no `onTapOutside` handling.
 - **Theme**: dark-only (cardDark bg, content ramp) - broken in light theme.
 - **Loc**: `label`/`hint` passed pre-localized; the password toggle is localizable via the `onTogglePassword` caller's tooltip.
@@ -213,11 +212,11 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 
 ### VPDialog - `vp_widgets.dart:535-555`
 
-- **Purpose**: branded `AlertDialog` wrapper.
+- **Purpose**: the app's only `AlertDialog` wrapper — the single dialog component.
 - **API**: `{required String title, required Widget content, List<Widget>? actions}`.
 - **Behavior**: plain `AlertDialog` that inherits the app `dialogTheme` (surface `cardDark`, `AppRadius.lg`, 20px bold title) — no forced `Brightness` override any more, so a light theme can style it.
 - **A11y**: inherits the dialog route's modal semantics; the forced-brightness contrast caveat is gone.
-- **Usage**: register confirm-email, update dialog, and others.
+- **Usage**: the only place `AlertDialog` is constructed — register confirm-email, update dialog, logout, captcha, bucket add, drive delete, profile wipe/edit, reauth, `ErrorDialog`, and others (12 call sites). Screens pass localized `title` + `content` + `actions`, so copy and button order are decided once by the theme rather than per screen.
 
 ### VPAuthLayout - `vp_widgets.dart:557-721`
 
@@ -308,7 +307,7 @@ and it is a candidate for a future `VPLoadingOverlay`.
 | VPCard | 3 files | underused (most screens use raw Container) |
 | VPScaffold | 8 screens | bypassed by 4 screens (splash, drive, drive item, favorites) |
 | VPSectionHeader | 4 files | - |
-| VPDialog | 3 files | - |
+| VPDialog | 11 files (sole `AlertDialog` constructor) | - |
 | VPAuthLayout / VPAuthLink | login + register | - |
 | VPCircleButton | drive back button + drive media action controls | - |
 | VPFilterChip | drive | - |
@@ -322,16 +321,9 @@ and it is a candidate for a future `VPLoadingOverlay`.
 
 ### F-DS7: Light theme is effectively unsupported
 
-**What**: every VP component and most feature screens hardcode dark colors (`cardDark`, `backgroundDark`, `deepViolet`, `contentPrimary`) and read no `Brightness`. `AppTheme.light` exists and `ThemeProvider` can switch, but nothing consumes `ThemeMode`, and `RefreshIndicator` / `ChoiceChip` backgrounds still hardcode `backgroundDark` (e.g. mood_screen.dart). Only `AppTheme` itself branches on `isDark` (card, input, dialog and text-button theming).
+**What**: every VP component and most feature screens hardcode dark colors (`cardDark`, `backgroundDark`, `deepViolet`, `contentPrimary`) and read no `Brightness`. `AppTheme.light` exists and `MaterialApp.themeMode` now consumes the persisted `ThemeMode`, but `RefreshIndicator` / `ChoiceChip` backgrounds still hardcode `backgroundDark` (e.g. mood_screen.dart). Only `AppTheme` itself branches on `isDark` (card, input, dialog and text-button theming). No screen exposes a theme selector yet (`docs/app/theming/doc.md` Finding 2), so the mode cannot actually be changed in-app.
 **Where**: entire DS + features.
-**Impact**: toggling to light theme yields broken contrast (white-on-white text in cards, dark chips everywhere). Combined with ThemeProvider not persisting, the mode is cosmetic-only.
-**Confidence**: HIGH.
-
-### F-DS8: Two snackbar systems and dialogs outside the DS component
-
-**What**: `ErrorHandler`'s global overlay snackbar and `UIUtils.showSnackBar` (ScaffoldMessenger) still coexist, and the logout / profile-wipe / bucket-add / drive-delete dialogs are still raw `AlertDialog`s instead of `VPDialog` - they now inherit `dialogTheme` (surface, radii, title/content styles) but each still builds its own title/content/actions tree, so copy and button order can diverge per screen.
-**Where**: `error_handler.dart:155-235`, `snackbar_utils.dart`, `logout_utils.dart`, `profile_screen.dart`, `bucket_list_screen.dart`, `drive_item_screen.dart`.
-**Impact**: mixed UX (overlay vs floating toast) and a dialog API that is not enforced by the design system.
+**Impact**: selecting light theme yields broken contrast (white-on-white text in cards, dark chips everywhere).
 **Confidence**: HIGH.
 
 ## Implementation status
@@ -339,16 +331,17 @@ and it is a candidate for a future `VPLoadingOverlay`.
 | Area | Status |
 |---|---|
 | Central tokens (`AppColors` + `AppRadius` + `AppDims`) | IMPLEMENTED (radius/dims adopted; a few one-off `SizedBox` gaps still inline) |
-| Central theme (`AppTheme` dark/light) | IMPLEMENTED (light unused) |
+| Central theme (`AppTheme` dark/light) | IMPLEMENTED (light unusable — see F-DS7) |
 | Button system | IMPLEMENTED (`AppButtonStyle` shared by `FilledButtonThemeData` + `VPButton`; feature `ElevatedButton`s migrated) |
 | Branded core components (inputs, buttons, cards, dialogs, layout) | IMPLEMENTED |
 | Unified avatar component | IMPLEMENTED (`VPAvatar` + `VPUserAvatar`) |
 | Unified loading component | IMPLEMENTED (inline in `VPButton`) |
-| Unified dialog component | PARTIALLY IMPLEMENTED (`VPDialog` + `ErrorDialog` + raw `AlertDialog`s that inherit `dialogTheme`) |
-| Unified snackbar/toast | NOT IMPLEMENTED (2 systems) |
+| Unified dialog component | IMPLEMENTED (`VPDialog` is the only `AlertDialog` constructor; `ErrorDialog` builds on it) |
+| Unified snackbar/toast | IMPLEMENTED (`ErrorHandler.showSnackBar`, root-overlay; `UIUtils`/ScaffoldMessenger path deleted) |
 | Accessibility (Semantics/Tooltip) | IMPLEMENTED for DS components + home nav + drive controls (no golden/a11y regression tests) |
 | Localization inside DS | IMPLEMENTED (`AppLocalizations` for shared UI, emoji picker, media picker, home nav, drive actions) |
 | Light-mode support | NOT IMPLEMENTED |
+| Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`, restored pre-`runApp`; no selection UI yet) |
 | Homepage alignment to DS | IMPLEMENTED (AppColors tokens, theme font, `VPUserAvatar` avatars) |
 | Dead component cleanup | DONE (VPLoadingButton, VPLoadingOverlay, VPMiniAvatar, PartnerUserTile, PartnerRequestTile, onlineIndicator are no longer part of the system) |
 | Unified bottom sheet | IMPLEMENTED (`VPSheet` in 3 call sites) |
@@ -362,6 +355,7 @@ and it is a candidate for a future `VPLoadingOverlay`.
 - `design_system.dart` barrel is re-exported by `all_imports.dart`; importing the app barrel already provides all DS components - no per-file imports needed.
 - File naming is inconsistent: `vp_widgets.dart` hosts 15+ components while peer components each live in their own file; `VpWidgets` (helper class) vs `VP*` (components) capitalization differs.
 - Token adoption is mechanical: a raw `Colors.white70` is a tokenization bug, not a style choice. The only sanctioned non-token colors left in `lib/` are `Colors.transparent` (15 uses: gradient stops, transparent surfaces) and alpha modulation via `withValues(alpha:)` on an existing token; bucket category accents live in `core/theme/app_category_colors.dart` (`AppCategoryColors`).
+- **Feedback/dialog single-sourcing**: `ErrorHandler.showSnackBar` is the only toast and `VPDialog` the only dialog; `test/feedback_system_test.dart` fails on any `UIUtils`/`ScaffoldMessenger.of` use and on any `AlertDialog(` outside `vp_widgets.dart`. The overlay is inserted on the root Navigator, so "show feedback after `Navigator.pop`" needs no messenger plumbing and no `await route.completed` Hero workaround — if the caller's context is already unmounted, `ErrorHandler` falls back to `navigatorKey.currentContext`.
 - No widget/storybook/golden tests exist for the DS; a visual regression (spacing, radius, contrast) is caught only by eye, so token changes need a manual pass over the affected screens.
 - Bottom-sheet gotchas: pass flex children (e.g. `Expanded`) as **direct** `VPSheet(children: ...)` entries (never nested in an intermediate `Column`), and note that a sheet must paint its own `Material` - a transparent `DecoratedBox` leaves `ListTile` ink/hover invisible and trips "ListTile background color or ink splashes may be invisible." A sheet must also never let its column fill the available height: `showModalBottomSheet(isScrollControlled: true)` hands the child the full screen height, so without `mainAxisSize: min` every sheet opens full-screen (covered by `test/vp_sheet_test.dart`).
 - Flutter 3.47.5 constraints worth remembering: there is no `Colors.white20` (use a `Color(0x…)` token such as `AppColors.surfaceGlass`) and `DialogThemeData` has no `actionTextStyle` (style actions with `TextButtonThemeData`).

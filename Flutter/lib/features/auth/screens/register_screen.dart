@@ -88,7 +88,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     passwordError != null) {
                   final errorMessage =
                       nameError ?? emailError ?? passwordError!;
-                  UIUtils.showSnackBar(context, errorMessage, isError: true);
+                  ErrorHandler.showSnackBar(context, errorMessage,
+                      isError: true);
 
                   return;
                 }
