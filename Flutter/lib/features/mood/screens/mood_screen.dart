@@ -43,8 +43,8 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
     return VPScaffold(
       title: context.loc.mood_boardTitle,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new,
-            color: AppColors.contentSecondary),
+        icon: Icon(Icons.arrow_back_ios_new,
+            color: context.palette.contentSecondary),
         onPressed: () => Navigator.pop(context),
       ),
       body: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(
@@ -56,8 +56,8 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
 
           return RefreshIndicator(
             onRefresh: () => loadData(force: true),
-            color: AppColors.primary,
-            backgroundColor: AppColors.backgroundDark,
+            color: context.palette.primary,
+            backgroundColor: context.palette.canvas,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -71,7 +71,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                         context.loc.mood_noneSet,
                         style: VpWidgets.googleFont(
                           fontSize: 14,
-                          color: AppColors.contentDisabled,
+                          color: context.palette.contentDisabled,
                           fontStyle: FontStyle.italic,
                         ),
                       ),
@@ -96,10 +96,10 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 24, vertical: 20),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             colors: [
-                              AppColors.gradientAccent,
-                              AppColors.primary
+                              AppPalette.brandGradientAccent,
+                              context.palette.primary
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -107,7 +107,8 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                           borderRadius: BorderRadius.circular(AppRadius.lg),
                           boxShadow: [
                             VpWidgets.boxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.4),
+                              context,
+                              color: context.palette.primary.withValues(alpha: 0.4),
                               offset: const Offset(0, 8),
                             ),
                           ],
@@ -124,7 +125,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                                   style: VpWidgets.googleFont(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.contentPrimary,
+                                    color: context.palette.contentPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -133,7 +134,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                                   style: VpWidgets.googleFont(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: AppColors.contentSecondary,
+                                    color: context.palette.contentSecondary,
                                   ),
                                 ),
                               ],
@@ -142,18 +143,19 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                               width: 50,
                               height: 50,
                               decoration: BoxDecoration(
-                                color: AppColors.neonGreen,
+                                color: context.palette.accentGreen,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   VpWidgets.boxShadow(
-                                    color: AppColors.shadowSoft,
+                                    context,
+                                    color: context.palette.shadowSoft,
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   )
                                 ],
                               ),
-                              child: const Icon(Icons.add,
-                                  color: AppColors.deepViolet, size: 30),
+                              child: Icon(Icons.add,
+                                  color: context.palette.surfaceSunken, size: 30),
                             ),
                           ],
                         ),
@@ -170,14 +172,14 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                           style: VpWidgets.googleFont(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.contentPrimary,
+                            color: context.palette.contentPrimary,
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceOverlay,
+                            color: context.palette.overlay,
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                           child: Text(
@@ -185,7 +187,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                             style: VpWidgets.googleFont(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.contentTertiary,
+                              color: context.palette.contentTertiary,
                             ),
                           ),
                         ),
@@ -199,7 +201,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                         context.loc.mood_noneSet,
                         style: VpWidgets.googleFont(
                           fontSize: 14,
-                          color: AppColors.contentDisabled,
+                          color: context.palette.contentDisabled,
                           fontStyle: FontStyle.italic,
                         ),
                       ),
@@ -215,8 +217,8 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                             emoji: timeline[i].emoji,
                             timestamp: timeline[i].createdAt,
                             color: timeline[i].isMine
-                                ? AppColors.primary
-                                : AppColors.neonPink,
+                                ? context.palette.primary
+                                : context.palette.accentPink,
                             isLast: i == timeline.length - 1 && !hasMore,
                           ),
                         if (hasMore)
@@ -227,12 +229,12 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                                 onPressed: () => unawaited(context
                                     .read<MoodState>()
                                     .loadMoreTimeline()),
-                                icon: const Icon(Icons.expand_more,
-                                    color: AppColors.primary),
+                                icon: Icon(Icons.expand_more,
+                                    color: context.palette.primary),
                                 label: Text(
                                   context.loc.mood_showMore,
                                   style: VpWidgets.googleFont(
-                                    color: AppColors.primary,
+                                    color: context.palette.primary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -257,13 +259,13 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
       height: 64,
       decoration: BoxDecoration(
         color: isSelected
-            ? AppColors.primary.withValues(alpha: 0.1)
-            : AppColors.backgroundDark.withValues(alpha: 0.5),
+            ? context.palette.primary.withValues(alpha: 0.1)
+            : context.palette.canvas.withValues(alpha: 0.5),
         shape: BoxShape.circle,
         border: Border.all(
           color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.5)
-              : AppColors.surfaceOverlay,
+              ? context.palette.primary.withValues(alpha: 0.5)
+              : context.palette.overlay,
           width: 2,
         ),
       ),
@@ -292,7 +294,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
               dateFormat.format(parsed),
               style: VpWidgets.googleFont(
                 fontWeight: FontWeight.bold,
-                color: AppColors.contentPrimary,
+                color: context.palette.contentPrimary,
                 fontSize: 16,
               ),
             ),
@@ -300,7 +302,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
               timeFormat.format(parsed),
               style: VpWidgets.googleFont(
                 fontWeight: FontWeight.w500,
-                color: AppColors.contentDisabled,
+                color: context.palette.contentDisabled,
                 fontSize: 12,
               ),
             ),
@@ -311,7 +313,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
           context.loc.mood_noneSet,
           style: VpWidgets.googleFont(
             fontWeight: FontWeight.bold,
-            color: AppColors.contentPrimary,
+            color: context.palette.contentPrimary,
             fontSize: 16,
           ),
         );
@@ -321,7 +323,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
         context.loc.mood_noneSet,
         style: VpWidgets.googleFont(
           fontWeight: FontWeight.bold,
-          color: AppColors.contentPrimary,
+          color: context.palette.contentPrimary,
           fontSize: 16,
         ),
       );
@@ -338,11 +340,13 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                 width: 48,
                 height: 48,
                 decoration: VpWidgets.cardDecoration(
+                  context,
                   borderRadius: 16,
                   borderColor: color.withValues(alpha: 0.4),
                   boxShadow: [
                     VpWidgets.boxShadow(
-                        color: AppColors.shadowSoft,
+                        context,
+                        color: context.palette.shadowSoft,
                         blurRadius: 4,
                         offset: const Offset(0, 2)),
                   ],
@@ -354,7 +358,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: AppColors.surfaceOverlay,
+                    color: context.palette.overlay,
                     margin: const EdgeInsets.symmetric(vertical: 4),
                   ),
                 ),

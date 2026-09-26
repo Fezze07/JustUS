@@ -34,10 +34,10 @@ class VPCircleButton extends StatelessWidget {
           width: AppDims.circleButton,
           height: AppDims.circleButton,
           decoration: BoxDecoration(
-            color: AppColors.surfaceOverlay,
+            color: context.palette.overlay,
             shape: BoxShape.circle,
             border: Border.all(
-              color: AppColors.borderDark,
+              color: context.palette.border,
             ),
           ),
           child: Center(

@@ -37,7 +37,7 @@ class MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.backgroundDark,
+      color: context.palette.canvas,
       child: Stack(
         children: [
           Padding(

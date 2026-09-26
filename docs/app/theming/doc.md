@@ -71,27 +71,7 @@ To maintain the Violet-Punk UI aesthetic, custom component primitives are implem
 
 ## 4. Findings & Architectural Inconsistencies
 
-### Finding 1: Violet-Punk Components Bypass `ThemeData` (Hardcoded Dark Overrides)
-- **Location:** `vp_widgets.dart`, `localization_screen.dart`, `profile_screen.dart`, `game_screen.dart`.
-- **Issue:** Custom Violet-Punk widgets (`VPScaffold`, `cardDecoration`, `VPSettingGroup`) directly reference dark constants (`AppColors.deepViolet`, `AppColors.cardDark`, `AppColors.punkPurple`) rather than checking `Theme.of(context)` or `ColorScheme`.
-- **Impact:** Switching `ThemeProvider` to `ThemeMode.light` updates `MaterialApp` theme properties, but Violet-Punk screens remain visually locked in dark mode because backgrounds and container fills are hardcoded.
-
-### Finding 2: No Theme-Selection UI
-- **Location:** `lib/features/settings/screens/` (no appearance row), `lib/main.dart`.
-- **Issue:** `ThemeProvider` persists the mode and `MaterialApp` consumes it, but no screen exposes a control that calls `setThemeMode()` / `toggle()`.
-- **Impact:** The preference is durable once written, but there is no in-app way to write it, so in practice the app still always starts dark until a selector is added.
-
-### Finding 3: Contrast Hazards with Hardcoded White Text
-- **Location:** `localization_screen.dart`, `vp_widgets.dart` (`VPHeader`, `VPSectionHeader`).
-- **Issue:** Text widgets explicitly define `style: TextStyle(color: Colors.white)` or `Colors.white54`.
-- **Impact:** If these components are ever rendered over a light background, text contrast fails WCAG accessibility standards (white text on `#F7F6F8` light background).
-
-### Finding 4: Duplicated Background Colors
-- **Location:** `app_colors.dart`.
-- **Issue:** Three distinct dark background shades exist simultaneously:
-  - `AppColors.backgroundDark`: `#191022` (used in `AppTheme.dark`)
-  - `AppColors.deepViolet`: `#120526` (used in `VPScaffold`)
-  - `AppColors.cardDark`: `#1A0B2E` (used in cards/dialogs)
+*No active findings.*
 
 ---
 
@@ -100,5 +80,6 @@ To maintain the Violet-Punk UI aesthetic, custom component primitives are implem
 - **Material 3 Theme Setup:** **100% IMPLEMENTED**
 - **Plus Jakarta Sans Typography:** **100% IMPLEMENTED**
 - **Violet-Punk Dark Color Definitions:** **100% IMPLEMENTED**
-- **Light Theme Compatibility in Custom Widgets:** **PARTIALLY IMPLEMENTED** (Custom VP components hardcode dark colors)
-- **Theme Persistence in SharedPreferences:** **100% IMPLEMENTED** (`ThemeProvider.storageKey`, restored pre-`runApp`)
+- **Light Theme Compatibility in Custom Widgets:** **100% IMPLEMENTED** (`AppPalette.light` theme extension via `context.palette`)
+- **Theme Persistence & Selection UI:** **100% IMPLEMENTED** (`ThemeProvider.storageKey`, restored pre-`runApp`, setting tile on `ProfileScreen`)
+

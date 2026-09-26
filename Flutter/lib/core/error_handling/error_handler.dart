@@ -193,9 +193,11 @@ class ErrorHandler {
     final overlay = Navigator.of(ctx, rootNavigator: true).overlay;
     if (overlay == null) return;
 
-    final surface =
-        backgroundColor ?? (isError ? AppColors.dangerSurface : AppColors.surfaceElevated);
+    final surface = backgroundColor ??
+        (isError ? ctx.palette.dangerSurface : ctx.palette.surfaceElevated);
     final isSticky = isError && kDebugMode;
+    final foreground =
+        isError ? ctx.palette.onDanger : ctx.palette.contentPrimary;
 
     late OverlayEntry entry;
     entry = OverlayEntry(
@@ -214,11 +216,11 @@ class ErrorHandler {
               decoration: BoxDecoration(
                 color: surface,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                      color: AppColors.shadowToast,
+                      color: ctx.palette.shadowToast,
                       blurRadius: 10,
-                      offset: Offset(0, 4))
+                      offset: const Offset(0, 4))
                 ],
               ),
               child: Row(
@@ -226,8 +228,7 @@ class ErrorHandler {
                   Expanded(
                     child: Text(
                       message,
-                      style: const TextStyle(
-                          color: AppColors.contentPrimary, fontSize: 14),
+                      style: TextStyle(color: foreground, fontSize: 14),
                     ),
                   ),
                   if (isSticky)
@@ -239,9 +240,8 @@ class ErrorHandler {
                         }
                       },
                       child: Text(context.loc.common_close.toUpperCase(),
-                          style: const TextStyle(
-                              color: AppColors.contentPrimary,
-                              fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              color: foreground, fontWeight: FontWeight.bold)),
                     ),
                 ],
               ),

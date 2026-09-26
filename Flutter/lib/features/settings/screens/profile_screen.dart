@@ -114,9 +114,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.danger,
+              backgroundColor: context.palette.danger,
               disabledBackgroundColor:
-                  AppButtonStyle.disabledBackground(AppColors.danger),
+                  AppButtonStyle.disabledBackground(context.palette.danger),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text(context.loc.profile_wipeConfirm),
@@ -148,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return VPScaffold(
-      backgroundColor: AppColors.deepViolet,
+      backgroundColor: context.palette.surfaceSunken,
       showAppBar: false,
       body: Selector<ProfileState, (User?, User?, bool, DateTime?)>(
         selector: (_, s) =>
@@ -186,8 +186,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                AppColors.neonPink.withValues(alpha: 0.5),
-                                AppColors.neonPurple.withValues(alpha: 0.5)
+                                context.palette.accentPink.withValues(alpha: 0.5),
+                                context.palette.accentPurple.withValues(alpha: 0.5)
                               ],
                             ),
                           ),
@@ -198,19 +198,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 48,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(colors: [
-                              AppColors.neonPink,
-                              AppColors.neonPurple
+                            gradient: LinearGradient(colors: [
+                              context.palette.accentPink,
+                              context.palette.accentPurple
                             ]),
                             boxShadow: [
                               VpWidgets.boxShadow(
+                                context,
                                 color:
-                                    AppColors.neonPurple.withValues(alpha: 0.6),
+                                    context.palette.accentPurple.withValues(alpha: 0.6),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.favorite,
-                              color: AppColors.contentPrimary, size: 28),
+                          child: Icon(Icons.favorite,
+                              color: context.palette.contentPrimary, size: 28),
                         ),
                         // User Avatar (Left)
                         Positioned(
@@ -228,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           right: 0,
                           child: VPAvatar(
                             imageUrl: partnerPicPath,
-                            borderColor: AppColors.neonPurple,
+                            borderColor: context.palette.accentPurple,
                           ),
                         ),
                       ],
@@ -244,7 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
                       fontStyle: FontStyle.italic,
-                      color: AppColors.contentPrimary,
+                      color: context.palette.contentPrimary,
                     ),
                   ),
 
@@ -255,16 +256,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.punkPurple,
+                      color: context.palette.surfaceGroup,
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(
-                          color: AppColors.neonPurple.withValues(alpha: 0.3)),
+                          color: context.palette.accentPurple.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.bolt,
-                            color: AppColors.neonBlue, size: 16),
+                        Icon(Icons.bolt,
+                            color: context.palette.accentBlue, size: 16),
                         const SizedBox(width: 8),
                         Text(
                           context.loc.profile_connected,
@@ -272,7 +273,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.5,
-                            color: AppColors.neonBlue,
+                            color: context.palette.accentBlue,
                           ),
                         ),
                       ],
@@ -283,15 +284,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Settings Sections
                   VPSectionHeader(
+                      title: context.loc.settings_appearanceSection),
+                  VPSettingGroup(children: [
+                    VPSettingTile(
+                      icon: Icons.palette_outlined,
+                      title: context.loc.settings_themeTitle,
+                      subtitle: context.loc.settings_themeSubtitle,
+                      trailing: VPSegmentedControl<bool>(
+                        value: !context.watch<ThemeProvider>().isDark,
+                        onChanged: (isLight) => unawaited(context
+                            .read<ThemeProvider>()
+                            .setThemeMode(isLight ? ThemeMode.light : ThemeMode.dark)),
+                        options: [
+                          VPSegmentedControlOption(
+                            value: true,
+                            label: context.loc.settings_themeLight,
+                            icon: Icons.light_mode,
+                          ),
+                          VPSegmentedControlOption(
+                            value: false,
+                            label: context.loc.settings_themeDark,
+                            icon: Icons.dark_mode,
+                          ),
+                        ],
+                      ),
+                      color: context.palette.accentPurple,
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  VPSectionHeader(
                       title: context.loc.systemOverrideSectionTitle),
                   VPSettingGroup(children: [
                     VPSettingTile(
                       icon: Icons.settings,
                       title: context.loc.languageSettingTitle,
                       subtitle: context.loc.languageSettingSubtitle,
-                      trailing: const Icon(Icons.chevron_right,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonPurple,
+                      trailing: Icon(Icons.chevron_right,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentPurple,
                       onTap: () =>
                           Navigator.pushNamed(context, '/localization'),
                     ),
@@ -303,28 +335,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch(
                           value: true,
                           onChanged: (v) {},
-                          activeThumbColor: AppColors.neonBlue),
-                      color: AppColors.neonBlue,
-                    ),
-                    const VPDivider(),
-                    VPSettingTile(
-                      icon: Icons.visibility,
-                      title: context.loc.settings_darkModeTitle,
-                      subtitle: context.loc.settings_darkModeSubtitle,
-                      trailing: Switch(
-                          value: true,
-                          onChanged: (v) {},
-                          activeThumbColor: AppColors.neonBlue),
-                      color: AppColors.neonBlue,
+                          activeThumbColor: context.palette.accentBlue),
+                      color: context.palette.accentBlue,
                     ),
                     const VPDivider(),
                     VPSettingTile(
                       icon: Icons.system_update,
                       title: context.loc.update_checkTitle,
                       subtitle: context.loc.update_checkSubtitle,
-                      trailing: const Icon(Icons.chevron_right,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonBlue,
+                      trailing: Icon(Icons.chevron_right,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentBlue,
                       onTap: () => UpdateService()
                           .checkVersion(context, showNoUpdateToast: true),
                     ),
@@ -341,9 +362,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: context.loc.profile_yourPartnerCodeTitle,
                         subtitle: context.loc
                             .profile_shareToConnect(user!.partnershipCode!),
-                        trailing: const Icon(Icons.copy,
-                            color: AppColors.contentTertiary),
-                        color: AppColors.neonPink,
+                        trailing: Icon(Icons.copy,
+                            color: context.palette.contentTertiary),
+                        color: context.palette.accentPink,
                         onTap: () {
                           unawaited(Clipboard.setData(
                               ClipboardData(text: user.partnershipCode!)));
@@ -351,7 +372,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               context,
                               context.loc
                                   .profile_copiedCode(user.partnershipCode!),
-                              backgroundColor: AppColors.neonPink);
+                              backgroundColor: context.palette.accentPink);
                         },
                       ),
                       const VPDivider(),
@@ -360,9 +381,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.lock,
                       title: context.loc.auth_changePasswordTitle,
                       subtitle: context.loc.profile_changePasswordSubtitle,
-                      trailing: const Icon(Icons.chevron_right,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonPurple,
+                      trailing: Icon(Icons.chevron_right,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentPurple,
                       onTap: () =>
                           Navigator.pushNamed(context, '/change-password'),
                     ),
@@ -373,9 +394,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: profileData.$4 != null
                           ? "${profileData.$4!.day}/${profileData.$4!.month}/${profileData.$4!.year}"
                           : context.loc.profile_anniversaryEmpty,
-                      trailing: const Icon(Icons.edit,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonPurple,
+                      trailing: Icon(Icons.edit,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentPurple,
                       onTap: () async {
                         final profileState = context.read<ProfileState>();
                         final picked = await showDatePicker(
@@ -386,10 +407,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (context, child) {
                             return Theme(
                               data: Theme.of(context).copyWith(
-                                colorScheme: const ColorScheme.dark(
-                                  primary: AppColors.neonPurple,
-                                  onPrimary: AppColors.contentPrimary,
-                                  surface: AppColors.deepViolet,
+                                colorScheme: Theme.of(context).colorScheme
+                                    .copyWith(
+                                  primary: context.palette.accentPurple,
+                                  onPrimary: context.palette.onPrimary,
+                                  surface: context.palette.surfaceSunken,
                                 ),
                               ),
                               child: child!,
@@ -411,9 +433,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.badge_outlined,
                       title: context.loc.profile_displayNameTitle,
                       subtitle: user?.username ?? context.loc.common_youTitle,
-                      trailing: const Icon(Icons.edit,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonGreen,
+                      trailing: Icon(Icons.edit,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentGreen,
                       onTap: () {
                         if (user != null) unawaited(_editDisplayName(user));
                       },
@@ -429,9 +451,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.delete_forever,
                         title: context.loc.profile_wipeDataTitle,
                         subtitle: context.loc.profile_wipeDataSubtitle,
-                        trailing: const Icon(Icons.warning_amber_rounded,
-                            color: AppColors.warning),
-                        color: AppColors.warning,
+                        trailing: Icon(Icons.warning_amber_rounded,
+                            color: context.palette.warning),
+                        color: context.palette.warning,
                         onTap: _showWipeConfirmation,
                       ),
                     ]),
@@ -446,23 +468,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: AppColors.deepViolet,
+                        color: context.palette.surfaceSunken,
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                            color: AppColors.danger.withValues(alpha: 0.5)),
+                            color: context.palette.danger.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.power_settings_new,
-                              color: AppColors.danger),
+                          Icon(Icons.power_settings_new,
+                              color: context.palette.danger),
                           const SizedBox(width: 12),
                           Text(
                             context.loc.profile_disconnectSession,
                             style: VpWidgets.googleFont(
                               fontWeight: FontWeight.w900,
                               letterSpacing: 2,
-                              color: AppColors.danger,
+                              color: context.palette.danger,
                               fontSize: 12,
                             ),
                           ),
@@ -480,7 +502,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: VpWidgets.googleFont(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.contentPlaceholder,
+                        color: context.palette.contentPlaceholder,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -545,20 +567,20 @@ class _TextEditDialogState extends State<_TextEditDialog> {
         maxLines: widget.maxLines,
         minLines: widget.maxLines > 1 ? 2 : 1,
         maxLength: widget.maxLength,
-        style: const TextStyle(color: AppColors.contentPrimary),
+        style: TextStyle(color: context.palette.contentPrimary),
         decoration: InputDecoration(
           hintText: widget.fieldHint,
-          hintStyle: const TextStyle(color: AppColors.contentDisabled),
+          hintStyle: TextStyle(color: context.palette.contentDisabled),
           errorText: _errorText,
-          counterStyle: const TextStyle(color: AppColors.contentDisabled),
+          counterStyle: TextStyle(color: context.palette.contentDisabled),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
             borderSide:
-                BorderSide(color: AppColors.neonPurple.withValues(alpha: 0.3)),
+                BorderSide(color: context.palette.accentPurple.withValues(alpha: 0.3)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
-            borderSide: const BorderSide(color: AppColors.neonPurple),
+            borderSide: BorderSide(color: context.palette.accentPurple),
           ),
         ),
       ),

@@ -11,7 +11,7 @@ class LocalizationScreen extends StatelessWidget {
     final loc = context.loc;
 
     return VPScaffold(
-      backgroundColor: AppColors.deepViolet,
+      backgroundColor: context.palette.surfaceSunken,
       showAppBar: false,
       body: SafeArea(
         child: Consumer<LanguageProvider>(
@@ -28,7 +28,7 @@ class LocalizationScreen extends StatelessWidget {
                   loc.settingsSubtitle,
                   textAlign: TextAlign.center,
                   style: VpWidgets.googleFont(
-                    color: AppColors.contentTertiary,
+                    color: context.palette.contentTertiary,
                     fontSize: 13,
                     letterSpacing: 0.4,
                   ),
@@ -57,9 +57,9 @@ class LocalizationScreen extends StatelessWidget {
                       icon: Icons.auto_awesome,
                       title: loc.aiTranslationReadyTitle,
                       subtitle: loc.aiTranslationReadySubtitle,
-                      trailing: const Icon(Icons.psychology,
-                          color: AppColors.contentTertiary),
-                      color: AppColors.neonPurple,
+                      trailing: Icon(Icons.psychology,
+                          color: context.palette.contentTertiary),
+                      color: context.palette.accentPurple,
                     ),
                   ],
                 ),
@@ -91,9 +91,9 @@ class _LanguageTile extends StatelessWidget {
       subtitle: '${context.loc.currentLanguageLabel}: ${language.englishName}',
       trailing: Icon(
         isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-        color: isSelected ? AppColors.neonGreen : AppColors.contentDisabled,
+        color: isSelected ? context.palette.accentGreen : context.palette.contentDisabled,
       ),
-      color: isSelected ? AppColors.neonGreen : AppColors.neonBlue,
+      color: isSelected ? context.palette.accentGreen : context.palette.accentBlue,
       onTap: isSelected
           ? null
           : () async {
@@ -105,7 +105,7 @@ class _LanguageTile extends StatelessWidget {
               ErrorHandler.showSnackBar(
                 context,
                 context.loc.languageSavedMessage,
-                backgroundColor: AppColors.neonPurple,
+                backgroundColor: context.palette.accentPurple,
               );
             },
     );

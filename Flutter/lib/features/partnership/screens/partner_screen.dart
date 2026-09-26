@@ -44,7 +44,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   Text(
                     context.loc.appTitle,
                     style: VpWidgets.googleFont(
-                      color: AppColors.primary,
+                      color: context.palette.primary,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
@@ -55,7 +55,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     context.loc.partner_title,
                     textAlign: TextAlign.center,
                     style: VpWidgets.googleFont(
-                      color: AppColors.contentPrimary,
+                      color: context.palette.contentPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
@@ -80,8 +80,8 @@ class _PartnerScreenState extends State<PartnerScreen> {
                       await authState.fetchSentInvitations();
                       await authState.fetchReceivedInvitations();
                     },
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.cardDark,
+                    color: context.palette.primary,
+                    backgroundColor: context.palette.surface,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
@@ -154,8 +154,8 @@ class _PartnerScreenState extends State<PartnerScreen> {
                               kDebugMode) ...[
                             const SizedBox(height: 32),
                             Text(context.loc.partner_noPendingInvites,
-                                style: const TextStyle(
-                                    color: AppColors.contentHint)),
+                                style: TextStyle(
+                                    color: context.palette.contentHint)),
                           ],
                         ],
                       ),
@@ -173,12 +173,12 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   LogoutUtils.showLogoutDialog(
                       context, () => LogoutUtils.performLogout(context));
                 },
-                icon: const Icon(Icons.logout, color: AppColors.contentPrimary),
+                icon: Icon(Icons.logout, color: context.palette.contentPrimary),
                 label: Text(
                   context.loc.partner_logout,
                   style: VpWidgets.googleFont(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.contentPrimary,
+                    color: context.palette.contentPrimary,
                   ),
                 ),
               ),
@@ -205,18 +205,20 @@ class _PartnerScreenState extends State<PartnerScreen> {
               children: [
                 DecoratedBox(
                   decoration: VpWidgets.cardDecoration(
+                    context,
                     borderRadius: 50, // Circle
-                    borderColor: AppColors.primary,
+                    borderColor: context.palette.primary,
                     boxShadow: [
                       VpWidgets.boxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
+                          context,
+                          color: context.palette.primary.withValues(alpha: 0.3),
                           blurRadius: 10),
                     ],
                   ),
                   child: VPAvatar(
                     imageUrl: imageUrl,
                     size: 100,
-                    borderColor: AppColors.primary,
+                    borderColor: context.palette.primary,
                   ),
                 ),
                 if (isConnected)
@@ -225,15 +227,15 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     right: 0,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
+                      decoration: BoxDecoration(
+                        color: context.palette.primary,
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: AppColors.shadowSoft, blurRadius: 4)
+                          BoxShadow(color: context.palette.shadowSoft, blurRadius: 4)
                         ],
                       ),
-                      child: const Icon(Icons.favorite,
-                          size: 16, color: AppColors.contentPrimary),
+                      child: Icon(Icons.favorite,
+                          size: 16, color: context.palette.contentPrimary),
                     ),
                   ),
               ],
@@ -245,7 +247,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.contentPrimary,
+              color: context.palette.contentPrimary,
             ),
           ),
           Text(
@@ -253,7 +255,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+              color: context.palette.primary,
               letterSpacing: 1,
             ),
           ),
@@ -272,10 +274,10 @@ class _PartnerScreenState extends State<PartnerScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.4),
+                    color: context.palette.primary.withValues(alpha: 0.4),
                     width: 2,
                     style: BorderStyle.none), // Dotted border effect simulation
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: context.palette.primary.withValues(alpha: 0.1),
               ),
               child: Center(
                 child: Container(
@@ -284,11 +286,11 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: AppColors.primary
+                        color: context.palette.primary
                             .withValues(alpha: 0.5)), // Dashed substitute
                   ),
                   child:
-                      const Icon(Icons.add, color: AppColors.primary, size: 40),
+                      Icon(Icons.add, color: context.palette.primary, size: 40),
                 ),
               ),
             ),
@@ -299,7 +301,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.contentPrimary,
+              color: context.palette.contentPrimary,
             ),
           ),
           Text(
@@ -307,7 +309,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppColors.primary.withValues(alpha: 0.7),
+              color: context.palette.primary.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -326,7 +328,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
           child: Text(
             title,
             style: VpWidgets.googleFont(
-              color: AppColors.contentTertiary,
+              color: context.palette.contentTertiary,
               fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -388,14 +390,14 @@ class _PartnerScreenState extends State<PartnerScreen> {
     return VPCard(
       margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
       padding: const EdgeInsets.all(20),
-      borderColor: AppColors.primary.withValues(alpha: 0.3),
-      shadowColor: AppColors.primary.withValues(alpha: 0.1),
+      borderColor: context.palette.primary.withValues(alpha: 0.3),
+      shadowColor: context.palette.primary.withValues(alpha: 0.1),
       child: Column(
         children: [
           Text(
             context.loc.partner_personalCodeTitle,
             style: VpWidgets.googleFont(
-              color: AppColors.contentTertiary,
+              color: context.palette.contentTertiary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -408,7 +410,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
               Text(
                 code,
                 style: VpWidgets.googleFont(
-                  color: AppColors.contentPrimary,
+                  color: context.palette.contentPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 4,
@@ -421,10 +423,10 @@ class _PartnerScreenState extends State<PartnerScreen> {
                   ErrorHandler.showSnackBar(
                       context, context.loc.partner_codeCopied);
                 },
-                icon: const Icon(Icons.copy_rounded,
-                    color: AppColors.primary, size: 24),
+                icon: Icon(Icons.copy_rounded,
+                    color: context.palette.primary, size: 24),
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  backgroundColor: context.palette.primary.withValues(alpha: 0.1),
                   padding: const EdgeInsets.all(12),
                 ),
               ),
@@ -435,7 +437,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
             context.loc.partner_personalCodeSubtitle,
             textAlign: TextAlign.center,
             style: VpWidgets.googleFont(
-              color: AppColors.contentDisabled,
+              color: context.palette.contentDisabled,
               fontSize: 12,
               height: 1.4,
             ),

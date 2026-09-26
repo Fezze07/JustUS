@@ -66,12 +66,12 @@ class _BucketListScreenState extends State<BucketListScreen>
                           label: Text(
                               BucketCategory.localizedLabel(cat, context.loc)),
                           selected: selectedAddCategory == cat,
-                          selectedColor: BucketCategory.colorFor(cat),
-                          backgroundColor: AppColors.backgroundDark,
+                          selectedColor: BucketCategory.colorFor(context, cat),
+                          backgroundColor: context.palette.canvas,
                           labelStyle: TextStyle(
                             color: selectedAddCategory == cat
-                                ? AppColors.contentPrimary
-                                : BucketCategory.colorFor(cat)
+                                ? context.palette.contentPrimary
+                                : BucketCategory.colorFor(context, cat)
                                     .withValues(alpha: 0.7),
                           ),
                           onSelected: (selected) {
@@ -115,8 +115,8 @@ class _BucketListScreenState extends State<BucketListScreen>
       floatingActionButton: FloatingActionButton(
         tooltip: context.loc.bucket_add,
         onPressed: _showAddDialog,
-        backgroundColor: AppColors.neonBlue,
-        child: const Icon(Icons.add, color: AppColors.backgroundDark),
+        backgroundColor: context.palette.accentBlue,
+        child: Icon(Icons.add, color: context.palette.canvas),
       ),
       body: SafeArea(
         child: Column(
@@ -139,15 +139,15 @@ class _BucketListScreenState extends State<BucketListScreen>
                                 cat, context.loc)),
                             selected: _selectedCategory == cat,
                             selectedColor: cat == BucketCategory.all
-                                ? AppColors.neonBlue
-                                : BucketCategory.colorFor(cat),
-                            backgroundColor: AppColors.cardDark,
+                                ? context.palette.accentBlue
+                                : BucketCategory.colorFor(context, cat),
+                            backgroundColor: context.palette.surface,
                             labelStyle: VpWidgets.googleFont(
                               color: _selectedCategory == cat
-                                  ? AppColors.backgroundDark
+                                  ? context.palette.canvas
                                   : cat == BucketCategory.all
-                                      ? AppColors.contentSecondary
-                                      : BucketCategory.colorFor(cat)
+                                      ? context.palette.contentSecondary
+                                      : BucketCategory.colorFor(context, cat)
                                           .withValues(alpha: 0.7),
                               fontWeight: _selectedCategory == cat
                                   ? FontWeight.bold
@@ -170,8 +170,8 @@ class _BucketListScreenState extends State<BucketListScreen>
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => loadData(force: true),
-                color: AppColors.primary,
-                backgroundColor: AppColors.backgroundDark,
+                color: context.palette.primary,
+                backgroundColor: context.palette.canvas,
                 child: Selector<BucketState, (List<BucketItem>, bool)>(
                   selector: (_, s) => (s.items, s.isLoading),
                   builder: (context, bucketData, child) {
@@ -189,11 +189,11 @@ class _BucketListScreenState extends State<BucketListScreen>
                     if (bucketData.$2 && items.isEmpty) {
                       return ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        children: const [
-                          SizedBox(height: 240),
+                        children: [
+                          const SizedBox(height: 240),
                           Center(
                             child: CircularProgressIndicator(
-                                color: AppColors.neonBlue),
+                                color: context.palette.accentBlue),
                           ),
                         ],
                       );
@@ -252,10 +252,10 @@ class _BucketListScreenState extends State<BucketListScreen>
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: AppColors.danger.withValues(alpha: 0.8),
+          color: context.palette.danger.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: const Icon(Icons.delete, color: AppColors.contentPrimary),
+        child: Icon(Icons.delete, color: context.palette.contentPrimary),
       ),
       onDismissed: (direction) {
         // Optimistic local removal — filters the item out on the very next
@@ -266,18 +266,18 @@ class _BucketListScreenState extends State<BucketListScreen>
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDone ? AppColors.borderDark : AppColors.cardDark,
+          color: isDone ? context.palette.border : context.palette.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isDone
                 ? Colors.transparent
-                : BucketCategory.colorFor(item.category).withValues(alpha: 0.3),
+                : BucketCategory.colorFor(context, item.category).withValues(alpha: 0.3),
           ),
           boxShadow: isDone
               ? []
               : [
                   BoxShadow(
-                    color: BucketCategory.colorFor(item.category)
+                    color: BucketCategory.colorFor(context, item.category)
                         .withValues(alpha: 0.1),
                     blurRadius: 10,
                   )
@@ -310,16 +310,16 @@ class _BucketListScreenState extends State<BucketListScreen>
                   width: AppDims.checkbox,
                   height: AppDims.checkbox,
                   decoration: BoxDecoration(
-                    color: isDone ? AppColors.neonBlue : Colors.transparent,
+                    color: isDone ? context.palette.accentBlue : Colors.transparent,
                     borderRadius: BorderRadius.circular(AppRadius.xs),
                     border: Border.all(
-                      color: AppColors.neonBlue,
+                      color: context.palette.accentBlue,
                       width: AppDims.hairline * 2,
                     ),
                   ),
                   child: isDone
-                      ? const Icon(Icons.check,
-                          size: 16, color: AppColors.backgroundDark)
+                      ? Icon(Icons.check,
+                          size: 16, color: context.palette.canvas)
                       : null,
                 ),
               ),
@@ -340,11 +340,11 @@ class _BucketListScreenState extends State<BucketListScreen>
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: isDone
-                                ? AppColors.contentDisabled
-                                : AppColors.contentPrimary,
+                                ? context.palette.contentDisabled
+                                : context.palette.contentPrimary,
                             decoration:
                                 isDone ? TextDecoration.lineThrough : null,
-                            decorationColor: AppColors.contentDisabled,
+                            decorationColor: context.palette.contentDisabled,
                           ),
                         ),
                       ),
@@ -352,11 +352,11 @@ class _BucketListScreenState extends State<BucketListScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
                         decoration: BoxDecoration(
-                          color: BucketCategory.colorFor(item.category)
+                          color: BucketCategory.colorFor(context, item.category)
                               .withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(
-                            color: BucketCategory.colorFor(item.category)
+                            color: BucketCategory.colorFor(context, item.category)
                                 .withValues(alpha: 0.5),
                           ),
                         ),
@@ -365,7 +365,7 @@ class _BucketListScreenState extends State<BucketListScreen>
                               item.category, context.loc),
                           style: VpWidgets.googleFont(
                             fontSize: 10,
-                            color: BucketCategory.colorFor(item.category),
+                            color: BucketCategory.colorFor(context, item.category),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -378,7 +378,7 @@ class _BucketListScreenState extends State<BucketListScreen>
                         .bucket_createdOn(item.createdAt.split('T').first),
                     style: VpWidgets.googleFont(
                       fontSize: 12,
-                      color: AppColors.contentDisabled,
+                      color: context.palette.contentDisabled,
                     ),
                   ),
                 ],
@@ -396,7 +396,7 @@ class _BucketListScreenState extends State<BucketListScreen>
         text,
         textAlign: TextAlign.center,
         style: VpWidgets.googleFont(
-          color: AppColors.contentTertiary,
+          color: context.palette.contentTertiary,
           fontSize: 16,
         ),
       ),

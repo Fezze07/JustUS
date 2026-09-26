@@ -19,9 +19,9 @@ class LogoutUtils {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.neonPink,
+              backgroundColor: context.palette.accentPink,
               disabledBackgroundColor:
-                  AppButtonStyle.disabledBackground(AppColors.neonPink),
+                  AppButtonStyle.disabledBackground(context.palette.accentPink),
             ),
             onPressed: () {
               Navigator.pop(context);

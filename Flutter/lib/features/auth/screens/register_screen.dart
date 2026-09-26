@@ -112,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       content: Text(
                         context.loc.auth_confirmEmailMessage(email),
                         style: VpWidgets.googleFont(
-                            color: AppColors.contentSecondary),
+                            color: context.palette.contentSecondary),
                       ),
                       actions: [
                         TextButton(
@@ -123,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Text(
                             context.loc.auth_goToLogin,
                             style:
-                                VpWidgets.googleFont(color: AppColors.primary),
+                                VpWidgets.googleFont(color: context.palette.primary),
                           ),
                         ),
                       ],

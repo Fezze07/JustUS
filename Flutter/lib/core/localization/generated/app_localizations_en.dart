@@ -364,6 +364,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings_darkModeSubtitle => 'Violet-punk optimized';
 
   @override
+  String get settings_appearanceSection => 'APPEARANCE';
+
+  @override
+  String get settings_themeTitle => 'Theme';
+
+  @override
+  String get settings_themeSubtitle => 'Light or dark, saved automatically';
+
+  @override
+  String get settings_themeLight => 'Light';
+
+  @override
+  String get settings_themeDark => 'Dark';
+
+  @override
   String get profile_connected => 'CONNECTED';
 
   @override

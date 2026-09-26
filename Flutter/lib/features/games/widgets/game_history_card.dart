@@ -25,7 +25,7 @@ class GameHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return VPCard(
       padding: const EdgeInsets.all(16),
-      borderColor: AppColors.borderDark,
+      borderColor: context.palette.border,
       shadowColor: badgeColor.withValues(alpha: 0.05),
       blurRadius: 10,
       child: Row(
@@ -50,7 +50,7 @@ class GameHistoryCard extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.contentPrimary,
+                    color: context.palette.contentPrimary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -76,13 +76,13 @@ class GameHistoryCard extends StatelessWidget {
                 VPAvatar(
                     imageUrl: userImageUrl,
                     size: 24,
-                    borderColor: AppColors.backgroundDark),
+                    borderColor: context.palette.canvas),
                 Positioned(
                   left: 16,
                   child: VPAvatar(
                       imageUrl: partnerImageUrl,
                       size: 24,
-                      borderColor: AppColors.backgroundDark),
+                      borderColor: context.palette.canvas),
                 ),
               ],
             ),

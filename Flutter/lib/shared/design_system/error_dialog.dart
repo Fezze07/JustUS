@@ -62,15 +62,15 @@ class ErrorDialog extends StatelessWidget {
                   vertical: AppSpacing.xs,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withValues(alpha: 0.1),
+                  color: context.palette.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: Text(
                   '${context.loc.error_codePrefix} $errorCode',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.danger,
+                    color: context.palette.danger,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -80,9 +80,9 @@ class ErrorDialog extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 details!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.neutralText,
+                  color: context.palette.neutralText,
                 ),
               ),
             ],

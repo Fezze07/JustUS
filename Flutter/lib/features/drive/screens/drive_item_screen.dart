@@ -219,10 +219,10 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.viewerBackdrop,
+      backgroundColor: context.palette.backdrop,
       appBar: AppBar(
-        backgroundColor: AppColors.viewerBackdrop,
-        foregroundColor: AppColors.contentPrimary,
+        backgroundColor: context.palette.backdrop,
+        foregroundColor: context.palette.contentPrimary,
         actions: [
           Selector<DriveState, bool>(
             selector: (_, s) => s.singleItem?.isFavorite == 1,
@@ -237,7 +237,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                     icon: Icon(
                       isFav ? Icons.favorite : Icons.favorite_border,
                       color:
-                          isFav ? AppColors.danger : AppColors.contentPrimary,
+                          isFav ? context.palette.danger : context.palette.contentPrimary,
                     ),
                     onPressed: () =>
                         unawaited(driveState.toggleFavorite(widget.itemId)),
@@ -326,8 +326,8 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                     child: VideoPlayer(_videoController!),
                   ),
                   if (!_videoController!.value.isPlaying)
-                    const Icon(Icons.play_circle,
-                        size: 80, color: AppColors.contentSecondary),
+                    Icon(Icons.play_circle,
+                        size: 80, color: context.palette.contentSecondary),
                 ],
               ),
             ),
@@ -344,13 +344,13 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.audiotrack,
-                size: 80, color: AppColors.contentPrimary),
+            Icon(Icons.audiotrack,
+                size: 80, color: context.palette.contentPrimary),
             const SizedBox(height: AppSpacing.lg),
             Text(
               item.metadata?['filename'] ?? context.loc.common_audio,
-              style: const TextStyle(
-                  color: AppColors.contentPrimary, fontSize: 18),
+              style: TextStyle(
+                  color: context.palette.contentPrimary, fontSize: 18),
             ),
             const SizedBox(height: AppSpacing.xl),
             Semantics(
@@ -367,7 +367,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                   _isAudioPlaying
                       ? Icons.pause_circle_filled
                       : Icons.play_circle_filled,
-                  color: AppColors.contentPrimary,
+                  color: context.palette.contentPrimary,
                 ),
                 onPressed: () => _toggleAudio(
                   ApiService.resolveProtectedMediaUrl(item.content) ??
@@ -393,10 +393,10 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
                       children: [
                         Text(_formatDuration(_audioMsgPosition),
                             style:
-                                const TextStyle(color: AppColors.neutralText)),
+                                TextStyle(color: context.palette.neutralText)),
                         Text(_formatDuration(_audioMsgDuration),
                             style:
-                                const TextStyle(color: AppColors.neutralText)),
+                                TextStyle(color: context.palette.neutralText)),
                       ],
                     ),
                   ],
@@ -409,13 +409,13 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.insert_drive_file,
-                size: 100, color: AppColors.contentPrimary),
+            Icon(Icons.insert_drive_file,
+                size: 100, color: context.palette.contentPrimary),
             const SizedBox(height: AppSpacing.md),
             Text(
               item.metadata?['filename'] ?? context.loc.common_file,
-              style: const TextStyle(
-                  color: AppColors.contentPrimary, fontSize: 18),
+              style: TextStyle(
+                  color: context.palette.contentPrimary, fontSize: 18),
             ),
           ],
         );
@@ -426,15 +426,15 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.error_outline, size: 80, color: AppColors.danger),
+        Icon(Icons.error_outline, size: 80, color: context.palette.danger),
         const SizedBox(height: AppSpacing.md),
-        Text(title, style: const TextStyle(color: AppColors.contentPrimary)),
+        Text(title, style: TextStyle(color: context.palette.contentPrimary)),
         if (_errorMessage != null)
           Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Text(_errorMessage!,
                 style:
-                    const TextStyle(color: AppColors.neutralText, fontSize: 12),
+                    TextStyle(color: context.palette.neutralText, fontSize: 12),
                 textAlign: TextAlign.center),
           ),
       ],

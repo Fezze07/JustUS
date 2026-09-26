@@ -21,6 +21,8 @@ class VPFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final accent = palette.accentPurple;
     return Semantics(
       button: true,
       selected: isActive,
@@ -34,15 +36,15 @@ class VPFilterChip extends StatelessWidget {
             vertical: AppSpacing.sm,
           ),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.neonPurple : AppColors.surfaceElevated,
+            color: isActive ? accent : palette.surfaceElevated,
             borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
-              color: AppColors.neonPurple.withValues(alpha: 0.3),
+              color: accent.withValues(alpha: 0.3),
             ),
             boxShadow: isActive
-                ? const [
+                ? [
                     BoxShadow(
-                      color: AppColors.neonPurple,
+                      color: accent,
                       blurRadius: 8,
                     ),
                   ]
@@ -59,8 +61,8 @@ class VPFilterChip extends StatelessWidget {
                 label.toUpperCase(),
                 style: GoogleFonts.plusJakartaSans(
                   color: isActive
-                      ? AppColors.contentPrimary
-                      : AppColors.neutralMuted,
+                      ? palette.onAccent
+                      : palette.contentTertiary,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,

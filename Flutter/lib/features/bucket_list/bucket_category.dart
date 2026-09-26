@@ -37,8 +37,8 @@ class BucketCategory {
     'Homemade': homemade,
   };
 
-  static Color colorFor(String category) {
-    return _colors[category] ?? AppColors.contentSecondary;
+  static Color colorFor(BuildContext context, String category) {
+    return _colors[category] ?? context.palette.contentSecondary;
   }
 
   static String localizedLabel(String category, AppLocalizations loc) {

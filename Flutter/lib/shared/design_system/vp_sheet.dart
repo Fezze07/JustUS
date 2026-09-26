@@ -30,6 +30,7 @@ class VPSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final bottomInset = media.viewInsets.bottom;
+    final palette = context.palette;
     const shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(AppRadius.sheet),
@@ -37,7 +38,7 @@ class VPSheet extends StatelessWidget {
     );
 
     final content = Material(
-      color: AppColors.cardDark,
+      color: palette.surface,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -55,8 +56,8 @@ class VPSheet extends StatelessWidget {
               width: AppDims.circleButton,
               height: AppSpacing.xs,
               decoration: BoxDecoration(
-                color: AppColors.surfaceTrack,
-                borderRadius: BorderRadius.circular(AppRadius.xs),
+                color: palette.track,
+                borderRadius: BorderRadius.circular(AppSpacing.xs),
               ),
               margin: const EdgeInsets.only(bottom: AppSpacing.lg),
             ),
@@ -67,7 +68,7 @@ class VPSheet extends StatelessWidget {
                 style: VpWidgets.googleFont(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.contentPrimary,
+                  color: palette.contentPrimary,
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -79,12 +80,12 @@ class VPSheet extends StatelessWidget {
     );
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: AppColors.neonPurple,
+            color: palette.accentPurple,
             blurRadius: 4,
-            offset: Offset(0, -2),
+            offset: const Offset(0, -2),
           ),
         ],
       ),

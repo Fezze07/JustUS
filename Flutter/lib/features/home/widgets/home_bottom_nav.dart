@@ -21,14 +21,14 @@ class HomeBottomNav extends StatelessWidget {
         vertical: AppSpacing.lg,
       ),
       decoration: BoxDecoration(
-        color: AppColors.backgroundDark.withValues(alpha: 0.8),
+        color: context.palette.canvas.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(AppRadius.sheet),
-        border: Border.all(color: AppColors.surfaceOverlay),
-        boxShadow: const [
+        border: Border.all(color: context.palette.overlay),
+        boxShadow: [
           BoxShadow(
-            color: AppColors.shadowStrong,
+            color: context.palette.shadowStrong,
             blurRadius: 20,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -72,7 +72,7 @@ class HomeBottomNav extends StatelessWidget {
               Icon(
                 icon,
                 color:
-                    isActive ? AppColors.neonPurple : AppColors.contentTertiary,
+                    isActive ? context.palette.accentPurple : context.palette.contentTertiary,
                 size: 26,
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -80,8 +80,8 @@ class HomeBottomNav extends StatelessWidget {
                 Container(
                   width: AppDims.dot,
                   height: AppDims.dot,
-                  decoration: const BoxDecoration(
-                    color: AppColors.neonPurple,
+                  decoration: BoxDecoration(
+                    color: context.palette.accentPurple,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -103,18 +103,18 @@ class HomeBottomNav extends StatelessWidget {
         height: AppDims.navCenter,
         decoration: BoxDecoration(
           gradient: isHome
-              ? const LinearGradient(
-                  colors: [AppColors.neonPurple, AppColors.primary],
+              ? LinearGradient(
+                  colors: [context.palette.accentPurple, context.palette.primary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: isHome ? null : AppColors.surfaceOverlay,
+          color: isHome ? null : context.palette.overlay,
           shape: BoxShape.circle,
           boxShadow: isHome
               ? [
                   BoxShadow(
-                    color: AppColors.neonPurple.withValues(alpha: 0.4),
+                    color: context.palette.accentPurple.withValues(alpha: 0.4),
                     blurRadius: 15,
                     spreadRadius: 2,
                   ),
@@ -124,8 +124,8 @@ class HomeBottomNav extends StatelessWidget {
         child: Tooltip(
           message: context.loc.nav_home,
           child: IconButton(
-            icon: const Icon(Icons.home_filled,
-                color: AppColors.contentPrimary, size: 28),
+            icon: Icon(Icons.home_filled,
+                color: context.palette.contentPrimary, size: 28),
             onPressed: () => onIndexChanged(0),
           ),
         ),

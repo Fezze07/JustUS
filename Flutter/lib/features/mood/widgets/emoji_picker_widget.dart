@@ -37,7 +37,7 @@ class EmojiButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.sm),
             color: isSelected
                 ? Theme.of(context).primaryColor.withValues(alpha: 0.2)
-                : AppColors.neutralText.withValues(alpha: 0.1),
+                : context.palette.neutralText.withValues(alpha: 0.1),
             border: isSelected
                 ? Border.all(color: Theme.of(context).primaryColor, width: 2)
                 : null,

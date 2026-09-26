@@ -37,7 +37,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: context.palette.canvas,
       body: SafeArea(
         child: Column(
           children: [
@@ -54,7 +54,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         context.loc.auth_resetPasswordSubtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: AppColors.contentTertiary,
+                          color: context.palette.contentTertiary,
                         ),
                       ),
                       const SizedBox(height: 32),

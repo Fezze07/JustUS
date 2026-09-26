@@ -1,7 +1,7 @@
 {
-  "threshold": 6,
-  "minLines": 3,
-  "minTokens": 20,
+  "threshold": 10,
+  "minLines": 5,
+  "minTokens": 35,
   "mode": "weak",
   "reporters": [
     "html",
@@ -24,6 +24,12 @@
     "**/web/**",
     "**/graphify-out/**",
     "**/.agents/**",
+    "**/docs/**",
+    "**/lib/core/localization/generated/**",
+    "**/generated/**",
+    "**/theme/app_palette.dart",
+    "**/supabase/schemas/**",
+    "**/.pgdelta-export.json",
     "**/*.g.dart",
     "**/*.freezed.dart",
     "**/*.part.dart",

@@ -45,7 +45,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
           Text(
             context.loc.partner_inviteDescription,
             style: VpWidgets.googleFont(
-                color: AppColors.contentSecondary, fontSize: 14),
+                color: context.palette.contentSecondary, fontSize: 14),
           ),
           const SizedBox(height: 16),
           VPTextField(
@@ -67,7 +67,7 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             context.loc.common_cancel,
-            style: VpWidgets.googleFont(color: AppColors.contentFaint),
+            style: VpWidgets.googleFont(color: context.palette.contentFaint),
           ),
         ),
         Consumer<AuthState>(

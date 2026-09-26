@@ -41,8 +41,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
             VPHeader(
               title: context.loc.appTitle,
               showBackButton: false,
-              leading: const Icon(Icons.favorite,
-                  color: AppColors.neonPurple, size: 28),
+              leading: Icon(Icons.favorite,
+                  color: context.palette.accentPurple, size: 28),
               trailing: [_buildNotificationButton()],
             ),
 
@@ -50,8 +50,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => loadData(force: true),
-                color: AppColors.primary,
-                backgroundColor: AppColors.backgroundDark,
+                color: context.palette.primary,
+                backgroundColor: context.palette.canvas,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -109,7 +109,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                                     child: Text(
                                       context.loc.game_noMatches,
                                       style: VpWidgets.googleFont(
-                                        color: AppColors.contentDisabled,
+                                        color: context.palette.contentDisabled,
                                         fontSize: 14,
                                       ),
                                     ),
@@ -123,21 +123,21 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
 
                                   if (item.isMatched) {
                                     status = context.loc.game_statusBothAgreed;
-                                    badgeColor = AppColors.neonGreen;
+                                    badgeColor = context.palette.accentGreen;
                                     icon = Icons.check_circle;
                                   } else if (item.isDisagreed) {
                                     status = context.loc.game_statusDisagreed;
-                                    badgeColor = AppColors.neonPink;
+                                    badgeColor = context.palette.accentPink;
                                     icon = Icons.cancel;
                                   } else if (item.userOption == null &&
                                       item.partnerOption != null) {
                                     status =
                                         context.loc.game_statusWaitingForYou;
-                                    badgeColor = AppColors.neonBlue;
+                                    badgeColor = context.palette.accentBlue;
                                     icon = Icons.access_time;
                                   } else {
                                     status = context.loc.game_statusWaiting;
-                                    badgeColor = AppColors.neonBlue;
+                                    badgeColor = context.palette.accentBlue;
                                     icon = Icons.access_time;
                                   }
 
@@ -178,19 +178,19 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.cardDark,
+            color: context.palette.surface,
             shape: BoxShape.circle,
             border:
-                Border.all(color: AppColors.neonPurple.withValues(alpha: 0.2)),
-            boxShadow: const [
+                Border.all(color: context.palette.accentPurple.withValues(alpha: 0.2)),
+            boxShadow: [
               BoxShadow(
-                  color: AppColors.shadowStrong,
+                  color: context.palette.shadowStrong,
                   blurRadius: 8,
-                  offset: Offset(0, 4)),
+                  offset: const Offset(0, 4)),
             ],
           ),
-          child: const Icon(Icons.notifications,
-              color: AppColors.contentPrimary, size: 24),
+          child: Icon(Icons.notifications,
+              color: context.palette.contentPrimary, size: 24),
         ),
         Positioned(
           top: 12,
@@ -199,9 +199,9 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: AppColors.neonBlue,
+              color: context.palette.accentBlue,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.backgroundDark, width: 2),
+              border: Border.all(color: context.palette.canvas, width: 2),
             ),
           ),
         ),
@@ -212,8 +212,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
   Widget _buildDailyGameCard(GameState state) {
     return VPCard(
       padding: EdgeInsets.zero,
-      borderColor: AppColors.neonPurple.withValues(alpha: 0.3),
-      shadowColor: AppColors.neonPurple.withValues(alpha: 0.2),
+      borderColor: context.palette.accentPurple.withValues(alpha: 0.3),
+      shadowColor: context.palette.accentPurple.withValues(alpha: 0.2),
       child: Stack(
         children: [
           Positioned(
@@ -223,11 +223,11 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppColors.neonPurple.withValues(alpha: 0.1),
+                color: context.palette.accentPurple.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                      color: AppColors.neonPurple,
+                      color: context.palette.accentPurple,
                       blurRadius: 50,
                       spreadRadius: 10)
                 ],
@@ -243,10 +243,10 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.neonPurple.withValues(alpha: 0.2),
+                    color: context.palette.accentPurple.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                     border: Border.all(
-                        color: AppColors.neonPurple.withValues(alpha: 0.3)),
+                        color: context.palette.accentPurple.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     context.loc.game_dailyGame,
@@ -254,13 +254,13 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.5,
-                      color: AppColors.neonPurple,
+                      color: context.palette.accentPurple,
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
                 if (state.isFetchingQuestion) ...[
-                  const CircularProgressIndicator(color: AppColors.neonPurple),
+                  CircularProgressIndicator(color: context.palette.accentPurple),
                   const SizedBox(height: 16),
                   Text(
                     context.loc.game_generatingQuestion,
@@ -268,7 +268,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.contentPrimary,
+                      color: context.palette.contentPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -277,7 +277,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
-                      color: AppColors.contentTertiary,
+                      color: context.palette.contentTertiary,
                     ),
                   ),
                 ] else if (state.currentQuestion != null) ...[
@@ -286,7 +286,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.contentTertiary,
+                      color: context.palette.contentTertiary,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -296,23 +296,23 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.contentPrimary,
+                      color: context.palette.contentPrimary,
                       height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 32),
                   _buildOptionButton(context, state, 'A',
-                      state.currentQuestion!.optionA, AppColors.info),
+                      state.currentQuestion!.optionA, context.palette.info),
                   const SizedBox(height: 16),
                   _buildOptionButton(context, state, 'B',
-                      state.currentQuestion!.optionB, AppColors.accentPurple),
+                      state.currentQuestion!.optionB, context.palette.accentPurple),
                 ] else ...[
                   Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle,
-                            size: 64, color: AppColors.neonGreen),
+                        Icon(Icons.check_circle,
+                            size: 64, color: context.palette.accentGreen),
                         const SizedBox(height: 16),
                         Text(
                           context.loc.game_allCaughtUp,
@@ -320,14 +320,14 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.contentPrimary),
+                              color: context.palette.contentPrimary),
                         ),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () => state.fetchNewQuestion(),
                           child: Text(
                             context.loc.game_tryFetchingAgain,
-                            style: const TextStyle(color: AppColors.neonBlue),
+                            style: TextStyle(color: context.palette.accentBlue),
                           ),
                         ),
                       ],
@@ -354,7 +354,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
         style: FilledButton.styleFrom(
           backgroundColor: color.withValues(alpha: 0.2),
           foregroundColor: color.withValues(alpha: 0.8),
-          disabledBackgroundColor: AppColors.surfaceOverlay,
+          disabledBackgroundColor: context.palette.overlay,
           padding: AppButtonStyle.padding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
@@ -366,7 +366,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           style: GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: AppColors.contentPrimary),
+              color: context.palette.contentPrimary),
         ),
       ),
     );
@@ -382,12 +382,12 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           imageUrl: userProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(
-                color: AppColors.backgroundDark, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: context.palette.canvas, shape: BoxShape.circle),
             child: Icon(
               userDone ? Icons.check_circle : Icons.access_time,
               color:
-                  userDone ? AppColors.neonPurple : AppColors.contentDisabled,
+                  userDone ? context.palette.accentPurple : context.palette.contentDisabled,
               size: 24,
             ),
           ),
@@ -397,13 +397,13 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           imageUrl: partnerProfile?.profilePicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(
-                color: AppColors.backgroundDark, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: context.palette.canvas, shape: BoxShape.circle),
             child: Icon(
               partnerDone ? Icons.check_circle : Icons.access_time,
               color: partnerDone
-                  ? AppColors.neonPurple
-                  : AppColors.contentDisabled,
+                  ? context.palette.accentPurple
+                  : context.palette.contentDisabled,
               size: 24,
             ),
           ),

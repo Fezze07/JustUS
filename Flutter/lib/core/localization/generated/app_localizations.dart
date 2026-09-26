@@ -776,6 +776,36 @@ abstract class AppLocalizations {
   /// **'Ottimizzata violet-punk'**
   String get settings_darkModeSubtitle;
 
+  /// No description provided for @settings_appearanceSection.
+  ///
+  /// In it, this message translates to:
+  /// **'ASPETTO'**
+  String get settings_appearanceSection;
+
+  /// No description provided for @settings_themeTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Tema'**
+  String get settings_themeTitle;
+
+  /// No description provided for @settings_themeSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiaro o scuro, salvato automaticamente'**
+  String get settings_themeSubtitle;
+
+  /// No description provided for @settings_themeLight.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiaro'**
+  String get settings_themeLight;
+
+  /// No description provided for @settings_themeDark.
+  ///
+  /// In it, this message translates to:
+  /// **'Scuro'**
+  String get settings_themeDark;
+
   /// No description provided for @profile_connected.
   ///
   /// In it, this message translates to:

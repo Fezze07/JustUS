@@ -54,7 +54,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         context.loc.auth_changePasswordSubtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: AppColors.contentTertiary,
+                          color: context.palette.contentTertiary,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xl),

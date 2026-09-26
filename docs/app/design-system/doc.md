@@ -319,19 +319,14 @@ and it is a candidate for a future `VPLoadingOverlay`.
 
 ## Findings
 
-### F-DS7: Light theme is effectively unsupported
-
-**What**: every VP component and most feature screens hardcode dark colors (`cardDark`, `backgroundDark`, `deepViolet`, `contentPrimary`) and read no `Brightness`. `AppTheme.light` exists and `MaterialApp.themeMode` now consumes the persisted `ThemeMode`, but `RefreshIndicator` / `ChoiceChip` backgrounds still hardcode `backgroundDark` (e.g. mood_screen.dart). Only `AppTheme` itself branches on `isDark` (card, input, dialog and text-button theming). No screen exposes a theme selector yet (`docs/app/theming/doc.md` Finding 2), so the mode cannot actually be changed in-app.
-**Where**: entire DS + features.
-**Impact**: selecting light theme yields broken contrast (white-on-white text in cards, dark chips everywhere).
-**Confidence**: HIGH.
+*No active findings.*
 
 ## Implementation status
 
 | Area | Status |
 |---|---|
 | Central tokens (`AppColors` + `AppRadius` + `AppDims`) | IMPLEMENTED (radius/dims adopted; a few one-off `SizedBox` gaps still inline) |
-| Central theme (`AppTheme` dark/light) | IMPLEMENTED (light unusable — see F-DS7) |
+| Central theme (`AppTheme` dark/light) | IMPLEMENTED |
 | Button system | IMPLEMENTED (`AppButtonStyle` shared by `FilledButtonThemeData` + `VPButton`; feature `ElevatedButton`s migrated) |
 | Branded core components (inputs, buttons, cards, dialogs, layout) | IMPLEMENTED |
 | Unified avatar component | IMPLEMENTED (`VPAvatar` + `VPUserAvatar`) |
@@ -340,8 +335,8 @@ and it is a candidate for a future `VPLoadingOverlay`.
 | Unified snackbar/toast | IMPLEMENTED (`ErrorHandler.showSnackBar`, root-overlay; `UIUtils`/ScaffoldMessenger path deleted) |
 | Accessibility (Semantics/Tooltip) | IMPLEMENTED for DS components + home nav + drive controls (no golden/a11y regression tests) |
 | Localization inside DS | IMPLEMENTED (`AppLocalizations` for shared UI, emoji picker, media picker, home nav, drive actions) |
-| Light-mode support | NOT IMPLEMENTED |
-| Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`, restored pre-`runApp`; no selection UI yet) |
+| Light-mode support | IMPLEMENTED (`AppPalette.light` theme extension + adaptive components) |
+| Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`, restored pre-`runApp`, setting tile in ProfileScreen) |
 | Homepage alignment to DS | IMPLEMENTED (AppColors tokens, theme font, `VPUserAvatar` avatars) |
 | Dead component cleanup | DONE (VPLoadingButton, VPLoadingOverlay, VPMiniAvatar, PartnerUserTile, PartnerRequestTile, onlineIndicator are no longer part of the system) |
 | Unified bottom sheet | IMPLEMENTED (`VPSheet` in 3 call sites) |

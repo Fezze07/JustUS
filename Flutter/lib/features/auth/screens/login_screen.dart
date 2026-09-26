@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Text(
                   context.loc.auth_forgotPassword,
                   style: VpWidgets.googleFont(
-                    color: AppColors.neonBlue,
+                    color: context.palette.accentBlue,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),

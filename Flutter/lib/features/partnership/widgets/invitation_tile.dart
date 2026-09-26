@@ -21,9 +21,9 @@ class InvitationTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardDark,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        border: Border.all(color: context.palette.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -31,12 +31,12 @@ class InvitationTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: context.palette.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isReceived ? Icons.person_add_outlined : Icons.mail_outline,
-              color: AppColors.primary,
+              color: context.palette.primary,
               size: 20,
             ),
           ),
@@ -48,7 +48,7 @@ class InvitationTile extends StatelessWidget {
                 Text(
                   invite.username,
                   style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.contentPrimary,
+                    color: context.palette.contentPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -58,7 +58,7 @@ class InvitationTile extends StatelessWidget {
                       ? context.loc.partner_wantsToConnect
                       : context.loc.partner_waitingResponse,
                   style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.contentTertiary,
+                    color: context.palette.contentTertiary,
                     fontSize: 12,
                   ),
                 ),
@@ -68,19 +68,19 @@ class InvitationTile extends StatelessWidget {
           if (isReceived) ...[
             IconButton(
               onPressed: onAccept,
-              icon: const Icon(Icons.check_circle, color: AppColors.neonGreen),
+              icon: Icon(Icons.check_circle, color: context.palette.accentGreen),
               tooltip: context.loc.partner_acceptTooltip,
             ),
             IconButton(
               onPressed: onReject,
-              icon: const Icon(Icons.cancel, color: AppColors.neonPink),
+              icon: Icon(Icons.cancel, color: context.palette.accentPink),
               tooltip: context.loc.partner_declineTooltip,
             ),
           ] else
             IconButton(
               onPressed: onReject,
-              icon: const Icon(Icons.delete_outline,
-                  color: AppColors.contentTertiary),
+              icon: Icon(Icons.delete_outline,
+                  color: context.palette.contentTertiary),
               tooltip: context.loc.partner_cancelRequestTooltip,
             ),
         ],

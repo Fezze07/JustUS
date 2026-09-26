@@ -56,10 +56,10 @@ class MediaPickerService {
       builder: (context) => VPSheet(
         children: [
           ListTile(
-            leading: const Icon(Icons.camera_alt, color: AppColors.neonPurple),
+            leading: Icon(Icons.camera_alt, color: context.palette.accentPurple),
             title: Text(
               context.loc.drive_takePhoto,
-              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
+              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
             ),
             onTap: () async {
               pickedFile = await _picker.pickImage(
@@ -72,10 +72,10 @@ class MediaPickerService {
           ),
           ListTile(
             leading:
-                const Icon(Icons.photo_library, color: AppColors.accentAqua),
+                Icon(Icons.photo_library, color: context.palette.accentAqua),
             title: Text(
               context.loc.drive_fromGallery,
-              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
+              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
             ),
             onTap: () async {
               pickedFile = await _picker.pickImage(
@@ -88,10 +88,10 @@ class MediaPickerService {
           ),
           ListTile(
             leading:
-                const Icon(Icons.library_music, color: AppColors.neonPurple),
+                Icon(Icons.library_music, color: context.palette.accentPurple),
             title: Text(
               context.loc.drive_fromAudio,
-              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
+              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
             ),
             onTap: () async {
               pickedFile = await pickFileWith(FileType.audio);
@@ -99,10 +99,10 @@ class MediaPickerService {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.description, color: AppColors.accentAqua),
+            leading: Icon(Icons.description, color: context.palette.accentAqua),
             title: Text(
               context.loc.drive_fromDocuments,
-              style: VpWidgets.googleFont(color: AppColors.contentPrimary),
+              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
             ),
             onTap: () async {
               pickedFile = await pickFileWith(

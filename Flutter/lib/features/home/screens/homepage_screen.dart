@@ -84,7 +84,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             top: -80,
             right: -80,
             child: _AtmosphericBlob(
-              color: AppColors.homePrimaryContainer.withValues(alpha: 0.05),
+              color: context.palette.homePrimaryContainer.withValues(alpha: 0.05),
               size: MediaQuery.of(context).size.width * 0.7,
             ),
           ),
@@ -92,7 +92,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             bottom: 60,
             left: -120,
             child: _AtmosphericBlob(
-              color: AppColors.homeBlob.withValues(alpha: 0.05),
+              color: context.palette.homeBlob.withValues(alpha: 0.05),
               size: MediaQuery.of(context).size.width * 0.85,
             ),
           ),
@@ -104,8 +104,8 @@ class _HomepageScreenState extends State<HomepageScreen>
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () => _loadData(force: true),
-                    color: AppColors.homePrimaryContainer,
-                    backgroundColor: AppColors.homeSurfaceContainer,
+                    color: context.palette.homePrimaryContainer,
+                    backgroundColor: context.palette.homeSurfaceContainer,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
@@ -138,10 +138,10 @@ class _HomepageScreenState extends State<HomepageScreen>
         height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          color: AppColors.homeSurface.withValues(alpha: 0.8),
+          color: context.palette.homeSurface.withValues(alpha: 0.8),
           border: Border(
             bottom: BorderSide(
-              color: AppColors.borderDark,
+              color: context.palette.border,
             ),
           ),
         ),
@@ -150,7 +150,7 @@ class _HomepageScreenState extends State<HomepageScreen>
             // Menu button
             _NavIconButton(
               icon: Icons.menu_rounded,
-              color: AppColors.homePrimary,
+              color: context.palette.homePrimary,
               onTap: () {
                 unawaited(Navigator.push(
                   context,
@@ -162,10 +162,10 @@ class _HomepageScreenState extends State<HomepageScreen>
             // Title
             Text(
               context.loc.appTitle,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: AppColors.homePrimary,
+                color: context.palette.homePrimary,
                 letterSpacing: -0.5,
               ),
             ),
@@ -175,7 +175,7 @@ class _HomepageScreenState extends State<HomepageScreen>
               scale: _pulseAnim,
               child: _NavIconButton(
                 icon: Icons.favorite_rounded,
-                color: AppColors.homeSecondary,
+                color: context.palette.homeSecondary,
                 onTap: () {
                   MainShell.shellKey.currentState?.switchToTab(5);
                 },
@@ -211,7 +211,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                       borderRadius: BorderRadius.circular(AppRadius.pill),
                       gradient: RadialGradient(
                         colors: [
-                          AppColors.homePrimaryContainer
+                          context.palette.homePrimaryContainer
                               .withValues(alpha: 0.15),
                           Colors.transparent,
                         ],
@@ -227,11 +227,11 @@ class _HomepageScreenState extends State<HomepageScreen>
                           padding: const EdgeInsets.symmetric(horizontal: 48),
                           child: Container(
                             height: 2,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
                                   Colors.transparent,
-                                  AppColors.homePrimaryContainer,
+                                  context.palette.homePrimaryContainer,
                                   Colors.transparent,
                                 ],
                               ),
@@ -276,14 +276,14 @@ class _HomepageScreenState extends State<HomepageScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.contentPrimary.withValues(alpha: 0.07),
+        color: context.palette.contentPrimary.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(
-          color: AppColors.homePrimaryContainer.withValues(alpha: 0.3),
+          color: context.palette.homePrimaryContainer.withValues(alpha: 0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.homePrimaryContainer.withValues(alpha: 0.1),
+            color: context.palette.homePrimaryContainer.withValues(alpha: 0.1),
             blurRadius: 12,
           ),
         ],
@@ -293,20 +293,20 @@ class _HomepageScreenState extends State<HomepageScreen>
         children: [
           Text(
             '$difference',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppColors.homePrimary,
+              color: context.palette.homePrimary,
               letterSpacing: -0.3,
             ),
           ),
           const SizedBox(width: 6),
           Text(
             context.loc.home_daysTogether.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: AppColors.homeOnSurfaceVariant,
+              color: context.palette.homeOnSurfaceVariant,
               letterSpacing: 1.2,
             ),
           ),
@@ -330,10 +330,10 @@ class _HomepageScreenState extends State<HomepageScreen>
                   children: [
                     Text(
                       context.loc.home_currentMoodTitle.toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.homeOnSurfaceVariant,
+                        color: context.palette.homeOnSurfaceVariant,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -342,7 +342,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                       width: 32,
                       height: 2,
                       decoration: BoxDecoration(
-                        color: AppColors.homePrimaryContainer,
+                        color: context.palette.homePrimaryContainer,
                         borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
                     ),
@@ -351,7 +351,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                 const Spacer(),
                 _GlassIconButton(
                   icon: Icons.explore_rounded,
-                  color: AppColors.homePrimaryContainer,
+                  color: context.palette.homePrimaryContainer,
                   onTap: () {
                     MainShell.shellKey.currentState?.switchToTab(2);
                   },
@@ -373,18 +373,18 @@ class _HomepageScreenState extends State<HomepageScreen>
                   children: [
                     _EmojiDisplay(
                       emoji: moods.$1,
-                      glowColor: AppColors.homePrimaryContainer,
+                      glowColor: context.palette.homePrimaryContainer,
                     ),
                     Container(
                       height: 48,
                       width: 1,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            AppColors.surfaceGlass,
+                            context.palette.glass,
                             Colors.transparent,
                           ],
                         ),
@@ -392,7 +392,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                     ),
                     _EmojiDisplay(
                       emoji: moods.$2,
-                      glowColor: AppColors.homeSecondary,
+                      glowColor: context.palette.homeSecondary,
                     ),
                   ],
                 ),
@@ -451,10 +451,10 @@ class _HomepageScreenState extends State<HomepageScreen>
                 children: [
                   Text(
                     context.loc.home_bucketListTitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.homeOnSurface,
+                      color: context.palette.homeOnSurface,
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -464,10 +464,10 @@ class _HomepageScreenState extends State<HomepageScreen>
                     },
                     child: Text(
                       context.loc.home_bucketListSubtitleDynamic(totalPending),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.homePrimary,
+                        color: context.palette.homePrimary,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -477,15 +477,15 @@ class _HomepageScreenState extends State<HomepageScreen>
             ),
             const SizedBox(height: 12),
             if (bucketData.$2 && pendingItems.isEmpty)
-              const Center(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
+                  padding: const EdgeInsets.symmetric(vertical: 24),
                   child: SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.homePrimaryContainer,
+                      color: context.palette.homePrimaryContainer,
                     ),
                   ),
                 ),
@@ -495,9 +495,9 @@ class _HomepageScreenState extends State<HomepageScreen>
                 padding: const EdgeInsets.only(left: 4, top: 8),
                 child: Text(
                   context.loc.bucket_emptyCategory,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.homeOutlineVariant,
+                    color: context.palette.homeOutlineVariant,
                   ),
                 ),
               )
@@ -528,11 +528,11 @@ class _HomepageScreenState extends State<HomepageScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: BucketCategory.colorFor(item.category)
+                color: BucketCategory.colorFor(context, item.category)
                     .withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(AppRadius.pill),
                 border: Border.all(
-                  color: BucketCategory.colorFor(item.category)
+                  color: BucketCategory.colorFor(context, item.category)
                       .withValues(alpha: 0.35),
                 ),
               ),
@@ -542,7 +542,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: BucketCategory.colorFor(item.category),
+                  color: BucketCategory.colorFor(context, item.category),
                   letterSpacing: 0.8,
                 ),
               ),
@@ -551,19 +551,19 @@ class _HomepageScreenState extends State<HomepageScreen>
             Expanded(
               child: Text(
                 item.text,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.homeOnSurfaceVariant,
+                  color: context.palette.homeOnSurfaceVariant,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: AppColors.homeOutline,
+              color: context.palette.homeOutline,
               size: 20,
             ),
           ],
@@ -594,17 +594,17 @@ class _GlassCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.homeGlass, // rgba(30,30,30,0.4)
+        color: context.palette.homeGlass, // rgba(30,30,30,0.4)
         borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: AppColors.borderDark,
+          color: context.palette.border,
         ),
         // Simulate backdrop-filter via gradient sheen
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.contentPrimary.withValues(alpha: 0.04),
+            context.palette.contentPrimary.withValues(alpha: 0.04),
             Colors.transparent,
           ],
         ),
@@ -644,20 +644,20 @@ class _GlassLinkNode extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.contentPrimary.withValues(alpha: 0.06),
+        color: context.palette.contentPrimary.withValues(alpha: 0.06),
         border: Border.all(
-          color: AppColors.homePrimaryContainer.withValues(alpha: 0.2),
+          color: context.palette.homePrimaryContainer.withValues(alpha: 0.2),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.homePrimaryContainer.withValues(alpha: 0.3),
+            color: context.palette.homePrimaryContainer.withValues(alpha: 0.3),
             blurRadius: 14,
           ),
         ],
       ),
-      child: const Icon(
+      child: Icon(
         Icons.link_rounded,
-        color: AppColors.homePrimary,
+        color: context.palette.homePrimary,
         size: 20,
       ),
     );
@@ -708,17 +708,17 @@ class _MissYouButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        color: AppColors.borderDark,
-        border: Border.all(color: AppColors.surfaceOverlay),
+        color: context.palette.border,
+        border: Border.all(color: context.palette.overlay),
         gradient: LinearGradient(
           colors: [
-            AppColors.homePrimaryContainer.withValues(alpha: 0.2),
-            AppColors.homeSecondary.withValues(alpha: 0.2),
+            context.palette.homePrimaryContainer.withValues(alpha: 0.2),
+            context.palette.homeSecondary.withValues(alpha: 0.2),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.homePrimaryContainer.withValues(alpha: 0.15),
+            color: context.palette.homePrimaryContainer.withValues(alpha: 0.15),
             blurRadius: 20,
           ),
         ],
@@ -728,19 +728,19 @@ class _MissYouButton extends StatelessWidget {
         children: [
           ScaleTransition(
             scale: pulseAnim,
-            child: const Icon(
+            child: Icon(
               Icons.favorite_rounded,
-              color: AppColors.homeSecondary,
+              color: context.palette.homeSecondary,
               size: 18,
             ),
           ),
           const SizedBox(width: 10),
           Text(
             context.loc.home_nudgeTitle.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.homeOnSurface,
+              color: context.palette.homeOnSurface,
               letterSpacing: 1.5,
             ),
           ),
@@ -748,15 +748,15 @@ class _MissYouButton extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.surfaceOverlay,
+              color: context.palette.overlay,
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Text(
               '$count',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppColors.homeOnSurface,
+                color: context.palette.homeOnSurface,
               ),
             ),
           ),
@@ -787,9 +787,9 @@ class _GlassIconButton extends StatelessWidget {
         height: 40,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          color: AppColors.contentPrimary.withValues(alpha: 0.08),
+          color: context.palette.contentPrimary.withValues(alpha: 0.08),
           border: Border.all(
-              color: AppColors.contentPrimary.withValues(alpha: 0.07)),
+              color: context.palette.contentPrimary.withValues(alpha: 0.07)),
         ),
         child: Icon(icon, color: color, size: 22),
       ),

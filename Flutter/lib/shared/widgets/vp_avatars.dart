@@ -5,30 +5,31 @@ import 'package:justus/all_imports.dart';
 class VPAvatar extends StatelessWidget {
   final String? imageUrl;
   final double size;
-  final Color borderColor;
+  final Color? borderColor;
   final bool isUploading;
 
   const VPAvatar({
     super.key,
     this.imageUrl,
     this.size = 80,
-    this.borderColor = AppColors.neonPink,
+    this.borderColor,
     this.isUploading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolved = ApiService.resolveProtectedMediaUrl(imageUrl);
+    final ring = borderColor ?? context.palette.accentPink;
 
     return Stack(
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2),
+            border: Border.all(color: ring, width: 2),
             boxShadow: [
               BoxShadow(
-                color: borderColor.withValues(alpha: 0.3),
+                color: ring.withValues(alpha: 0.3),
                 blurRadius: 20,
               ),
             ],
@@ -38,7 +39,7 @@ class VPAvatar extends StatelessWidget {
                   width: size,
                   height: size,
                   child: Icon(Icons.person,
-                      size: size / 2, color: AppColors.contentTertiary),
+                      size: size / 2, color: context.palette.contentTertiary),
                 )
               : ClipOval(
                   child: ProtectedNetworkImage(
@@ -57,8 +58,8 @@ class VPAvatar extends StatelessWidget {
                     errorWidget: (context, url, error) => SizedBox(
                       width: size,
                       height: size,
-                      child: const Icon(Icons.error,
-                          color: AppColors.contentTertiary),
+                      child: Icon(Icons.error,
+                          color: context.palette.contentTertiary),
                     ),
                   ),
                 ),
@@ -66,7 +67,7 @@ class VPAvatar extends StatelessWidget {
         if (isUploading)
           Positioned.fill(
             child: Center(
-              child: CircularProgressIndicator(color: borderColor),
+              child: CircularProgressIndicator(color: ring),
             ),
           ),
       ],
@@ -98,7 +99,7 @@ class VPUserAvatar extends StatelessWidget {
             VPAvatar(
               imageUrl: imageUrl,
               size: size,
-              borderColor: AppColors.surfaceOverlay,
+              borderColor: context.palette.overlay,
             ),
             if (indicator != null)
               Positioned(
@@ -112,7 +113,7 @@ class VPUserAvatar extends StatelessWidget {
         Text(
           name,
           style: VpWidgets.googleFont(
-            color: AppColors.contentPrimary,
+            color: context.palette.contentPrimary,
             fontSize: 12,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.0,

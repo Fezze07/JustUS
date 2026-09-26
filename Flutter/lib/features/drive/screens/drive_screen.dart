@@ -49,7 +49,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.deepViolet,
+      backgroundColor: context.palette.surfaceSunken,
       body: Stack(
         children: [
           // Background Gradient effect (optional subtleness)
@@ -61,10 +61,10 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.neonPurple.withValues(alpha: 0.15),
+                color: context.palette.accentPurple.withValues(alpha: 0.15),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.neonPurple.withValues(alpha: 0.3),
+                    color: context.palette.accentPurple.withValues(alpha: 0.3),
                     blurRadius: 100,
                     spreadRadius: 20,
                   ),
@@ -76,8 +76,8 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
           SafeArea(
             child: RefreshIndicator(
               onRefresh: () => loadData(force: true),
-              color: AppColors.primary,
-              backgroundColor: AppColors.backgroundDark,
+              color: context.palette.primary,
+              backgroundColor: context.palette.canvas,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
@@ -91,7 +91,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                         children: [
                           VPCircleButton(
                             icon: Icons.chevron_left,
-                            color: AppColors.neonPurple,
+                            color: context.palette.accentPurple,
                             onTap: () => Navigator.pop(context),
                           ),
                           Column(
@@ -101,10 +101,10 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.contentPrimary,
+                                  color: context.palette.contentPrimary,
                                   shadows: [
-                                    const BoxShadow(
-                                      color: AppColors.neonPurple,
+                                    BoxShadow(
+                                      color: context.palette.accentPurple,
                                       blurRadius: 8,
                                     ),
                                   ],
@@ -115,7 +115,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.neonPurple
+                                  color: context.palette.accentPurple
                                       .withValues(alpha: 0.8),
                                   letterSpacing: 2.0,
                                 ),
@@ -127,7 +127,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                             child: Text(
                               context.loc.drive_select,
                               style: GoogleFonts.plusJakartaSans(
-                                color: AppColors.accentAqua,
+                                color: context.palette.accentAqua,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                                 letterSpacing: 1.0,
@@ -158,7 +158,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                           VPFilterChip(
                               label: context.loc.drive_filterLikes,
                               icon: Icons.favorite,
-                              iconColor: AppColors.danger),
+                              iconColor: context.palette.danger),
                         ],
                       ),
                     ),
@@ -175,11 +175,11 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
-                              color: AppColors.neonPurple,
+                              color: context.palette.accentPurple,
                               letterSpacing: 2.0,
                               shadows: [
-                                const BoxShadow(
-                                  color: AppColors.neonPurple,
+                                BoxShadow(
+                                  color: context.palette.accentPurple,
                                   blurRadius: 4,
                                 ),
                               ],
@@ -192,7 +192,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    AppColors.neonPurple.withValues(alpha: 0.5),
+                                    context.palette.accentPurple.withValues(alpha: 0.5),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -211,10 +211,10 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                       final items = driveData.$2;
 
                       if (isLoading && items.isEmpty) {
-                        return const SliverFillRemaining(
+                        return SliverFillRemaining(
                           child: Center(
                               child: CircularProgressIndicator(
-                                  color: AppColors.neonPurple)),
+                                  color: context.palette.accentPurple)),
                         );
                       }
 
@@ -224,13 +224,13 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.photo_library_outlined,
-                                    size: 64, color: AppColors.surfaceGlass),
+                                Icon(Icons.photo_library_outlined,
+                                    size: 64, color: context.palette.glass),
                                 const SizedBox(height: 16),
                                 Text(
                                   context.loc.drive_emptyTitle,
                                   style: GoogleFonts.plusJakartaSans(
-                                    color: AppColors.contentPrimary
+                                    color: context.palette.contentPrimary
                                         .withValues(alpha: 0.5),
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -300,12 +300,12 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: isHighlighted
-              ? Border.all(color: AppColors.neonPurple, width: 2)
+              ? Border.all(color: context.palette.accentPurple, width: 2)
               : null,
           boxShadow: isHighlighted
               ? [
-                  const BoxShadow(
-                    color: AppColors.neonPurple,
+                  BoxShadow(
+                    color: context.palette.accentPurple,
                     blurRadius: 8,
                   )
                 ]
@@ -321,16 +321,16 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
               cacheManager: MediaCacheManager(),
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
-                color: AppColors.surfaceElevated,
-                child: const Center(
+                color: context.palette.surfaceElevated,
+                child: Center(
                   child:
-                      Icon(Icons.image, color: AppColors.contentHint, size: 24),
+                      Icon(Icons.image, color: context.palette.contentHint, size: 24),
                 ),
               ),
               errorWidget: (context, url, error) => Container(
-                color: AppColors.surfaceElevated,
-                child: const Center(
-                  child: Icon(Icons.broken_image, color: AppColors.contentHint),
+                color: context.palette.surfaceElevated,
+                child: Center(
+                  child: Icon(Icons.broken_image, color: context.palette.contentHint),
                 ),
               ),
             ),
@@ -339,10 +339,10 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
             if (item.type.toLowerCase().contains('video') ||
                 item.content.toLowerCase().endsWith('.mp4'))
               Container(
-                color: AppColors.shadowSoft,
-                child: const Center(
+                color: context.palette.shadowSoft,
+                child: Center(
                   child: Icon(Icons.play_circle,
-                      color: AppColors.contentPrimary, size: 32),
+                      color: context.palette.contentPrimary, size: 32),
                 ),
               ),
           ],
@@ -356,11 +356,11 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        color: AppColors.accentAqua,
+        color: context.palette.accentAqua,
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentAqua.withValues(alpha: 0.5),
+            color: context.palette.accentAqua.withValues(alpha: 0.5),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -371,10 +371,10 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
         child: InkWell(
           onTap: _pickFile,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          child: const Center(
+          child: Center(
             child: Icon(
               Icons.add_photo_alternate,
-              color: AppColors.deepViolet,
+              color: context.palette.surfaceSunken,
               size: 32,
             ),
           ),

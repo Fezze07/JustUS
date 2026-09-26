@@ -25,32 +25,34 @@ abstract class VpWidgets {
     );
   }
 
-  static BoxShadow boxShadow({
+  static BoxShadow boxShadow(
+    BuildContext context, {
     Color? color,
     double blurRadius = 20.0,
     Offset offset = Offset.zero,
   }) {
     return BoxShadow(
-      color: color ?? AppColors.shadow,
+      color: color ?? context.palette.shadow,
       blurRadius: blurRadius,
       offset: offset,
     );
   }
 
-  static BoxDecoration cardDecoration({
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
     Color? color,
     double borderRadius = AppRadius.lg,
     Color? borderColor,
     List<BoxShadow>? boxShadow,
   }) {
     return BoxDecoration(
-      color: color ?? AppColors.cardDark,
+      color: color ?? context.palette.surface,
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: borderColor ?? AppColors.borderDark,
+        color: borderColor ?? context.palette.border,
       ),
       boxShadow:
-          boxShadow ?? [VpWidgets.boxShadow(offset: const Offset(0, 10))],
+          boxShadow ?? [VpWidgets.boxShadow(context, offset: const Offset(0, 10))],
     );
   }
 }
@@ -65,11 +67,12 @@ class VPSettingGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.punkPurple.withValues(alpha: 0.4),
+        color: palette.surfaceGroup,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.punkPurple.withValues(alpha: 0.6)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(children: children),
     );
@@ -96,6 +99,7 @@ class VPSettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Semantics(
       container: true,
       button: onTap != null,
@@ -111,7 +115,7 @@ class VPSettingTile extends StatelessWidget {
                   width: AppDims.iconBox,
                   height: AppDims.iconBox,
                   decoration: BoxDecoration(
-                    color: AppColors.deepViolet,
+                    color: palette.surfaceSunken,
                     borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(color: color.withValues(alpha: 0.2)),
                   ),
@@ -126,14 +130,14 @@ class VPSettingTile extends StatelessWidget {
                         title,
                         style: VpWidgets.googleFont(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.contentPrimary,
+                          color: palette.contentPrimary,
                           fontSize: 16,
                         ),
                       ),
                       Text(
                         subtitle,
                         style: VpWidgets.googleFont(
-                          color: AppColors.contentTertiary,
+                          color: palette.contentTertiary,
                           fontSize: 11,
                           letterSpacing: 0.5,
                         ),
@@ -158,7 +162,7 @@ class VPDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Divider(
       height: AppDims.hairline,
-      color: AppColors.deepViolet.withValues(alpha: 0.5),
+      color: context.palette.divider,
       indent: AppSpacing.md,
       endIndent: AppSpacing.md,
     );
@@ -183,7 +187,8 @@ class VPButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = backgroundColor ?? AppColors.primary;
+    final palette = context.palette;
+    final background = backgroundColor ?? palette.primary;
 
     return FilledButton(
       onPressed: isLoading ? null : onPressed,
@@ -197,12 +202,12 @@ class VPButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: AppSpacing.lg,
                   height: AppSpacing.lg,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.contentPrimary,
+                    color: palette.onPrimary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm + AppSpacing.xs),
@@ -256,6 +261,7 @@ class VPTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -268,7 +274,7 @@ class VPTextField extends StatelessWidget {
             child: Text(
               label!,
               style: VpWidgets.googleFont(
-                color: AppColors.contentSecondary,
+                color: palette.contentSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -277,9 +283,9 @@ class VPTextField extends StatelessWidget {
         ],
         DecoratedBox(
           decoration: BoxDecoration(
-            color: AppColors.cardDark,
+            color: palette.surface,
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: AppColors.surfaceOverlay),
+            border: Border.all(color: palette.border),
           ),
           child: TextField(
             controller: controller,
@@ -287,13 +293,13 @@ class VPTextField extends StatelessWidget {
             keyboardType: inputType,
             onChanged: onChanged,
             onSubmitted: onSubmitted,
-            style: VpWidgets.googleFont(color: AppColors.contentPrimary),
+            style: VpWidgets.googleFont(color: palette.contentPrimary),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: VpWidgets.googleFont(color: AppColors.contentHint),
+              hintStyle: VpWidgets.googleFont(color: palette.contentHint),
               errorText: errorText,
               prefixIcon: icon != null
-                  ? Icon(icon, color: AppColors.contentDisabled)
+                  ? Icon(icon, color: palette.contentDisabled)
                   : null,
               suffixIcon: isPassword
                   ? IconButton(
@@ -304,7 +310,7 @@ class VPTextField extends StatelessWidget {
                         obscureText
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        color: AppColors.contentDisabled,
+                        color: palette.contentDisabled,
                       ),
                       onPressed: onTogglePassword,
                     )
@@ -340,6 +346,7 @@ class VPHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -352,9 +359,9 @@ class VPHeader extends StatelessWidget {
               (showBackButton
                   ? IconButton(
                       tooltip: context.loc.common_back,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.arrow_back_ios_new,
-                        color: AppColors.contentSecondary,
+                        color: palette.contentSecondary,
                         size: 20,
                       ),
                       onPressed: onBack ?? () => Navigator.pop(context),
@@ -367,7 +374,7 @@ class VPHeader extends StatelessWidget {
               style: VpWidgets.googleFont(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: AppColors.contentPrimary,
+                color: palette.contentPrimary,
               ),
             ),
           ),
@@ -407,10 +414,12 @@ class VPCard extends StatelessWidget {
       margin: margin,
       padding: padding ?? const EdgeInsets.all(AppSpacing.lg),
       decoration: VpWidgets.cardDecoration(
+        context,
         borderRadius: borderRadius,
         borderColor: borderColor,
         boxShadow: [
           VpWidgets.boxShadow(
+            context,
             color: shadowColor,
             blurRadius: blurRadius,
             offset: shadowColor == null ? const Offset(0, 10) : Offset.zero,
@@ -448,12 +457,13 @@ class VPScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final background = backgroundColor ?? palette.canvas;
     return Scaffold(
-      backgroundColor: backgroundColor ?? AppColors.backgroundDark,
+      backgroundColor: background,
       appBar: showAppBar
           ? AppBar(
-              backgroundColor: (backgroundColor ?? AppColors.backgroundDark)
-                  .withValues(alpha: 0.8),
+              backgroundColor: background.withValues(alpha: 0.8),
               elevation: 0,
               centerTitle: centerTitle,
               title: title != null
@@ -461,7 +471,7 @@ class VPScaffold extends StatelessWidget {
                       title!,
                       style: VpWidgets.googleFont(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.contentPrimary,
+                        color: palette.contentPrimary,
                       ),
                     )
                   : null,
@@ -495,6 +505,7 @@ class VPSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Padding(
       padding: padding,
       child: Row(
@@ -505,7 +516,7 @@ class VPSectionHeader extends StatelessWidget {
             style: VpWidgets.googleFont(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: AppColors.contentTertiary,
+              color: palette.contentTertiary,
               letterSpacing: 1.2,
             ),
           ),
@@ -521,7 +532,7 @@ class VPSectionHeader extends StatelessWidget {
                   style: VpWidgets.googleFont(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: palette.primaryVariant,
                   ),
                 ),
               ),
@@ -530,6 +541,91 @@ class VPSectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class VPSegmentedControl<T> extends StatelessWidget {
+  final List<VPSegmentedControlOption<T>> options;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  const VPSegmentedControl({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: palette.surfaceSunken,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: options.map((option) {
+          final isSelected = option.value == value;
+          return Semantics(
+            button: true,
+            selected: isSelected,
+            label: option.label,
+            child: InkWell(
+              onTap: isSelected ? null : () => onChanged(option.value),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isSelected ? palette.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      option.icon,
+                      size: 14,
+                      color: isSelected
+                          ? palette.onPrimary
+                          : palette.contentTertiary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      option.label,
+                      style: VpWidgets.googleFont(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? palette.onPrimary
+                            : palette.contentSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class VPSegmentedControlOption<T> {
+  final T value;
+  final String label;
+  final IconData icon;
+
+  const VPSegmentedControlOption({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
 }
 
 class VPDialog extends StatelessWidget {
@@ -570,8 +666,9 @@ class VPAuthLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: palette.canvas,
       body: SingleChildScrollView(
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -588,7 +685,7 @@ class VPAuthLayout extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [AppColors.primary, AppColors.neonPurple],
+                      colors: [AppPalette.brandGradientStart, AppPalette.brandNeonPurple],
                     ),
                   ),
                   child: Stack(
@@ -602,7 +699,7 @@ class VPAuthLayout extends StatelessWidget {
                           height: 200,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.surfaceOverlay,
+                            color: AppPalette.brandHeroOverlay,
                           ),
                         ),
                       ),
@@ -614,7 +711,7 @@ class VPAuthLayout extends StatelessWidget {
                           height: 150,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.surfaceOverlay,
+                            color: AppPalette.brandHeroOverlay,
                           ),
                         ),
                       ),
@@ -628,12 +725,12 @@ class VPAuthLayout extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(AppSpacing.md),
                                 decoration: BoxDecoration(
-                                  color: AppColors.surfaceGlass,
+                                  color: AppPalette.brandHeroGlass,
                                   borderRadius:
                                       BorderRadius.circular(AppRadius.lg),
                                 ),
                                 child: const Icon(Icons.favorite,
-                                    color: AppColors.contentPrimary, size: 48),
+                                    color: Colors.white, size: 48),
                               ),
                               const SizedBox(height: AppSpacing.md),
                               Text(
@@ -641,7 +738,7 @@ class VPAuthLayout extends StatelessWidget {
                                 style: VpWidgets.googleFont(
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.contentPrimary,
+                                  color: Colors.white,
                                   letterSpacing: 1,
                                 ),
                               ),
@@ -649,7 +746,7 @@ class VPAuthLayout extends StatelessWidget {
                                 context.loc.appTagline,
                                 style: VpWidgets.googleFont(
                                   fontSize: 14,
-                                  color: AppColors.contentSecondary,
+                                  color: Colors.white70,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -665,9 +762,9 @@ class VPAuthLayout extends StatelessWidget {
                         right: 0,
                         child: Container(
                           height: 32,
-                          decoration: const BoxDecoration(
-                            color: AppColors.backgroundDark,
-                            borderRadius: BorderRadius.vertical(
+                          decoration: BoxDecoration(
+                            color: palette.canvas,
+                            borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(AppRadius.sheet)),
                           ),
                         ),
@@ -690,7 +787,7 @@ class VPAuthLayout extends StatelessWidget {
                           style: VpWidgets.googleFont(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.contentPrimary,
+                            color: palette.contentPrimary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -698,7 +795,7 @@ class VPAuthLayout extends StatelessWidget {
                           subtitle,
                           style: VpWidgets.googleFont(
                             fontSize: 14,
-                            color: AppColors.contentTertiary,
+                            color: palette.contentTertiary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -734,20 +831,21 @@ class VPAuthLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           text,
           style: VpWidgets.googleFont(
-              color: AppColors.contentTertiary, fontSize: 14),
+              color: palette.contentTertiary, fontSize: 14),
         ),
         TextButton(
           onPressed: onTap,
           child: Text(
             actionText,
             style: VpWidgets.googleFont(
-              color: AppColors.neonPurple,
+              color: palette.accentPurple,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),

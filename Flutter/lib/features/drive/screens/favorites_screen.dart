@@ -31,7 +31,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: context.palette.canvas,
       appBar: AppBar(
         title: Text(context.loc.drive_favoritesTitle),
         centerTitle: true,
@@ -39,7 +39,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
         elevation: 0,
         titleTextStyle: VpWidgets.googleFont(
           fontWeight: FontWeight.bold,
-          color: AppColors.contentPrimary,
+          color: context.palette.contentPrimary,
           fontSize: 18,
         ),
       ),
@@ -67,14 +67,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
                   Text(
                     context.loc.drive_noFavorites,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.backgroundLight,
+                          color: context.palette.canvas,
                         ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     context.loc.drive_noFavoritesSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.neutralText,
+                          color: context.palette.neutralText,
                         ),
                     textAlign: TextAlign.center,
                   ),

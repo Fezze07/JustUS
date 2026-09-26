@@ -193,33 +193,37 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
                 height: 56, // Match the typical TextField height
                 width: 56,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.gradientAccent, AppColors.primary],
+                  gradient: LinearGradient(
+                    colors: [
+                      AppPalette.brandGradientAccent,
+                      context.palette.primary
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.4),
+                      color: context.palette.primary.withValues(alpha: 0.4),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.add,
-                    color: AppColors.contentPrimary, size: 28),
+                child: Icon(Icons.add,
+                    color: context.palette.contentPrimary, size: 28),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        const Divider(color: AppColors.surfaceOverlay),
+        Divider(color: context.palette.overlay),
         const SizedBox(height: 16),
         Expanded(
           child: _isLoadingEmojis
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary))
+              ? Center(
+                  child:
+                      CircularProgressIndicator(color: context.palette.primary))
               : GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 6,
@@ -233,7 +237,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
                           _selectPredefinedEmoji(emojisToDisplay[index]),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppColors.borderDark,
+                          color: context.palette.border,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,

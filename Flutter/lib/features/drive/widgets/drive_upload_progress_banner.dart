@@ -20,33 +20,33 @@ class DriveUploadProgressBanner extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
+              color: context.palette.surfaceElevated,
               borderRadius: BorderRadius.circular(AppRadius.sm),
               border: Border.all(
-                  color: AppColors.neonPurple.withValues(alpha: 0.3)),
-              boxShadow: const [
+                  color: context.palette.accentPurple.withValues(alpha: 0.3)),
+              boxShadow: [
                 BoxShadow(
-                  color: AppColors.shadowStrong,
+                  color: context.palette.shadowStrong,
                   blurRadius: 10,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Row(
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.neonPurple,
+                    color: context.palette.accentPurple,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Text(
                   context.loc.drive_uploading,
                   style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.contentPrimary,
+                    color: context.palette.contentPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
