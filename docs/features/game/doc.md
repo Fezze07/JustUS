@@ -110,7 +110,8 @@ The Couple AI Game subsystem engages linked couples by generating daily relation
 7. Result Calculation
    │
    └── When both partners have answered (hasAnswered && partnerAnswered):
-         ├── Updates public.game_questions status to 'both_answered'
+         ├── DB trigger tr_game_answers_update_question_status sets game_questions status to 'both_answered'
+         │   (emits a game_questions UPDATE, received on the waiting device's RealtimeSyncService subscription)
          ├── Evaluates Match (isMatched: userOption == partnerOption) or Disagreement
          └── Refreshes match statistics (get_game_stats RPC)
 ```
@@ -220,7 +221,7 @@ Generated AI responses undergo multi-stage validation before being returned to t
 - `RealtimeSyncService` subscribes to Postgres change events on `game_questions` and `game_answers`.
 - When an `INSERT` or `UPDATE` on `game_answers` is received, `GameRealtimeHandler.handle` (buffered FIFO via `GameEventBuffer`) updates local `GameState`.
 - When both partners have submitted answers (`hasAnswered && partnerAnswered`):
-  - Flutter calls `updateQuestionStatus(questionId, 'both_answered')` on `public.game_questions`.
+  - The `tr_game_answers_update_question_status` DB trigger (`SECURITY DEFINER`, `AFTER INSERT OR UPDATE` on `game_answers`) sets `game_questions.status = 'both_answered'`; the Flutter client no longer calls `updateQuestionStatus`. The resulting `game_questions` UPDATE arrives on the realtime channel and clears the active question.
   - Matches are evaluated:
     - **Match** (`isMatched`): `userOption == partnerOption` (both partners voted for the same person).
     - **Disagreement** (`isDisagreed`): `userOption != partnerOption`.

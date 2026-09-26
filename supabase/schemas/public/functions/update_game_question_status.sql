@@ -14,5 +14,5 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.update_game_question_status() FROM PUBLIC, "anon";
-GRANT EXECUTE ON FUNCTION public.update_game_question_status() TO "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION public.update_game_question_status() FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION public.update_game_question_status() TO "postgres", "service_role";

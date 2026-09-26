@@ -64,6 +64,7 @@
     "public/functions/send_missyou.sql",
     "public/functions/set_current_timestamp_updated_at.sql",
     "public/functions/set_mood.sql",
+    "public/functions/update_game_question_status.sql",
     "public/functions/update_updated_at_column.sql",
     "_cluster/publications.sql"
   ],
@@ -95,6 +96,7 @@
     "public/functions/send_missyou.sql",
     "public/functions/set_current_timestamp_updated_at.sql",
     "public/functions/set_mood.sql",
+    "public/functions/update_game_question_status.sql",
     "public/functions/update_updated_at_column.sql",
     "public/schema.sql",
     "public/sequences/bucket_items_id_seq.sql",

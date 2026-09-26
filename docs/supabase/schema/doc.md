@@ -165,7 +165,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 19 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 20 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `accept_partnership(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
 2. `request_partnership(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
@@ -186,6 +186,7 @@ All 19 PostgreSQL functions in `supabase/schemas/public/functions/`:
 17. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 18. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
 19. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`; granted to `authenticated`, `postgres`, `service_role`.
+20. `update_game_question_status()`: `SECURITY DEFINER` SET `search_path = public` trigger function (returns `trigger`) on `game_answers`; sets `game_questions.status = 'both_answered'` when `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`. Revoked from `PUBLIC`, `anon`, `authenticated`; granted only to `postgres`, `service_role`. PostgreSQL performs no `EXECUTE` privilege check when firing a trigger, so no client role needs the grant and the function is not reachable over PostgREST RPC.
 
 > `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 
@@ -199,6 +200,7 @@ All 19 PostgreSQL functions in `supabase/schemas/public/functions/`:
 - **`set_public_partnerships_updated_at`:** `BEFORE UPDATE ON public.partnerships FOR EACH ROW EXECUTE FUNCTION set_current_timestamp_updated_at();`
 - **`set_public_user_roles_updated_at`:** `BEFORE UPDATE ON public.user_roles FOR EACH ROW EXECUTE FUNCTION set_current_timestamp_updated_at();`
 - **`set_public_drive_items_updated_at`:** `BEFORE UPDATE ON public.drive_items FOR EACH ROW EXECUTE FUNCTION set_current_timestamp_updated_at();`
+- **`tr_game_answers_update_question_status`:** `AFTER INSERT OR UPDATE ON public.game_answers FOR EACH ROW EXECUTE FUNCTION update_game_question_status();` - flips `game_questions.status` to `'both_answered'` once both players have answered, so the transition no longer depends on a client call. Emits a `game_questions` UPDATE that the Flutter realtime layer already handles.
 
 ---
 

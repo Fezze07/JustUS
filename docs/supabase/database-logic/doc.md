@@ -180,6 +180,15 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### Trigger 3: Game Question Completion (`tr_game_answers_update_question_status`)
+* **Event:** `AFTER INSERT OR UPDATE ON public.game_answers`
+* **Target Function:** `update_game_question_status()` (`SECURITY DEFINER`, `SET search_path TO 'public'`, returns `trigger`)
+* **Grants:** Execution REVOKED from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role` only — PostgreSQL does not check `EXECUTE` when firing a trigger, so no client role requires it.
+* **Action:** When `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`, sets the matching `game_questions.status` to `'both_answered'`.
+* **Side Effects:** Moves the `both_answered` transition off the client entirely, so a second player disconnecting before acknowledging no longer leaves the question stuck at `'pending'`. The resulting `game_questions` UPDATE is emitted on the realtime channel and consumed by `handleQuestionUpdate`; the game's answer INSERT and this status UPDATE can land within the same 150 ms burst, which the `GameEventBuffer` FIFO flush replays in delivery order.
+
+---
+
 ## Non-Obvious Database-Side Behaviors
 
 1. **Automatic Partner Code Assignment:**
@@ -196,6 +205,7 @@ This document provides a technical specification and analysis of all **Supabase-
 ## Implementation Status
 
 - **Automated Sign-Up Trigger (`handle_new_auth_user`):** **100% IMPLEMENTED**
+- **Game Completion Trigger (`update_game_question_status`):** **100% IMPLEMENTED**
 - **Security Invoker Views (`v_active_partnership`, `v_drive_dashboard`):** **100% IMPLEMENTED**
 - **RPC Stored Procedures & Validation:** **100% IMPLEMENTED**
 - **Log Cleanup (`cleanup_old_logs(p_days)`):** **IMPLEMENTED** (parameterized, `DEFAULT 90`; not `pg_cron`-scheduled — Node `retentionJob.js` is the single active driver)
