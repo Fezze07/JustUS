@@ -134,14 +134,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (!context.mounted) return;
                 if (success) {
                   if (!context.mounted) return;
-                  final hasPartner = context.read<AuthState>().hasPartner;
+                  final destination =
+                      await AuthNavigationUtils.determinePostAuthDestination(context);
+                  if (!context.mounted) return;
                   unawaited(Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => hasPartner
-                          ? const MainShell()
-                          : const PartnerScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => destination),
                   ));
                 }
               },

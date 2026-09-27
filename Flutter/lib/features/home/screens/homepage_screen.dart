@@ -10,15 +10,16 @@ import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-class HomepageScreen extends StatefulWidget {
-  const HomepageScreen({super.key});
+class HomepageScreen extends TabScreen {
+  const HomepageScreen(
+      {super.key, required super.tabIndex, required super.tabNotifier});
 
   @override
   State<HomepageScreen> createState() => _HomepageScreenState();
 }
 
 class _HomepageScreenState extends State<HomepageScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, TabScreenMixin<HomepageScreen> {
   final _updateService = UpdateService();
   bool _updateChecked = false;
   late final AnimationController _pulseCtrl = AnimationController(
@@ -36,12 +37,16 @@ class _HomepageScreenState extends State<HomepageScreen>
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadData());
       if (!_updateChecked) {
         unawaited(_updateService.checkVersion(context));
         _updateChecked = true;
       }
     });
+  }
+
+  @override
+  Future<void> loadData({bool force = false}) async {
+    await _loadData(force: force);
   }
 
   @override

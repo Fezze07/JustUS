@@ -25,6 +25,15 @@ class NotificationService {
   bool _channelCreated = false;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
 
+  String? _pendingPayload;
+
+  /// Retrieves and clears any pending notification payload that opened the app.
+  String? consumePendingPayload() {
+    final payload = _pendingPayload;
+    _pendingPayload = null;
+    return payload;
+  }
+
   // Stream for notification taps (N7)
   final StreamController<String?> _onNotificationTapController =
       StreamController<String?>.broadcast();
@@ -52,7 +61,8 @@ class NotificationService {
             await _notifications.getNotificationAppLaunchDetails();
         if (launchDetails != null && launchDetails.didNotificationLaunchApp) {
           final response = launchDetails.notificationResponse;
-          if (response != null) {
+          if (response != null && response.payload != null) {
+            _pendingPayload = response.payload;
             Future.delayed(const Duration(milliseconds: 500), () {
               _onNotificationTapController.add(response.payload);
             });
@@ -60,6 +70,29 @@ class NotificationService {
         }
       } catch (e) {
         AnsiLogger.error('Failed to get launch details: $e',
+            tag: 'NotificationService');
+      }
+
+      // Handle FCM notification tap when app opened from background/terminated (F-N5)
+      try {
+        FirebaseMessaging.onMessageOpenedApp.listen((message) {
+          final payload = jsonEncode(message.data);
+          _pendingPayload = payload;
+          _onNotificationTapController.add(payload);
+        });
+
+        final initialMessage =
+            await FirebaseMessaging.instance.getInitialMessage();
+        if (initialMessage != null) {
+          final payload = jsonEncode(initialMessage.data);
+          _pendingPayload = payload;
+          Future.delayed(const Duration(milliseconds: 500), () {
+            _onNotificationTapController.add(payload);
+          });
+        }
+      } catch (e) {
+        AnsiLogger.error(
+            'Failed to register FCM message opened app listener: $e',
             tag: 'NotificationService');
       }
     }
@@ -105,7 +138,10 @@ class NotificationService {
         await _notifications.initialize(
           settings: initSettings,
           onDidReceiveNotificationResponse: (response) {
-            _onNotificationTapController.add(response.payload);
+            if (response.payload != null) {
+              _pendingPayload = response.payload;
+              _onNotificationTapController.add(response.payload);
+            }
           },
         );
         _localInitialized = true;

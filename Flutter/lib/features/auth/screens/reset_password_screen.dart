@@ -123,14 +123,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 final message =
                                     context.loc.auth_passwordUpdated;
 
-                                final hasPartner = authState.hasPartner;
+                                final destination =
+                                    await AuthNavigationUtils.determinePostAuthDestination(context);
+                                if (!context.mounted) return;
+
                                 unawaited(Navigator.pushReplacement(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (_) => hasPartner
-                                        ? const MainShell()
-                                        : const PartnerScreen(),
-                                  ),
+                                  MaterialPageRoute(builder: (_) => destination),
                                 ));
 
                                 ErrorHandler.showSnackBar(context, message);

@@ -20,33 +20,24 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    final authState = context.read<AuthState>();
-    await authState.init();
-
-    if (!mounted) return;
-
-    if (authState.isLoggedIn) {
-      // Check if user has a partner
-      final partnerState = context.read<PartnerState>();
-      await partnerState.fetchPartnership();
+    try {
+      final authState = context.read<AuthState>();
+      await authState.init().timeout(const Duration(seconds: 8));
 
       if (!mounted) return;
 
-      if (partnerState.partner != null) {
-        // Has partner, go to homepage
-        unawaited(Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainShell()),
-        ));
-      } else {
-        // No partner, go to partner screen
-        unawaited(Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const PartnerScreen()),
-        ));
-      }
-    } else {
-      // Not logged in, go to login
+      final destination =
+          await AuthNavigationUtils.determinePostAuthDestination(context);
+
+      if (!mounted) return;
+
+      unawaited(Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+      ));
+    } catch (e, st) {
+      AnsiLogger.error('Error during _checkAuth: $e\n$st', tag: 'SplashScreen');
+      if (!mounted) return;
       unawaited(Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),

@@ -17,6 +17,7 @@ export 'package:justus/core/theme/app_palette.dart';
 export 'package:justus/core/theme/app_radius.dart';
 export 'package:justus/core/theme/app_theme.dart';
 export 'package:justus/features/auth/auth_models.dart';
+export 'package:justus/shared/utils/auth/auth_navigation_utils.dart';
 export 'package:justus/features/auth/auth_repository.dart';
 export 'package:justus/features/auth/auth_state.dart';
 export 'package:justus/core/network/base_repository.dart';

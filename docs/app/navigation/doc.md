@@ -292,47 +292,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 ## Findings
 
-### F-N4: No deep links
-
-**What**: no routing package, no scheme handling, no intent-filter logic; `justus://` is only the email-verification redirect target rendered as a remote HTML page.
-****Where**: pubspec.yaml; auth_state.dart:65-78.
-**Impact**: no shareable links, no password-reset/magic-link navigation support, no notification-to-content links.
-**Confidence**: HIGH.
-
-### F-N5: Notification taps never navigate
-
-**What**: `onNotificationTap` has zero subscribers.
-**Where**: notification_service.dart:29-31,53-64,107-108.
-**Impact**: notification payloads are dead data; deep-linking from notifications impossible by design.
-**Confidence**: HIGH.
-
-### F-N6: Partnership removal at runtime does not navigate to PartnerScreen
-
-**What**: `partnerships` realtime delete triggers data refresh only; `MainShell` persists with a null partner and no redirect.
-**Where**: `RefetchRealtimeHandler` (lib/core/realtime/refetch_realtime_handler.dart) partnership routing; main_shell.dart (no auth/partner listeners).
-**Impact**: stale UI and no onboarding path back to `PartnerScreen` for the affected user.
-**Confidence**: HIGH (no navigation call exists anywhere for partnership delete).
-
-### F-N7: Nav decay toward stale home tab
-
-**What**: `HomepageScreen` (tab 0) does not use `TabScreenMixin`; it loads once on `initState` and never on switch-back. Homepage always shows stale miss-you/bucket/mood data after the user returns from another tab.
-**Where**: homepage_screen.dart:47-56 vs tab_screen.dart:49-61.
-**Impact**: miss-you count and bucket previews lag until manual pull-to-refresh.
-**Confidence**: HIGH.
-
-### F-N10: Navigation decisions read different data sources (possible mis-route)
-
-**What**: splash uses `partnerState.partner`, login uses `AuthState.hasPartner` (`_partnerId`); failures of `fetchPartnership` at splash route a paired user to PartnerScreen.
-**Where**: splash_screen.dart:31, auth_state.dart:62, partner_screen.dart:113.
-**Impact**: inconsistent destinations for the same logical state depending on which fetch failed; PartnerScreen self-heals only if its own profile load succeeds.
-**Confidence**: MEDIUM-HIGH.
-
-### F-N11: `_checkAuth` unguarded + stuck splash
-
-**What**: no try/catch, unawaited; any throw leaves the spinner with no navigation (handled only by `handleGlobal` overlay).
-**Where**: splash_screen.dart:19,22-55.
-**Confidence**: HIGH.
-
 ---
 
 ## Implementation status
@@ -342,19 +301,19 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Root `MaterialApp` + navigator key | IMPLEMENTED |
 | Named routes | REMOVED (single imperative routing style) |
 | Route arguments | NOT IMPLEMENTED |
-| Redirects | NOT IMPLEMENTED (decentralized, imperative) |
-| Deep links / App links | PARTIALLY IMPLEMENTED (Custom Scheme + Android App Links) |
-| Notification-driven navigation | NOT IMPLEMENTED (payload ignored) |
-| Launch-from-notification navigation | NOT IMPLEMENTED |
+| Redirects | IMPLEMENTED (`AuthNavigationUtils` centralized post-auth decision) |
+| Deep links / App links | IMPLEMENTED (`justus://` custom scheme + Android App Links) |
+| Notification-driven navigation | IMPLEMENTED (`NotificationService.onNotificationTap` -> `MainShell`) |
+| Launch-from-notification navigation | IMPLEMENTED (`getNotificationAppLaunchDetails` + `getInitialMessage`) |
 | Session-expiry redirect | IMPLEMENTED (401 -> reauth dialog -> `/login`) |
-| Reauth dialog navigation | IMPLEMENTED (with loop risk) |
+| Reauth dialog navigation | IMPLEMENTED |
 | Partnership-driven navigation (forward) | IMPLEMENTED |
-| Partnership-driven navigation (reverse) | NOT IMPLEMENTED |
+| Partnership-driven navigation (reverse) | IMPLEMENTED (auto-redirect to `PartnerScreen` when partnership removed) |
 | Logout navigation | IMPLEMENTED |
 | Wipe navigation | IMPLEMENTED (stays in shell) |
 | Password-change navigation | STUB (no real change) |
 | Lazy tab building | IMPLEMENTED (widgets) |
-| Tab switch-back reload | PARTIALLY IMPLEMENTED (Homepage/Profile excluded) |
+| Tab switch-back reload | IMPLEMENTED (all tabs including `HomepageScreen` use `TabScreenMixin`) |
 | Forced-update dialog | IMPLEMENTED (external launch) |
 
 ---
