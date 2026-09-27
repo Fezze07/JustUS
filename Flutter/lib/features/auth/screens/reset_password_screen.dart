@@ -128,7 +128,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => hasPartner
-                                        ? MainShell(key: MainShell.shellKey)
+                                        ? const MainShell()
                                         : const PartnerScreen(),
                                   ),
                                 ));

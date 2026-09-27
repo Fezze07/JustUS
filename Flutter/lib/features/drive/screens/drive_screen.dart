@@ -86,7 +86,7 @@ class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
                     child: VPHeader(
                       title: context.loc.drive_title,
                       onBack: () =>
-                          MainShell.shellKey.currentState?.switchToTab(0),
+                          MainShell.of(context)?.switchToTab(0),
                       trailing: [
                         TextButton(
                           onPressed: () {},

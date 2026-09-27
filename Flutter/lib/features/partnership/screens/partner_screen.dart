@@ -115,8 +115,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                                         unawaited(Navigator.pushReplacement(
                                           context,
                                           MaterialPageRoute(
-                                              builder: (_) => MainShell(
-                                                  key: MainShell.shellKey)),
+                                              builder: (_) => const MainShell()),
                                         ));
                                       },
                                     ),
@@ -367,7 +366,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
                     unawaited(Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => MainShell(key: MainShell.shellKey)),
+                          builder: (_) => const MainShell()),
                     ));
                   }
                 } else if (!success && mounted) {

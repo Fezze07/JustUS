@@ -37,7 +37,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
           children: [
             VPHeader(
               title: context.loc.drive_favoritesTitle,
-              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
+              onBack: () => MainShell.of(context)?.switchToTab(0),
             ),
             Expanded(
               child: Selector<DriveState, (bool, List<DriveItem>)>(

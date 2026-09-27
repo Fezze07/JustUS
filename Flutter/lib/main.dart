@@ -148,15 +148,6 @@ class JustUsApp extends StatelessWidget {
                   settings: settings,
                 );
               },
-              routes: {
-                '/login': (context) => const LoginScreen(),
-                '/register': (context) => const RegisterScreen(),
-                '/homepage': (context) => MainShell(key: MainShell.shellKey),
-                '/partner': (context) => const PartnerScreen(),
-                '/localization': (context) => const LocalizationScreen(),
-                '/change-password': (context) => const ChangePasswordScreen(),
-                '/reset-password': (context) => const ResetPasswordScreen(),
-              },
             );
           },
         ),

@@ -47,7 +47,7 @@ class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
           children: [
             VPHeader(
               title: context.loc.mood_boardTitle,
-              onBack: () => MainShell.shellKey.currentState?.switchToTab(0),
+              onBack: () => MainShell.of(context)?.switchToTab(0),
             ),
             Expanded(
               child: Selector<MoodState, (List<String>, List<MoodEntry>, bool)>(

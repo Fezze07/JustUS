@@ -152,10 +152,7 @@ class _HomepageScreenState extends State<HomepageScreen>
               icon: Icons.menu_rounded,
               color: context.palette.homePrimary,
               onTap: () {
-                unawaited(Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ));
+                MainShell.of(context)?.switchToTab(6);
               },
             ),
             const Spacer(),
@@ -177,7 +174,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                 icon: Icons.favorite_rounded,
                 color: context.palette.homeSecondary,
                 onTap: () {
-                  MainShell.shellKey.currentState?.switchToTab(5);
+                  MainShell.of(context)?.switchToTab(5);
                 },
               ),
             ),
@@ -353,7 +350,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                   icon: Icons.explore_rounded,
                   color: context.palette.homePrimaryContainer,
                   onTap: () {
-                    MainShell.shellKey.currentState?.switchToTab(2);
+                    MainShell.of(context)?.switchToTab(2);
                   },
                 ),
               ],
@@ -460,7 +457,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                   ),
                   GestureDetector(
                     onTap: () {
-                      MainShell.shellKey.currentState?.switchToTab(3);
+                      MainShell.of(context)?.switchToTab(3);
                     },
                     child: Text(
                       context.loc.home_bucketListSubtitleDynamic(totalPending),
@@ -517,7 +514,7 @@ class _HomepageScreenState extends State<HomepageScreen>
   Widget _buildBucketTile(BucketItem item) {
     return GestureDetector(
       onTap: () {
-        MainShell.shellKey.currentState?.switchToTab(3);
+        MainShell.of(context)?.switchToTab(3);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -1,10 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:justus/all_imports.dart';
 
-class MainShell extends StatefulWidget {
-  static final GlobalKey<MainShellState> shellKey = GlobalKey<MainShellState>();
+class MainShellScope extends InheritedWidget {
+  final MainShellState shellState;
 
+  const MainShellScope({
+    super.key,
+    required this.shellState,
+    required super.child,
+  });
+
+  static MainShellState? of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<MainShellScope>()?.shellState;
+  }
+
+  @override
+  bool updateShouldNotify(MainShellScope oldWidget) => false;
+}
+
+class MainShell extends StatefulWidget {
   const MainShell({super.key});
+
+  static MainShellState? of(BuildContext context) => MainShellScope.of(context);
 
   @override
   State<MainShell> createState() => MainShellState();
@@ -36,32 +53,35 @@ class MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.palette.canvas,
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 110),
-            child: IndexedStack(
-              index: _currentIndex,
-              children: List.generate(7, (i) =>
-                _builtPages.contains(i) ? _pageWidget(i) : const SizedBox.shrink()),
+    return MainShellScope(
+      shellState: this,
+      child: Material(
+        color: context.palette.canvas,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 110),
+              child: IndexedStack(
+                index: _currentIndex,
+                children: List.generate(7, (i) =>
+                  _builtPages.contains(i) ? _pageWidget(i) : const SizedBox.shrink()),
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: HomeBottomNav(
-              currentIndex: _currentIndex,
-              onIndexChanged: (index) {
-                _builtPages.add(index);
-                _tabNotifier.index = index;
-                setState(() => _currentIndex = index);
-              },
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: HomeBottomNav(
+                currentIndex: _currentIndex,
+                onIndexChanged: (index) {
+                  _builtPages.add(index);
+                  _tabNotifier.index = index;
+                  setState(() => _currentIndex = index);
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -185,7 +185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   VPHeader(
                     title: context.loc.profileSettingsTitle.toUpperCase(),
                     onBack: () =>
-                        MainShell.shellKey.currentState?.switchToTab(0),
+                        MainShell.of(context)?.switchToTab(0),
                   ),
 
                   const SizedBox(height: 40),
@@ -229,8 +229,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.favorite,
-                              color: Colors.white, size: 28),
+                          child: Icon(Icons.favorite,
+                              color: context.palette.onPrimary, size: 28),
                         ),
                         // User Avatar (Left)
                         Positioned(

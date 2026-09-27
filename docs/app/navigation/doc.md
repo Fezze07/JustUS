@@ -292,13 +292,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 ## Findings
 
-### F-N3: Named routes `/homepage`, `/partner`, `/register` are unreachable
-
-**What**: declared (main.dart:136-143) but never `pushNamed`-ed; the screens they point to are always reached via inline `MaterialPageRoute`.
-**Where**: main.dart:136-143; grep of `pushNamed` call sites.
-**Impact**: dead routes; two routing styles coexist for the same destinations. If a deep link or notification ever uses these names they would work, but nothing does.
-**Confidence**: HIGH.
-
 ### F-N4: No deep links
 
 **What**: no routing package, no scheme handling, no intent-filter logic; `justus://` is only the email-verification redirect target rendered as a remote HTML page.
@@ -327,19 +320,6 @@ There is no `NavigationService`, no router, and no single function like `navigat
 **Impact**: miss-you count and bucket previews lag until manual pull-to-refresh.
 **Confidence**: HIGH.
 
-### F-N8: `MainShell.shellKey` shared by three construction sites + cross-tab calls from content screens
-
-**What**: one global key used for `/homepage` route (main.dart:139), splash (splash_screen.dart:39), login (login_screen.dart:112); `switchToTab` invoked through it from a content screen (homepage_screen.dart:193/369/471/530).
-**Where**: main_shell.dart:5.
-**Impact**: if two MainShells were ever mounted concurrently -> "Multiple widgets used the same GlobalKey" crash; couples feature widgets to the specific shell key (inappropriate layering).
-**Confidence**: HIGH.
-
-### F-N9: Dual ProfileScreen instances
-
-**What**: resident tab-6 `ProfileScreen` inside MainShell vs pushed `ProfileScreen` from the home menu (homepage_screen.dart:167-170). Both run post-frame `loadProfile`; `ProfileState.loadProfile`'s `isLoading` guard silently skips the concurrent second call (profile_state.dart:37).
-**Impact**: benign but wasteful; one of the two loads is dropped silently.
-**Confidence**: HIGH.
-
 ### F-N10: Navigation decisions read different data sources (possible mis-route)
 
 **What**: splash uses `partnerState.partner`, login uses `AuthState.hasPartner` (`_partnerId`); failures of `fetchPartnership` at splash route a paired user to PartnerScreen.
@@ -360,7 +340,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Component | Status |
 |---|---|
 | Root `MaterialApp` + navigator key | IMPLEMENTED |
-| Named routes | IMPLEMENTED (3/6 used) |
+| Named routes | REMOVED (single imperative routing style) |
 | Route arguments | NOT IMPLEMENTED |
 | Redirects | NOT IMPLEMENTED (decentralized, imperative) |
 | Deep links / App links | PARTIALLY IMPLEMENTED (Custom Scheme + Android App Links) |
@@ -381,8 +361,8 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 ## Notes
 
-- All main destination screens are pushed with inline `MaterialPageRoute` even though `routes` defines corresponding names - inconsistent and blocks cleaner redirect/deep-link logic later.
+- All main destination screens are pushed with inline `MaterialPageRoute` - a single consistent routing style across the app.
 - The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog` (core). Feature **State** classes never navigate - which is correct. The session-expiry path now funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
 - `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile (Managed-mode) dialog - a second core-layer consumer of the global navigator.
 - No widget/route tests exist for any navigation scenario (no golden/route tests in `Flutter/test/`).
-- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", replace `MainShell.shellKey` with a route-level tab mechanism, and subscribe to `onNotificationTap` to apply content navigation.
+- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", use `MainShellScope.of(context)` for tab switching, and subscribe to `onNotificationTap` to apply content navigation.
