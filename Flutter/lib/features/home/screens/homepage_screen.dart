@@ -193,7 +193,7 @@ class _HomepageScreenState extends State<HomepageScreen>
   Widget _buildProfileSection() {
     return Selector<ProfileState, (String?, String?, DateTime?)>(
       selector: (_, p) => (
-        p.userProfile?.profilePicUrl,
+        p.versionedProfilePicUrl,
         p.partnerProfile?.profilePicUrl,
         p.anniversaryDate,
       ),

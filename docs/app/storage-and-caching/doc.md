@@ -60,7 +60,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 
 ### SharedPreferences — Feature Caches
 
-> When a partnership is active, every key below is stored as `base:<partnership_id>` (`StorageService._feat`); with no partnership (single user) the unqualified `base` key is used. All variants are purged on partnership transitions (F-SC8, see §Cross-partnership checkpoint contamination). `user_profile`, `profile_pic_version`, `drive_thumb_cache` stay account/device-scoped and are never namespaced.
+> When a partnership is active, every key below is stored as `base:<partnership_id>` (`StorageService._feat`); with no partnership (single user) the unqualified `base` key is used. All variants are purged on partnership transitions (F-SC8, see §Cross-partnership checkpoint contamination). `user_profile` and `profile_pic_version` stay account/device-scoped and are never namespaced.
 
 | Key constant | Storage key string | Data type | Producer | Consumer | Lifetime | Logout | Wipe | Invalidation | Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -76,8 +76,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyDriveCache` | `drive_cache` | `List<DriveItem>` (JSON) | `DriveState.syncDriveItems`, `DriveState.refreshFromRealtime`, `DriveState.addFileItemR2`, `DriveState.deleteItem`, `DriveState.toggleFavorite`, `DriveState.addReaction` | `DriveState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kDriveItems` checkpoint (updated\_at-based) | Full list re-serialized on every mutation; writes serialized through `CacheWriteQueue` (F-SC12 resolved) |
 | `_keyUserProfile` | `user_profile` | `User` (JSON) | `ProfileState.loadProfile`, `ProfileState.updateDisplayName`, `ProfileState.uploadProfilePhoto` | `ProfileState.loadProfile` (cache-first) | Until overwrite | `p.clear()` | `clearAppCache` | **None** — only overwritten on explicit `loadProfile(force)` | **Contains PII: email, authId, partnershipCode** — stored in plaintext (`:52–63` of `auth_models.dart`) |
 | `_keyPartnerProfile` | `partner_profile` | `User` (JSON) | `ProfileState.loadProfile` | `ProfileState.loadProfile` (cache-first) | Until overwrite | `p.clear()` | `clearAppCache` | **None** | Same PII concern as user_profile |
-| `_keyProfilePicVersion` | `profile_pic_version` | `int` (millisecondsSinceEpoch) | `ProfileState.uploadProfilePhoto` | **No consumer** | Until overwrite | `p.clear()` | `clearAppCache` | Dead write-only key — never read (`:317` of `storage_service.dart`) | F-SC2 |
-| `_keyDriveThumbCache` | `drive_thumb_cache` | — | **No producer** | **No consumer** | N/A | `p.clear()` | `clearAppCache` | Dead key — declared (`:47`) and cleared but never written or read | F-SC3 |
+| `_keyProfilePicVersion` | `profile_pic_version` | `int` (millisecondsSinceEpoch) | `ProfileState.uploadProfilePhoto` | `ProfileState.versionedProfilePicUrl` (via `ApiService.versionedMediaUrl`), rendered by `ProfileScreen`, `HomepageScreen`, `GameScreen` | Until overwrite | `p.clear()` | `clearAppCache` | Appended as `?v=<version>` to the own-avatar media URL so `MediaCacheManager` keys on the latest picture; on upload the superseded entry is dropped with `evictAppMediaFile(previousUrl, version: previousVersion)` |
 
 ### SharedPreferences — Checkpoints (CacheService)
 
@@ -102,7 +101,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 
 | Manager | Cache key / DB name | Max objects | Stale period | URL keys used | Consumer | Clear on logout/wipe? |
 |---|---|---|---|---|---|---|
-| `MediaCacheManager` (singleton) | `justus_media_cache` | 300 | 30 days | `item.content` (raw R2 filename like `drive/...`) from drive grid; `imageUrl` (profile R2 key) from `VPAvatar` | `DriveScreen._buildGridViewCell` (`:317`), `VPAvatar` (`:201–203`), via `CachedNetworkImage` | **NO** — `emptyCache()` exists in `DriveState` (`:282`) but is **never called** from UI. `DriveState.clearMediaCache` is dead code. |
+| `MediaCacheManager` (singleton) | `justus_media_cache` | 300 | 30 days | `item.content` (raw R2 filename like `drive/...`) from drive grid; resolved `?filename=...` URL from `VPAvatar` — the own avatar carries `&v=<profile_pic_version>` (`ApiService.versionedMediaUrl`) | `DriveScreen._buildGridViewCell` (`:317`), `VPAvatar` (`:201–203`), via `CachedNetworkImage` | **NO** — `emptyCache()` exists in `DriveState` (`:282`) but is **never called** from UI. `DriveState.clearMediaCache` is dead code. Single-file eviction (`evictAppMediaFile`) is used by the profile-photo upload only. |
 | Default (`DefaultCacheManager`) | `libCachedImageData` (default) | default | 1 week default | Resolved `/api/v1/media/file?filename=...` URL from `drive_grid_item.dart:68`, `protected_network_image.dart:31` (no cacheManager param) | `DriveGridItem._buildContent` (`:79`), `ProtectedNetworkImage` in drive\_item\_screen (`:281`), `VPAvatar` fallback in vp\_widgets if cacheManager passed as default | **NO** |
 
 ---
@@ -236,28 +235,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ---
 
-### F-SC2: `profile_pic_version` is a dead write-only key
-
-**Evidence**: `saveProfilePicVersion` called at `profile_state.dart:115–117` (write: `DateTime.now().millisecondsSinceEpoch`). `getProfilePicVersion` defined at `storage_service.dart:317–320`. Grep confirms **no consumer** — `getProfilePicVersion` is never called anywhere in the codebase.
-
-**What**: The intended use was likely to bust the `MediaCacheManager` entry for the old profile picture by appending a version query parameter to the URL. Without a consumer, profile picture changes do not invalidate the cached image in `MediaCacheManager`. The new upload produces a different R2 filename (different UUID), so the new picture renders under a new cache key — but the old cached image remains in the file cache indefinitely, wasting disk space.
-
-**Impact**: Low — cache key collision avoided by new filename. Minor disk waste. Dead code.
-
-**Confidence**: HIGH
-
----
-
-### F-SC3: `_keyDriveThumbCache` is a dead declared constant
-
-**Evidence**: Declared at `storage_service.dart:47`. Listed in `clearAppCache` (`:377`). **No producer or consumer** exists anywhere in the codebase.
-
-**Impact**: No functional impact. Dead constant.
-
-**Confidence**: HIGH
-
----
-
 ### F-SC9: Media file cache not cleared on logout
 
 **Evidence**: `logout()` at `auth_state.dart:534–548` clears SharedPreferences and secure storage but not the flutter\_cache\_manager file store — the wipe path clears it (`emptyAppMediaCaches()`, see Wipe Behavior) but logout does not. `DriveState.clearMediaCache()` (`:323–325`) delegates to `emptyAppMediaCaches()` but is still not wired into any UI/lifecycle hook.
@@ -343,7 +320,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/drive_cache_serialization_test.dart` | F-SC12: concurrent optimistic mutation + trailing refresh serialize their cache writes — the cache ends equal to the final in-memory drive list (no older snapshot clobbering a newer one). |
 | `Flutter/test/bucket_flush_test.dart` | F-SC13: app-pause and `dispose()` flush the pending 2s-debounced bucket cache write immediately. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
-| `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). |
+| `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). F-SC2: `uploadProfilePhoto` persists a `profile_pic_version` that appears as `?v=` on `versionedProfilePicUrl`, a fresh `ProfileState` restores it, an unversioned profile renders the plain URL, and `clear()` drops it. |
 | `Flutter/test/test_helpers/mock_path_provider.dart` | Mocks `plugins.flutter.io/path_provider` so `flutter_cache_manager` works in widget tests. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 
@@ -354,8 +331,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 ## Known Issues
 
 - `DriveState.clearMediaCache()` delegates to `emptyAppMediaCaches()` but is still not called from any UI/lifecycle hook (the wipe path calls the helper directly). F-SC9
-- `StorageService.getProfilePicVersion` / `saveProfilePicVersion` — write-only; no consumer exists.
-- `StorageService._keyDriveThumbCache` — declared and cleared but never written or read.
 - `reportFailedLogin` / `AuthRepository.reportFailedLogin` — defined but never called.
 - `StorageService.resetForTest()` — defined but never called from tests.
 
@@ -375,7 +350,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | Feature cache invalidation on partnership change | IMPLEMENTED (namespaced + purged on transition) |
 | Media cache clearing on wipe | IMPLEMENTED (F-SC11: `emptyAppMediaCaches` from `wipeAppData`) |
 | Media cache clearing on logout | NOT IMPLEMENTED (F-SC9) |
-| `profile_pic_version` used to bust image cache | NOT IMPLEMENTED (dead write, F-SC2) |
+| `profile_pic_version` used to bust image cache | IMPLEMENTED (`v=` query param on the own-avatar URL + `evictAppMediaFile` on upload) |
 | `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
 | Theme preference persistence across restart + logout | IMPLEMENTED (`app_theme_mode`; restored pre-`runApp`, preserved by `clearAll`) |

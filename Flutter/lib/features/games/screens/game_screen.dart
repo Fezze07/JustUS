@@ -79,6 +79,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                           gs.currentQuestion?.partnerAnswered ?? false,
                           ps.userProfile,
                           ps.partnerProfile,
+                          ps.versionedProfilePicUrl,
                         ),
                       ),
 
@@ -146,8 +147,7 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                                       status: status,
                                       badgeColor: badgeColor,
                                       icon: icon,
-                                      userImageUrl:
-                                          profile.userProfile?.profilePicUrl,
+                                      userImageUrl: profile.versionedProfilePicUrl,
                                       partnerImageUrl:
                                           profile.partnerProfile?.profilePicUrl,
                                     ),
@@ -353,13 +353,13 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
   }
 
   Widget _buildStatusSection(bool userDone, bool partnerDone, User? userProfile,
-      User? partnerProfile) {
+      User? partnerProfile, String? userPicUrl) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         VPUserAvatar(
           name: userProfile?.username ?? context.loc.common_youTitle,
-          imageUrl: userProfile?.profilePicUrl,
+          imageUrl: userPicUrl,
           indicator: Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(

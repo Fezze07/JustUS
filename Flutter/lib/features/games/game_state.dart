@@ -9,14 +9,9 @@ class GameState extends BaseState with CheckpointMixin {
   GameNewQuestionResponse? _currentQuestion;
   List<GameHistoryItem> _history = [];
   int _gameStats = 0;
-  String? _message;
-  bool _isLoading = false;
   bool _isFetchingQuestion = false;
   int? _currentUserId;
 
-  /// Monotonic checkpoint writer token (F-RT10): bumped at the start of every
-  /// checkpoint-writing operation; only the latest-started operation may write
-  /// the checkpoint, so an older-observed refresh can never regress it.
   int _checkpointToken = 0;
 
   int _beginCheckpointToken() => ++_checkpointToken;
@@ -24,16 +19,7 @@ class GameState extends BaseState with CheckpointMixin {
   GameNewQuestionResponse? get currentQuestion => _currentQuestion;
   List<GameHistoryItem> get history => _history;
   int get gameStats => _gameStats;
-  @override
-  String? get message => _message;
-  @override
-  bool get isLoading => _isLoading;
   bool get isFetchingQuestion => _isFetchingQuestion;
-
-  @override
-  void clearMessage() {
-    _message = null;
-  }
 
   Future<void> init() async {
     final epoch = CacheService.checkpointEpoch;
@@ -122,7 +108,7 @@ class GameState extends BaseState with CheckpointMixin {
     if (_isFetchingQuestion) return;
     _isFetchingQuestion = true;
     if (showLoading) {
-      _isLoading = true;
+      setLoading(true);
     }
     notifyListeners();
 
@@ -147,7 +133,7 @@ class GameState extends BaseState with CheckpointMixin {
     );
 
     if (showLoading) {
-      _isLoading = false;
+      setLoading(false);
     }
     _isFetchingQuestion = false;
     notifyListeners();
@@ -158,8 +144,7 @@ class GameState extends BaseState with CheckpointMixin {
     final token = _beginCheckpointToken();
     if (_currentQuestion == null) return;
 
-    _isLoading = true;
-    notifyListeners();
+    setLoading(true);
     int? option;
     if (votedFor == 'A') {
       option = _currentQuestion!.userIdA;
@@ -167,8 +152,8 @@ class GameState extends BaseState with CheckpointMixin {
       option = _currentQuestion!.userIdB;
     }
     if (option == null) {
-      _message = 'Errore: opzione non valida';
-      _isLoading = false;
+      setMessage('Errore: opzione non valida');
+      setLoading(false);
       notifyListeners();
 
       return;
@@ -179,7 +164,7 @@ class GameState extends BaseState with CheckpointMixin {
     await result.handleAsync(
       onSuccess: (value) async {
         final wasPending = !_currentQuestion!.partnerAnswered;
-        _message = 'Risposta inviata! ✨';
+        setMessage('Risposta inviata! ✨');
         _currentQuestion = _currentQuestion!.copyWith(
           status: 'waiting',
           message: 'Aspetta che il partner risponda',
@@ -225,7 +210,7 @@ class GameState extends BaseState with CheckpointMixin {
       },
     );
 
-    _isLoading = false;
+    setLoading(false);
     notifyListeners();
   }
 

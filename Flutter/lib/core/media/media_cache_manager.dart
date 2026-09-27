@@ -39,6 +39,26 @@ Future<void> emptyAppMediaCaches() async {
   }
 }
 
+/// Drops the cached file(s) for a single media URL from [MediaCacheManager],
+/// both the plain and the `v=`-versioned cache key. Used after a profile
+/// picture upload so the superseded image does not linger in the file cache
+/// (300 objects / 30 days). Best-effort — platform failures are logged and
+/// never fail the caller (F-SC2).
+Future<void> evictAppMediaFile(String? url, {int? version}) async {
+  final keys = {
+    ApiService.resolveProtectedMediaUrl(url),
+    ApiService.versionedMediaUrl(url, version),
+  };
+  for (final key in keys) {
+    if (key == null) continue;
+    try {
+      await MediaCacheManager().removeFile(key);
+    } catch (e) {
+      AnsiLogger.error('media file eviction failed: $e', tag: 'MediaCache');
+    }
+  }
+}
+
 /// Custom FileService: if the "URL" is an R2 filename (starts with "users/"),
 /// exchange it for a fresh signed URL before downloading.
 class _R2FileService extends HttpFileService {

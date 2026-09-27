@@ -56,6 +56,22 @@ class ApiService {
     ).toString();
   }
 
+  /// Resolves [url] to a fetchable media URL and appends `v=<version>` so the
+  /// image cache treats a new [version] as a brand new entry. A `null` [version]
+  /// returns the plain resolved URL.
+  static String? versionedMediaUrl(String? url, int? version) {
+    final resolved = resolveProtectedMediaUrl(url);
+    if (resolved == null || version == null) return resolved;
+
+    final uri = Uri.parse(resolved);
+
+    return uri
+        .replace(
+          queryParameters: {...uri.queryParameters, 'v': '$version'},
+        )
+        .toString();
+  }
+
   // HTTP client
   final http.Client _client;
   final Uuid _uuid = const Uuid();

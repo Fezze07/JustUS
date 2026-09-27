@@ -32,7 +32,9 @@ User Taps Avatar → Gallery Picker (512x512) → Image Selected → Local File 
   → CompressionService (80% JPEG) → POST /api/v1/media/upload-url (Signed R2 PUT URL)
   → HTTP PUT to Cloudflare R2 → POST /api/v1/media/complete (kind: 'profile')
   → UPDATE user_profiles SET profile_pic_url = filename
-  → Local Storage & ProfileState Updated → Avatar Refreshed
+  → Local Storage & ProfileState Updated (user_profile + profile_pic_version)
+  → evictAppMediaFile(previous URL) drops the superseded file from MediaCacheManager
+  → Avatar Refreshed under a new ?v=<profile_pic_version> cache key
 ```
 
 ### Display Name Edit Flow
@@ -145,7 +147,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## State Management
 
-- `ProfileState`: Listens to user profile data, partner profile data, upload states, and anniversary date. Notifies listeners on profile changes.
+- `ProfileState`: Listens to user profile data, partner profile data, upload states, anniversary date, and the own-avatar cache version (`profilePicVersion`). `versionedProfilePicUrl` returns the user's `profilePicUrl` with `?v=<profile_pic_version>` appended (via `ApiService.versionedMediaUrl`) and is what `ProfileScreen`, `HomepageScreen` and `GameScreen` render. Notifies listeners on profile changes.
 - `LanguageProvider`: Extends `ChangeNotifier`, providing `locale` and notifying UI components when language changes.
 - `AuthState`: Manages session tokens and credentials. Provides `logout()` which revokes sessions and clears local storage.
 
@@ -169,7 +171,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 | `SharedPreferences` | `notifications_enabled` | Notification Toggle Preference | NO | NO |
 | `SharedPreferences` | `user_profile` | Cached User Profile JSON | **YES** | **YES** |
 | `SharedPreferences` | `partner_profile` | Cached Partner Profile JSON | **YES** | **YES** |
-| `SharedPreferences` | `profile_pic_version` | Profile Pic Cache Timestamp | **YES** | **YES** |
+| `SharedPreferences` | `profile_pic_version` | Profile Pic Cache Version (appended as `?v=` to the own-avatar URL) | **YES** | **YES** |
 | `SharedPreferences` | `username` / `partner_display_name` | Profile Names | **YES** | NO |
 
 > **Deliberate retention**: the wipe intentionally does **not** clear `FlutterSecureStorage` (`access_token`, `refresh_token`, `user_id`, `partner_id`, `partnership_id`, `device_fingerprint`, `request_binding_secret`) nor the display-name keys. Authentication must remain active after the wipe (invariant 3), so tokens/session identity are always preserved; names are kept only as a cosmetic convenience for the post-wipe reload.
@@ -254,7 +256,7 @@ The Profile & Settings subsystem crosses all architectural layers:
   - `_ChangePasswordScreenState`: Password change form (UI stub).
 - [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart)
   - `loadProfile()`: Throttled fetch of user and partner profile data.
-  - `uploadProfilePhoto()`: Uploads image file and updates local profile version.
+  - `uploadProfilePhoto()`: Uploads image file, updates local profile version (`saveProfilePicVersion`) and evicts the previous picture from `MediaCacheManager` (`evictAppMediaFile`).
   - `updateDisplayName()`: Updates `user_profiles.display_name`, refreshes in-memory model + `user_profile`/`username` caches.
   - `wipeAppData()`: Triggers backend wipe API, then clears local app cache + checkpoints + media file caches (`clearAppCache`, `CacheService.clearAll`, `emptyAppMediaCaches`).
 - [`user_repository.dart`](file:///f:/JustUS/Flutter/lib/features/settings/user_repository.dart)
@@ -306,6 +308,7 @@ No known bugs remain in the account-wipe flow. The R2 object cleanup and the del
 | Profile Image Gallery Pick & 512px Resize | **IMPLEMENTED** | Gallery picker with 512x512 limits & 80% JPEG compression |
 | Profile Image Camera Selection | **IMPLEMENTED** | `MediaPickerService` bottom sheet (camera + gallery) shared with the drive, profile caps pick at 512x512 |
 | R2 Profile Image Direct Upload | **IMPLEMENTED** | Uploads via signed PUT URL & updates `user_profiles` |
+| Profile Picture Cache Busting | **IMPLEMENTED** | `profile_pic_version` appended as `?v=` to the own-avatar URL; superseded file evicted from `MediaCacheManager` on upload |
 | Display Name Viewing | **IMPLEMENTED** | Displayed on profile screen |
 | Display Name Editing UI | **IMPLEMENTED** | "IDENTITY" setting group on the profile screen: edit dialog wired to `ProfileState.updateDisplayName`; partner devices see the change in realtime (`user_profiles` subscription) |
 | Language Selection & Persistence | **IMPLEMENTED** | `/localization` screen, `SharedPreferences`, dynamic locale |

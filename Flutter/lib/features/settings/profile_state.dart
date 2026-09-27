@@ -22,6 +22,7 @@ class ProfileState extends BaseState {
   bool _isUploading = false;
   DateTime? _lastFetch;
   DateTime? _anniversaryDate;
+  int? _profilePicVersion;
 
   // Throttling duration to avoid spamming the server
   static const _fetchThrottle = Duration(minutes: 1);
@@ -31,6 +32,13 @@ class ProfileState extends BaseState {
   String? get localProfileImagePath => _localProfileImagePath;
   bool get isUploading => _isUploading;
   DateTime? get anniversaryDate => _anniversaryDate;
+  int? get profilePicVersion => _profilePicVersion;
+
+  /// Own profile picture URL carrying the stored `profile_pic_version` as a
+  /// `v=` cache-buster, so every render of the current user's avatar is keyed
+  /// on the picture that was uploaded last (F-SC2).
+  String? get versionedProfilePicUrl =>
+      ApiService.versionedMediaUrl(_userProfile?.profilePicUrl, _profilePicVersion);
 
   Future<void> loadProfile({bool force = false}) async {
     // 1. Prevent concurrent loads
@@ -46,6 +54,7 @@ class ProfileState extends BaseState {
       // Load from cache first
       final cachedUser = await StorageService.getUserProfile();
       final cachedPartner = await StorageService.getPartnerProfile();
+      _profilePicVersion = await StorageService.getProfilePicVersion();
 
       if (cachedUser != null) {
         _userProfile = cachedUser;
@@ -75,7 +84,8 @@ class ProfileState extends BaseState {
           await StorageService.savePartnerProfile(value);
         });
 
-        final partnershipResult = results[2] as ResultWrapper<PartnershipResponse>;
+        final partnershipResult =
+            results[2] as ResultWrapper<PartnershipResponse>;
         _anniversaryDate = partnershipResult.valueOrNull?.anniversaryDate;
       }
     });
@@ -110,11 +120,13 @@ class ProfileState extends BaseState {
 
       await handleResult(result, onSuccess: (value) async {
         if (_userProfile != null) {
+          final previousPicUrl = _userProfile!.profilePicUrl;
+          final previousVersion = _profilePicVersion;
           _userProfile = _userProfile!.copyWith(profilePicUrl: value);
           await StorageService.saveUserProfile(_userProfile!);
-          await StorageService.saveProfilePicVersion(
-            DateTime.now().millisecondsSinceEpoch,
-          );
+          _profilePicVersion = DateTime.now().millisecondsSinceEpoch;
+          await StorageService.saveProfilePicVersion(_profilePicVersion!);
+          await evictAppMediaFile(previousPicUrl, version: previousVersion);
         }
         setMessage('Foto profilo aggiornata!');
       });
@@ -157,6 +169,7 @@ class ProfileState extends BaseState {
     _isUploading = false;
     _lastFetch = null;
     _anniversaryDate = null;
+    _profilePicVersion = null;
     notifyListeners();
   }
 }

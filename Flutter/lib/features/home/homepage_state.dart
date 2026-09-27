@@ -12,29 +12,11 @@ class HomepageState extends BaseState {
   final MissYouRepository _repo;
 
   int _totalMissYou = 0;
-  String? _message;
-  bool _isLoading = false;
-
-  /// Bumped by every incremental [addMissYou] so an authoritative
-  /// [fetchTotalMissYou] snapshot begun before an event cannot overwrite the
-  /// increment with a stale server total (F-RT5).
   int _missYouVersion = 0;
 
-  /// Row ids already counted this session — makes [addMissYou] idempotent per
-  /// `missyou` row (insert-only table), so a replay past the 80-event dedup
-  /// window cannot double-count. Bounded FIFO, oldest evicted.
   final LinkedHashSet<int> _countedMissYouKeys = LinkedHashSet<int>();
 
   int get totalMissYou => _totalMissYou;
-  @override
-  String? get message => _message;
-  @override
-  bool get isLoading => _isLoading;
-
-  @override
-  void clearMessage() {
-    _message = null;
-  }
 
   Future<void> init() async {
     await loadWithChangeDetection(
@@ -97,7 +79,7 @@ class HomepageState extends BaseState {
 
   Future<bool> sendMissYou() async {
     final now = DateTime.now();
-    if (_isLoading ||
+    if (isLoading ||
         (_lastMissYouSentAt != null &&
             now.difference(_lastMissYouSentAt!) <
                 const Duration(milliseconds: 1500))) {
@@ -105,7 +87,7 @@ class HomepageState extends BaseState {
     }
 
     _lastMissYouSentAt = now;
-    _isLoading = true;
+    setLoading(true);
     notifyListeners();
     final epoch = CacheService.checkpointEpoch;
 
@@ -121,11 +103,11 @@ class HomepageState extends BaseState {
             DateTime.now().toUtc().toIso8601String(),
             epoch: epoch,
           );
-          _message = 'Mi manchi inviato!';
+          setMessage('Mi manchi inviato!');
         },
       );
     } finally {
-      _isLoading = false;
+      setLoading(false);
       notifyListeners();
     }
 

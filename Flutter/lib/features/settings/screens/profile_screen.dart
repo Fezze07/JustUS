@@ -166,14 +166,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return VPScaffold(
       backgroundColor: context.palette.surfaceSunken,
       showAppBar: false,
-      body: Selector<ProfileState, (User?, User?, bool, DateTime?)>(
-        selector: (_, s) =>
-            (s.userProfile, s.partnerProfile, s.isUploading, s.anniversaryDate),
+      body: Selector<ProfileState, (User?, User?, bool, DateTime?, String?)>(
+        selector: (_, s) => (s.userProfile, s.partnerProfile, s.isUploading,
+            s.anniversaryDate, s.versionedProfilePicUrl),
         builder: (context, profileData, _) {
           final user = profileData.$1;
           final partner = profileData.$2;
           final isUploading = profileData.$3;
-          final userPicPath = user?.profilePicUrl;
+          final userPicPath = profileData.$5;
           final partnerPicPath = partner?.profilePicUrl;
 
           return SafeArea(

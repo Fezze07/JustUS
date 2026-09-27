@@ -230,7 +230,7 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 | `drive_cache` | Cached Drive Items | **YES** |
 | `user_profile` | Cached User Profile JSON | **YES** |
 | `partner_profile` | Cached Partner Profile JSON | **YES** |
-| `profile_pic_version` | Profile Picture Timestamp | **YES** |
+| `profile_pic_version` | Profile Picture Cache Version | **YES** |
 | `recent_emojis` | Used Emoji List | **YES** |
 | `mood_me` / `mood_partner` | Mood Emojis | **YES** |
 | `mood_timeline` | Mood Timeline Entries | **YES** |

@@ -45,7 +45,6 @@ class StorageService {
   static const String _keyRecentEmojis = 'recent_emojis';
   static const String _keyMoodMe = 'mood_me';
   static const String _keyMoodPartner = 'mood_partner';
-  static const String _keyDriveThumbCache = 'drive_thumb_cache';
   static const String _keyDeviceFingerprint = 'device_fingerprint';
   static const String _keyRequestBindingSecret = 'request_binding_secret';
   static const String _keyTimeline = 'mood_timeline';
@@ -452,7 +451,6 @@ class StorageService {
       if (scope != null) await p.remove('$base:$scope');
     }
     for (final base in [
-      _keyDriveThumbCache,
       _keyUserProfile,
       _keyProfilePicVersion,
     ]) {
