@@ -9,34 +9,12 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 **Actual Email Dispatch from Backend/Node.js is COMPLETELY ABSENT / DECLARED BUT UNUSED.**
 
 * No SMTP client, mailer SDK (Nodemailer, Resend, SendGrid, Mailgun), or email service module exists in the Node.js backend (`Backend/`).
-* The system role capability `can_send_email` is declared in `authorization.service.js`, but has **zero consumers or middleware enforcement in code**.
 * Partner invitations (`POST /api/v1/auth/invite`) store rows in Postgres via Supabase RPC (`request_partnership`), but **do not dispatch any email notification**.
 * Email verification relies entirely on Supabase's native built-in Auth SMTP service (or local Supabase Inbucket in development).
 
 ---
 
 ## Technical Investigation by Component
-
-### 1. `can_send_email` Capability Declaration
-
-* **File**: [`Backend/features/auth/authorization.service.js`](file:///f:/JustUS/Backend/features/auth/authorization.service.js#L25)
-* **Declaration**:
-  ```javascript
-  system: [
-    "can_media_upload",
-    "can_profile_update",
-    "can_ai_call",
-    "can_upload_large",
-    "can_send_email",
-    "can_system_access",
-  ]
-  ```
-* **Investigation**:
-  - `can_send_email` is defined as a capability string assigned strictly to the `system` role.
-  - A project-wide code search reveals **zero usages** of `can_send_email` in route middleware (`authorizeCapabilities`), controllers, or background jobs.
-* **Status**: **DECLARED BUT UNUSED**.
-
----
 
 ### 2. Partner Invitation Flow (`invitePartnerController`)
 
@@ -86,7 +64,6 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 
 | Component / Flow | File Path | Direct Callers | Mailer Implementation | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **`can_send_email` Capability** | `Backend/features/auth/authorization.service.js` | None | None | **DECLARED BUT UNUSED** |
 | **Partner Invitation Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite` | Inserts DB record via Supabase RPC; no email sent | **PARTIALLY IMPLEMENTED** |
 | **Email Signup & Verification** | `Flutter/lib/features/auth/auth_state.dart` | `RegisterScreen` | Offloaded to Supabase Auth managed SMTP | **IMPLEMENTED (Supabase)** |
 | **Web Callback HTML Templates** | `Backend/templates/callbackPage.js` | `Backend/routes/authCallbacks.js` | Serves HTML page for browser redirects | **IMPLEMENTED (Static HTML)** |
@@ -99,6 +76,3 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 1. **Absence of Backend Mail Transport**:
    - The backend contains no Nodemailer or email provider SDK. All partner invitations require users to already have an active account or share their `partnershipCode` manually or via in-app notification.
    - If transactional invitation emails are desired for unregistered recipients, a mailer service (e.g. Resend / Nodemailer) must be integrated into `invitePartnerController`.
-
-2. **Unused `can_send_email` Capability**:
-   - `can_send_email` should either be bound to an authorization middleware guarding mail endpoints or pruned from `authorization.service.js` to eliminate dead configuration declarations.

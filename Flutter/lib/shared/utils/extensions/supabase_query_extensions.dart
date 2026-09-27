@@ -17,13 +17,6 @@ extension SupabaseQueryExtensions<T> on PostgrestFilterBuilder<T> {
     return eq(column, value);
   }
 
-  PostgrestFilterBuilder<T> maybeGt(
-    String column,
-    Object? value,
-  ) {
-    if (value == null) return this;
-    return gt(column, value);
-  }
 }
 
 extension SupabaseQueryTransformer<T> on PostgrestTransformBuilder<T> {
@@ -32,7 +25,4 @@ extension SupabaseQueryTransformer<T> on PostgrestTransformBuilder<T> {
     return List<Map<String, dynamic>>.from(result as List);
   }
 
-  Future<Map<String, dynamic>?> toSingle() async {
-    return await maybeSingle();
-  }
 }

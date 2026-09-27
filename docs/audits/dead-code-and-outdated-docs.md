@@ -13,27 +13,12 @@ All findings are backed by empirical code search and file analysis across the No
 | Category | Item | Location | Current Status | Risk / Impact |
 | :--- | :--- | :--- | :--- | :--- |
 | **Outdated Docs** | Ollama / Llama 3.2 AI Engine References | [`README.md:23`](file:///f:/JustUS/README.md#L23), [`README.md:57`](file:///f:/JustUS/README.md#L57), [`README.md:67`](file:///f:/JustUS/README.md#L67) | **STALE** (Architecture migrated to OpenRouter AI Gateway in `aiConfig.js`) | Medium (Misleads setup prerequisites) |
-| **Unused Dependency** | `multer` package | [`Backend/package.json:24`](file:///f:/JustUS/Backend/package.json#L24) | **DEAD DEPENDENCY** (Zero imports/requires in `Backend/`) | Low (Unnecessary npm bundle bloat) |
-| **Unused Extension Helpers** | `maybeGt` & `toSingle` | [`shared/utils/extensions/supabase_query_extensions.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart#L20-L35) | **DEAD CODE** (Zero callers across Flutter app) | Low (Dead code deadweight) |
-| **Unused Capability** | `can_send_email` | [`Backend/features/auth/authorization.service.js:25`](file:///f:/JustUS/Backend/features/auth/authorization.service.js#L25) | **DECLARED BUT UNUSED** (Zero route middleware checks) | Low (Configuration noise) |
 
 ---
 
 ## Detailed Investigation
 
-### 1. `multer` Dependency Analysis
-
-* **File**: [`Backend/package.json`](file:///f:/JustUS/Backend/package.json#L24)
-* **Declared Version**: `"multer": "^2.3.0"`
-* **Evidence**:
-  - Direct grep search for `multer` across `Backend/` returned **0 results** in source files (`.js`).
-  - Media file uploads are handled directly via pre-signed Cloudflare R2 upload URLs or Supabase Storage SDK (`drive_repository.dart` / `drive.controller.js`), completely bypassing local HTTP multipart parsing.
-* **Classification**: **DEAD DEPENDENCY**.
-* **Remediation**: Remove `"multer"` from `Backend/package.json` (`npm uninstall multer`).
-
----
-
-### 2. Ollama / Llama 3.2 AI Engine Documentation References
+### 1. Ollama / Llama 3.2 AI Engine Documentation References
 
 * **File**: [`README.md`](file:///f:/JustUS/README.md)
 * **Stale Lines**:
@@ -55,38 +40,7 @@ All findings are backed by empirical code search and file analysis across the No
 
 ---
 
-### 3. Supabase Query Extension Dead Methods
-
-* **File**: [`Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart#L20-L38)
-* **Dead Methods**:
-  - `maybeGt(String column, Object? value)` (Line 20) — 0 usages in `lib/`.
-  - `toSingle()` (Line 35) — 0 usages in `lib/` (Repositories invoke Postgrest's native `.maybeSingle()` directly).
-* **Classification**: **DEAD CODE**.
-* **Remediation**: Delete `maybeGt` and `toSingle` from `supabase_query_extensions.dart`.
-
----
-
-### 4. `can_send_email` System Capability
-
-* **File**: [`Backend/features/auth/authorization.service.js`](file:///f:/JustUS/Backend/features/auth/authorization.service.js#L25)
-* **Code Reference**: `"can_send_email"` assigned to `system` role.
-* **Evidence**:
-  - Project-wide search confirms `can_send_email` is never evaluated by `authorizeCapabilities` middleware or referenced in any controller/service.
-  - As established in the Email Audit, no email dispatch mechanism exists in Node.js.
-* **Classification**: **UNUSED CAPABILITY DECLARATION**.
-* **Remediation**: Remove `can_send_email` from `authorization.service.js`.
-
----
-
----
-
 ## Recommended Cleanup Action Plan
 
-1. **`Backend/package.json`**:
-   - Run `npm uninstall multer` in `Backend/`.
-2. **`README.md`**:
+1. **`README.md`**:
    - Replace Ollama/Llama 3.2 references with OpenRouter AI Gateway documentation.
-3. **`supabase_query_extensions.dart`**:
-   - Remove unused `maybeGt` and `toSingle` extension methods.
-4. **`authorization.service.js`**:
-   - Remove dead `can_send_email` string.

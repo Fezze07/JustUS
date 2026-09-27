@@ -22,7 +22,6 @@ const roleCapabilities = {
     "can_profile_update",
     "can_ai_call",
     "can_upload_large",
-    "can_send_email",
     "can_system_access",
   ],
   "ai-worker": ["can_ai_call", "can_system_access"],
