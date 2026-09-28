@@ -126,7 +126,7 @@ On deserialization failure (`fromJson` throws), `_getJson`/`_getJsonList` catch 
 
 ### How checkpoints work
 
-`CheckpointMixin.saveMaxTimestampCheckpoint` (`:4–31` of `checkpoint_mixin.dart`) takes a list of ISO-8601 timestamp strings, parses them, sorts descending, and writes the maximum as the new checkpoint. If the list is empty, it writes `CacheService.kCheckpointEmpty = 'EMPTY'`. Every write is epoch-gated on the fetch that produced it (see state-management doc, F-SM14 resolved).
+`CheckpointMixin.saveMaxTimestampCheckpoint` (`:4–31` of `checkpoint_mixin.dart`) takes a list of ISO-8601 timestamp strings, parses them, sorts descending, and writes the maximum as the new checkpoint. If the list is empty, it writes `CacheService.kCheckpointEmpty = 'EMPTY'`. Every write is epoch-gated: a checkpoint produced by a fetch is dropped if a `clear()` (logout, wipe, partnership switch) happened while that fetch was in flight, so a stale snapshot cannot resurrect a checkpoint for data that has just been purged.
 
 `BaseRepository.hasChanges` (`:79–108` of `base_repository.dart`) compares the checkpoint against the server's `max(field)` queried from Supabase:
 - `checkpoint == null` → true (never synced)
@@ -166,9 +166,9 @@ Checkpoint keys are partnership-scoped (`chk_x:<partnership_id>` via `CacheServi
 - Updated by: `HomepageState.fetchTotalMissYou` (`:51–54` of `homepage_state.dart`) and `sendMissYou` (`:78–80`) — writes `DateTime.now().toUtc().toIso8601String()` (local clock, not server time).
 - Compared field: none — `CacheService.needsRefresh` (`:40–50`) uses this as a **time-based freshness gate** (60-second TTL). Does not compare against server data. Fine as designed.
 
-### Cross-partnership checkpoint contamination — solved (F-SC8)
+### Cross-partnership checkpoint namespacing (invariant)
 
-Feature caches **and** checkpoints are namespaced per-partnership: while a partnership with id `N` is active, every partnership-scoped cache key is stored as `base:N` and every checkpoint as `chk_x:N` (`StorageService._feat`, `CacheService._scoped`). The active namespace is bound at `AuthState.init` cold start (`storage_service.dart:setActivePartnership`) and after every partnership-id write.
+**Invariant**: while a partnership with id `N` is active, no cache or checkpoint key from another partnership can be read or written — feature caches are stored as `base:N` and checkpoints as `chk_x:N` (`StorageService._feat`, `CacheService._scoped`). The active namespace is bound at `AuthState.init` cold start (`storage_service.dart:setActivePartnership`) and after every partnership-id write.
 
 On a genuine partnership transition the old scope is purged — feature caches and checkpoints are removed for the base (legacy unscoped), old, and new scopes, in both `StorageService.savePartnershipId` and `StorageService.clearPartner` (`purgeCacheVariants` + `CacheService.purge`). Writes with an unchanged id (cold start, realtime refresh) never purge, so caching survives app restarts.
 
@@ -176,7 +176,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 2. Old-partnership keys are physically removed, so no stale data can be read even if scoping were bypassed.
 3. Checkpoint-based hasChanges comparisons stay within a single partnership's namespace.
 
-**Impact**: Re-partnering no longer shows previous-partner data on Drive, Bucket, Games, Mood, or MissYou tabs under the polling fallback or cold-start path. Verified by `Flutter/test/partnership_scope_test.dart` (F-SC8: namespacing, no-purge-on-same-id, purge on transition, `clearPartner` reset, wipe/logout namespace clearing).
+**Tests**: `Flutter/test/partnership_scope_test.dart` covers namespacing, no-purge-on-same-id, purge on transition, `clearPartner` reset, and wipe/logout namespace clearing.
 
 **Assumption**: `partnerships.id` values are never reused after dissolution; combined with the transition purge this guarantees a fresh namespace per partnership history.
 
@@ -186,8 +186,8 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 | Cache | Expiration | Eviction | Max size | Notes |
 |---|---|---|---|---|
-| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Cleared on wipe (F-SC11 resolved); not cleared on logout (F-SC9). |
-| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on wipe (F-SC11 resolved); not cleared on logout (F-SC9). |
+| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Cleared on wipe; not cleared on logout. |
+| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on wipe; not cleared on logout. |
 | SharedPreferences feature caches | **No TTL** | Never evicted | N/A | Overwritten on each fetch. Multiple concurrent writes can race (see §Edge Cases). |
 | Checkpoints | **No TTL** | Never evicted until overwritten | N/A | Reset on logout (`CacheService.clearAll`), **wipe** (`CacheService.clearAll` from `wipeAppData`), or explicit force-refresh (`clearCheckpoints`). |
 | `PartnershipRepository._activePartnershipFuture` | In-memory only | Invalidated by `clearPartnershipCache()` or user-id mismatch detection | 1 future | Static map in `PartnershipRepository` (`:9–10`). Clears on realtime partnership event, but **not** on logout. Self-heals on next call with different user-id. |
@@ -217,7 +217,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 5. Feature states `clear()` — resets in-memory state.
 6. `RealtimeSyncService.refreshChannel()` — resubscribes after suppress/resume.
 
-**Not wiped by wipe**: `app_language_code`, `username`, `partner_display_name` (`clearAppCache()` deliberately does not remove account-identity keys). F-SC10/F-SC11 resolved: checkpoints and media files are cleared so a fresh login genuinely starts empty and no previous media thumbnails pop from disk.
+**Not wiped by wipe**: `app_language_code`, `username`, `partner_display_name` (`clearAppCache()` deliberately does not remove account-identity keys). Checkpoints and media files *are* cleared, so a fresh login genuinely starts empty and no previous media thumbnails pop from disk.
 
 ---
 

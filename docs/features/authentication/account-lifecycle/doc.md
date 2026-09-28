@@ -20,28 +20,16 @@ Key architectural boundaries:
 - Route: `/change-password` declared in [main.dart:142](file:///f:/JustUS/Flutter/lib/main.dart#L142) and pushed from `ProfileScreen` ([profile_screen.dart:321](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L321)).
 - Form Controllers: `_oldController`, `_newController`, `_confirmController`.
 
-### CRITICAL FINDING: Stub Implementation
+### Current Behavior
 
-Inspection of `ChangePasswordScreen._ChangePasswordScreenState` ([change_password_screen.dart:90-98](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart#L90-L98)) reveals that the password update functionality is a **pure UI stub**:
+The change-password flow is implemented end to end, client → Supabase Auth (no backend route is involved):
 
-```dart
-VPButton(
-  label: context.loc.auth_updatePassword,
-  onPressed: () {
-    if (_formKey.currentState!.validate()) {
-      // Logic to update password
-      ErrorHandler.showSnackBar(context, context.loc.auth_passwordUpdated);
-      Navigator.pop(context);
-    }
-  },
-)
-```
+1. `ChangePasswordScreen` validates required/format/confirmation locally, then calls `AuthState.changePassword(currentPassword:, newPassword:)` with a loading state on the `VPButton`.
+2. `AuthState.changePassword` ([auth_state.dart:425-494](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L425-L494)) re-authenticates the current password with `signInWithPassword` (fresh Turnstile token included) before changing anything. A wrong current password maps to `ErrorCodes.authFailCurrent` and surfaces the screen's own message instead of the generic reauth dialog.
+3. On success it calls `AuthRepository.changePassword` ([auth_repository.dart:84-88](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L84-L88)) → `sbClient.auth.updateUser(UserAttributes(password: …))`.
+4. Failures are surfaced by `ErrorHandler`; success shows a localized snackbar and pops the screen.
 
-#### Empirical Password Change Audit Findings
-1. **No API Call Execution**: Tapping "Update Password" validates the local Flutter `Form` widgets, displays a localized SnackBar ("Password updated!"), and pops the screen back to `ProfileScreen`. It **never invokes `AuthRepository.changePassword()`**, `AuthState`, backend API, or Supabase Auth.
-2. **Dead Code Repository Method**: `AuthRepository.changePassword(currentPassword, newPassword)` exists in [auth_repository.dart:50-55](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L50-L55) calling `sbClient.auth.updateUser(UserAttributes(password: newPassword))`. However, this method is dead code and is never invoked anywhere in the codebase.
-3. **No Current Password Verification**: The current password entered in `_oldController` is never verified against Supabase Auth.
-4. **No Session Invalidation**: Because no password update request is sent to Supabase Auth, existing JWT tokens and refresh tokens remain completely active, and the account password remains unchanged in reality.
+**Not covered**: the password change does not invalidate other sessions — Supabase keeps existing refresh tokens valid until they expire, and the app issues no "signed out everywhere" call.
 
 ---
 
@@ -237,9 +225,11 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 | `chk_*` (All Keys) | Cache Checkpoints | **YES** (`CacheService.clearAll()`) |
 | `app_language_code` | Selected App Language | **NO** — device-level preference; `StorageService.clearAll()` re-persists it after `p.clear()` (F-SC4 resolved) |
 
-### Surviving In-Memory Provider Data (BUG)
+### Feature-State Cleanup on Logout
 
-While `AuthState` and `StorageService` are completely wiped, **eager Provider singletons** created in `main.dart` (`ProfileState`, `PartnerState`, `DriveState`, `MoodState`, `BucketState`, `GameState`, `MissYouState`) are **not** reset during `logout()`. Their in-memory fields retain data from the previous account until a new user logs in and triggers fresh `loadData()` calls.
+`AuthState.logout()` wipes secure storage (`FlutterSecureStorage.deleteAll()`) and SharedPreferences (`SharedPreferences.clear()`), then calls the `onClearFeatureStates` hook wired in `RealtimeSyncScope` (`realtime_sync_scope.dart:46-53`). The hook clears the eager Provider singletons — `MoodState`, `HomepageState`, `BucketState`, `GameState`, `DriveState`, `ProfileState` — so no in-memory field survives into a second account in the same process.
+
+Two keys deliberately **survive** logout: `app_language_code` and the theme mode (`app_theme_mode`). They are user preferences, not account data, and are re-applied at the next login.
 
 ---
 
@@ -275,15 +265,7 @@ While `AuthState` and `StorageService` are completely wiped, **eager Provider si
 
 ## Potential Bugs and Inconsistencies
 
-### 1. CRITICAL BUG: `ChangePasswordScreen` is a Pure UI Stub
-- **Finding**: In `change_password_screen.dart:92-98`, submitting the change password form displays a success SnackBar and pops the screen back.
-- **Impact**: The password is **never updated** in Supabase Auth or the database. `AuthRepository.changePassword()` is dead code, and users are misled into believing their password was changed.
-
-### 2. BUG: In-Memory Provider Contamination Across Account Switches
-- **Finding**: `AuthState.logout()` clears `AuthState` and `StorageService`, but does **not** clear other global Provider states (`DriveState`, `MoodState`, `BucketState`, `GameState`, `ProfileState`).
-- **Impact**: If User A logs out and User B logs in within the same Flutter process execution, User B may briefly see User A's in-memory cached state (e.g. Drive file names or Mood emojis) until background API fetches overwrite them.
-
-### 3. BUG: Orphaned Device Tokens Receive Notifications Post-Logout
+### 1. BUG: Orphaned Device Tokens Receive Notifications Post-Logout
 - **Finding**: `logout()` does not send a request to backend to delete or deactivate the device token in `user_devices`.
 - **Impact**: Server-initiated push notifications targeting the logged-out user (e.g., partner interactions or reminders) continue to deliver to the physical device after logout until a new account logs in on that device.
 

@@ -357,7 +357,7 @@ None currently identified.
 |---|---|---|
 | Supabase JWT Authentication | **IMPLEMENTED** | Verified via `authSupabase.auth.getUser` |
 | Token Storage (`FlutterSecureStorage`) | **IMPLEMENTED** | Secure storage wrapper |
-| Backend-Mediated Token Refresh | **PARTIALLY BROKEN** | Refresh succeeds on backend, but retried request uses stale Supabase SDK token |
+| Token Refresh (SDK-mediated) | **IMPLEMENTED** | `Supabase.refreshSession()` owns refresh; the backend `/auth/refresh` proxy no longer exists. One path, one rotation |
 | Token Lifetime Policy Enforcement | **IMPLEMENTED** | Checked in `tokenUtils.js` |
 | Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |

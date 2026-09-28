@@ -46,4 +46,4 @@ Optimistic delete still restores the item locally on a genuine network error whe
 
 ---
 
-**Tracking**: todo.md item 5.2 (status tracked only there, per AGENTS.md).
+**Tracking**: todo.md item 5.2 (status tracked only there, per the project's documentation rules in `.agents/skills/fix-workflow/SKILL.md`).
