@@ -10,37 +10,14 @@ All findings are backed by empirical code search and file analysis across the No
 
 ## Findings Matrix Summary
 
-| Category | Item | Location | Current Status | Risk / Impact |
-| :--- | :--- | :--- | :--- | :--- |
-| **Outdated Docs** | Ollama / Llama 3.2 AI Engine References | [`README.md:23`](file:///f:/JustUS/README.md#L23), [`README.md:57`](file:///f:/JustUS/README.md#L57), [`README.md:67`](file:///f:/JustUS/README.md#L67) | **STALE** (Architecture migrated to OpenRouter AI Gateway in `aiConfig.js`) | Medium (Misleads setup prerequisites) |
+No open findings. All issues recorded in this audit have been resolved; the item-by-item status lives in `todo.md` (Phase 7 — Dead code & docs hygiene).
 
 ---
 
-## Detailed Investigation
+## Resolved Items
 
-### 1. Ollama / Llama 3.2 AI Engine Documentation References
+| Item | Resolution |
+| :--- | :--- |
+| Ollama / Llama 3.2 AI engine references in `README.md` (feature bullet, tech-stack entry, prerequisite list) | `README.md` now documents the active **OpenRouter** chat-completions gateway (`Backend/config/aiConfig.js`): free-model fallback chain, per-user daily token quota, circuit breaker; Ollama removed from prerequisites and replaced by an `OPENROUTER_API_KEY` requirement |
 
-* **File**: [`README.md`](file:///f:/JustUS/README.md)
-* **Stale Lines**:
-  - Line 23: `Every 24 hours, a new question is generated using the integrated Llama 3.2 AI engine.`
-  - Line 57: `- **AI Engine**: Ollama (Running Llama 3.2:3b locally or on-server).`
-  - Line 67: `- Ollama (for AI features)`
-* **Actual Code Implementation**:
-  - [`Backend/config/aiConfig.js`](file:///f:/JustUS/Backend/config/aiConfig.js#L27-L36) uses **OpenRouter API Gateway**:
-    ```javascript
-    const MODELS = [
-      "openrouter/free",
-      "openai/gpt-oss-120b:free",
-      "nvidia/nemotron-3-super:free"
-    ];
-    const url = "https://openrouter.ai/api/v1/chat/completions";
-    ```
-* **Classification**: **STALE DOCUMENTATION**.
-* **Remediation**: Update `README.md` to reflect the active OpenRouter AI Gateway integration (`https://openrouter.ai`) and remove Ollama as an installation prerequisite.
-
----
-
-## Recommended Cleanup Action Plan
-
-1. **`README.md`**:
-   - Replace Ollama/Llama 3.2 references with OpenRouter AI Gateway documentation.
+While refreshing `README.md`, the same pass corrected other claims that had drifted from the code: repository-root env file resolution (`.env` / `.env.test` / `JUSTUS_ENV_FILE`) plus the variables that have no code default, the real test entry points (`npm run validate` → `scripts/test-all.sh`, `test/mock-ai/server.js`, `scripts/docker-compose.test.yml`), Node/Flutter version constraints from `pubspec.yaml` and the ESLint/Jest toolchain, audio & PDF support in the shared drive, the tokenized light/dark theming and it/en localization, the backend/Flutter directory layout including `supabase/schemas/**`, and the Turnstile flow (Managed widget in the app, validated by Supabase Auth — the Node backend never verifies tokens, per `todo.md` 2.4).
