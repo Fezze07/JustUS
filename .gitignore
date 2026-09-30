@@ -4,10 +4,6 @@ Backend/secrets/
 Backend/ecosystem.config.js
 Backend/versions/
 
-#Test
-/test
-/scripts
-
 #Documentation
 /graphify-out/
 .graphifyignore
@@ -35,6 +31,9 @@ key.properties
 #JSCPD
 jscpd-report/
 node_modules/
+
+#Test run artifacts (scripts/test-all.sh, only kept when a check fails)
+/Backend/test/logs/
 
 #File vari
 release/

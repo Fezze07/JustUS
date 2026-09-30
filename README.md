@@ -105,7 +105,7 @@ Your privacy is our priority.
 ### 4. Testing
 The repository includes an isolated test setup for both backend and Flutter code.
 
-- Backend API suite (lint + Jest, tests live in `test/backend`):
+- Backend API suite (lint + Jest, tests are colocated with the backend in `Backend/test`):
   ```bash
   cd Backend
   npm test
@@ -122,10 +122,11 @@ The repository includes an isolated test setup for both backend and Flutter code
 Test environment highlights:
 - `ENV=test` / `NODE_ENV=test` support via the root `.env.test`
 - mocked Supabase / R2 boundaries for backend route tests
-- local mock AI server in `test/mock-ai/server.js`
-- Docker stack in `scripts/docker-compose.test.yml` for environments with Docker available (`JUSTUS_BACKEND_IN_DOCKER=1` to run the backend tests inside it)
+- local mock AI server in `Backend/test/mock-ai/server.js`
+- Docker stack in `scripts/docker-compose.test.yml`; `npm run validate` uses it only to start the mock AI container (skipped automatically when Docker is unavailable)
 - Flutter unit/widget tests under `Flutter/test/`
-- reports/logs from a failed run are preserved under `test/logs/`
+- Supabase RLS/SQL tests under `supabase/test/` (run via `scripts/run-sql-tests.sh`, skipped without a database URL)
+- reports/logs from a failed run are preserved under `Backend/test/logs/`
 
 ---
 

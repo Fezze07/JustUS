@@ -1,0 +1,28 @@
+services:
+  mock-ai:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ../Backend/test/mock-ai:/app:ro
+    command: ["node", "server.js"]
+    ports:
+      - "11434:11434"
+    environment:
+      PORT: 11434
+      MOCK_AI_RESPONSE: '{"question":"Chi dei due organizza meglio una suite di test?"}'
+
+  backend-tests:
+    image: node:20-alpine
+    working_dir: /workspace/Backend
+    volumes:
+      - ../:/workspace
+    env_file:
+      - ../.env.test
+    environment:
+      ENV: test
+      NODE_ENV: test
+      AI_ENDPOINT: http://mock-ai:11434/api/generate
+    depends_on:
+      - mock-ai
+    command: >
+      sh -lc "npm ci && npm test"

@@ -1,1 +1,26 @@
 graphify-out/graph.json merge=graphify-merge
+* text=auto eol=lf
+
+# Windows-only tooling: must stay CRLF for PowerShell to be reliable.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp3 binary
+*.mp4 binary
+*.keystore binary
+*.jks binary
+*.p12 binary
+*.pem binary
+*.key binary
