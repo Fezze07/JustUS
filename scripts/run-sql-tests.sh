@@ -7,7 +7,7 @@
 #
 # Usage:
 #   scripts/run-sql-tests.sh                       # run all discovered tests
-#   scripts/run-sql-tests.sh rls_2_1 retention_5_1 # run a subset by name
+#   scripts/run-sql-tests.sh rls_user_isolation retention_cleanup_old_logs  # subset
 #
 # scripts/test-all.sh always invokes this (one of its four parallel phases);
 # it passes no arguments, so every supabase/test/*.test.sql is selected.
@@ -65,12 +65,12 @@ resolve_db_url() {
 # -----------------------------------------------------------------------------
 # Resolve the file list FIRST, so a typo'd test name is an error whether or not
 # a database happens to be configured. Resolving this after the "no database"
-# skip would make `run-sql-tests.sh rls_2_x` silently succeed.
+# skip would make `run-sql-tests.sh rls_user_isolation` silently succeed.
 # -----------------------------------------------------------------------------
 if [ "$#" -gt 0 ]; then
   FILES=()
   for name in "$@"; do
-    # Accept either "rls_2_1" or "rls_2_1.test.sql".
+    # Accept either "rls_user_isolation" or "rls_user_isolation.test.sql".
     candidate="${name%.test.sql}"
     file="$SQL_DIR/${candidate}.test.sql"
     if [ -f "$file" ]; then
