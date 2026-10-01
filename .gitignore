@@ -12,6 +12,7 @@ Backend/versions/
 .env
 .env.*
 !.env.example
+!.env.test
 
 # Secrets and Credentials
 *.key

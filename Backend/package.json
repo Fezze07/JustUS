@@ -3,7 +3,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "check": "node --check index.js",
-    "test": "npm run lint && jest ../test/backend --runInBand",
+    "test": "npm run lint && jest --runInBand",
     "test:watch": "jest --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -146,6 +146,17 @@ function _sweepRateLimitMaps() {
 }
 setInterval(_sweepRateLimitMaps, 15 * 60 * 1000).unref();
 
+// Clears every bucket and penalty. The maps above are module-level, so without
+// this the limits leak across Jest tests: a suite that fires N requests leaves
+// the next test starting at N, and a suite whose request count happens to sit on
+// the limit boundary passes until someone adds one more case. Test-only reset,
+// mirroring resetCircuitState/resetQuotaState.
+const resetRateLimitState = () => {
+  buckets.clear();
+  penalties.clear();
+};
+
 module.exports = {
   createCompositeRateLimit,
+  resetRateLimitState,
 };

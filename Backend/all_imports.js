@@ -109,6 +109,7 @@ module.exports = {
   get resetAuthRiskState() { return require('./features/auth/authRisk.service').resetAuthRiskState; },
   get resetCircuitState() { return require('./core/infra/circuitBreaker').resetCircuitState; },
   get resetQuotaState() { return require('./core/infra/quotaService').resetQuotaState; },
+  get resetRateLimitState() { return require('./middleware/rateLimit').resetRateLimitState; },
   get resolveCapabilities() { return require('./features/auth/authorization.service').resolveCapabilities; },
   get resolveEnvFile() { return require('./config/loadEnv').resolveEnvFile; },
   get resolveNotificationTarget() { return require('./features/notifications/notification.service').resolveNotificationTarget; },

@@ -480,7 +480,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ## Tests
 
-### Backend (`test/backend/notify.routes.test.js`)
+### Backend (`Backend/test/notify.routes.test.js`)
 
 Three negative-path tests exercise `POST /api/v1/notify/partner`:
 

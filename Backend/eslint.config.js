@@ -2,7 +2,7 @@ const js = require("@eslint/js");
 
 module.exports = [
     {
-        ignores: ["node_modules/**", "coverage/**", "test/**", "jest.config.js"]
+        ignores: ["node_modules/**", "coverage/**", "jest.config.js"]
     },
     js.configs.recommended,
     {
@@ -43,12 +43,75 @@ module.exports = [
             "no-duplicate-imports": "warn",
 
             // General best practices
-            "no-unused-vars": ["warn", { 
-                "argsIgnorePattern": "^_", 
+            "no-unused-vars": ["warn", {
+                "argsIgnorePattern": "^_",
                 "varsIgnorePattern": "^_",
                 "caughtErrorsIgnorePattern": "^_"
             }], // Warn on unused variables, ignore those with underscore prefix
             "no-undef": "error" // Error on undefined variables to catch typos and missing imports
+        }
+    },
+    {
+        files: ["test/**/*.js"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "commonjs",
+            globals: {
+                ...js.configs.recommended.languageOptions?.globals,
+                // Jest
+                jest: "readonly",
+                describe: "readonly",
+                it: "readonly",
+                test: "readonly",
+                expect: "readonly",
+                beforeAll: "readonly",
+                beforeEach: "readonly",
+                afterAll: "readonly",
+                afterEach: "readonly",
+                // Node
+                console: "readonly",
+                process: "readonly",
+                module: "readonly",
+                require: "readonly",
+                __dirname: "readonly",
+                __filename: "readonly",
+                setTimeout: "readonly",
+                clearTimeout: "readonly",
+                setInterval: "readonly",
+                clearInterval: "readonly",
+                exports: "readonly",
+                Buffer: "readonly",
+                URL: "readonly"
+            }
+        },
+        rules: {
+            // Test files are legitimately long and fixture-heavy; the
+            // production thresholds would bury real findings in noise.
+            "max-lines": "off",
+            "max-lines-per-function": "off",
+            "complexity": "off",
+
+            // The rules that actually catch broken tests:
+            //  - no-empty: an empty catch block silently swallows the very
+            //    assertion failure the test was written to detect.
+            "no-undef": "error",
+            "no-empty": "error",
+
+            "no-unused-vars": ["warn", {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_",
+                "caughtErrorsIgnorePattern": "^_"
+            }],
+
+            "no-dupe-keys": "error",
+            "no-dupe-args": "error",
+            "no-unreachable": "error",
+            "no-const-assign": "error",
+            "valid-typeof": "error",
+            "no-func-assign": "error",
+            "no-self-compare": "error",
+            "no-fallthrough": "error",
+            "no-cond-assign": "error"
         }
     }
 ];
