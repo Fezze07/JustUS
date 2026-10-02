@@ -323,8 +323,9 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). F-SC2: `uploadProfilePhoto` persists a `profile_pic_version` that appears as `?v=` on `versionedProfilePicUrl`, a fresh `ProfileState` restores it, an unversioned profile renders the plain URL, and `clear()` drops it. |
 | `Flutter/test/test_helpers/mock_path_provider.dart` | Mocks `plugins.flutter.io/path_provider` so `flutter_cache_manager` works in widget tests. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
+| `Flutter/test/base_state_test.dart` | F-SM1/F-SM2: frame coalescing (`BaseState.notifyListeners`) — same-frame mutations collapse to one notification, a later frame notifies again, the pending flag resets even with no listener attached. `runSafe` loading/message contract, `handleResult` per-branch notification + `ErrorHandler` forwarding, `loadWithChangeDetection` ordering and fire-and-forget error absorption. Checkpoints: the real `BaseRepository.hasChanges` comparison against a mocked `SharedPreferences` and a stubbed server timestamp — absent checkpoint, unchanged timestamp, newer, older, the `EMPTY` sentinel, emptied table, and unparseable date on either side. |
 
-**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, `BaseRepository.hasChanges`, `loadWithChangeDetection`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are now covered — F-SC12/F-SC13.)
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are now covered — F-SC12/F-SC13; `BaseRepository.hasChanges` and `loadWithChangeDetection` are now covered by `test/base_state_test.dart`.)
 
 ---
 
@@ -332,7 +333,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 - `DriveState.clearMediaCache()` delegates to `emptyAppMediaCaches()` but is still not called from any UI/lifecycle hook (the wipe path calls the helper directly). F-SC9
 - `reportFailedLogin` / `AuthRepository.reportFailedLogin` — defined but never called.
-- `StorageService.resetForTest()` — defined but never called from tests.
 
 ---
 
