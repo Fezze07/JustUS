@@ -42,7 +42,8 @@ class GameState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<GameNewQuestionResponse> _resolveCachedNames(GameNewQuestionResponse q) async {
+  Future<GameNewQuestionResponse> _resolveCachedNames(
+      GameNewQuestionResponse q) async {
     final uid = _currentUserId;
     if (uid == null) return q;
 
@@ -82,8 +83,7 @@ class GameState extends BaseState with CheckpointMixin {
     await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
-  Future<void> _updateGameCheckpoint(
-      {required int epoch, int? token}) async {
+  Future<void> _updateGameCheckpoint({required int epoch, int? token}) async {
     final uid = await StorageService.getUserId();
     final partnerId = await StorageService.getPartnerId();
     if (uid == null || partnerId == null) return;
@@ -114,23 +114,34 @@ class GameState extends BaseState with CheckpointMixin {
 
     final result = await _repo.fetchNewGameQuestion();
 
+    var noQuestionAvailable = false;
+
     await result.handleAsync(
       onSuccess: (value) async {
         if (value.success) {
           _currentQuestion = value;
           await StorageService.saveGameQuestion(value);
         } else {
-          _currentQuestion = null;
+          noQuestionAvailable = true;
         }
       },
       onError: (code, message) {
         if (message != 'No questions') {
           ErrorHandler.handle(result);
         } else {
-          _currentQuestion = null;
+          noQuestionAvailable = true;
         }
       },
     );
+
+    // A terminal "there is no question" answer must clear the PERSISTED
+    // question too. Nulling only `_currentQuestion` left the stale row in the
+    // cache, so the next cold start resurrected a question the server had
+    // already retired (every other terminal path here clears the cache).
+    if (noQuestionAvailable) {
+      _currentQuestion = null;
+      await StorageService.clearCachedGameQuestion();
+    }
 
     if (showLoading) {
       setLoading(false);
@@ -408,7 +419,6 @@ class GameState extends BaseState with CheckpointMixin {
       _history = newHistory;
       await StorageService.saveGameHistory(_history);
     }
-
 
     await _updateGameCheckpoint(epoch: epoch, token: token);
   }

@@ -116,6 +116,9 @@ class HomepageState extends BaseState {
 
   void clear() {
     _totalMissYou = 0;
+    _countedMissYouKeys.clear();
+    _missYouVersion = 0;
+    _lastMissYouSentAt = null;
     notifyListeners();
   }
 }

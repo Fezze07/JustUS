@@ -63,7 +63,8 @@ class MoodState extends BaseState with CheckpointMixin {
     final uid = await StorageService.getUserId();
     if (uid == null) return false;
 
-    final changed = await _repo.hasNewMoods(uid, await StorageService.getPartnerId());
+    final changed =
+        await _repo.hasNewMoods(uid, await StorageService.getPartnerId());
     if (changed) {
       // Optimistic checkpoint: prevent redundant fetches during rapid init cycles
       await CacheService.saveCheckpoint(
@@ -80,8 +81,7 @@ class MoodState extends BaseState with CheckpointMixin {
 
   int _beginCheckpointToken() => ++_checkpointToken;
 
-  Future<void> _updateMoodsCheckpoint(
-      {required int epoch, int? token}) async {
+  Future<void> _updateMoodsCheckpoint({required int epoch, int? token}) async {
     await saveMaxTimestampCheckpoint(
       checkpointKey: CacheService.kMoods,
       timestamps: [
@@ -111,7 +111,11 @@ class MoodState extends BaseState with CheckpointMixin {
       const initialPageSize = 4;
       _timeline = cachedTimeline.take(initialPageSize).toList();
       _timelineOffset = _timeline.length;
-      _hasMoreTimeline = cachedTimeline.length > initialPageSize;
+      // Same "a full page means there may be more" rule as the network paths
+      // (`fetchTimeline`/`loadMoreTimeline`). This used to be `>` instead of
+      // `>=`, so a cache holding exactly one full page reported "no more" and
+      // the user could never reach the older timeline entries on a cold start.
+      _hasMoreTimeline = cachedTimeline.length >= initialPageSize;
     }
 
     notifyListeners();
@@ -195,8 +199,12 @@ class MoodState extends BaseState with CheckpointMixin {
       final result = await _repo.fetchTimeline();
       await result.handleAsync(
         onSuccess: (value) async {
-          _timeline = value;
-          _timelineOffset = value.length;
+          // Copy: `_timeline` is mutated in place by the optimistic path
+          // (`_timeline.insert(0, …)`) and by `loadMoreTimeline`
+          // (`_timeline.addAll(…)`). Aliasing the repository's list — which may
+          // be unmodifiable/const — made those two crash at runtime.
+          _timeline = List<MoodEntry>.from(value);
+          _timelineOffset = _timeline.length;
           _hasMoreTimeline = value.length >= 4;
           await StorageService.saveTimeline(value);
           await _updateMoodsCheckpoint(epoch: epoch, token: writeToken);

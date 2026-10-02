@@ -65,11 +65,9 @@ class ApiService {
 
     final uri = Uri.parse(resolved);
 
-    return uri
-        .replace(
-          queryParameters: {...uri.queryParameters, 'v': '$version'},
-        )
-        .toString();
+    return uri.replace(
+      queryParameters: {...uri.queryParameters, 'v': '$version'},
+    ).toString();
   }
 
   // HTTP client
@@ -86,7 +84,43 @@ class ApiService {
 
   static Future<void> Function()? onMissingBindingSecret;
 
+  /// Optional override for token refreshing (used in tests to bypass Supabase.instance dependency).
+  @visibleForTesting
+  static Future<bool> Function(String? staleAccessToken)? tokenRefreshHandler;
+
+  /// Optional override for the access-token read.
+  ///
+  /// The 401 refresh-retry contract (1.1/1.2) can only be verified by observing
+  /// that the retry is authorized with the *new* token, which requires a
+  /// rotatable session that no in-process fake of the Supabase SDK provides.
+  @visibleForTesting
+  static String? Function()? readAccessTokenForTest;
+
   // -------------------- Helper Methods --------------------
+
+  /// Reads the current Supabase access token, or `null` when there is no
+  /// session or the Supabase singleton is not reachable.
+  ///
+  /// A lookup failure is logged, never silently swallowed: dropping the
+  /// `Authorization` header turns a locally detectable misconfiguration into a
+  /// puzzling 401 from the API, so it must be visible in the log.
+  static String? _readAccessToken() {
+    final override = readAccessTokenForTest;
+    if (override != null) {
+      return override();
+    }
+
+    try {
+      return Supabase.instance.client.auth.currentSession?.accessToken;
+    } catch (error) {
+      AnsiLogger.error(
+        'Access token unavailable: $error',
+        tag: 'ApiService',
+      );
+
+      return null;
+    }
+  }
 
   Future<Map<String, String>> _getHeaders({bool skipAuth = false}) async {
     return _buildHeaders(skipAuth: skipAuth);
@@ -104,7 +138,7 @@ class ApiService {
     };
 
     if (!skipAuth) {
-      final token = Supabase.instance.client.auth.currentSession?.accessToken;
+      final token = _readAccessToken();
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
@@ -222,9 +256,8 @@ class ApiService {
     Duration timeout = const Duration(seconds: 10),
     String? label,
   }) async {
-    final requestAccessToken = usesAuth
-        ? Supabase.instance.client.auth.currentSession?.accessToken
-        : null;
+    final requestAccessToken = usesAuth ? _readAccessToken() : null;
+
     try {
       final response = await call().timeout(timeout);
 
@@ -241,7 +274,10 @@ class ApiService {
         if (refreshResult) {
           // Retry the original call
           return await _safeCall(call, fromJson,
-              isRetry: true, usesAuth: usesAuth, timeout: timeout, label: label);
+              isRetry: true,
+              usesAuth: usesAuth,
+              timeout: timeout,
+              label: label);
         }
         // Refresh failed
         await onSessionExpired?.call();
@@ -352,6 +388,10 @@ class ApiService {
   }
 
   Future<bool> _tryRefreshToken(String? staleAccessToken) async {
+    if (tokenRefreshHandler != null) {
+      return tokenRefreshHandler!(staleAccessToken);
+    }
+
     final auth = Supabase.instance.client.auth;
 
     final currentAccessToken = auth.currentSession?.accessToken;
