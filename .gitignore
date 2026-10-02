@@ -4,10 +4,6 @@ Backend/secrets/
 Backend/ecosystem.config.js
 Backend/versions/
 
-#Documentation
-/graphify-out/
-.graphifyignore
-
 #ENV files
 .env
 .env.*
