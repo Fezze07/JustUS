@@ -387,10 +387,12 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 
 ## Version Checking
 
-- `UpdateService` (`lib/core/version/update_service.dart`) is instantiated in `HomepageScreen.initState()` (a local instance variable).
+- `UpdateService` (`lib/core/version/update_service.dart`) is instantiated in `HomepageScreen.initState()` (a local instance variable) and in `ProfileScreen._checkUpdate`; the constructor takes an optional `VersionRepository` (`UpdateService({VersionRepository? repository})`), which defaults to `VersionRepository()` exactly as every other state class in the app does.
 - Guarded by `_updateChecked` (runs once per `HomepageScreen` lifecycle) and `_isDialogShowing` (prevents duplicate dialogs). Skipped on web (`kIsWeb`).
 - Flow: reads local `PackageInfo.buildNumber` -> calls `VersionRepository.checkAppVersion()` (backend `GET /api/v1/app-version`, skip auth, 10s timeout) -> compares local build vs server build. If local < server, shows `VPDialog` with changelog; mandatory if `forceUpdate` or local < `minBuild`.
-- The update dialog offers "later" (non-mandatory only, Android/Windows) or "now" (launches APK URL via `url_launcher`).
+- The update dialog offers "later" — on every platform where the update is **not** mandatory — or "now" (launches APK URL via `url_launcher`). Both a barrier tap and the system back gesture are ignored for a mandatory update (`barrierDismissible: false` plus `PopScope(canPop: false)`).
+- `checkVersion` only reports an up-to-date app or a failure when `showNoUpdateToast: true` is passed, which is what the profile screen does; the automatic home check passes no flag and stays silent.
+- Covered by `Flutter/test/version_update_test.dart`.
 
 ---
 
@@ -510,10 +512,11 @@ Flutter test files live in `Flutter/test/` and use `mocktail`:
 | `mood_screen_test.dart` | Mood screen rendering |
 | `mood_state_test.dart` | Mood state management |
 | `partner_state_test.dart` | Partner state management |
+| `version_update_test.dart` | App update flow: `AppVersionResponse.fromJson` parsing and defaults, `VersionRepository` -> `ApiService` route and parse, the `localBuild >= serverBuild` up-to-date branch, the `forceUpdate || localBuild < minBuild` mandatory truth table, the non-dismissible dialog (barrier tap and back gesture), the manual-check toasts and the two call sites |
 
 Test helpers in `test_helpers/`: `mock_secure_storage.dart`, `supabase_test_helpers.dart`, `test_data_factory.dart`.
 
-**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, the realtime stack (`RealtimeSyncService` facade + `RealtimeSyncConnection` + handlers + `RealtimeSyncScope`), `NotificationService`, `StorageService`, `CacheService`, `BaseState` coalescing, `ErrorHandler`, `UpdateService`, `CaptchaService`, `MainShell` lazy building, navigation flows, any widget tests.
+**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, `NotificationService`, `CaptchaService`, `MainShell` lazy building, navigation flows. `ErrorHandler` is reached only through its toast path (in `version_update_test.dart`); its error and reauth dialogs are not covered. `StorageService`/`CacheService` and `BaseState` are covered — see `## Tests` in `docs/app/storage-and-caching/doc.md` and `docs/app/state-management/doc.md` — and so is most of the realtime stack (`realtime_sync_service_test.dart` plus the per-handler files), whose remaining gaps (real WebSocket transport, the reconnect ladder, the polling fallback) are listed in `docs/app/realtime/doc.md`.
 
 ---
 

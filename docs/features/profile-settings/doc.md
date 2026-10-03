@@ -266,7 +266,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - [`language_helper.dart`](file:///f:/JustUS/Flutter/lib/core/localization/language_helper.dart)
   - `supportedLanguages`, `resolveLocale()`, `setAppLocale()`.
 - [`update_service.dart`](file:///f:/JustUS/Flutter/lib/core/version/update_service.dart)
-  - `checkVersion()`: Compares version/build info and presents update dialog.
+  - `checkVersion(context, {showNoUpdateToast})`: Compares version/build info and presents the update dialog. Nothing is shown when `localBuild >= serverBuild`; with `showNoUpdateToast: true` (the manual path) the up-to-date case and a failed request both report back to the user.
 
 ### Backend
 - [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js)
@@ -313,8 +313,8 @@ No known bugs remain in the account-wipe flow. The R2 object cleanup and the del
 | Display Name Editing UI | **IMPLEMENTED** | "IDENTITY" setting group on the profile screen: edit dialog wired to `ProfileState.updateDisplayName`; partner devices see the change in realtime (`user_profiles` subscription) |
 | Language Selection & Persistence | **IMPLEMENTED** | `/localization` screen, `SharedPreferences`, dynamic locale |
 | App Version Display | **IMPLEMENTED** | `v{info.version}` displayed via `package_info_plus` |
-| Automatic Update Checker | **IMPLEMENTED** | Executed on `HomepageScreen` startup via `UpdateService` |
-| Manual Update Check from Profile | **IMPLEMENTED** | Setting tile & app version tap trigger manual update check via `UpdateService` |
+| Automatic Update Checker | **IMPLEMENTED** | Executed on `HomepageScreen` startup via `UpdateService`, silent by design; covered by `test/version_update_test.dart` |
+| Manual Update Check from Profile | **IMPLEMENTED** | Setting tile & app version tap trigger manual update check via `UpdateService` with `showNoUpdateToast: true`, so an up-to-date answer is reported instead of silently ignored; covered by `test/version_update_test.dart` |
 | Session Logout | **IMPLEMENTED** | Clears tokens, local storage, closes WebSocket connection |
 | Password Change Navigation | **IMPLEMENTED** | Wired submit form with reauthentication, loading state, localized validation & error handling |
 | Account Data Wipe (Debug) | **IMPLEMENTED** | Purges PostgreSQL, R2 objects (`uploads/` + `profile/` prefixes for user & partner), & local app cache; secure storage (tokens) intentionally retained |

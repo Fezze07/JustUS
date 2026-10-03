@@ -213,11 +213,12 @@ HomepageScreen.initState()
 
 ### Force Update Dialog Behavior
 
-- File: [update_service.dart:54-108](file:///f:/JustUS/Flutter/lib/core/version/update_service.dart#L54-L108)
+- File: [update_service.dart:69-127](file:///f:/JustUS/Flutter/lib/core/version/update_service.dart#L69-L127)
 - Displays a `VPDialog`:
   - Title: `update_availableTitle` ("Aggiornamento disponibile! 🚀").
   - Content: `update_newVersion` and `versionInfo.changelog`.
   - **Barrier Dismissible**: `barrierDismissible = !mandatory`. If mandatory update, tapping outside the dialog will **not** dismiss it.
+  - **Back gesture**: the body is wrapped in `PopScope(canPop = !mandatory)`, so the system back button is ignored for a mandatory update. Both are set, because a barrier tap pops through `Navigator.maybePop`, which `PopScope` also blocks — either one alone would not survive a later refactor of the other.
   - **Action Buttons**:
     - Optional Update (`mandatory == false`): Shows "Later" (`update_later`) and "Update Now" (`update_now`). Tapping "Later" closes dialog.
     - Forced Update (`mandatory == true`): **Hides "Later" button**. Only "Update Now" button is available.

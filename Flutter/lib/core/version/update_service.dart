@@ -12,7 +12,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:justus/all_imports.dart';
 
 class UpdateService {
-  final VersionRepository _repo = VersionRepository();
+  final VersionRepository _repo;
+
+  UpdateService({VersionRepository? repository})
+      : _repo = repository ?? VersionRepository();
+
   bool _isDialogShowing = false;
 
   Future<void> checkVersion(BuildContext context,
