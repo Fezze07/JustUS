@@ -19,7 +19,7 @@
 | 5 | Data retention & media leaks | 5.1–5.6 | 5 fixed, 5.4 closed as *not a defect* (the 15 MB pre-compression cap is intended). R2 orphan sweep, thumbnails, audio/PDF |
 | 6 | Design system, navigation, theming | 6.1–6.8 | All fixed. Tokenized theme, DS adoption, single routing strategy, notification taps, theme persistence, light theme |
 | 7 | Dead code & docs hygiene | 7.1–7.9 | All fixed. 7.7 closed as *already clean* (stale item). README rebuilt against the code |
-| 8 | Testing gaps | 8.1–8.8 | Still open — the only substantive work carried forward in `todo.md` |
+| 8 | Testing gaps | 8.1–8.7, 8.9, 8.10 | 9 fixed. Still open — 8.8 CI wiring, carried in `todo.md`. Auth-refresh retry, runnable SQL assertions for RLS and retention, `BaseState` helpers, the realtime pipeline, optimistic rollback, the force-update flow, and two suite-hardening sweeps |
 
 ---
 
@@ -85,6 +85,15 @@
 | 7.7 | Remove dead mood `note` property | **Clean** — no such property existed; stale item | 2026-09-28 |
 | 7.8 | Clean up dead navigation | Fixed (shadowed fields removed from `GameState`) | 2026-09-28 |
 | 7.9 | `HomepageState._isLoading` never used | Fixed (it was the debounce guard, shadowing `BaseState`) | 2026-09-28 |
+| 8.1 | Auth refresh-retry flow untested | Fixed (real `401` rotation, fail-closed signed calls) | 2026-09-29 → 09-30 |
+| 8.2 | RLS policies asserted by nothing | Fixed (SQL suites, superuser pre-flight) | 2026-10-03 |
+| 8.3 | `BaseState` helpers and `hasChanges` untested | Fixed (mutation-verified unit suite) | 2026-10-03 |
+| 8.4 | Realtime pipeline and two handlers untested | Fixed (pipeline plus per-handler suites) | 2026-10-03 |
+| 8.5 | Optimistic rollback and cache-write ordering untested | Fixed (full rollback, `CacheWriteQueue`, both flush triggers) | 2026-10-03 |
+| 8.6 | Version and force-update flow untested | Fixed (injectable `VersionRepository` seam) | 2026-10-03 |
+| 8.7 | `cleanup_old_logs(p_days)` boundary unasserted | Fixed (parameterized and default-90 sweeps) | 2026-09-30 |
+| 8.9 | Test-suite hardening sweep (Flutter + Backend) | Fixed (non-vacuous scans, shared mocks, tracked `scripts/`) | 2026-09-30 |
+| 8.10 | Backend suite could pass for the wrong reasons | Fixed (`resetRateLimitState()`, tracked `.env.test`) | 2026-10-01 |
 
 ---
 
@@ -101,6 +110,9 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 7. **The 15 MB upload cap is a pre-compression hard limit, by design.** It rejects large *source* files before compression; it is not a bug. → `docs/features/shared-drive/doc.md` § 15 MB Size Limit.
 8. **Profile photos are cache-versioned.** Uploads bump `profile_pic_version`; reads go through `ApiService.versionedMediaUrl(url, version)` and the superseded file is evicted from `MediaCacheManager`. Partner avatars stay unversioned. → `docs/app/storage-and-caching/doc.md`, `docs/features/profile-settings/doc.md`.
 9. **One signing secret, recovered on demand.** A signed request with no `request_binding_secret` triggers one deduplicated `/auth/session-sync` retry (30 s cooldown) and otherwise fails closed — a signed call is never sent unsigned. → `docs/features/authentication/session-token-security/doc.md` § Binding Secret & HMAC Request Signing.
+10. **A force update is mandatory whatever the local build.** `mandatory = forceUpdate || localBuild < minBuild`, so `forceUpdate` alone blocks dismissal even above `minBuild`. Non-dismissibility needs **both** `barrierDismissible: false` and `PopScope(canPop: false)`: a barrier tap pops through `Navigator.maybePop`, which `PopScope` also blocks, so either flag alone lets the other regress unnoticed. → `docs/features/miss-you/doc.md` § Force Update Dialog Behavior.
+11. **Change detection is cursor-based, not payload-diff-based.** No client-side field comparison exists; the tested contract is that an unchanged server timestamp costs zero fetches and zero checkpoint writes. A "payload with no changed field produces no refetch" guarantee does not exist and must not be reintroduced. → `docs/app/storage-and-caching/doc.md` § Tests.
+12. **Source-scan tests must fail loudly, never vacuously.** A scan that resolves no files, or accepts a fallback constant when a lookup misses, reports success over nothing; the scan-based tests share `test_helpers/source_scan.dart`, which resolves `lib/` at runtime, throws on an empty file list and strips comments. → `docs/app/architecture/doc.md` § Tests.
 
 ---
 
@@ -114,5 +126,32 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `Flutter/test/missyou_idempotent_test.dart` | 4.11 |
 | `Flutter/test/mark_seen_realtime_test.dart` | 4.11 |
 | `Flutter/test/profile_state_test.dart` | 7.5 |
+| `supabase/test/rls_user_isolation.test.sql` | 8.2 |
+| `supabase/test/rls_accepted_partnership_only.test.sql` | 8.2 |
+| `supabase/test/rls_self_scoped_with_check.test.sql` | 8.2 |
+| `supabase/test/rls_shared_table_with_check.test.sql` | 8.2 |
+| `supabase/test/rls_anon_blocked.test.sql` | 8.2 |
+| `supabase/test/rls_policy_matrix.test.sql` | 8.2 |
+| `supabase/test/rpc_execute_grants.test.sql` | 8.2 |
+| `supabase/test/updated_at_triggers.test.sql` | 8.2 |
+| `supabase/test/bucket_items_category_check.test.sql` | 8.2 |
+| `supabase/test/retention_cleanup_old_logs.test.sql` | 8.2 |
+| `Flutter/test/base_state_test.dart` | 8.3 |
+| `Flutter/test/realtime_sync_service_test.dart` | 8.4 |
+| `Flutter/test/bucket_realtime_handler_test.dart` | 8.4 |
+| `Flutter/test/miss_you_realtime_handler_test.dart` | 8.4 |
+| `Flutter/test/cache_write_queue_test.dart` | 8.5 |
+| `Flutter/test/version_update_test.dart` | 8.6 |
+| `Flutter/test/test_helpers/source_scan.dart` | 8.9 |
+| `Flutter/test/test_helpers/mock_secure_storage.dart` | 8.9 |
+| `Flutter/test/test_helpers/settle_helpers.dart` | 8.9 |
+| `Backend/test/request-signing.test.js` | 8.10 |
+| `Backend/test/crypto-utils.test.js` | 8.10 |
+| `Backend/test/token-utils.test.js` | 8.10 |
+| `Backend/test/ai-utils.test.js` | 8.10 |
+| `Backend/test/api-routing.test.js` | 8.10 |
+| `Backend/test/authorization.test.js` | 8.10 |
+| `Backend/test/setupEnv.js` | 8.10 |
+| `Backend/test/support/mockSupabase.js` | 8.10 |
 
 ---

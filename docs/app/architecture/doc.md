@@ -514,9 +514,11 @@ Flutter test files live in `Flutter/test/` and use `mocktail`:
 | `partner_state_test.dart` | Partner state management |
 | `version_update_test.dart` | App update flow: `AppVersionResponse.fromJson` parsing and defaults, `VersionRepository` -> `ApiService` route and parse, the `localBuild >= serverBuild` up-to-date branch, the `forceUpdate || localBuild < minBuild` mandatory truth table, the non-dismissible dialog (barrier tap and back gesture), the manual-check toasts and the two call sites |
 
-Test helpers in `test_helpers/`: `mock_secure_storage.dart`, `supabase_test_helpers.dart`, `test_data_factory.dart`.
+Test helpers in `test_helpers/`: `mock_secure_storage.dart` and `mock_path_provider.dart` (platform-channel mocks), `source_scan.dart` (source-file scanning), `realtime_payload_factory.dart`, `settle_helpers.dart`.
 
-**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, `NotificationService`, `CaptchaService`, `MainShell` lazy building, navigation flows. `ErrorHandler` is reached only through its toast path (in `version_update_test.dart`); its error and reauth dialogs are not covered. `StorageService`/`CacheService` and `BaseState` are covered — see `## Tests` in `docs/app/storage-and-caching/doc.md` and `docs/app/state-management/doc.md` — and so is most of the realtime stack (`realtime_sync_service_test.dart` plus the per-handler files), whose remaining gaps (real WebSocket transport, the reconnect ladder, the polling fallback) are listed in `docs/app/realtime/doc.md`.
+A source-scan test must **fail loudly rather than pass vacuously**: if it resolves no files, or accepts a fallback constant when a lookup misses, it reports success over nothing. The scan-based tests therefore share `test_helpers/source_scan.dart`, which resolves `lib/` at runtime, throws on an empty file list, strips comments and normalizes paths.
+
+**Not covered by tests**: `main()` bootstrap sequence, `AuthState.init()` session flow, `NotificationService`, `CaptchaService`, `MainShell` lazy building, navigation flows. `ErrorHandler` is reached only through its toast path (in `version_update_test.dart`); its error and reauth dialogs are not covered. `StorageService`/`CacheService` and `BaseState` are covered — see `## Tests` in `docs/app/storage-and-caching/doc.md` and `## Implementation status` in `docs/app/state-management/doc.md` — and so is most of the realtime stack (`realtime_sync_service_test.dart` plus the per-handler files), whose remaining gaps (real WebSocket transport, the reconnect ladder, the polling fallback) are listed in `docs/app/realtime/doc.md`.
 
 ---
 
