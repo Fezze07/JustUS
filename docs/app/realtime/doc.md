@@ -455,9 +455,23 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 
 ## Tests
 
-No automated tests exercise the full realtime pipeline (`realtime_sync_scope.dart` and the `realtime_connection.dart`/handler classes are not referenced by any file in `Flutter/test/`), but the game-event FIFO buffer is covered at unit level (`test/game_event_buffer_test.dart`), the both-answered burst semantics is covered at state level (`test/game_burst_flow_test.dart`), and the mood distinct-user coalescing is covered at unit level (`test/mood_change_batch_test.dart`).
+| Test file | Realtime coverage |
+|---|---|
+| `Flutter/test/realtime_sync_service_test.dart` | Service-level pipeline against a mocked `SupabaseClient`/`RealtimeChannel`: the first channel binds all nine tables with `event: all` (`justus-sync-<userId>-<generation>`), an identity change removes the stale generation and opens the next one, a `moods` insert flows channel → real `MoodRealtimeHandler` → real `MoodState` → repository (one partner refresh, own mood untouched), a burst of partner mood inserts coalesces into exactly one refetch, a `game_questions` insert reaches the game state with no debounce, a replayed `missyou` insert reaches the counter once, a foreign-partnership `bucket_items` row never reaches the state, a token refresh calls `realtime.setAuth` without resubscribing, and `dispose()` removes the channel. |
+| `Flutter/test/bucket_realtime_handler_test.dart` | `BucketRealtimeHandler`: insert/update/delete are forwarded immediately (no debounce) with the correct record (update reads `newRecord`, delete reads `oldRecord`), foreign-partnership rows are dropped, sparse PK-only deletes are still applied, replays are dropped before the state is touched. The second group drives a real `BucketState`: insert lands without any full refetch, update toggles in place without duplicating, delete removes the row, an update for an unknown row is ignored. |
+| `Flutter/test/miss_you_realtime_handler_test.dart` | `MissYouRealtimeHandler`: insert increments with the decoded row id (and with a null id when the key is absent), delete refetches instead of incrementing, update does neither, foreign-partnership rows are dropped, sparse PK-only deletes are still refetched, replays are dropped. The second group drives a real `HomepageState`: the optimistic counter is persisted without a refetch, a replay does not double count (F-RT5 end to end), and a delete replaces the counter with the server total. |
+| `Flutter/test/game_realtime_handler_test.dart` | `GameRealtimeHandler`: question insert/delete stay immediate, every other event is buffered and flushed FIFO (F-RT1 burst), `clear()` cancels a pending flush, answer insert/update/delete routing by record. |
+| `Flutter/test/mood_realtime_handler_test.dart` | `MoodRealtimeHandler`: distinct-user coalescing and relevance filtering. |
+| `Flutter/test/mood_change_batch_test.dart` | `MoodChangeBatch` trailing-edge debounce (120 ms) and drain semantics. |
+| `Flutter/test/base_handler_realtime_test.dart` | `RealtimeHandler` preamble: suppression, relevance gate, dedup LRU. |
+| `Flutter/test/mark_seen_realtime_test.dart` | Dedup key construction, including the `game_answers` `game_id:user_id` composite (F-RT6). |
+| `Flutter/test/debounce_refetch_test.dart` | `RefetchRealtimeHandler`: trailing-edge full refetch, follow-up when one is in flight, `clear()` cancelling it. |
+| `Flutter/test/game_event_buffer_test.dart` | The FIFO buffer in isolation. |
+| `Flutter/test/game_burst_flow_test.dart` | both-answered burst semantics at state level. |
+| `Flutter/test/bucket_realtime_race_test.dart` | F-RT4: the version gate against a concurrent full refresh. |
+| `Flutter/test/missyou_idempotent_test.dart` | F-RT5: per-row-key counting, bounded FIFO, `clear()` reset, stale-snapshot guard. |
 
-**Not covered**: subscription/channel lifecycle, generation guard, reconnect retry cadence (F-RT7, connection class requires a Supabase client), resume/detach behavior, and wipe suppression (full pipeline coverage planned in Phase 8).
+**Still not covered**: the real WebSocket transport (channel status → reconnect ladder beyond the `setAuth`/generation paths above), `WidgetsBindingObserver` resume/pause transitions, and the polling-fallback 15 s timer. These need a live client or fake-async around the binding, and are not part of the current test budget.
 
 ---
 

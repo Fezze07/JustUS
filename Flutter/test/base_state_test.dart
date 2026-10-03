@@ -31,6 +31,53 @@ class _RecordingRepository extends BaseRepository {
   }
 }
 
+/// Repository whose only job is the `hasNewMoods` change probe used by
+/// `MoodState.initHome`, plus counters that show whether the init actually went
+/// to the network.
+class _MoodChangeProbeRepository extends MoodRepository {
+  _MoodChangeProbeRepository({required this.changed});
+
+  bool changed;
+  int hasNewMoodsCalls = 0;
+  int fetchMyMoodCalls = 0;
+  int fetchPartnerMoodCalls = 0;
+  int fetchRecentCoupleEmojisCalls = 0;
+  int fetchTimelineCalls = 0;
+
+  @override
+  Future<bool> hasNewMoods(int uid, int? partnerId) async {
+    hasNewMoodsCalls++;
+    return changed;
+  }
+
+  @override
+  Future<ResultWrapper<MoodResponse>> fetchMyMood() async {
+    fetchMyMoodCalls++;
+    return Success(MoodResponse(success: true, emoji: 'me'));
+  }
+
+  @override
+  Future<ResultWrapper<MoodResponse>> fetchPartnerMood() async {
+    fetchPartnerMoodCalls++;
+    return Success(MoodResponse(success: true, emoji: 'partner'));
+  }
+
+  @override
+  Future<ResultWrapper<List<String>>> fetchRecentCoupleEmojis() async {
+    fetchRecentCoupleEmojisCalls++;
+    return const Success<List<String>>([]);
+  }
+
+  @override
+  Future<ResultWrapper<List<MoodEntry>>> fetchTimeline({
+    int limit = 4,
+    int offset = 0,
+  }) async {
+    fetchTimelineCalls++;
+    return const Success<List<MoodEntry>>([]);
+  }
+}
+
 final List<String> _printed = <String>[];
 final List<Object> _uncaught = <Object>[];
 
@@ -479,6 +526,139 @@ void main() {
 
     test('an unparseable checkpoint refetches', () async {
       expect(await hasChanges('garbage', checkpoint.toIso8601String()), isTrue);
+    });
+  });
+
+  group('update detection: an unchanged checkpoint costs no fetch and no write',
+      () {
+    const key = 'update_blindness_chk';
+    final checkpoint = DateTime.utc(2026, 4, 1, 9);
+    final newer = DateTime.utc(2026, 4, 2, 9);
+
+    /// Runs the real `loadWithChangeDetection` + `BaseRepository.hasChanges`
+    /// pair and counts both sides of the decision: network fetches and
+    /// checkpoint writes.
+    Future<({int fetches, int writes})> loadOnce({
+      required String serverMax,
+      required String? saved,
+    }) async {
+      if (saved != null) await CacheService.saveCheckpoint(key, saved);
+      final state = _TestState();
+      final repo = _RecordingRepository(serverMax: serverMax);
+      var fetches = 0;
+      var writes = 0;
+
+      await state.loadWithChangeDetection(
+        loadFromCache: () async {},
+        hasChanges: () => repo.hasChanges(
+          table: 'moods',
+          field: 'updated_at',
+          cacheKey: key,
+        ),
+        fetchFromNetwork: () async {
+          fetches++;
+          writes++;
+          await CacheService.saveCheckpoint(key, newer.toIso8601String());
+        },
+      );
+      // The refresh is fire-and-forget, so let it drain before counting.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      return (fetches: fetches, writes: writes);
+    }
+
+    test('the server timestamp is probed but the fetch and the checkpoint write '
+        'are skipped', () async {
+      final result = await loadOnce(
+        serverMax: checkpoint.toIso8601String(),
+        saved: checkpoint.toIso8601String(),
+      );
+
+      expect(result.fetches, 0,
+          reason: 'a checkpoint that already covers the newest server row must '
+              'not trigger a refetch');
+      expect(result.writes, 0,
+          reason: 'an unchanged round must not rewrite the checkpoint');
+      expect(await CacheService.getCheckpoint(key),
+          checkpoint.toIso8601String(),
+          reason: 'the stored checkpoint must stay byte-identical');
+    });
+
+    test('positive control: a newer server row fetches once and advances the '
+        'checkpoint', () async {
+      final result = await loadOnce(
+        serverMax: newer.toIso8601String(),
+        saved: checkpoint.toIso8601String(),
+      );
+
+      expect(result.fetches, 1,
+          reason: 'the writer above must be reachable, otherwise the zero in '
+              'the previous test would prove nothing');
+      expect(result.writes, 1);
+      expect(await CacheService.getCheckpoint(key), newer.toIso8601String());
+    });
+  });
+
+  group('MoodState.initHome change gate', () {
+    test('an unchanged moods checkpoint keeps the network untouched and the '
+        'checkpoint intact', () async {
+      final checkpoint = DateTime.utc(2026, 4, 3, 10).toIso8601String();
+      await StorageService.saveUserId(42);
+      await StorageService.savePartner(77, 'Partner');
+      await CacheService.saveCheckpoint(CacheService.kMoods, checkpoint);
+
+      final repo = _MoodChangeProbeRepository(changed: false);
+      final state = MoodState(repository: repo);
+
+      await state.initHome();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(repo.hasNewMoodsCalls, 1,
+          reason: 'the probe itself always runs');
+      expect(repo.fetchMyMoodCalls, 0);
+      expect(repo.fetchPartnerMoodCalls, 0);
+      expect(await CacheService.getCheckpoint(CacheService.kMoods), checkpoint,
+          reason: 'no fetch means no checkpoint churn');
+
+      state.clear();
+    });
+
+    test('a changed moods checkpoint fetches both moods and advances the '
+        'checkpoint', () async {
+      final checkpoint = DateTime.utc(2026, 4, 3, 10).toIso8601String();
+      await StorageService.saveUserId(42);
+      await StorageService.savePartner(77, 'Partner');
+      await CacheService.saveCheckpoint(CacheService.kMoods, checkpoint);
+
+      final repo = _MoodChangeProbeRepository(changed: true);
+      final state = MoodState(repository: repo);
+
+      await state.initHome();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(repo.fetchMyMoodCalls, 1);
+      expect(repo.fetchPartnerMoodCalls, 1);
+      expect(state.userMood, 'me');
+      expect(state.partnerMood, 'partner');
+      expect(await CacheService.getCheckpoint(CacheService.kMoods),
+          isNot(checkpoint),
+          reason: 'a completed fetch must advance the checkpoint');
+
+      state.clear();
+    });
+
+    test('without a signed-in user the gate stays closed', () async {
+      final repo = _MoodChangeProbeRepository(changed: true);
+      final state = MoodState(repository: repo);
+
+      await state.initHome();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(repo.hasNewMoodsCalls, 0,
+          reason: 'without a user id there is nothing to compare against');
+      expect(repo.fetchMyMoodCalls, 0);
+
+      state.clear();
     });
   });
 }
