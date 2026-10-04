@@ -5,9 +5,9 @@
 This document provides a detailed reverse-engineered analysis of the **Authentication Account Lifecycle** in the JustUS application. It covers password modifications, push device token registration and hardware identification, logout protocols, local and realtime state cleanup, state machine transitions, and account wipe effects.
 
 Key architectural boundaries:
-- **Password Management**: Client UI stub vs Supabase Auth API capabilities.
-- **Push Device Identity**: Cross-platform resolution differentiating FCM push tokens (Android/iOS/Web) from persistent hardware UUID fingerprints (Windows Desktop), backed by PostgreSQL `user_devices` upserts.
-- **Logout Protocol**: Multi-stage cleanup purging `FlutterSecureStorage`, `SharedPreferences`, in-memory `ApiService` headers, and Supabase Realtime channels (`RealtimeSyncService`).
+- **Password Management**: `ChangePasswordScreen` re-authenticates the current password, then calls `supabase.auth.updateUser(password:)`; other sessions stay valid.
+- **Push Device Identity**: Cross-platform resolution differentiating FCM push tokens (Android/iOS/Web) from persistent hardware UUID fingerprints (Windows Desktop), backed by PostgreSQL `user_devices` upserts and a logout-time revocation delete.
+- **Logout Protocol**: Multi-stage cleanup — best-effort push-token revoke, `FlutterSecureStorage`, `SharedPreferences`, in-memory `ApiService` headers, and Supabase Realtime channels (`RealtimeSyncService`).
 - **Account Wipe**: Debug operation clearing application domain data (`debug_wipe_user_data` procedure, `StorageService.clearAppCache()`, `CacheService.clearAll()`, `emptyAppMediaCaches()`) while maintaining active session authentication.
 
 ---
@@ -94,6 +94,26 @@ Because `onConflict: "device_token"` is used, if User A logs out and User B logs
 - The `user_devices` table row matching `device_token` is updated to set `user_id = userB.profileId`.
 - This automatically transfers push notification targeting to User B.
 
+### Token Revocation
+
+The registration is removed again when the account logs out, so a device that is later handed to someone else cannot keep receiving the previous account's pushes.
+
+- Endpoint: `POST /api/v1/auth/device-token-revoke`
+- Controller: `revokeDeviceToken` in [auth.controller.js:56-77](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L56-L77)
+- Middleware Stack: `authenticated()`, `limited(authRateLimit)`, `signed("auth-device-token-revoke")`, `validated({ body: revokeDeviceTokenSchema })`
+- Database Write Query:
+  ```javascript
+  await adminSupabase
+    .from("user_devices")
+    .delete()
+    .eq("device_token", deviceToken)
+    .eq("user_id", userId);
+  ```
+- **Hard delete, not a deactivation flag**: `user_devices` has no `is_active`/`revoked_at` column and notification targeting reads every row for the user, so removing the row *is* the deactivation. Audit rows survive: `logs_api_access`, `logs_api_errors` and `logs_security_events` reference `user_devices(id)` `ON DELETE SET NULL`, so the delete nulls the pointer instead of cascading.
+- **Scoped to the caller**: because `device_token` is `UNIQUE`, an unscoped delete could remove a row another account has already re-registered on this device. The `user_id` predicate makes a late logout harmless.
+- Idempotent — revoking an already-removed token answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
+- Client side: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, issued by `AuthState._revokeDeviceToken()` (see [Logout](#logout)).
+
 ---
 
 ## Logout
@@ -102,10 +122,13 @@ The logout protocol performs a multi-layer tear-down of local credentials, stora
 
 ### Execution Sequence
 
-Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:534-549](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L534-L549)):
+Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:730-747](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L730-L747)):
 
 ```
 Logout Initiated (Profile / Partner Screen)
+   │
+   ├── 0. Push Token Revoke (best-effort, POST /api/v1/auth/device-token-revoke)
+   │        └── deletes this device's user_devices row before the session dies
    │
    ├── 1. Supabase Auth Sign-Out (sbClient.auth.signOut())
    │
@@ -126,6 +149,20 @@ Logout Initiated (Profile / Partner Screen)
    │
    └── 7. UI Stack Replacement (Navigator.pushAndRemoveUntil -> LoginScreen)
 ```
+
+#### Why the revoke runs first
+
+`AuthState._revokeDeviceToken()` ([auth_state.dart:753-768](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L753-L768)) is the only network step of the teardown, so it has to run while the JWT, the HMAC binding secret and the device fingerprint are still in storage — the route is `authenticated()` + `signed()`. It is strictly best-effort and cannot affect the local logout:
+
+| Failure | Behavior |
+|---|---|
+| No session (`isLoggedIn` false) | skipped entirely |
+| Token unresolvable (`UNKNOWN_DEVICE_TOKEN`) | skipped entirely |
+| Offline / DNS / SocketException | caught and logged; teardown continues |
+| Hanging request | cut off by a 5 s timeout (`deviceRevokeTimeout`), teardown continues |
+| `401` after a failed refresh | reported as a `401` error result, **without** firing `ApiService.onSessionExpired` — that callback *is* `logout()`, so escalating here would re-enter the teardown |
+
+If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until the next successful login on that device re-registers the same token.
 
 ---
 
@@ -171,7 +208,7 @@ Logout Initiated (Profile / Partner Screen)
    - The `tokenRefreshed` listener persists the new access+refresh pair to `StorageService`; the original request is retried with `isRetry = true`. If the refresh fails, `logout()` runs and the synthetic `"401"` code is `requiresReauth`, so the reauth dialog opens and redirects to `LoginScreen` (todo# 1.3).
 3. **Authenticated → Logout → Unauthenticated**:
    - User confirms logout dialog.
-   - Clears storage, invalidates session headers, unsubscribes Realtime channel, and replaces stack with `LoginScreen`.
+   - Revokes the device push token (best-effort), clears storage, invalidates session headers, unsubscribes Realtime channel, and replaces stack with `LoginScreen`.
 4. **Authenticated → Account Wipe → Authenticated**:
    - Triggered via `ProfileState.wipeAppData()` ([profile_state.dart:139](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart#L139)).
    - Invokes backend `POST /api/v1/user/wipe` (executing PostgreSQL procedure `debug_wipe_user_data`).
@@ -185,6 +222,7 @@ Logout Initiated (Profile / Partner Screen)
 - **Supabase Session**: Calling `sbClient.auth.signOut()` revokes the local Supabase session.
 - **HMAC Request Signing**: `StorageService.clearAll()` deletes `request_binding_secret` from `FlutterSecureStorage`. `ApiService.clearHeadersCache()` sets `_cachedRequestBindingSecret = null`.
 - **Device Fingerprint**: Cleared from `FlutterSecureStorage` during logout, forcing regeneration of a new device UUID on subsequent logins.
+- **Push Registration**: `POST /api/v1/auth/device-token-revoke` deletes this device's `user_devices` row before the session is dropped, so server-initiated pushes stop for the logged-out account. Best-effort — see [Why the revoke runs first](#why-the-revoke-runs-first).
 
 ---
 
@@ -245,39 +283,33 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 ## Notification Cleanup
 
-- **FCM Token Status**: `logout()` does **not** call `FirebaseMessaging.instance.deleteToken()` or notify the backend to delete the token row from `user_devices`.
-- **Impact**: The device token remains associated with `user_id` in PostgreSQL `user_devices` until another user logs in on the same device and updates the row.
+- **Backend Row**: `logout()` deletes this device's row from `user_devices` via `POST /api/v1/auth/device-token-revoke` (`AuthState._revokeDeviceToken()`), scoped to the logged-out `user_id`. Once the row is gone the backend has no token to target for that account, so server-initiated pushes stop arriving on the device.
+- **Local FCM Token**: `logout()` still does **not** call `FirebaseMessaging.instance.deleteToken()`; the FCM registration itself stays valid on the device. That is harmless for targeting — with no `user_devices` row nothing is sent — and it keeps the next login cheap, since the same token is re-registered by the upsert. The token is re-registered at app start, at login, and on `onTokenRefresh`.
+- **Best-Effort**: an offline (or already-expired-session) logout skips the revoke and leaves the row behind. It self-heals on the next successful login from that device; until then a stale row can still receive pushes for a logged-out account.
 
 ---
 
 ## Error Handling
 
-- **Logout Exceptions**: `AuthState.logout()` executes cleanup steps (`signOut()`, `clearAll()`, `clearHeadersCache()`) sequentially without throwing errors if individual sub-tasks encounter network or storage issues, ensuring local logout completion.
+- **Logout Exceptions**: `AuthState.logout()` executes cleanup steps (`revokeDeviceToken()`, `signOut()`, `clearAll()`, `clearHeadersCache()`) sequentially without throwing errors if individual sub-tasks encounter network or storage issues, ensuring local logout completion. The revoke is additionally bounded by a 5 s timeout.
 
 ---
 
 ## Edge Cases
 
 1. **Logout During Active HTTP Requests**: In-flight requests failing after `logout()` are handled by `_safeCall`. Since `StorageService` is already wiped, token refresh fails and no re-authentication state is modified.
-2. **Account Wipe Operating Without Logout**: `ProfileState.wipeAppData()` executes database purging without touching session tokens or clearing `AuthState`, allowing seamless app usage post-wipe.
-
----
-
-## Potential Bugs and Inconsistencies
-
-### 1. BUG: Orphaned Device Tokens Receive Notifications Post-Logout
-- **Finding**: `logout()` does not send a request to backend to delete or deactivate the device token in `user_devices`.
-- **Impact**: Server-initiated push notifications targeting the logged-out user (e.g., partner interactions or reminders) continue to deliver to the physical device after logout until a new account logs in on that device.
+2. **Account Wipe Operating Without Logout**: `ProfileState.wipeAppData()` executes database purging without touching session tokens or clearing `AuthState`, allowing seamless app usage post-wipe. The push registration survives the wipe, which is correct: the session stays active.
 
 ---
 
 ## Files and Functions
 
 ### Flutter Frontend
-- [change_password_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Password change UI form stub.
+- [change_password_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Password change UI form.
 - [device_token_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/device_token_service.dart): Platform token resolution `getDeviceToken()`, `getDeviceFingerprint()`.
 - [logout_utils.dart](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart): Logout dialog and `performLogout()` helper.
-- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `logout()`, `updateDeviceToken()`.
+- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `logout()`, `_revokeDeviceToken()`, `updateDeviceToken()`.
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): `updateDeviceToken()`, `revokeDeviceToken()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Storage purge `clearAll()`, `clearAppCache()`.
 - [cache_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/cache_service.dart): Checkpoint cache purge `clearAll()`.
 - [realtime_connection.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_connection.dart): Channel teardown `unsubscribe()`, lifecycle.
@@ -285,14 +317,14 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 - [profile_state.dart](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart): `wipeAppData()`.
 
 ### Backend Node.js
-- [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): Device token registration `updateDeviceToken()`.
+- [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): Device token registration `updateDeviceToken()`, revocation `revokeDeviceToken()`.
 - [user.controller.js](file:///f:/JustUS/Backend/features/user/user.controller.js): Data wipe controller.
 
 ---
 
 ## Database Objects
 
-- **Table `user_devices`**: PostgreSQL table storing `user_id`, `device_token`, `user_agent`, `device_type`, `last_ip`, `locale`. Primary conflict target: `device_token`.
+- **Table `user_devices`**: PostgreSQL table storing `user_id`, `device_token`, `user_agent`, `device_type`, `last_ip`, `locale`. Primary conflict target: `device_token`. No active/revoked flag: deactivation is a row delete, and the `logs_api_access` / `logs_api_errors` / `logs_security_events` foreign keys are `ON DELETE SET NULL`.
 - **Procedure `debug_wipe_user_data`**: Stored procedure executed during account wipe to erase user domain records.
 
 ---
@@ -301,12 +333,12 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 | Feature / Lifecycle Stage | Implementation Status | Notes |
 |---|---|---|
-| Change Password Flow | **BROKEN / STUB** | Form validates UI, but never calls API or Supabase Auth |
+| Change Password Flow | **IMPLEMENTED** | Re-authenticates the current password, then `updateUser(password:)`; other sessions stay valid (9.3) |
 | FCM Mobile Device Token Registration | **IMPLEMENTED** | `DeviceTokenService` & `POST /api/v1/auth/device-token` |
 | Windows Desktop Identification | **IMPLEMENTED** | Uses persistent UUID device fingerprint (Not push) |
 | Device Token Reassignment | **IMPLEMENTED** | Database `upsert` on conflict `device_token` |
 | Local Storage Purge on Logout | **IMPLEMENTED** | Clears `FlutterSecureStorage` and `SharedPreferences` |
 | Realtime Teardown on Logout | **IMPLEMENTED** | Unsubscribes WebSocket channel via `RealtimeSyncScope` |
-| In-Memory State Provider Cleanup | **BROKEN / DEFECTIVE** | Provider singletons retain old user data during logout |
-| Device Token Unregistration | **NOT IMPLEMENTED** | Token remains in `user_devices` post-logout |
+| In-Memory State Provider Cleanup | **IMPLEMENTED** | `onClearFeatureStates` hook wired in `RealtimeSyncScope` resets the six provider singletons |
+| Device Token Unregistration | **IMPLEMENTED** | `AuthState._revokeDeviceToken()` → `POST /api/v1/auth/device-token-revoke` (best-effort, 5 s cap) |
 | Account Wipe (Debug Data Erase) | **IMPLEMENTED** | `debug_wipe_user_data` procedure |

@@ -122,14 +122,15 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 
 | Trigger | Location | Guard | Notes |
 |---|---|---|---|
-| App startup with a session | `auth_state.dart:134-148` | `isLoggedIn && supportsFcm` | Skips desktop entirely |
-| Successful login | `auth_state.dart:273-285` | **none** | F-PN5 (inconsistent gating) |
-| FCM token rotation | `auth_state.dart:166-173` | `token.isNotEmpty && isLoggedIn` | Re-registers new token |
-| App resume / locale change | `auth_state.dart:182-227` | `supportsFcm && token != UNKNOWN_DEVICE_TOKEN` | Debounced 500 ms; updates `locale` |
+| App startup with a session | `auth_state.dart:157-173` | `isLoggedIn && supportsFcm` | Skips desktop entirely |
+| Successful login | `auth_state.dart:315-329` | **none** | F-PN5 (inconsistent gating) |
+| FCM token rotation | `auth_state.dart:200-207` | `token.isNotEmpty && isLoggedIn` | Re-registers new token |
+| App resume / locale change | `auth_state.dart:215-261` | `supportsFcm && token != UNKNOWN_DEVICE_TOKEN` | Debounced 500 ms; updates `locale` |
+| **Logout** | `auth_state.dart:753-768` (`_revokeDeviceToken()`) | `isLoggedIn && token != UNKNOWN_DEVICE_TOKEN` | Deletes the row; see below |
 
 ### Backend upsert — `POST /api/v1/auth/device-token`
 
-`updateDeviceToken` (`auth.controller.js:18-55`):
+`updateDeviceToken` (`auth.controller.js:17-54`):
 
 ```js
 assertDbSuccess(await adminSupabase.from("user_devices").upsert(
@@ -140,9 +141,30 @@ assertDbSuccess(await adminSupabase.from("user_devices").upsert(
 
 - `device_token` is `UNIQUE` — if a token is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
 - `device_type` is inferred from `x-client-user-agent`/`user-agent` when the body omits it.
-- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token")` → `validated({body})` (`auth.routes.js:58-67`). This is a **signed** endpoint (unlike notify).
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token")` → `validated({body})` (`auth.routes.js:53-62`). This is a **signed** endpoint (unlike notify).
 
 `authRateLimit`: `{ipMax: 20, userMax: 10, window: 60_000 ms}`.
+
+### Backend revocation — `POST /api/v1/auth/device-token-revoke`
+
+Registration is undone on logout, so a device that is later handed to another account cannot keep receiving the previous account's pushes.
+
+`revokeDeviceToken` (`auth.controller.js:56-77`):
+
+```js
+await adminSupabase
+  .from("user_devices")
+  .delete()
+  .eq("device_token", deviceToken)
+  .eq("user_id", userId);
+```
+
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token-revoke")` → `validated({body: revokeDeviceTokenSchema })` (`auth.routes.js:64-73`), sharing `authRateLimit`.
+- **Row delete, not a flag**: `user_devices` has no `is_active`/`revoked_at` column and `fetchUserDevices` reads every row for the user, so removing the row is the deactivation. The `logs_api_access` / `logs_api_errors` / `logs_security_events` FKs are `ON DELETE SET NULL`, so audit rows survive the delete.
+- **Scoped by `user_id`**: `device_token` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
+- Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
+- Client side: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
+- The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same token via the upsert.
 
 ---
 
@@ -398,8 +420,8 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN5: `login()` registers the token without the `supportsFcm` guard (INFO)
 
-- **WHAT**: `AuthState.login()` (`auth_state.dart:273-285`) calls `updateDeviceToken(fcmToken)` unconditionally, while `AuthState.init()` gates on `DeviceTokenService.supportsFcm` (`:134`). On Windows a UUID fingerprint passes validation and is stored as `windows` (filtered server-side); on macOS/Linux `'UNKNOWN_DEVICE_TOKEN'` (10 chars) fails the 16-char schema minimum → HTTP 400, swallowed by try/catch.
-- **WHERE**: `auth_state.dart:134-148` vs `:273-285`; `auth.schemas.js:4`.
+- **WHAT**: `AuthState.login()` (`auth_state.dart:315-329`) calls `updateDeviceToken(fcmToken)` unconditionally, while `AuthState.init()` gates on `DeviceTokenService.supportsFcm` (`auth_state.dart:158`). On Windows a UUID fingerprint passes validation and is stored as `windows` (filtered server-side); on macOS/Linux `'UNKNOWN_DEVICE_TOKEN'` (10 chars) fails the 16-char schema minimum → HTTP 400, swallowed by try/catch.
+- **WHERE**: `auth_state.dart:158-173` vs `:315-329`; `auth.schemas.js:4`.
 - **WHY**: The login path predates the guard added later to `init()`.
 - **WHEN**: Desktop logins.
 - **IMPACT**: One logged 400 per session on macOS/Linux; a harmless extra row on Windows. Inconsistent gating only.
@@ -440,7 +462,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 ### F-PN10: Notify endpoint carries no request signature (INFO)
 
 - **WHAT**: `POST /api/v1/notify/partner` is protected only by `authenticated()` + rate limit; there is no `signed()`/`freshNonce()` middleware, unlike the device-token route (`signed("auth-device-token")`). An authenticated user can send arbitrary `notificationKey` strings (1–80 chars) to their own partner up to the 12/min user cap.
-- **WHERE**: `notify.routes.js:33-40` vs `auth.routes.js:58-67`.
+- **WHERE**: `notify.routes.js:33-40` vs `auth.routes.js:53-62`.
 - **WHY**: fire-and-forget design; the rate limit is the chosen abuse control.
 - **IMPACT**: A partner can be spammed with up to 12 notifications/min with arbitrary keys (unknown keys → empty-body `JustUS`, F-PN7). Costs FCM quota. No session/data risk.
 - **CONFIDENCE**: HIGH (that signing is absent), MEDIUM (that 12/min is a sufficient cap).
@@ -457,6 +479,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Token registration at login | IMPLEMENTED (ungated — F-PN5) |
 | Token refresh re-registration | IMPLEMENTED |
 | Locale sync on resume / language change | IMPLEMENTED |
+| Token revocation at logout (`POST /auth/device-token-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
 | JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
 | Request signing on notify endpoint | NOT IMPLEMENTED (F-PN10) |
@@ -488,11 +511,15 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
+`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`.
+
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, token cleanup, locale grouping, invalid-token deletion, or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 
 ### Flutter
 
-No tests reference `NotificationService`, `DeviceTokenService`, `onNotificationTap`, `showRemoteMessage`, `_localizeNotification`, or `_notificationId` (grep of `test/`).
+`Flutter/test/logout_device_token_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no token exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback.
+
+No tests reference `NotificationService`, `onNotificationTap`, `showRemoteMessage`, `_localizeNotification`, or `_notificationId` (grep of `test/`).
 
 **Not covered**: FCM token acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2).
 

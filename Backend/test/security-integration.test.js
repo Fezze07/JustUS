@@ -33,6 +33,7 @@ jest.mock("../features/ai/ai.controller", () => ({
 jest.mock("../features/auth/auth.controller", () => ({
   invitePartnerController: jest.fn((req, res) => res.status(200).json({ success: true })),
   updateDeviceToken: jest.fn((req, res) => res.status(200).json({ success: true })),
+  revokeDeviceToken: jest.fn((req, res) => res.status(200).json({ success: true })),
   checkLoginRiskController: jest.fn((req, res) => res.status(200).json({ success: true })),
   registerFailedLoginController: jest.fn((req, res) => res.status(200).json({ success: true })),
   syncSessionController: jest.fn((req, res) => res.status(200).json({ success: true, bindingSecret: "secret-123", anomalies: [] })),

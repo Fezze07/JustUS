@@ -284,6 +284,32 @@ void main() {
       expect(sessionExpiredCalls, 0);
     });
 
+    test('revokeDeviceToken: a 401 never re-enters the logout callback',
+        () async {
+      await StorageService.saveRequestBindingSecret('binding-secret-xyz');
+      ApiService.readAccessTokenForTest = () => 'stale-access-token';
+      ApiService.tokenRefreshHandler = (_) async => false;
+
+      var sessionExpiredCalls = 0;
+      ApiService.onSessionExpired = () async {
+        sessionExpiredCalls++;
+      };
+
+      when(() => mockClient.post(any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'))).thenAnswer((_) async {
+        return http.Response(jsonEncode({'error': 'Unauthorized'}), 401);
+      });
+
+      final result = await apiService.revokeDeviceToken('fcm-token-1234567890');
+
+      // `onSessionExpired` IS `AuthState.logout()`, and the revoke is issued
+      // from inside logout: escalating here would re-enter the teardown.
+      expect(sessionExpiredCalls, 0);
+      expect(result, isA<GenericError<Map<String, dynamic>>>());
+      expect((result as GenericError).code, 401);
+    });
+
     test('a non-401 error never triggers a refresh', () async {
       await StorageService.saveRequestBindingSecret('binding-secret-xyz');
       ApiService.readAccessTokenForTest = () => 'good-access-token';

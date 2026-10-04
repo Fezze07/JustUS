@@ -3,6 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:justus/all_imports.dart';
 
 class DeviceTokenService {
+  /// Overrides the token lookup in unit tests, where `FirebaseMessaging` has no
+  /// platform channel and would always resolve to `UNKNOWN_DEVICE_TOKEN`.
+  @visibleForTesting
+  static Future<String> Function()? tokenOverride;
+
   static bool get supportsFcm =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
@@ -17,6 +22,9 @@ class DeviceTokenService {
   /// - On Android/iOS/Web: Returns the FCM token.
   /// - On Windows (unsupported by FCM): Returns a persistent UUID.
   static Future<String> getDeviceToken() async {
+    final override = tokenOverride;
+    if (override != null) return override();
+
     try {
       if (supportsFcm) {
         // FCM for supported platforms

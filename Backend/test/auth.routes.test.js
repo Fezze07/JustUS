@@ -163,6 +163,68 @@ describe("auth routes", () => {
     expect(blocked.body.error.code).toBe("SEC-BLOCK-002");
   });
 
+  test("revokes only the caller's own device token row", async () => {
+    const userDevicesQuery = createQueryBuilder();
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "user_devices") {
+        return userDevicesQuery;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/device-token-revoke")
+      .send({ deviceToken: "fcm-token-that-is-long-enough" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(userDevicesQuery.delete).toHaveBeenCalledWith();
+    // Scoping by user_id matters: device_token is UNIQUE, so a stale client
+    // could otherwise delete the row a second account just registered.
+    expect(userDevicesQuery.eq).toHaveBeenCalledWith(
+      "device_token",
+      "fcm-token-that-is-long-enough",
+    );
+    expect(userDevicesQuery.eq).toHaveBeenCalledWith("user_id", 42);
+  });
+
+  test("reports a failed device token revoke instead of swallowing it", async () => {
+    const failingBuilder = {
+      delete: jest.fn(() => failingBuilder),
+      eq: jest.fn(() => failingBuilder),
+      then: (resolve) =>
+        resolve({ data: null, error: { message: "delete rejected" } }),
+    };
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "user_devices") {
+        return failingBuilder;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/device-token-revoke")
+      .send({ deviceToken: "fcm-token-that-is-long-enough" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("DB-WRITE-001");
+  });
+
+  test("rejects a malformed device token revoke payload", async () => {
+    const app = createApp();
+
+    const response = await request(app)
+      .post("/api/v1/auth/device-token-revoke")
+      .send({ deviceToken: "too-short" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("API-VALIDATION-001");
+  });
+
   test("syncs a backend session and returns a binding secret", async () => {
     const authSessionsQuery = createQueryBuilder({
       maybeSingle: jest.fn().mockResolvedValue({

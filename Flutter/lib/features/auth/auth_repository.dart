@@ -77,6 +77,11 @@ class AuthRepository extends BaseRepository {
     });
   }
 
+  Future<ResultWrapper<Map<String, dynamic>>> revokeDeviceToken(
+      String deviceToken) async {
+    return _api.revokeDeviceToken(deviceToken);
+  }
+
   Future<void> signOut() async {
     await sbClient.auth.signOut();
   }

@@ -20,6 +20,7 @@ const API_V1_PATHS = {
   authSessionSync: `${API_V1_PREFIX}/auth/session-sync`,
   authInvite: `${API_V1_PREFIX}/auth/invite`,
   authDeviceToken: `${API_V1_PREFIX}/auth/device-token`,
+  authDeviceTokenRevoke: `${API_V1_PREFIX}/auth/device-token-revoke`,
   aiQuestion: `${API_V1_PREFIX}/ai/question`,
   mediaFile: `${API_V1_PREFIX}/media/file`,
   mediaDelete: `${API_V1_PREFIX}/media/delete`,

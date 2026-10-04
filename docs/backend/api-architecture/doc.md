@@ -60,7 +60,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 2. **Node.js Express Backend API (`/api/v1`)**:
    - Used for operations requiring elevated privileges, third-party API orchestration, HMAC signing, heavy rate limiting, or atomic domain wipes.
-   - **Backend API Features**: AI question generation (`POST /api/v1/ai/question`), Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration (`/api/v1/auth/device-token`), Session binding (`/api/v1/auth/session-sync`), Account data wipe (`/api/v1/users/wipe`).
+   - **Backend API Features**: AI question generation (`POST /api/v1/ai/question`), Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`), Session binding (`/api/v1/auth/session-sync`), Account data wipe (`/api/v1/users/wipe`).
 
 ---
 
@@ -111,6 +111,12 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/auth/device-token`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token")` $\rightarrow$ `validated({ body: updateDeviceTokenSchema })`
 - **Database Behavior**: Upserts `user_devices` table with `device_token`, `user_id`, `locale`, `user_agent`, `last_ip`.
+
+#### `POST /api/v1/auth/device-token-revoke`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token-revoke")` $\rightarrow$ `validated({ body: revokeDeviceTokenSchema })`
+- **Request Body**: `{ deviceToken }` (same 16–512 char constraint as the registration schema).
+- **Database Behavior**: Deletes the caller's own `user_devices` row — `device_token` **and** `user_id` must match, so a late logout can never remove a row another account has already re-registered on the same device. Idempotent (row already gone → `200`); a DB failure surfaces as `500 DB-WRITE-001` instead of a silent success.
+- **Flutter Consumer**: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as the first step of `logout()` while the JWT and binding secret still exist. Best-effort: bounded by a 5 s timeout, never blocks the local teardown, and a `401` does not re-enter the logout callback.
 
 #### `POST /api/v1/auth/session-sync`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-sync")` $\rightarrow$ `validated({ body: sessionSyncSchema })`

@@ -6,6 +6,10 @@ const updateDeviceTokenSchema = z.object({
   locale: z.string().max(10).optional(),
 });
 
+const revokeDeviceTokenSchema = z.object({
+  deviceToken: z.string().min(16).max(512),
+});
+
 const loginRiskSchema = z.object({
   email: z.string().email(),
   deviceFingerprint: z.string().min(12).max(128),
@@ -27,6 +31,7 @@ const inviteSchema = z.object({
 
 module.exports = {
   updateDeviceTokenSchema,
+  revokeDeviceTokenSchema,
   loginRiskSchema,
   loginAttemptSchema,
   sessionSyncSchema,

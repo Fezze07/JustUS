@@ -29,6 +29,11 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   /// real widget needs a live Navigator context and the Turnstile web view.
   final Future<String?> Function()? _captchaTokenProvider;
 
+  /// Upper bound on the best-effort push-token revoke in [logout]. Injectable
+  /// so the "offline logout must not block" contract is testable without
+  /// waiting out the production timeout.
+  final Duration _deviceRevokeTimeout;
+
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
   String? _lastSyncedLocale;
@@ -40,10 +45,12 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     PartnershipRepository? partnershipRepo,
     UserRepository? userRepo,
     Future<String?> Function()? captchaTokenProvider,
+    Duration deviceRevokeTimeout = const Duration(seconds: 5),
   })  : _authRepo = authRepo ?? AuthRepository(),
         _partnershipRepo = partnershipRepo ?? PartnershipRepository(),
         _userRepo = userRepo ?? UserRepository(),
-        _captchaTokenProvider = captchaTokenProvider;
+        _captchaTokenProvider = captchaTokenProvider,
+        _deviceRevokeTimeout = deviceRevokeTimeout;
 
   String?
       _error; // Kept for custom error logic if needed, but BaseState has _message
@@ -721,6 +728,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   }
 
   Future<void> logout() async {
+    await _revokeDeviceToken();
     await _authRepo.signOut();
     await CacheService.clearAll();
     await StorageService.clearAll();
@@ -736,5 +744,26 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     user = null;
     onClearFeatureStates?.call();
     notifyListeners();
+  }
+
+  /// Strictly best-effort: it runs before `signOut()`, so the JWT, the binding
+  /// secret and the device fingerprint are all still available. Offline it must
+  /// not delay or fail the logout — the next login re-registers the same token
+  /// (upsert on `device_token`).
+  Future<void> _revokeDeviceToken() async {
+    if (!isLoggedIn) return;
+
+    try {
+      final deviceToken = await DeviceTokenService.getDeviceToken();
+      if (deviceToken.isEmpty || deviceToken == 'UNKNOWN_DEVICE_TOKEN') return;
+
+      final result = await _authRepo
+          .revokeDeviceToken(deviceToken)
+          .timeout(_deviceRevokeTimeout);
+      AnsiLogger.notification('Device token revoked: $result',
+          tag: 'AuthState');
+    } catch (e) {
+      AnsiLogger.error('Device token revoke failed: $e', tag: 'AuthState');
+    }
   }
 }

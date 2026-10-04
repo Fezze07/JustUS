@@ -10,6 +10,8 @@ class ApiRoutes {
   static const String authCallbackPath = '/auth/callback';
   static const String inviteCallbackPath = '/auth/invite-callback';
   static const String authDeviceToken = '$apiPrefix/auth/device-token';
+  static const String authDeviceTokenRevoke =
+      '$apiPrefix/auth/device-token-revoke';
   static const String authInvite = '$apiPrefix/auth/invite';
   static const String authLoginRiskCheck = '$apiPrefix/auth/login-risk-check';
   static const String authLoginAttempt = '$apiPrefix/auth/login-attempt';

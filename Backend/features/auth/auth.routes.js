@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   updateDeviceToken,
+  revokeDeviceToken,
   checkLoginRiskController,
   registerFailedLoginController,
   syncSessionController,
@@ -15,6 +16,7 @@ const {
 
 const {
   updateDeviceTokenSchema,
+  revokeDeviceTokenSchema,
   loginRiskSchema,
   loginAttemptSchema,
   sessionSyncSchema,
@@ -57,6 +59,17 @@ router.post(
     validated({ body: updateDeviceTokenSchema })
   ),
   updateDeviceToken
+);
+
+router.post(
+  "/device-token-revoke",
+  ...chain(
+    authenticated(),
+    limited(authRateLimit),
+    signed("auth-device-token-revoke"),
+    validated({ body: revokeDeviceTokenSchema })
+  ),
+  revokeDeviceToken
 );
 
 router.post(

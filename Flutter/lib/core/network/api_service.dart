@@ -253,6 +253,7 @@ class ApiService {
     T Function(Map<String, dynamic>) fromJson, {
     bool isRetry = false,
     bool usesAuth = true,
+    bool notifySessionExpired = true,
     Duration timeout = const Duration(seconds: 10),
     String? label,
   }) async {
@@ -276,11 +277,14 @@ class ApiService {
           return await _safeCall(call, fromJson,
               isRetry: true,
               usesAuth: usesAuth,
+              notifySessionExpired: notifySessionExpired,
               timeout: timeout,
               label: label);
         }
         // Refresh failed
-        await onSessionExpired?.call();
+        if (notifySessionExpired) {
+          await onSessionExpired?.call();
+        }
 
         return const GenericError(
             code: 401, message: 'Session expired. Please login again.');
@@ -355,6 +359,7 @@ class ApiService {
     Object? body,
     bool skipAuth = false,
     bool requireSignature = false,
+    bool notifySessionExpired = true,
     String? label,
     T Function(Map<String, dynamic>)? fromJson,
     Duration timeout = const Duration(seconds: 10),
@@ -383,6 +388,7 @@ class ApiService {
       fromJson ?? (json) => json as T,
       label: label,
       usesAuth: !skipAuth,
+      notifySessionExpired: notifySessionExpired,
       timeout: timeout,
     );
   }
@@ -431,6 +437,20 @@ class ApiService {
       requireSignature: true,
       fromJson: UpdateTokenResponse.fromJson,
       label: 'Update Device Token',
+    );
+  }
+
+  /// Drops the push registration for [deviceToken] so the backend stops
+  /// targeting this device. Called from the logout path, therefore a 401 must
+  /// not re-enter `onSessionExpired` (that callback *is* the logout).
+  Future<ResultWrapper<Map<String, dynamic>>> revokeDeviceToken(
+      String deviceToken) async {
+    return _post(
+      ApiRoutes.authDeviceTokenRevoke,
+      body: {'deviceToken': deviceToken},
+      requireSignature: true,
+      notifySessionExpired: false,
+      label: 'Revoke Device Token',
     );
   }
 

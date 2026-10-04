@@ -113,6 +113,8 @@ module.exports = {
   get resolveCapabilities() { return require('./features/auth/authorization.service').resolveCapabilities; },
   get resolveEnvFile() { return require('./config/loadEnv').resolveEnvFile; },
   get resolveNotificationTarget() { return require('./features/notifications/notification.service').resolveNotificationTarget; },
+  get revokeDeviceToken() { return require('./features/auth/auth.controller').revokeDeviceToken; },
+  get revokeDeviceTokenSchema() { return require('./features/auth/auth.schemas').revokeDeviceTokenSchema; },
   get sanitizePayload() { return require('./core/logger').sanitizePayload; },
   get sanitizeRequest() { return require('./middleware/sanitizeRequest'); },
   get saveEntry() { return require('./core/infra/idempotencyStore').saveEntry; },
