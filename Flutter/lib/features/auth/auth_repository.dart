@@ -26,11 +26,10 @@ class AuthRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<Map<String, dynamic>>> syncSession(
-      String deviceFingerprint, String deviceLabel) async {
-    return _api.syncSession({
+  Future<ResultWrapper<Map<String, dynamic>>> bindSession(
+      String deviceFingerprint) async {
+    return _api.bindSession({
       'deviceFingerprint': deviceFingerprint,
-      'deviceLabel': deviceLabel,
     });
   }
 

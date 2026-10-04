@@ -3,7 +3,6 @@ const {
   logSecurity,
   API_V1_PATHS,
   buildClientContext,
-  ipToSoftRange,
   generateBindingSecret,
   sha256,
 } = require("../../all_imports");
@@ -92,29 +91,39 @@ function clearFailedLogins({ email, deviceFingerprint, ipAddress }) {
   loginAttempts.delete(key);
 }
 
+/**
+ * Binds a new Supabase session to a device fingerprint, enforcing the rule
+ * that one device may hold exactly one active session at a time.
+ *
+ * Flow:
+ *  1. Read any previous binding for this session (for anomaly detection).
+ *  2. Revoke any stale session that shares the same user + device fingerprint
+ *     (different session_id).  The SECURITY DEFINER RPC deletes from
+ *     auth.sessions; ON DELETE CASCADE removes the old session_bindings row.
+ *  3. Upsert the new binding with a fresh binding_secret.
+ */
 async function trackSession(params) {
-  const { userId, sessionId, ipAddress } = params;
+  const { userId, authUserId, sessionId } = params;
   const clientContext = buildClientContextFromParams(params);
-  const sessionKey = sessionId || `${userId}:${clientContext.deviceFingerprintHash}`;
-  
-  let bindingSecret = generateBindingSecret();
-  
+
+  // Each new session gets a fresh binding_secret — never reuse a previous one.
+  const bindingSecret = generateBindingSecret();
+
   try {
-    const previous = await fetchPreviousSession(sessionKey);
-    if (previous?.binding_secret) {
-      bindingSecret = previous.binding_secret;
-    }
+    const [previous] = await Promise.all([
+      fetchPreviousBinding(sessionId),
+      revokeStaleDeviceSession(authUserId, clientContext.deviceFingerprintHash, sessionId),
+    ]);
 
-    const payload = buildSessionPayload(params, clientContext, sessionKey, bindingSecret);
-    await adminSupabase.from("auth_sessions").upsert(payload, { onConflict: "session_id" });
+    const payload = buildSessionPayload(clientContext, sessionId, bindingSecret, authUserId, params);
+    await adminSupabase.from("session_bindings").upsert(payload, { onConflict: "session_id" });
 
-    const anomalies = detectSessionAnomalies(previous, params, clientContext);
+    const anomalies = detectSessionAnomalies(previous, params);
     for (const anomaly of anomalies) {
       await logSecurity({
         type: anomaly,
-        path: API_V1_PATHS.authSessionSync,
+        path: API_V1_PATHS.authSessionBind,
         user_id: userId,
-        ip_address: ipAddress ?? null,
       });
     }
 
@@ -124,60 +133,61 @@ async function trackSession(params) {
   }
 }
 
-function buildClientContextFromParams({ deviceFingerprint, userAgent, ipAddress }) {
+function buildClientContextFromParams({ deviceFingerprint }) {
   return buildClientContext({
-    ip: ipAddress,
+    ip: null,
     get(header) {
       const h = String(header).toLowerCase();
       if (h === "x-device-fingerprint") return deviceFingerprint;
-      if (h === "x-client-user-agent" || h === "user-agent") return userAgent;
-      if (h === "x-client-user-agent-hash") return sha256(userAgent);
       return "";
     },
   });
 }
 
-async function fetchPreviousSession(sessionKey) {
+/**
+ * Calls the SECURITY DEFINER Postgres function that deletes any auth.sessions
+ * row bound to the same (user_id, device_fingerprint_hash) except the current
+ * session.  ON DELETE CASCADE removes the corresponding session_bindings row.
+ *
+ * We use an RPC because PostgREST only exposes the public schema; direct
+ * writes to auth.sessions require SECURITY DEFINER access.
+ */
+async function revokeStaleDeviceSession(authUserId, fingerprintHash, keepSessionId) {
+  if (!authUserId || !fingerprintHash || !keepSessionId) return;
+
+  await adminSupabase.rpc("revoke_device_duplicate_session", {
+    p_user_id:     authUserId,
+    p_fingerprint: fingerprintHash,
+    p_keep_session: keepSessionId,
+  });
+}
+
+async function fetchPreviousBinding(sessionId) {
+  if (!sessionId) return null;
   const { data } = await adminSupabase
-    .from("auth_sessions")
-    .select("ip_address, country_code, last_seen_at, binding_secret, ip_range, user_agent_hash, request_profile_hash")
-    .eq("session_id", sessionKey)
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
+    .from("session_bindings")
+    .select("country_code, last_seen_at")
+    .eq("session_id", sessionId)
     .maybeSingle();
   return data;
 }
 
-function buildSessionPayload(params, context, sessionKey, secret) {
+function buildSessionPayload(context, sessionId, secret, _authUserId, params) {
   return {
-    user_id: params.userId,
-    auth_user_id: params.authUserId,
-    session_id: sessionKey,
+    session_id: sessionId,
     device_fingerprint_hash: context.deviceFingerprintHash,
-    device_label: params.deviceLabel ?? null,
-    ip_address: params.ipAddress ?? null,
-    ip_range: ipToSoftRange(params.ipAddress),
     country_code: params.countryCode ?? null,
-    user_agent: params.userAgent ?? null,
-    user_agent_hash: context.clientUserAgentHash,
-    request_profile_hash: context.behaviorPatternHash,
     binding_secret: secret,
     last_seen_at: new Date().toISOString(),
   };
 }
 
-function detectSessionAnomalies(prev, current, context) {
+function detectSessionAnomalies(prev, current) {
   const anomalies = [];
   if (!prev) return anomalies;
 
-  if (prev.ip_address !== current.ipAddress) {
-    anomalies.push("ip_changed");
-  }
   if (current.countryCode && prev.country_code !== current.countryCode) {
     anomalies.push("country_changed");
-  }
-  if (prev.request_profile_hash !== context.behaviorPatternHash) {
-    anomalies.push("behavior_pattern_changed");
   }
   return anomalies;
 }

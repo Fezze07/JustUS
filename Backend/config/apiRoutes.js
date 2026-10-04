@@ -17,7 +17,7 @@ const API_V1_PATHS = {
   appVersion: `${API_V1_PREFIX}/app-version`,
   authLoginAttempt: `${API_V1_PREFIX}/auth/login-attempt`,
   authLoginRiskCheck: `${API_V1_PREFIX}/auth/login-risk-check`,
-  authSessionSync: `${API_V1_PREFIX}/auth/session-sync`,
+  authSessionBind: `${API_V1_PREFIX}/auth/session-bind`,
   authInvite: `${API_V1_PREFIX}/auth/invite`,
   authDeviceToken: `${API_V1_PREFIX}/auth/device-token`,
   authDeviceTokenRevoke: `${API_V1_PREFIX}/auth/device-token-revoke`,

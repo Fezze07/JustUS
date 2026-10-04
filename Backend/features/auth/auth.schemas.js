@@ -19,9 +19,8 @@ const loginAttemptSchema = loginRiskSchema.extend({
   reason: z.string().max(200).optional(),
 });
 
-const sessionSyncSchema = z.object({
+const sessionBindSchema = z.object({
   deviceFingerprint: z.string().min(12).max(128),
-  deviceLabel: z.string().min(2).max(120),
 });
 
 const inviteSchema = z.object({
@@ -34,6 +33,6 @@ module.exports = {
   revokeDeviceTokenSchema,
   loginRiskSchema,
   loginAttemptSchema,
-  sessionSyncSchema,
+  sessionBindSchema,
   inviteSchema,
 };

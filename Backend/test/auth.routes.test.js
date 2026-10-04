@@ -225,14 +225,12 @@ describe("auth routes", () => {
     expect(response.body.error.code).toBe("API-VALIDATION-001");
   });
 
-  test("syncs a backend session and returns a binding secret", async () => {
-    const authSessionsQuery = createQueryBuilder({
+  test("binds a session and returns a fresh binding secret", async () => {
+    const sessionBindingsQuery = createQueryBuilder({
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
-          ip_address: "10.0.0.1",
           country_code: "IT",
-          binding_secret: "binding-secret-123",
-          request_profile_hash: "old-profile-hash",
+          last_seen_at: new Date().toISOString(),
         },
         error: null,
       }),
@@ -240,27 +238,67 @@ describe("auth routes", () => {
     });
 
     adminSupabase.from.mockImplementation((table) => {
-      if (table === "auth_sessions") {
-        return authSessionsQuery;
+      if (table === "session_bindings") {
+        return sessionBindingsQuery;
       }
       throw new Error(`Unexpected table: ${table}`);
     });
 
+    // revoke_device_duplicate_session is called in parallel with fetchPreviousBinding
+    adminSupabase.rpc.mockResolvedValue({ data: 0, error: null });
+
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/session-sync")
+      .post("/api/v1/auth/session-bind")
       .set("X-Device-Fingerprint", "device-fingerprint-123")
-      .set("X-Client-User-Agent", "justus/test")
       .send({
         deviceFingerprint: "device-fingerprint-123",
-        deviceLabel: "android-client",
       });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
-    expect(response.body.bindingSecret).toBe("binding-secret-123");
+    expect(typeof response.body.bindingSecret).toBe("string");
+    expect(response.body.bindingSecret.length).toBeGreaterThan(0);
     expect(Array.isArray(response.body.anomalies)).toBe(true);
+
+    expect(adminSupabase.rpc).toHaveBeenCalledWith(
+      "revoke_device_duplicate_session",
+      expect.objectContaining({
+        p_user_id: "auth-user-1",
+        p_keep_session: "session-1",
+        p_fingerprint: expect.any(String),
+      })
+    );
   });
+
+  test("revokes stale duplicate session for same user and device fingerprint on new login", async () => {
+    const sessionBindingsQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
+    });
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "session_bindings") return sessionBindingsQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    adminSupabase.rpc.mockResolvedValue({ data: 1, error: null });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/session-bind")
+      .set("X-Device-Fingerprint", "device-fingerprint-456")
+      .send({ deviceFingerprint: "device-fingerprint-456" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(adminSupabase.rpc).toHaveBeenCalledWith("revoke_device_duplicate_session", {
+      p_user_id: "auth-user-1",
+      p_fingerprint: expect.any(String),
+      p_keep_session: "session-1",
+    });
+  });
+
 
   test("proxies partner invite requests through the RPC layer", async () => {
     adminSupabase.rpc.mockResolvedValue({

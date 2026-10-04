@@ -127,16 +127,13 @@ const registerFailedLoginController = asyncHandler(async (req, res) => {
   });
 });
 
-const syncSessionController = asyncHandler(async (req, res) => {
+const bindSessionController = asyncHandler(async (req, res) => {
   const sessionResult = await trackSession({
     userId: req.user.profileId,
     authUserId: req.user.id,
     sessionId: req.auth?.claims?.session_id ?? null,
     deviceFingerprint: req.body.deviceFingerprint,
-    deviceLabel: req.body.deviceLabel,
-    ipAddress: req.ip,
     countryCode: req.get("cf-ipcountry") || req.get("x-vercel-ip-country") || null,
-    userAgent: req.get("x-client-user-agent") || req.get("user-agent") || null,
   });
 
   clearFailedLogins({
@@ -208,6 +205,6 @@ module.exports = {
   revokeDeviceToken,
   checkLoginRiskController,
   registerFailedLoginController,
-  syncSessionController,
+  bindSessionController,
   invitePartnerController,
 };

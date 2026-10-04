@@ -473,8 +473,8 @@ void main() {
 
     test('keeps api/v1 paths intact on the selected origin', () {
       expect(
-        ApiConfig.apiUri(ApiRoutes.authSessionSync).toString(),
-        'https://justus-dev.serverfede.eu/api/v1/auth/session-sync',
+        ApiConfig.apiUri(ApiRoutes.authSessionBind).toString(),
+        'https://justus-dev.serverfede.eu/api/v1/auth/session-bind',
       );
       expect(
         ApiConfig.apiUri(ApiRoutes.authDeviceToken).toString(),

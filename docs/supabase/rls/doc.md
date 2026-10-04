@@ -32,7 +32,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 | `roles_permissions` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `emojis` | **ENABLED** | Public (`true`) | Authenticated Users | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `drive_file_types` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
-| `auth_sessions` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
+| `session_bindings` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
 | `request_nonces` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
 | `logs_api_access` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
 | `logs_api_errors` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |

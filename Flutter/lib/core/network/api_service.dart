@@ -482,9 +482,9 @@ class ApiService {
     );
   }
 
-  Future<ResultWrapper<Map<String, dynamic>>> syncSession(
+  Future<ResultWrapper<Map<String, dynamic>>> bindSession(
       Map<String, dynamic> body) async {
-    return _post(ApiRoutes.authSessionSync, body: body, label: 'Sync Session');
+    return _post(ApiRoutes.authSessionBind, body: body, label: 'Bind Session');
   }
 
   Future<ResultWrapper<Map<String, dynamic>>> createMediaUploadUrl(

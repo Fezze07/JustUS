@@ -700,19 +700,19 @@ class AuthState extends BaseState with WidgetsBindingObserver {
 
     try {
       final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
-      final result = await _authRepo.syncSession(
-          deviceFingerprint, '${defaultTargetPlatform.name}-client');
+      final result = await _authRepo.bindSession(deviceFingerprint);
 
       final value = result.valueOrNull;
       if (value != null) {
         final bindingSecret = value['bindingSecret'];
         if (bindingSecret is String && bindingSecret.isNotEmpty) {
+          ApiService.setCachedRequestBindingSecret(bindingSecret);
           await StorageService.saveRequestBindingSecret(bindingSecret);
-          AnsiLogger.auth('Session synced, binding secret saved.',
+          AnsiLogger.auth('Session bound, binding secret saved.',
               tag: 'AuthState');
         }
       } else if (result.isError) {
-        AnsiLogger.error('Session sync network error', tag: 'AuthState');
+        AnsiLogger.error('Session bind network error', tag: 'AuthState');
       }
     } catch (e) {
       AnsiLogger.error('_syncBackendSession exception: $e', tag: 'AuthState');

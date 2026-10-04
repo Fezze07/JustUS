@@ -118,9 +118,9 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ### 3. Security, Authentication & Session Tables
 
-#### `auth_sessions`
-- **SQL Source:** `supabase/schemas/public/tables/auth_sessions.sql`
-- **Columns:** `id` (`bigint`, PK), `session_id` (`text` NOT NULL UNIQUE), `user_id` (`integer` NOT NULL), `auth_user_id` (`uuid`), `device_fingerprint_hash` (`text` NOT NULL), `device_label`, `user_agent`, `user_agent_hash`, `ip_address`, `ip_range`, `country_code`, `binding_secret`, `request_profile_hash`, `created_at`, `last_seen_at`, `revoked_at`.
+#### `session_bindings`
+- **SQL Source:** `supabase/schemas/public/tables/session_bindings.sql`
+- **Columns:** `session_id` (`uuid`, PK, FK -> `auth.sessions(id)` ON DELETE CASCADE), `device_fingerprint_hash` (`text` NOT NULL), `binding_secret` (`text` NOT NULL), `country_code` (`text`), `created_at` (`timestamptz`), `last_seen_at` (`timestamptz`).
 
 #### `request_nonces`
 - **SQL Source:** `supabase/schemas/public/tables/request_nonces.sql`

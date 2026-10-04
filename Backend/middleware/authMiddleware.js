@@ -2,7 +2,6 @@ const {
   env,
   adminSupabase,
   authSupabase,
-  logSecurity,
   logAuthFailure,
   AppError,
   buildClientContext,
@@ -12,7 +11,6 @@ const {
   decodeTokenClaims,
   validateTokenLifetime,
   validateSessionBinding,
-  isIpRangeChanged,
 } = require("../all_imports");
 
 async function verifyToken(token) {
@@ -30,7 +28,6 @@ async function verifyToken(token) {
 
   return { claims, user };
 }
-
 
 async function authenticateToken(req, res, next) {
   const token = extractBearerToken(req);
@@ -53,16 +50,6 @@ async function authenticateToken(req, res, next) {
     }
 
     validateSessionBinding(sessionBinding, clientContext);
-
-    if (isIpRangeChanged(sessionBinding, clientContext)) {
-      await logSecurity({
-        request_id: req.requestId,
-        type: "ip_range_changed",
-        path: req.originalUrl,
-        user_id: profile.id,
-        ip_address: req.ip,
-      });
-    }
 
     req.auth = { token, claims: verified.claims, clientContext };
     req.user = buildUserObject(verified.user, profile);
@@ -166,8 +153,8 @@ async function fetchUserProfile(authId) {
 async function fetchSessionBinding(verified, profile, clientContext) {
   try {
     const { data } = await adminSupabase
-      .from("auth_sessions")
-      .select("session_id, device_fingerprint_hash, ip_range, user_agent_hash, request_profile_hash, binding_secret, revoked_at")
+      .from("session_bindings")
+      .select("session_id, device_fingerprint_hash, binding_secret")
       .eq("session_id", verified.claims.session_id ?? `${profile.id}:${clientContext.deviceFingerprintHash}`)
       .maybeSingle();
     return data ?? null;

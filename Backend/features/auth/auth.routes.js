@@ -5,7 +5,7 @@ const {
   revokeDeviceToken,
   checkLoginRiskController,
   registerFailedLoginController,
-  syncSessionController,
+  bindSessionController,
   invitePartnerController,
   createCompositeRateLimit,
   withIdempotency,
@@ -19,7 +19,7 @@ const {
   revokeDeviceTokenSchema,
   loginRiskSchema,
   loginAttemptSchema,
-  sessionSyncSchema,
+  sessionBindSchema,
   inviteSchema,
 } = require("./auth.schemas");
 
@@ -92,14 +92,14 @@ router.post(
 );
 
 router.post(
-  "/session-sync",
+  "/session-bind",
   ...chain(
     authenticated(),
     limited(authRateLimit),
-    freshNonce("auth-session-sync"),
-    validated({ body: sessionSyncSchema })
+    freshNonce("auth-session-bind"),
+    validated({ body: sessionBindSchema })
   ),
-  syncSessionController
+  bindSessionController
 );
 
 router.post(

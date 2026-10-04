@@ -2,12 +2,20 @@
 
 ## Overview
 
-This document provides a comprehensive reverse-engineered analysis of the **Session & Token Security** system in the JustUS application. It documents the complete lifecycle of authentication tokens, session persistence, automatic token refresh, HTTP 401 error handling, JWT verification, session binding protections (`auth_sessions`), session synchronization (`/auth/session-sync`), other-session revocation on password change, and HMAC request signing with binding secrets.
+This document provides a comprehensive reverse-engineered analysis of the **Session & Token Security** system in the JustUS application. It documents the complete lifecycle of authentication tokens, session persistence, automatic token refresh, HTTP 401 error handling, JWT verification, session binding protections (`session_bindings`), session binding (`/auth/session-bind`), other-session revocation on password change, and HMAC request signing with binding secrets.
+
+```text
+auth.sessions (Supabase - single source of truth for session lifecycle)
+    │
+    │ session_id PK/FK (ON DELETE CASCADE)
+    ▼
+public.session_bindings (JustUS-specific security & device binding data)
+```
 
 The session security model in JustUS is a multi-layered defense system:
-- **Identity Provider (Supabase Auth)**: Issues Access Tokens (JWT) and Refresh Tokens.
+- **Identity Provider (Supabase Auth)**: Single source of truth for session lifecycle (`auth.sessions`), issuing Access Tokens (JWT) and Refresh Tokens.
 - **Client Storage & Networking (Flutter)**: Manages secure token storage (`FlutterSecureStorage`), headers injection, request signing, and single-retry 401 recovery (`ApiService`).
-- **Backend Middleware (Node.js / Express)**: Enforces Supabase token verification (`authSupabase.auth.getUser`), token lifetime policy checks, device fingerprint and user-agent binding validation, soft IP range change logging, and HMAC signature verification (`requireSignedRequest`).
+- **Backend Middleware (Node.js / Express)**: Enforces Supabase token verification (`authSupabase.auth.getUser`), device fingerprint binding validation (`session_bindings`), and HMAC signature verification (`requireSignedRequest`).
 
 ---
 
@@ -22,26 +30,25 @@ Session Creation (Login / Register)
    │
    ├── 2. AuthState.setLoginData saves tokens to StorageService (FlutterSecureStorage)
    │
-   ├── 3. Session Sync (POST /api/v1/auth/session-sync)
+   ├── 3. Session Binding (POST /api/v1/auth/session-bind)
    │        │
-   │        ├── Sends deviceFingerprint & deviceLabel to Node Backend
-   │        ├── Backend tracks session in PostgreSQL auth_sessions table
+   │        ├── Sends deviceFingerprint to Node Backend
+   │        ├── Backend revokes stale session for same device (revoke_device_duplicate_session RPC)
+   │        ├── Backend tracks session binding in PostgreSQL session_bindings table
    │        ├── Backend returns bindingSecret (saved to FlutterSecureStorage & ApiService cache)
    │        └── Backend clears failed login attempt counters (clearFailedLogins)
    │
    ├── 4. Authenticated API Requests (ApiService)
    │        │
    │        ├── Attaches Authorization: Bearer <token> (from Supabase session)
-   │        ├── Attaches X-Device-Fingerprint, X-Client-User-Agent, X-Client-User-Agent-Hash
+   │        ├── Attaches X-Device-Fingerprint
    │        └── For signed routes: Attaches X-Request-Timestamp, X-Request-Nonce, X-Request-Signature (HMAC-SHA256)
    │
    ├── 5. Backend Validation (authMiddleware.js)
    │        │
    │        ├── Calls authSupabase.auth.getUser(token) to verify with Supabase
-   │        ├── Validates Token Lifetime (exp - iat <= MAX_ACCESS_TOKEN_LIFETIME_SEC)
-   │        ├── Queries auth_sessions by session_id / deviceFingerprint
-   │        ├── Validates device fingerprint & user-agent (AUTH_FAIL_006 if mismatch)
-   │        └── Checks IP range change (logs ip_range_changed security event)
+   │        ├── Queries session_bindings by session_id
+   │        └── Validates device fingerprint (AUTH_FAIL_006 if mismatch)
    │
    ├── 6. Access Token Expiration (HTTP 401)
    │        │
@@ -269,20 +276,20 @@ function validateSessionBinding(sessionBinding, clientContext) {
 
 ---
 
-## Session Sync (`/auth/session-sync`)
+## Session Binding (`/auth/session-bind`)
 
 ### Route & Controller Specification
 
-- Endpoint: `POST /api/v1/auth/session-sync`
-- File: [auth.routes.js:87-96](file:///f:/JustUS/Backend/features/auth/auth.routes.js#L87-L96) & [auth.controller.js:108-131](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L108-L131)
-- Middleware Stack: `authenticated()`, `limited(authRateLimit)`, `freshNonce("auth-session-sync")`, `validated({ body: sessionSyncSchema })`.
+- Endpoint: `POST /api/v1/auth/session-bind`
+- File: [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js) & [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js)
+- Middleware Stack: `authenticated()`, `limited(authRateLimit)`, `freshNonce("auth-session-bind")`, `validated({ body: sessionBindSchema })`.
 
 ### Functionality
 
-1. Calls `trackSession()` in [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js#L95-L125).
-2. Upserts record into `auth_sessions` PostgreSQL table using key `session_id` (or fallback `${userId}:${deviceFingerprintHash}`).
-3. Generates a new 32-byte hex `bindingSecret` (or reuses existing binding secret for the session).
-4. Detects session anomalies (`ip_changed`, `country_changed`, `behavior_pattern_changed`) and logs security events.
+1. Calls `trackSession()` in [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js).
+2. Revokes any existing session for the same user and device fingerprint using the `revoke_device_duplicate_session` PostgreSQL RPC.
+3. Upserts record into `session_bindings` PostgreSQL table using `session_id` as primary key.
+4. Generates a fresh 32-byte hex `bindingSecret` for every new binding.
 5. Invokes `clearFailedLogins()` to reset failed login counters for the IP / device / email key.
 6. Returns `{ success: true, anomalies, bindingSecret }`.
 
@@ -295,15 +302,15 @@ function validateSessionBinding(sessionBinding, clientContext) {
 - **Purpose**: High-risk routes (`/device-token`, `/media/upload-url`, `/media/complete`, `/ai/question`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
 - **Secret Generation**: Created via `crypto.randomBytes(32).toString("hex")` in `generateBindingSecret()`.
 - **Secret Lifecycle**:
-  - Generated on backend during `/auth/session-sync`.
-  - Transmitted to Flutter client in the sync response payload.
+  - Generated on backend during `/auth/session-bind`.
+  - Transmitted to Flutter client in the session-bind response payload.
   - Saved in Flutter secure storage (`StorageService.saveRequestBindingSecret`) and cached in `ApiService`.
   - Reused for all HMAC signatures during the active session.
-  - Invalidated when `auth_sessions` record is deleted or revoked (`revoked_at != null`).
+  - Invalidated when `session_bindings` record is deleted (via cascade when Supabase `auth.sessions` is deleted/revoked).
 - **Client-side Recovery & Fail-Closed**:
-  - If the secret is missing when a `requireSignature: true` authenticated call is prepared, `ApiService._buildHeaders` invokes `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`) to re-run `/auth/session-sync` before signing. Recovery is deduplicated (one in-flight attempt) with a 30s cooldown after a failed attempt.
+  - If the secret is missing when a `requireSignature: true` authenticated call is prepared, `ApiService._buildHeaders` invokes `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`) to re-run `/auth/session-bind` before signing. Recovery is deduplicated (one in-flight attempt) with a 30s cooldown after a failed attempt.
   - If the secret still cannot be obtained, the signed call **fails closed** with `AppError(code: 'LOCAL-BINDING-001')`. `_safeCall` returns it as a `GenericError(details: AppError)`, so `ErrorHandler` shows the localized, retry-able message instead of a generic `NetworkError`.
-  - Unsigned routes (e.g. `/auth/session-sync` itself, `/auth/invite`, `/notify`, `/users/wipe`) still send `X-Request-Timestamp` + `X-Request-Nonce` (required by `freshNonce` routes) but intentionally carry no signature.
+  - Unsigned routes (e.g. `/auth/session-bind` itself, `/auth/invite`, `/notify`, `/users/wipe`) still send `X-Request-Timestamp` + `X-Request-Nonce` (required by `freshNonce` routes) but intentionally carry no signature.
 
 ### Canonical Request Signature Format
 
