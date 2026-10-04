@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive reverse-engineered analysis of the **Session & Token Security** system in the JustUS application. It documents the complete lifecycle of authentication tokens, session persistence, automatic token refresh, HTTP 401 error handling, JWT verification, session binding protections (`auth_sessions`), session synchronization (`/auth/session-sync`), and HMAC request signing with binding secrets.
+This document provides a comprehensive reverse-engineered analysis of the **Session & Token Security** system in the JustUS application. It documents the complete lifecycle of authentication tokens, session persistence, automatic token refresh, HTTP 401 error handling, JWT verification, session binding protections (`auth_sessions`), session synchronization (`/auth/session-sync`), other-session revocation on password change, and HMAC request signing with binding secrets.
 
 The session security model in JustUS is a multi-layered defense system:
 - **Identity Provider (Supabase Auth)**: Issues Access Tokens (JWT) and Refresh Tokens.
@@ -149,7 +149,35 @@ On HTTP `401`, `ApiService._safeCall`:
 ### Concurrency Protection
 
 - There is exactly **one** refresh path (the Supabase SDK). gotrue serializes concurrent refreshes that share a refresh token through an internal `_pendingRefreshes` map, so simultaneous 401-driven refreshes and the SDK's built-in auto-refresh spend the one-time refresh token only once.
-- Because the SDK owns the session, `AuthState._accessToken` and `currentSession` cannot disagree: the `tokenRefreshed` listener copies the SDK session into `_accessToken`/`_refreshToken` after every refresh (todo# 1.6).
+- Because the SDK owns the session, the two views cannot diverge for **requests**: `ApiService._readAccessToken()` and `RealtimeSyncConnection` both read `Supabase.instance.client.auth` directly, so `AuthState._accessToken` is only a mirror. The `tokenRefreshed` listener keeps that mirror current (todo# 1.6), but it is *not* a hard invariant — a `signInWithPassword` that does not emit `tokenRefreshed` (the re-auth inside `changePassword`) replaces the live session and leaves the mirror pointing at the previous one.
+
+---
+
+## Password Change & Session Revocation
+
+A password write is the only operation in the app that ends other sessions.
+
+- File: [auth_repository.dart:89-94](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L89-L94) & [auth_state.dart:781-799](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L781-L799)
+- Called by `AuthState.changePassword()` (authenticated flow) and `AuthState.updatePasswordNew()` (recovery deep link) after `auth.updateUser(password:)` succeeds.
+
+```
+Flutter Client                         Supabase Auth (auth.sessions)
+      │                                        │
+      │── auth.updateUser(password: ──────────>│
+      │                                        │
+      │── auth.signOut(scope: others) ─────────>│
+      │                                        ├── DELETE FROM auth.sessions
+      │                                        │   WHERE id != <current>
+      │<── 200 (no signedOut event) ───────────┤
+      │                                        │
+```
+
+The live session and the Realtime JWT are untouched; the secure-storage mirror keeps the tokens of the now-deleted previous session, and nothing reads it (see [Concurrency Protection](#concurrency-protection)).
+
+- **Scope `others` keeps the caller alive**: the SDK sends no local `signOut()` and fires no `signedOut` event for this scope, so `AuthState.logout()` is not triggered and the device that changed the password stays in.
+- **Effect on the other devices**: GoTrue runs `DELETE FROM auth.sessions WHERE id != <current>` on scope `others`, so their refresh tokens *and* their unexpired access tokens are rejected at once — every authenticated call resolves the JWT's `session_id`, and a missing session answers `session_not_found` before the 1 h JWT lifetime matters. `authenticateToken` maps that to `AUTH_FAIL_001` (`401`), which drives the other device through the standard [401 handling](#401-handling--request-retry): the refresh fails, `onSessionExpired` logs it out and its device-token row is revoked.
+- **Best-effort**: the revoke runs after the password is already written, is bounded by a 5 s timeout and swallows its errors, so a failed revoke never turns a successful change into a failure. When it does not land, the other sessions survive until their tokens expire.
+- **Not covered**: the backend-side traces of the other sessions (`auth_sessions` rows, `user_devices` push registrations) are untouched — see [account-lifecycle](../features/authentication/account-lifecycle/doc.md#other-session-revocation).
 
 ---
 
@@ -330,6 +358,7 @@ None currently identified.
 - [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart): Core HTTP client, `_buildHeaders()`, `_safeCall()`, `_tryRefreshToken()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Secure storage wrapper for access token, refresh token, fingerprint, binding secret.
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): Global auth state, session initialization, lifecycle locale sync.
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`).
 
 ### Backend Node.js
 - [authMiddleware.js](file:///f:/JustUS/Backend/middleware/authMiddleware.js): `authenticateToken()`, `verifyToken()`, profile resolution, session binding validation.
@@ -358,6 +387,7 @@ None currently identified.
 | Supabase JWT Authentication | **IMPLEMENTED** | Verified via `authSupabase.auth.getUser` |
 | Token Storage (`FlutterSecureStorage`) | **IMPLEMENTED** | Secure storage wrapper |
 | Token Refresh (SDK-mediated) | **IMPLEMENTED** | `Supabase.refreshSession()` owns refresh; the backend `/auth/refresh` proxy no longer exists. One path, one rotation |
+| Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` after `updateUser(password:)`; current session kept, revoke best-effort (5 s cap) |
 | Token Lifetime Policy Enforcement | **IMPLEMENTED** | Checked in `tokenUtils.js` |
 | Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |

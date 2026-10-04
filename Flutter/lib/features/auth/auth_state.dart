@@ -29,10 +29,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   /// real widget needs a live Navigator context and the Turnstile web view.
   final Future<String?> Function()? _captchaTokenProvider;
 
-  /// Upper bound on the best-effort push-token revoke in [logout]. Injectable
-  /// so the "offline logout must not block" contract is testable without
-  /// waiting out the production timeout.
   final Duration _deviceRevokeTimeout;
+  final Duration _sessionRevokeTimeout;
 
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
@@ -46,11 +44,13 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     UserRepository? userRepo,
     Future<String?> Function()? captchaTokenProvider,
     Duration deviceRevokeTimeout = const Duration(seconds: 5),
+    Duration sessionRevokeTimeout = const Duration(seconds: 5),
   })  : _authRepo = authRepo ?? AuthRepository(),
         _partnershipRepo = partnershipRepo ?? PartnershipRepository(),
         _userRepo = userRepo ?? UserRepository(),
         _captchaTokenProvider = captchaTokenProvider,
-        _deviceRevokeTimeout = deviceRevokeTimeout;
+        _deviceRevokeTimeout = deviceRevokeTimeout,
+        _sessionRevokeTimeout = sessionRevokeTimeout;
 
   String?
       _error; // Kept for custom error logic if needed, but BaseState has _message
@@ -399,8 +399,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
         try {
           await _authRepo.signOut();
         } catch (e) {
-          AnsiLogger.error(
-              'SignOut dopo registrazione fallito: $e', tag: 'Register');
+          AnsiLogger.error('SignOut dopo registrazione fallito: $e',
+              tag: 'Register');
         }
       }
 
@@ -434,6 +434,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       } else if (result is NetworkError<void>) {
         throw AppError.network();
       }
+
+      await _revokeOtherSessions();
     });
   }
 
@@ -493,6 +495,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       } else if (result is NetworkError<void>) {
         throw AppError.network();
       }
+
+      await _revokeOtherSessions();
 
       return ChangePasswordResult.success;
     } catch (e, st) {
@@ -764,6 +768,20 @@ class AuthState extends BaseState with WidgetsBindingObserver {
           tag: 'AuthState');
     } catch (e) {
       AnsiLogger.error('Device token revoke failed: $e', tag: 'AuthState');
+    }
+  }
+
+  /// Strictly best-effort: the password is already changed when this runs, so a
+  /// failure here must never be reported as a failed change. Offline the user
+  /// waits at most [sessionRevokeTimeout] and gets the success feedback; the
+  /// other sessions then survive until their tokens expire.
+  Future<void> _revokeOtherSessions() async {
+    try {
+      await _authRepo.revokeOtherSessions().timeout(_sessionRevokeTimeout);
+      AnsiLogger.auth('Other sessions revoked after password change',
+          tag: 'AuthState');
+    } catch (e) {
+      AnsiLogger.error('Other session revoke failed: $e', tag: 'AuthState');
     }
   }
 }

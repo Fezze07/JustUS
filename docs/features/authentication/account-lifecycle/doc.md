@@ -5,7 +5,7 @@
 This document provides a detailed reverse-engineered analysis of the **Authentication Account Lifecycle** in the JustUS application. It covers password modifications, push device token registration and hardware identification, logout protocols, local and realtime state cleanup, state machine transitions, and account wipe effects.
 
 Key architectural boundaries:
-- **Password Management**: `ChangePasswordScreen` re-authenticates the current password, then calls `supabase.auth.updateUser(password:)`; other sessions stay valid.
+- **Password Management**: `ChangePasswordScreen` re-authenticates the current password, then calls `supabase.auth.updateUser(password:)`; every other session of the account is then revoked with `SignOutScope.others`.
 - **Push Device Identity**: Cross-platform resolution differentiating FCM push tokens (Android/iOS/Web) from persistent hardware UUID fingerprints (Windows Desktop), backed by PostgreSQL `user_devices` upserts and a logout-time revocation delete.
 - **Logout Protocol**: Multi-stage cleanup — best-effort push-token revoke, `FlutterSecureStorage`, `SharedPreferences`, in-memory `ApiService` headers, and Supabase Realtime channels (`RealtimeSyncService`).
 - **Account Wipe**: Debug operation clearing application domain data (`debug_wipe_user_data` procedure, `StorageService.clearAppCache()`, `CacheService.clearAll()`, `emptyAppMediaCaches()`) while maintaining active session authentication.
@@ -25,11 +25,30 @@ Key architectural boundaries:
 The change-password flow is implemented end to end, client → Supabase Auth (no backend route is involved):
 
 1. `ChangePasswordScreen` validates required/format/confirmation locally, then calls `AuthState.changePassword(currentPassword:, newPassword:)` with a loading state on the `VPButton`.
-2. `AuthState.changePassword` ([auth_state.dart:425-494](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L425-L494)) re-authenticates the current password with `signInWithPassword` (fresh Turnstile token included) before changing anything. A wrong current password maps to `ErrorCodes.authFailCurrent` and surfaces the screen's own message instead of the generic reauth dialog.
-3. On success it calls `AuthRepository.changePassword` ([auth_repository.dart:84-88](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L84-L88)) → `sbClient.auth.updateUser(UserAttributes(password: …))`.
-4. Failures are surfaced by `ErrorHandler`; success shows a localized snackbar and pops the screen.
+2. `AuthState.changePassword` ([auth_state.dart:449-520](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L449-L520)) re-authenticates the current password with `signInWithPassword` (fresh Turnstile token included) before changing anything. A wrong current password maps to `ErrorCodes.authFailCurrent` and surfaces the screen's own message instead of the generic reauth dialog.
+3. On success it calls `AuthRepository.changePassword` ([auth_repository.dart:96-104](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L96-L104)) → `sbClient.auth.updateUser(UserAttributes(password: …))`.
+4. The write is followed by the other-session revoke (see below).
+5. Failures are surfaced by `ErrorHandler`; success shows a localized snackbar and pops the screen.
 
-**Not covered**: the password change does not invalidate other sessions — Supabase keeps existing refresh tokens valid until they expire, and the app issues no "signed out everywhere" call.
+The recovery flow (`ResetPasswordScreen` → `AuthState.updatePasswordNew` ([auth_state.dart:433-447](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L433-L447)) → `AuthRepository.updatePasswordWithoutCurrent` ([auth_repository.dart:71-78](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L71-L78))) writes the password without a current-password check and performs the same revoke.
+
+### Other-Session Revocation
+
+Both password writes end with `AuthState._revokeOtherSessions()` ([auth_state.dart:781-799](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L781-L799)), which calls `AuthRepository.revokeOtherSessions()` ([auth_repository.dart:89-94](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L89-L94)) → `sbClient.auth.signOut(scope: SignOutScope.others)`.
+
+- **Why `others`, not `global`**: `SignOutScope.others` revokes every session of the account **except the one the request is issued with**, so the device that changed the password stays logged in and the SDK fires no `signedOut` event (the teardown in [Logout](#logout) is not triggered). `global` would have logged the current device out as well.
+- **What it kills**: Supabase issues `DELETE FROM auth.sessions WHERE id != <current>`, so both the other refresh tokens *and* their already-issued access tokens stop working. GoTrue resolves the JWT's `session_id` on every request, so a deleted session is rejected at once (`session_not_found`) rather than at token expiry — the backend turns that into `AUTH-FAIL-001` (`401`), which is the app's normal "session gone" path.
+- **Best-effort, by design**: the password is already changed when the revoke runs, so a failure here is logged and never turns a successful change into a failure:
+
+| Failure | Behavior |
+|---|---|
+| Offline / DNS / SocketException | caught and logged; the user still gets the success feedback |
+| Hanging request | cut off by a 5 s timeout (`sessionRevokeTimeout`), success feedback follows |
+| `401` / `403` / `404` from Supabase | swallowed by the SDK itself (it treats these as "already gone") |
+| No live session | the SDK sends nothing, so no revoke is attempted |
+
+- **Residual — push registrations survive**: revoking the session stops that device's API access, but its row in `user_devices` is untouched, so the backend keeps sending that device push notifications until the app itself hits a `401` and runs the [logout revoke](#logout). A device that is never used again keeps receiving pushes.
+- **Residual — the local token mirror is stale**: the re-auth `signInWithPassword` creates a *new* session on this device, and the subsequent `others` revoke deletes the older one that `AuthState._accessToken` / `StorageService` still hold. Harmless: every authenticated request and the Realtime JWT are read from the live SDK session, and the stale copy only feeds the `isLoggedIn` check.
 
 ---
 
@@ -292,6 +311,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 ## Error Handling
 
 - **Logout Exceptions**: `AuthState.logout()` executes cleanup steps (`revokeDeviceToken()`, `signOut()`, `clearAll()`, `clearHeadersCache()`) sequentially without throwing errors if individual sub-tasks encounter network or storage issues, ensuring local logout completion. The revoke is additionally bounded by a 5 s timeout.
+- **Password Write Exceptions**: `AuthState._revokeOtherSessions()` swallows every error (and is bounded by a 5 s timeout), so the result reported for the change itself is never influenced by the revoke. The `updateUser` failures above it are what turn into `ChangePasswordResult.failure` / `false` — and in that case no revoke is attempted at all, since the password was not written.
 
 ---
 
@@ -299,6 +319,9 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 1. **Logout During Active HTTP Requests**: In-flight requests failing after `logout()` are handled by `_safeCall`. Since `StorageService` is already wiped, token refresh fails and no re-authentication state is modified.
 2. **Account Wipe Operating Without Logout**: `ProfileState.wipeAppData()` executes database purging without touching session tokens or clearing `AuthState`, allowing seamless app usage post-wipe. The push registration survives the wipe, which is correct: the session stays active.
+3. **Password Change on a Device with a Pre-existing Session**: the re-auth inside `changePassword` opens a *second* session for this same device, so the `others` revoke deletes the session the app was using before the change. Only its copy in `AuthState._accessToken` / `StorageService` is affected — requests and the Realtime JWT read the live SDK session, so nothing breaks, but those stored values are dead tokens until the next refresh.
+4. **Password Change While Other Devices Are Logged In**: those devices lose API access immediately (their `auth.sessions` rows are gone), but they keep receiving push notifications until they next hit a `401` and run the logout revoke — see [Other-Session Revocation](#other-session-revocation).
+5. **No Session Available for the Revoke**: `updatePasswordNew` runs from a recovery deep link; when no live session exists (link opened in a client that never resolved it) the SDK sends no revoke, so the other sessions survive. The password change itself still succeeds.
 
 ---
 
@@ -306,10 +329,11 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 ### Flutter Frontend
 - [change_password_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Password change UI form.
+- [reset_password_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/reset_password_screen.dart): Post-recovery password form (`AuthState.updatePasswordNew`).
 - [device_token_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/device_token_service.dart): Platform token resolution `getDeviceToken()`, `getDeviceFingerprint()`.
 - [logout_utils.dart](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart): Logout dialog and `performLogout()` helper.
-- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `logout()`, `_revokeDeviceToken()`, `updateDeviceToken()`.
-- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): `updateDeviceToken()`, `revokeDeviceToken()`.
+- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `logout()`, `_revokeDeviceToken()`, `_revokeOtherSessions()`, `updateDeviceToken()`.
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): `updateDeviceToken()`, `revokeDeviceToken()`, `revokeOtherSessions()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Storage purge `clearAll()`, `clearAppCache()`.
 - [cache_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/cache_service.dart): Checkpoint cache purge `clearAll()`.
 - [realtime_connection.dart](file:///f:/JustUS/Flutter/lib/core/realtime/realtime_connection.dart): Channel teardown `unsubscribe()`, lifecycle.
@@ -333,7 +357,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 | Feature / Lifecycle Stage | Implementation Status | Notes |
 |---|---|---|
-| Change Password Flow | **IMPLEMENTED** | Re-authenticates the current password, then `updateUser(password:)`; other sessions stay valid (9.3) |
+| Change Password Flow | **IMPLEMENTED** | Re-authenticates the current password, then `updateUser(password:)`; every other session is revoked with `SignOutScope.others` (best-effort, 5 s cap) |
 | FCM Mobile Device Token Registration | **IMPLEMENTED** | `DeviceTokenService` & `POST /api/v1/auth/device-token` |
 | Windows Desktop Identification | **IMPLEMENTED** | Uses persistent UUID device fingerprint (Not push) |
 | Device Token Reassignment | **IMPLEMENTED** | Database `upsert` on conflict `device_token` |

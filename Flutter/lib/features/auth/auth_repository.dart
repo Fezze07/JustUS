@@ -86,6 +86,13 @@ class AuthRepository extends BaseRepository {
     await sbClient.auth.signOut();
   }
 
+  /// Revokes every session of this account except the live one, so a token
+  /// stolen from another device dies with the password change. `others` keeps
+  /// the current session and emits no `signedOut` event.
+  Future<void> revokeOtherSessions() async {
+    await sbClient.auth.signOut(scope: SignOutScope.others);
+  }
+
   Future<ResultWrapper<void>> changePassword(
       String currentPassword, String newPassword) async {
     return tryCall(() async {

@@ -158,7 +158,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 Every feature exposes `*Repository extends BaseRepository`:
 
-- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `changePassword`, `updateDeviceToken` (backend, signed).
+- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`, run after a password write), `changePassword`, `updatePasswordWithoutCurrent`, `updateDeviceToken` (backend, signed).
 - `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `sendPartnerRequest` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase views/RPCs) plus backend calls for media/AI where needed.
 
@@ -197,7 +197,7 @@ Sealed: `Success<T>` / `GenericError<T>(code, message, details)` / `NetworkError
 1. **Supabase SDK (source of truth)**: the SDK refreshes automatically before expiry and fires `AuthChangeEvent.tokenRefreshed`; `AuthState` listens and persists the new access/refresh tokens to secure storage.
 2. **401-driven refresh**: `ApiService._tryRefreshToken()` calls the same `auth.refreshSession()` and, if the SDK had not already refreshed (detected by comparing the request's token with the live session), updates the live session before retrying.
 
-gotrue's internal `_pendingRefreshes` map makes both sources share a single network refresh per refresh token, so they cannot race. The SDK session is authoritative for the access token (`ApiService` reads it from `Supabase.instance.client.auth.currentSession`); `AuthState` mirrors it via the `tokenRefreshed` listener, so `_accessToken` and `currentSession` always agree (todo# 1.6). The former backend `/auth/refresh` proxy has been retired.
+gotrue's internal `_pendingRefreshes` map makes both sources share a single network refresh per refresh token, so they cannot race. The SDK session is authoritative for the access token (`ApiService` reads it from `Supabase.instance.client.auth.currentSession`); `AuthState` mirrors it via the `tokenRefreshed` listener (todo# 1.6). The mirror is not an invariant, though: a `signInWithPassword` that emits no `tokenRefreshed` (the re-auth inside `changePassword`) replaces the live session and leaves `_accessToken` and the secure-storage copy on the previous one. Nothing reads them for auth decisions — `ApiService` and `RealtimeSyncConnection` both take the SDK session, and `AuthState.isLoggedIn` only null-checks the mirror. The former backend `/auth/refresh` proxy has been retired.
 
 ---
 
