@@ -453,8 +453,13 @@ class ApiService {
 
   Future<ResultWrapper<Map<String, dynamic>>> reportFailedLogin(
       Map<String, dynamic> body) async {
-    return _post(ApiRoutes.authLoginAttempt,
-        body: body, skipAuth: true, label: 'Report Failed Login');
+    return _post(
+      ApiRoutes.authLoginAttempt,
+      body: body,
+      skipAuth: true,
+      extraHeaders: {'X-Idempotency-Key': _uuid.v4()},
+      label: 'Report Failed Login',
+    );
   }
 
   Future<ResultWrapper<Map<String, dynamic>>> syncSession(

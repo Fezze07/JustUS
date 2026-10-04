@@ -7,6 +7,7 @@ const {
   syncSessionController,
   invitePartnerController,
   createCompositeRateLimit,
+  withIdempotency,
   ipKey,
   deviceKey,
   DEFAULT_WINDOW_MS,
@@ -71,6 +72,7 @@ router.post(
   "/login-attempt",
   ...chain(
     limited(loginRiskRateLimit),
+    withIdempotency("auth-login-attempt"),
     validated({ body: loginAttemptSchema })
   ),
   registerFailedLoginController

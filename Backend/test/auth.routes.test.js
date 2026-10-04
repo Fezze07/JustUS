@@ -45,12 +45,17 @@ jest.mock("../middleware/requireFreshNonce", () =>
   jest.fn(() => (_req, _res, next) => next())
 );
 
-const { adminSupabase, resetAuthRiskState } = require("../all_imports");
+const {
+  adminSupabase,
+  resetAuthRiskState,
+  resetRateLimitState,
+} = require("../all_imports");
 const { createApp } = require("../app");
 
 describe("auth routes", () => {
   beforeEach(() => {
     resetAuthRiskState();
+    resetRateLimitState();
     adminSupabase.from.mockReset();
     adminSupabase.rpc.mockReset();
   });
@@ -100,6 +105,62 @@ describe("auth routes", () => {
 
     expect(riskResponse.status).toBe(429);
     expect(riskResponse.body.error.code).toBe("SEC-BLOCK-002");
+  });
+
+  test("counts a replayed failed login attempt once", async () => {
+    const app = createApp();
+    const payload = {
+      email: "replay@example.com",
+      deviceFingerprint: "device-fingerprint-replay",
+      reason: "invalid_credentials",
+    };
+
+    const first = await request(app)
+      .post("/api/v1/auth/login-attempt")
+      .set("X-Idempotency-Key", "replay-key-1")
+      .send(payload);
+
+    expect(first.status).toBe(200);
+    expect(first.body.failures).toBe(1);
+
+    // Same idempotency key = same logical report: the strike counter must not
+    // move, otherwise a single failed login could be counted twice.
+    const replay = await request(app)
+      .post("/api/v1/auth/login-attempt")
+      .set("X-Idempotency-Key", "replay-key-1")
+      .send(payload);
+
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual(first.body);
+
+    const riskAfterReplay = await request(app)
+      .post("/api/v1/auth/login-risk-check")
+      .send({
+        email: payload.email,
+        deviceFingerprint: payload.deviceFingerprint,
+      });
+
+    expect(riskAfterReplay.status).toBe(200);
+    expect(riskAfterReplay.body.strikeLevel).toBe(0);
+
+    // Distinct keys still count, and the 5th distinct attempt escalates.
+    for (let attempt = 2; attempt <= 4; attempt += 1) {
+      const response = await request(app)
+        .post("/api/v1/auth/login-attempt")
+        .set("X-Idempotency-Key", `replay-key-${attempt}`)
+        .send(payload);
+
+      expect(response.status).toBe(200);
+      expect(response.body.failures).toBe(attempt);
+    }
+
+    const blocked = await request(app)
+      .post("/api/v1/auth/login-attempt")
+      .set("X-Idempotency-Key", "replay-key-5")
+      .send(payload);
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe("SEC-BLOCK-002");
   });
 
   test("syncs a backend session and returns a binding secret", async () => {

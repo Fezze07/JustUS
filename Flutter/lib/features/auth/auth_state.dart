@@ -25,6 +25,10 @@ class AuthState extends BaseState with WidgetsBindingObserver {
   final PartnershipRepository _partnershipRepo;
   final UserRepository _userRepo;
 
+  /// Overrides the Turnstile challenge. Only tests inject a token here: the
+  /// real widget needs a live Navigator context and the Turnstile web view.
+  final Future<String?> Function()? _captchaTokenProvider;
+
   StreamSubscription<dynamic>? _authSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
   String? _lastSyncedLocale;
@@ -35,9 +39,11 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     AuthRepository? authRepo,
     PartnershipRepository? partnershipRepo,
     UserRepository? userRepo,
+    Future<String?> Function()? captchaTokenProvider,
   })  : _authRepo = authRepo ?? AuthRepository(),
         _partnershipRepo = partnershipRepo ?? PartnershipRepository(),
-        _userRepo = userRepo ?? UserRepository();
+        _userRepo = userRepo ?? UserRepository(),
+        _captchaTokenProvider = captchaTokenProvider;
 
   String?
       _error; // Kept for custom error logic if needed, but BaseState has _message
@@ -275,6 +281,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
           captchaToken: captchaToken,
         );
       } on AuthException catch (e) {
+        await _reportFailedLogin(email, 'invalid_credentials');
         throw AppError(
             code: ErrorCodes.authFailCred,
             message: e.message,
@@ -282,6 +289,7 @@ class AuthState extends BaseState with WidgetsBindingObserver {
       }
 
       if (res.user == null || res.session == null) {
+        await _reportFailedLogin(email, 'no_user_data');
         throw const AppError(
             code: ErrorCodes.authFailCred,
             message: 'Login failed: no user data');
@@ -652,6 +660,28 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     }
   }
 
+  /// Feeds the backend strike engine (`POST /auth/login-attempt`) after a
+  /// credential failure. Best-effort by design: the counter is telemetry for
+  /// the lockout schedule, so a report that fails (offline, backend down, the
+  /// 429 the engine returns once the strike escalates) must never replace the
+  /// wrong-password error the user needs to see.
+  Future<void> _reportFailedLogin(String email, String reason) async {
+    try {
+      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final result = await _authRepo.reportFailedLogin(
+        email,
+        deviceFingerprint,
+        reason,
+      );
+      if (result is GenericError<Map<String, dynamic>>) {
+        AnsiLogger.error('Failed login not recorded (${result.code}): $result',
+            tag: 'AuthState');
+      }
+    } catch (e) {
+      AnsiLogger.error('Failed login report error: $e', tag: 'AuthState');
+    }
+  }
+
   Future<void> _syncBackendSession() async {
     if (_authRepo.currentSession == null) {
       return;
@@ -678,7 +708,8 @@ class AuthState extends BaseState with WidgetsBindingObserver {
     }
   }
 
-  Future<String?> _getCaptchaToken() => CaptchaService.getCaptchaToken();
+  Future<String?> _getCaptchaToken() async =>
+      _captchaTokenProvider?.call() ?? CaptchaService.getCaptchaToken();
 
   @override
   void dispose() {

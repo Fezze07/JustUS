@@ -114,7 +114,9 @@ Flutter UI (LoginScreen)
    │
    ├── 5. Supabase Auth Authentication (sbClient.auth.signInWithPassword)
    │        │
-   │        └── Validates credentials + Turnstile against Supabase Auth
+   │        ├── Validates credentials + Turnstile against Supabase Auth
+   │        └── On AuthException / null response: reports the attempt
+   │                (Backend POST /api/v1/auth/login-attempt) before failing
    │
    ├── 6. Profile Fetching (UserRepository.fetchProfileByAuthId)
    │        │
@@ -161,6 +163,7 @@ Flutter UI (LoginScreen)
    - File: [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L38-L40)
    - Invokes `sbClient.auth.signInWithPassword(email: email, password: password, captchaToken: captchaToken)`.
    - A Supabase `AuthException` (invalid credentials, unconfirmed email, etc.) is caught and rethrown as `AppError(authFailCred)`; the same applies when `res.user`/`res.session` are null. `authFailCred` is client-only and **not** in `requiresReauth`, so `ErrorHandler` shows a SnackBar on the form (no session-expiry dialog, no stack replacement).
+   - Before rethrowing, both failure branches call `AuthState._reportFailedLogin`, which posts `{ email, deviceFingerprint, reason }` (`invalid_credentials` / `no_user_data`) to `POST /api/v1/auth/login-attempt` — this is what feeds the strike engine. The report is **best-effort**: it swallows its own errors, so the wrong-password error is always the one the user sees. The device fingerprint is the same one the pre-login risk check uses, so both address the same strike key.
    - Returns a Supabase `AuthResponse` containing `res.user` and `res.session`.
 
 5. **Profile Resolution**
@@ -279,6 +282,8 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 ### Blocking & Evaluation Order
 
 - Pre-login check (`POST /api/v1/auth/login-risk-check`): Evaluates risk **before** credential verification. If `blocked` is true, throws `AppError(SEC_BLOCK_002)` with HTTP 429 status code.
+- Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails. Increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
+- Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. A successful login clears the counter through `clearFailedLogins()` in the session-sync handler.
 
 ---
 
@@ -303,17 +308,12 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 
 During the reverse-engineering analysis, the following structural bugs, security flaws, and implementation inconsistencies were discovered:
 
-### 1. CRITICAL BUG: Failed Login Attempts Are Never Reported to Risk Engine
-- **Finding**: In `Backend/features/auth/auth.routes.js`, endpoint `POST /api/v1/auth/login-attempt` exists to increment failed attempts via `recordFailedLogin()`. In `Flutter/lib/features/auth/auth_repository.dart`, function `reportFailedLogin()` is defined.
-- **Defect**: `AuthState.login()` in [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L229-L301) **never calls `reportFailedLogin()`** when Supabase `signInWithPassword()` fails or throws an `AuthException`.
-- **Impact**: Failed login attempts are never recorded in `authRisk.service.js`. `loginAttempts` counter stays at 0, strike levels never increment, and brute-force protection through failed attempts is **completely non-functional** in production.
-
-### 2. INCONSISTENCY: Password Validation Rules Enforced Only on Client
+### 1. INCONSISTENCY: Password Validation Rules Enforced Only on Client
 - **Finding**: Strict regex rules for uppercase, lowercase, numeric, and symbol characters are enforced solely in Flutter's `Validators.validatePassword`.
 - **Defect**: Neither the Node backend nor Supabase Auth database rules validate complex password character patterns on registration.
 - **Impact**: Any registration request bypassing the Flutter client (e.g., via direct REST API calls) can register accounts with weak passwords.
 
-### 3. SECURITY RISK: Unprotected Backend Risk Check Endpoints
+### 2. SECURITY RISK: Unprotected Backend Risk Check Endpoints
 - **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`). Turnstile verification intentionally stays on Supabase Auth only (single-use token — it cannot also be consumed by the backend).
 - **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
 
@@ -338,7 +338,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 ### Flutter Frontend
 - [login_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/login_screen.dart): UI rendering for login form, input controllers, submit triggers.
 - [register_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart): UI rendering for registration form and email confirmation modal.
-- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): State management methods `login()`, `register()`, `_checkLoginRisk()`, `_syncBackendSession()`, `setLoginData()`.
+- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): State management methods `login()`, `register()`, `_checkLoginRisk()`, `_reportFailedLogin()`, `_syncBackendSession()`, `setLoginData()`.
 - [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): API wrapper methods `signInWithPassword()`, `signUp()`, `checkLoginRisk()`, `reportFailedLogin()`.
 - [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart): Turnstile Managed-mode challenge inside a dialog, `getCaptchaToken()`.
 - [validators.dart](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart): Client input validation regex methods `validateEmail()`, `validatePassword()`, `validateRequired()`.
@@ -365,7 +365,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 | Supabase Auth Registration | **IMPLEMENTED** | `signUp()` with metadata & redirect |
 | PostgreSQL Profile Trigger | **IMPLEMENTED** | `handle_new_auth_user()` trigger |
 | Login Risk Pre-Check | **IMPLEMENTED** | `checkLoginRiskController` & `/login-risk-check` |
-| Progressive Strike Engine | **BROKEN / DEFECTIVE** | `reportFailedLogin` is never called by Flutter on login failure |
+| Progressive Strike Engine | **IMPLEMENTED** | `AuthState._reportFailedLogin` → `POST /login-attempt` on every credential failure; counters are per-process (see Known Issues) |
 | Backend Session Sync & Binding | **IMPLEMENTED** | `syncSessionController` & `auth_sessions` |
 | FCM Device Token Registration | **IMPLEMENTED** | `updateDeviceToken` |
 | Post-Login Navigation Routing | **IMPLEMENTED** | Routes to `MainShell` if partnered, else `PartnerScreen` |

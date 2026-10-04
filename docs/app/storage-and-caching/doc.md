@@ -291,9 +291,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 3. **Media files not encrypted on disk**: flutter\_cache\_manager stores files in the app cache directory in plaintext. On a compromised device, cached R2 media (including profile pictures) is readable.
 
-4. **`reportFailedLogin` is dead code**: The `AuthRepository.reportFailedLogin` method and the corresponding backend endpoint `POST /api/v1/auth/login-attempt` exist but are **never called** from the Flutter app (`auth_repository.dart:20–26`). Failed login attempts are not reported to the backend, so the backend risk-detection system has no client-side telemetry.
-
-5. **Binding secret bridge across layers**: `StorageService.saveRequestBindingSecret` at `:186–189` directly mutates `ApiService._cachedRequestBindingSecret` — a static field on a different class. This creates a hidden bidirectional dependency that makes the boundary between storage and networking porous.
+4. **Binding secret bridge across layers**: `StorageService.saveRequestBindingSecret` at `:186–189` directly mutates `ApiService._cachedRequestBindingSecret` — a static field on a different class. This creates a hidden bidirectional dependency that makes the boundary between storage and networking porous.
 
 ---
 
@@ -332,7 +330,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 ## Known Issues
 
 - `DriveState.clearMediaCache()` delegates to `emptyAppMediaCaches()` but is still not called from any UI/lifecycle hook (the wipe path calls the helper directly). F-SC9
-- `reportFailedLogin` / `AuthRepository.reportFailedLogin` — defined but never called.
 
 ---
 
@@ -351,7 +348,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | Media cache clearing on wipe | IMPLEMENTED (F-SC11: `emptyAppMediaCaches` from `wipeAppData`) |
 | Media cache clearing on logout | NOT IMPLEMENTED (F-SC9) |
 | `profile_pic_version` used to bust image cache | IMPLEMENTED (`v=` query param on the own-avatar URL + `evictAppMediaFile` on upload) |
-| `reportFailedLogin` wired from UI | NOT IMPLEMENTED (dead code) |
+| `reportFailedLogin` wired from UI | IMPLEMENTED (`AuthState.login()` on every credential failure) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
 | Theme preference persistence across restart + logout | IMPLEMENTED (`app_theme_mode`; restored pre-`runApp`, preserved by `clearAll`) |
 
