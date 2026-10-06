@@ -13,10 +13,10 @@ const SECRET = "secret-123";
 const BASE = {
   secret: SECRET,
   method: "POST",
-  path: "/api/v1/ai/question",
+  path: "/api/v1/media/delete",
   timestamp: 1_700_000_000_000,
   nonce: "nonce-1",
-  payload: { type: "romantico" },
+  payload: { id: 1 },
 };
 
 describe("computeBodyHash", () => {
@@ -62,13 +62,13 @@ describe("canonicalizeRequest", () => {
   test("joins the fields with dots and uppercases the method", () => {
     const canonical = canonicalizeRequest({
       method: "post",
-      path: "/api/v1/ai/question",
+      path: "/api/v1/media/delete",
       timestamp: 123,
       nonce: "n",
       bodyHash: "h",
     });
 
-    expect(canonical).toBe("POST./api/v1/ai/question.123.n.h");
+    expect(canonical).toBe("POST./api/v1/media/delete.123.n.h");
   });
 
   test("renders missing fields as empty strings instead of undefined", () => {
@@ -85,7 +85,7 @@ describe("signRequest", () => {
 
     expect(bodyHash).toBe(computeBodyHash(BASE.payload));
     expect(canonical).toBe(
-      `POST./api/v1/ai/question.${BASE.timestamp}.${BASE.nonce}.${bodyHash}`
+      `POST./api/v1/media/delete.${BASE.timestamp}.${BASE.nonce}.${bodyHash}`
     );
     expect(signature).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -100,7 +100,7 @@ describe("signRequest", () => {
   test.each([
     ["secret", { secret: "other-secret" }],
     ["method", { method: "PUT" }],
-    ["path", { path: "/api/v1/media/delete" }],
+    ["path", { path: "/api/v1/media/complete" }],
     ["timestamp", { timestamp: BASE.timestamp + 1 }],
     ["nonce", { nonce: "nonce-2" }],
     ["payload", { payload: { type: "competitivo" } }],

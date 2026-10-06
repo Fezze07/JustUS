@@ -11,7 +11,7 @@ const {
 // between a role in the database and access to the media/AI APIs.
 
 describe("normalizeRole", () => {
-  test.each(["user", "premium", "moderator", "system", "guest", "ai-worker"])(
+  test.each(["user", "premium", "moderator", "system", "guest"])(
     "keeps the known role %s",
     (role) => {
       expect(normalizeRole(role)).toBe(role);
@@ -37,22 +37,22 @@ describe("normalizeRole", () => {
 
 describe("normalizeCapabilities", () => {
   test("passes an array through, trimming and dropping blanks", () => {
-    expect(normalizeCapabilities([" can_ai_call ", "", "  ", "can_media_upload"])).toEqual([
-      "can_ai_call",
+    expect(normalizeCapabilities([" can_profile_update ", "", "  ", "can_media_upload"])).toEqual([
+      "can_profile_update",
       "can_media_upload",
     ]);
   });
 
   test("splits a comma-separated string", () => {
-    expect(normalizeCapabilities("can_ai_call, can_media_upload")).toEqual([
-      "can_ai_call",
+    expect(normalizeCapabilities("can_profile_update, can_media_upload")).toEqual([
+      "can_profile_update",
       "can_media_upload",
     ]);
   });
 
   test("drops empty segments from a string", () => {
-    expect(normalizeCapabilities("can_ai_call,,  ,can_media_upload")).toEqual([
-      "can_ai_call",
+    expect(normalizeCapabilities("can_profile_update,,  ,can_media_upload")).toEqual([
+      "can_profile_update",
       "can_media_upload",
     ]);
   });
@@ -61,14 +61,14 @@ describe("normalizeCapabilities", () => {
     expect(normalizeCapabilities(undefined)).toEqual([]);
     expect(normalizeCapabilities(null)).toEqual([]);
     expect(normalizeCapabilities(42)).toEqual([]);
-    expect(normalizeCapabilities({ can_ai_call: true })).toEqual([]);
+    expect(normalizeCapabilities({ can_media_upload: true })).toEqual([]);
   });
 });
 
 describe("resolveCapabilities", () => {
   test("gives a role its defaults when there are no custom capabilities", () => {
     expect(resolveCapabilities("premium", [])).toEqual(
-      expect.arrayContaining(["can_upload_large", "can_ai_call", "can_media_upload"])
+      expect.arrayContaining(["can_upload_large", "can_profile_update", "can_media_upload"])
     );
   });
 
@@ -80,7 +80,7 @@ describe("resolveCapabilities", () => {
     const resolved = resolveCapabilities("user", ["can_moderate_content"]);
 
     expect(resolved).toEqual(
-      expect.arrayContaining(["can_ai_call", "can_media_upload", "can_moderate_content"])
+      expect.arrayContaining(["can_profile_update", "can_media_upload", "can_moderate_content"])
     );
   });
 
@@ -88,30 +88,30 @@ describe("resolveCapabilities", () => {
   // grant a capability without the role default leaking back in.
   test("does not fall back to the 'user' defaults for an unknown role", () => {
     expect(resolveCapabilities("superadmin", [])).toEqual([]);
-    expect(resolveCapabilities("superadmin", ["can_ai_call"])).toEqual(["can_ai_call"]);
+    expect(resolveCapabilities("superadmin", ["can_media_upload"])).toEqual(["can_media_upload"]);
   });
 
   test("de-duplicates a capability the role already grants", () => {
-    expect(resolveCapabilities("user", ["can_ai_call"])).toEqual(
-      expect.arrayContaining(["can_ai_call"])
+    expect(resolveCapabilities("user", ["can_media_upload"])).toEqual(
+      expect.arrayContaining(["can_media_upload"])
     );
-    expect(resolveCapabilities("user", ["can_ai_call"]).filter((c) => c === "can_ai_call")).toHaveLength(1);
+    expect(resolveCapabilities("user", ["can_media_upload"]).filter((c) => c === "can_media_upload")).toHaveLength(1);
   });
 });
 
 describe("hasCapability", () => {
   test("finds a granted capability", () => {
-    expect(hasCapability(["can_ai_call", "can_media_upload"], "can_ai_call")).toBe(true);
+    expect(hasCapability(["can_profile_update", "can_media_upload"], "can_media_upload")).toBe(true);
   });
 
   test("does not match by prefix or substring", () => {
-    expect(hasCapability(["can_ai"], "can_ai_call")).toBe(false);
-    expect(hasCapability(["can_ai_call_all"], "can_ai_call")).toBe(false);
+    expect(hasCapability(["can_media"], "can_media_upload")).toBe(false);
+    expect(hasCapability(["can_media_upload_all"], "can_media_upload")).toBe(false);
   });
 
   test("is false for an absent, empty or non-array capability list", () => {
-    expect(hasCapability([], "can_ai_call")).toBe(false);
-    expect(hasCapability(undefined, "can_ai_call")).toBe(false);
-    expect(hasCapability("can_ai_call", "can_ai_call")).toBe(false);
+    expect(hasCapability([], "can_media_upload")).toBe(false);
+    expect(hasCapability(undefined, "can_media_upload")).toBe(false);
+    expect(hasCapability("can_media_upload", "can_media_upload")).toBe(false);
   });
 });

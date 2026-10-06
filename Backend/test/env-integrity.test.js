@@ -76,13 +76,7 @@ describe("Environment Integrity", () => {
   });
 
   test("the numeric knobs parse as positive integers", () => {
-    // ai.routes.test.js overrides two of these; a non-numeric or zero value
-    // would make parseNumber fall back to its default and silently change the
-    // limits those tests assert against.
     for (const key of [
-      "AI_DAILY_TOKEN_LIMIT",
-      "AI_CIRCUIT_BREAKER_THRESHOLD",
-      "AI_CIRCUIT_BREAKER_COOLDOWN_MS",
       "REQUEST_SIGNING_MAX_SKEW_MS",
       "MAX_ACCESS_TOKEN_LIFETIME_SEC",
       "LOG_RETENTION_DAYS",

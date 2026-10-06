@@ -29,7 +29,7 @@ jest.mock("../middleware/authMiddleware", () =>
       id: "auth-user-1",
       profileId: 42,
       publicEmail: "user@example.com",
-      capabilities: ["can_ai_call", "can_media_upload"],
+      capabilities: ["can_media_upload"],
       role: "user",
     };
     req.auth = { claims: { session_id: "session-1" } };

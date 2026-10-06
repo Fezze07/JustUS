@@ -25,9 +25,11 @@ jest.mock("../config/db", () => ({
   createUserScopedClient: jest.fn(),
 }));
 
-// Mocking controllers to avoid business logic side effects
-jest.mock("../features/ai/ai.controller", () => ({
-  generateQuestionController: jest.fn((req, res) => res.status(200).json({ success: true, question: "test" })),
+jest.mock("../features/media/media.controller", () => ({
+  presignUploadController: jest.fn((req, res) => res.status(200).json({ success: true })),
+  completeUploadController: jest.fn((req, res) => res.status(200).json({ success: true })),
+  redirectToSignedDownloadController: jest.fn((req, res) => res.status(200).json({ success: true })),
+  deleteMediaController: jest.fn((req, res) => res.status(200).json({ success: true })),
 }));
 
 jest.mock("../features/auth/auth.controller", () => ({
@@ -307,19 +309,19 @@ describe("Security Integration Tests", () => {
       const token = generateMockJWT(validUserPayload);
       const timestamp = Date.now();
       const nonce = "unique-nonce-1";
-      const payload = {};
+      const payload = { id: 1 };
 
       const { signature } = signRequest({
         secret: "secret-123",
         method: "POST",
-        path: "/api/v1/ai/question",
+        path: "/api/v1/media/delete",
         timestamp,
         nonce,
         payload,
       });
 
       const response = await request(app)
-        .post("/api/v1/ai/question")
+        .post("/api/v1/media/delete")
         .set("Authorization", `Bearer ${token}`)
         .set("x-request-timestamp", timestamp.toString())
         .set("x-request-nonce", nonce)
@@ -334,12 +336,12 @@ describe("Security Integration Tests", () => {
       const token = generateMockJWT(validUserPayload);
 
       const response = await request(app)
-        .post("/api/v1/ai/question")
+        .post("/api/v1/media/delete")
         .set("Authorization", `Bearer ${token}`)
         .set("x-request-timestamp", Date.now().toString())
         .set("x-request-nonce", "nonce-1")
         .set("x-request-signature", "invalid-signature")
-        .send({});
+        .send({ id: 1 });
 
       expect(response.status).toBe(401);
       expect(response.body.error.message).toContain("Invalid request signature");
@@ -350,12 +352,12 @@ describe("Security Integration Tests", () => {
       const token = generateMockJWT(validUserPayload);
       const timestamp = Date.now();
       const nonce = "reused-nonce";
-      const payload = {};
+      const payload = { id: 1 };
 
       const { signature } = signRequest({
         secret: "secret-123",
         method: "POST",
-        path: "/api/v1/ai/question",
+        path: "/api/v1/media/delete",
         timestamp,
         nonce,
         payload,
@@ -363,7 +365,7 @@ describe("Security Integration Tests", () => {
 
       const send = () =>
         request(app)
-          .post("/api/v1/ai/question")
+          .post("/api/v1/media/delete")
           .set("Authorization", `Bearer ${token}`)
           .set("x-request-timestamp", timestamp.toString())
           .set("x-request-nonce", nonce)
@@ -416,19 +418,19 @@ describe("Security Integration Tests", () => {
         const token = generateMockJWT(validUserPayload);
         const timestamp = Date.now();
         const nonce = "db-duplicate-nonce";
-        const payload = {};
+        const payload = { id: 1 };
 
         const { signature } = signRequest({
           secret: "secret-123",
           method: "POST",
-          path: "/api/v1/ai/question",
+          path: "/api/v1/media/delete",
           timestamp,
           nonce,
           payload,
         });
 
         const response = await request(app)
-          .post("/api/v1/ai/question")
+          .post("/api/v1/media/delete")
           .set("Authorization", `Bearer ${token}`)
           .set("x-request-timestamp", timestamp.toString())
           .set("x-request-nonce", nonce)
@@ -441,7 +443,7 @@ describe("Security Integration Tests", () => {
   });
 
   describe("Authorization (Capabilities)", () => {
-    test("FAIL: Missing capability 'can_ai_call'", async () => {
+    test("FAIL: Missing capability 'can_media_upload'", async () => {
       authSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: "limited-user" } },
         error: null,
@@ -483,22 +485,23 @@ describe("Security Integration Tests", () => {
 
       const timestamp = Date.now();
       const nonce = "nonce-cap-1";
+      const payload = { id: 1 };
       const { signature } = signRequest({
         secret: "secret-limited",
         method: "POST",
-        path: "/api/v1/ai/question",
+        path: "/api/v1/media/delete",
         timestamp,
         nonce,
-        payload: {},
+        payload,
       });
 
       const response = await request(app)
-        .post("/api/v1/ai/question")
+        .post("/api/v1/media/delete")
         .set("Authorization", `Bearer ${token}`)
         .set("x-request-timestamp", timestamp.toString())
         .set("x-request-nonce", nonce)
         .set("x-request-signature", signature)
-        .send({});
+        .send(payload);
 
       expect(response.status).toBe(403);
       expect(response.body.error.code).toBe("SEC-AUTH-001");
