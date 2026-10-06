@@ -180,15 +180,15 @@ void main() {
       expect(chain.locales, ['en', 'it']);
     });
 
-    test('pickQuestionForGame still throws when no locale has any row',
-        () async {
+    test('pickQuestionForGame returns Success(null) when no locale has any '
+        'row', () async {
       final chain = _BankChain();
 
       final repo = GameQuestionBankRepository(sbClient: chain.client);
       final result = await repo.pickQuestionForGame(locale: 'en');
 
+      expect(result, isA<Success<GameQuestionBankItem?>>());
       expect(result.valueOrNull, isNull);
-      expect(result, isA<GenericError<GameQuestionBankItem>>());
       expect(chain.locales, ['en', 'it']);
     });
   });

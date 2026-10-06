@@ -38,6 +38,7 @@ class LanguageProvider extends ChangeNotifier {
 
     await Future.wait([
       StorageService.clearCachedGameQuestion(),
+      StorageService.clearGameHistory(),
       CacheService.clearCheckpoints([CacheService.kGameAnswers]),
     ]);
 

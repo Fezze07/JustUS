@@ -46,11 +46,50 @@ class GameQuestionBankRepository extends BaseRepository {
     });
   }
 
+  /// Recupera i testi per i [codes] dati camminando la catena dei locale
+  /// dell'app una sola volta (es: 'en' → 'it'), filtrando per locale (1+N).
+  /// Interrompe appena tutti i codici sono risolti; i codici che nessun locale
+  /// traduce non compaiono nel risultato. Sostituisce il vecchio rifetch
+  /// per-codice del path history.
+  Future<ResultWrapper<Map<String, String>>> fetchTextsForCodes({
+    required Set<String> codes,
+    required String locale,
+  }) async {
+    return tryCall(() async {
+      final texts = <String, String>{};
+      var pending = codes;
+      if (pending.isEmpty) return texts;
+
+      for (final localeCode in LanguageHelper.localeChain(locale)) {
+        if (pending.isEmpty) break;
+
+        final data = await sbClient
+            .from('game_question_bank')
+            .select('question_code, text')
+            .inFilter('question_code', pending.toList())
+            .eq('locale', localeCode)
+            .toList();
+
+        for (final row in data) {
+          final code = row['question_code'] as String?;
+          final text = row['text'] as String?;
+          if (code != null && text != null && text.isNotEmpty) {
+            texts[code] = text;
+          }
+        }
+
+        pending = pending.difference(texts.keys.toSet());
+      }
+
+      return texts;
+    });
+  }
+
   /// Seleziona una nuova domanda per una partita.
   /// Può escludere codici di domande già giocate se forniti in [excludeQuestionCodes].
   /// Prova prima il locale richiesto e, se non resta nulla, il locale
   /// predefinito dell'app.
-  Future<ResultWrapper<GameQuestionBankItem>> pickQuestionForGame({
+  Future<ResultWrapper<GameQuestionBankItem?>> pickQuestionForGame({
     required String locale,
     List<String> excludeQuestionCodes = const [],
   }) async {
@@ -62,8 +101,7 @@ class GameQuestionBankRepository extends BaseRepository {
         if (bankItem != null) return bankItem;
       }
 
-      throw Exception(
-          'Nessuna domanda trovata nel catalogo (locale richiesto: $locale)');
+      return null;
     });
   }
 

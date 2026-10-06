@@ -59,12 +59,13 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                       const SizedBox(height: 16),
 
                       // Daily Game Card
-                      Selector<GameState,
-                          (GameNewQuestionResponse?, bool, bool)>(
+                      Selector<GameState, (GameNewQuestionResponse?, bool, bool,
+                          bool)>(
                         selector: (_, s) => (
                           s.currentQuestion,
                           s.isFetchingQuestion,
-                          s.isLoading
+                          s.isLoading,
+                          s.noQuestionAvailable
                         ),
                         builder: (context, _, __) =>
                             _buildDailyGameCard(context.read<GameState>()),
@@ -286,7 +287,9 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                             size: 64, color: context.palette.accentGreen),
                         const SizedBox(height: 16),
                         Text(
-                          context.loc.game_allCaughtUp,
+                          state.noQuestionAvailable
+                              ? context.loc.game_noQuestionAvailable
+                              : context.loc.game_allCaughtUp,
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,

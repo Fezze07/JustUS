@@ -1,15 +1,62 @@
+import 'dart:async';
+
 import 'package:justus/all_imports.dart';
 
 class GameState extends BaseState with CheckpointMixin {
-  GameState({GameRepository? repository})
-      : _repo = repository ?? GameRepository();
+  GameState({GameRepository? repository, LanguageProvider? languageProvider})
+      : _repo = repository ?? GameRepository(),
+        _languageProvider = languageProvider,
+        _handledLanguageCode = languageProvider?.locale.languageCode {
+    // Refetch the active question in the new locale right after a language
+    // change (G3). Uses `fetchActiveQuestion` — read-only, so it never
+    // inserts a new question nor notifies the partner.
+    _languageProvider?.addListener(_onLanguageChanged);
+  }
 
   final GameRepository _repo;
+  final LanguageProvider? _languageProvider;
+  String? _handledLanguageCode;
+
+  @override
+  void dispose() {
+    _languageProvider?.removeListener(_onLanguageChanged);
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    final code = _languageProvider?.locale.languageCode;
+    if (code == null || code == _handledLanguageCode) return;
+    _handledLanguageCode = code;
+    unawaited(_refreshForLocaleChange());
+  }
+
+  Future<void> _refreshForLocaleChange() async {
+    final result = await _repo.fetchActiveQuestion();
+    switch (result) {
+      case Success<GameNewQuestionResponse?>(:final value):
+        if (value != null) {
+          _currentQuestion = value;
+          _noQuestionAvailable = false;
+          await StorageService.saveGameQuestion(value);
+        } else {
+          _currentQuestion = null;
+          _noQuestionAvailable = true;
+          await StorageService.clearCachedGameQuestion();
+        }
+        notifyListeners();
+      case GenericError():
+      case NetworkError():
+        // Keep the previous question: a silent locale refresh should not
+        // clobber state on a transient failure.
+        break;
+    }
+  }
 
   GameNewQuestionResponse? _currentQuestion;
   List<GameHistoryItem> _history = [];
   int _gameStats = 0;
   bool _isFetchingQuestion = false;
+  bool _noQuestionAvailable = false;
   int? _currentUserId;
 
   int _checkpointToken = 0;
@@ -20,6 +67,7 @@ class GameState extends BaseState with CheckpointMixin {
   List<GameHistoryItem> get history => _history;
   int get gameStats => _gameStats;
   bool get isFetchingQuestion => _isFetchingQuestion;
+  bool get noQuestionAvailable => _noQuestionAvailable;
 
   Future<void> init() async {
     final epoch = CacheService.checkpointEpoch;
@@ -36,6 +84,11 @@ class GameState extends BaseState with CheckpointMixin {
     final cached = await StorageService.getCachedGameQuestion();
     if (cached != null) {
       _currentQuestion = await _resolveCachedNames(cached);
+    } else {
+      // The language change clears the question cache (G3): make sure the
+      // in-memory question in the old language does not survive an empty
+      // cache, otherwise the screen mixes locales.
+      _currentQuestion = null;
     }
     _gameStats = await StorageService.getGameMatches();
     _history = await StorageService.getGameHistory();
@@ -126,18 +179,19 @@ class GameState extends BaseState with CheckpointMixin {
 
     await result.handleAsync(
       onSuccess: (value) async {
-        if (value.success) {
+        if (value == null) {
+          noQuestionAvailable = true;
+          return;
+        }
+        _noQuestionAvailable = false;
+        // Don't save if question text is empty
+        if (value.question.isNotEmpty) {
           _currentQuestion = value;
           await StorageService.saveGameQuestion(value);
         } else {
           noQuestionAvailable = true;
-        }
-      },
-      onError: (code, message) {
-        if (message != 'No questions') {
-          ErrorHandler.handle(result);
-        } else {
-          noQuestionAvailable = true;
+          _currentQuestion = null;
+          await StorageService.clearCachedGameQuestion();
         }
       },
     );
@@ -148,6 +202,7 @@ class GameState extends BaseState with CheckpointMixin {
     // already retired (every other terminal path here clears the cache).
     if (noQuestionAvailable) {
       _currentQuestion = null;
+      _noQuestionAvailable = true;
       await StorageService.clearCachedGameQuestion();
     }
 
@@ -505,6 +560,7 @@ class GameState extends BaseState with CheckpointMixin {
     _gameStats = 0;
     _currentUserId = null;
     _isFetchingQuestion = false;
+    _noQuestionAvailable = false;
     notifyListeners();
   }
 }

@@ -112,7 +112,8 @@ class JustUsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => HomepageState()),
         ChangeNotifierProvider(create: (_) => MoodState()),
         ChangeNotifierProvider(create: (_) => BucketState()),
-        ChangeNotifierProvider(create: (_) => GameState()),
+        ChangeNotifierProvider(
+            create: (_) => GameState(languageProvider: languageProvider)),
         ChangeNotifierProvider(create: (_) => DriveState()),
         ChangeNotifierProvider(create: (_) => ProfileState()),
       ],

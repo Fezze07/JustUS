@@ -2,6 +2,16 @@ import 'dart:async';
 
 import 'package:justus/all_imports.dart';
 
+/// Shared prelude for the active-question flows (partnership + locale +
+/// display names). Throws when there is no active partnership.
+typedef _GameFetchContext = ({
+  int uid,
+  int partnershipId,
+  int partnerId,
+  String locale,
+  String Function(int userId) nameFor,
+});
+
 class GameRepository extends BaseRepository {
   final GameQuestionBankRepository _bankRepo;
 
@@ -9,12 +19,26 @@ class GameRepository extends BaseRepository {
       : _bankRepo = GameQuestionBankRepository(sbClient: sbClient);
 
   Future<String> _resolveQuestionText(String? code, String locale) async {
-    if (code == null) return '';
-    final res = await _bankRepo.fetchQuestionText(
+    if (code == null) {
+      throw Exception('Question code is null');
+    }
+    ResultWrapper<String?> res = await _bankRepo.fetchQuestionText(
       questionCode: code,
       locale: locale,
     );
-    return res.valueOrNull ?? '';
+    String? text = res.valueOrNull;
+    if (text == null || text.isEmpty) {
+      // Retry once
+      res = await _bankRepo.fetchQuestionText(
+        questionCode: code,
+        locale: locale,
+      );
+      text = res.valueOrNull;
+      if (text == null || text.isEmpty) {
+        throw Exception('Failed to resolve question text for code: $code');
+      }
+    }
+    return text;
   }
 
   Future<ResultWrapper<void>> submitAnswer(
@@ -35,70 +59,27 @@ class GameRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
+  /// Read-only: returns the active question for the couple, or `Success(null)`
+  /// when none exists. Never inserts and never notifies the partner — the
+  /// "create if missing" behaviour lives in [fetchNewGameQuestion].
+  Future<ResultWrapper<GameNewQuestionResponse?>> fetchActiveQuestion() {
     return withUser((uid) async {
-      final partnershipData = await getActivePartnership();
-      final partnershipId = partnershipData?['partnership_id'] as int?;
-      final partnerId = partnershipData?['partner_id'] as int?;
-      if (partnershipId == null || partnerId == null) {
-        throw Exception('No active partnership');
-      }
+      final ctx = await _buildGameFetchContext(uid);
+      return _fetchActiveQuestionFor(ctx);
+    });
+  }
 
-      final locale = await LanguageHelper.currentLocaleCode();
-      final myName = await StorageService.getUsername();
-      final partnerName = partnershipData?['partner_display_name'] as String?;
-
-      String nameFor(int userId) => resolvePlayerName(
-            userId: userId,
-            currentUserId: uid,
-            myName: myName,
-            partnerName: partnerName,
-          );
-
-      final existing = await sbClient
-          .from('game_questions')
-          .select('id, question_code, status, user_id_a, user_id_b, created_at')
-          .eq('partnership_id', partnershipId)
-          .neq('status', 'both_answered')
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      if (existing != null) {
-        final answers = await sbClient
-            .from('game_answers')
-            .select('user_id')
-            .eq('game_id', existing['id'] as int)
-            .toList();
-        final hasAnswered = answers.any((a) => a['user_id'] == uid);
-        final partnerAnswered = answers.any((a) => a['user_id'] == partnerId);
-
-        final userIdA = existing['user_id_a'] as int?;
-        final userIdB = existing['user_id_b'] as int?;
-        final questionCode = existing['question_code'] as String?;
-
-        final questionText = await _resolveQuestionText(questionCode, locale);
-
-        return GameNewQuestionResponse(
-          success: true,
-          id: existing['id'] as int,
-          question: questionText,
-          questionCode: questionCode,
-          status: existing['status'] as String?,
-          userIdA: userIdA,
-          userIdB: userIdB,
-          optionA: userIdA != null ? nameFor(userIdA) : 'Opzione A',
-          optionB: userIdB != null ? nameFor(userIdB) : 'Opzione B',
-          hasAnswered: hasAnswered,
-          partnerAnswered: partnerAnswered,
-        );
-      }
+  Future<ResultWrapper<GameNewQuestionResponse?>> fetchNewGameQuestion() async {
+    return withUser((uid) async {
+      final ctx = await _buildGameFetchContext(uid);
+      final existing = await _fetchActiveQuestionFor(ctx);
+      if (existing != null) return existing;
 
       // Nessuna domanda attiva per la coppia: ne creiamo una nuova dal catalogo!
       final playedQuestionsRes = await sbClient
           .from('game_questions')
           .select('question_code')
-          .eq('partnership_id', partnershipId)
+          .eq('partnership_id', ctx.partnershipId)
           .toList();
 
       final playedQuestionCodes = playedQuestionsRes
@@ -107,25 +88,31 @@ class GameRepository extends BaseRepository {
           .toList();
 
       final bankItemRes = await _bankRepo.pickQuestionForGame(
-        locale: locale,
+        locale: ctx.locale,
         excludeQuestionCodes: playedQuestionCodes,
       );
 
       final bankItem = bankItemRes.valueOrNull;
       if (bankItem == null) {
+        // Success(null) = catalogo vuoto: segnale "nessuna domanda
+        // disponibile", non un errore. Gli errori veri (GenericError/
+        // NetworkError) continuano come prima.
+        if (bankItemRes is Success) {
+          return null;
+        }
         throw Exception(
             'Impossibile recuperare una nuova domanda dal catalogo');
       }
 
       // Determinazione casuale dell'ordine di User A e User B
       final isSwap = (DateTime.now().millisecondsSinceEpoch % 2) == 0;
-      final userIdA = isSwap ? partnerId : uid;
-      final userIdB = isSwap ? uid : partnerId;
+      final userIdA = isSwap ? ctx.partnerId : uid;
+      final userIdB = isSwap ? uid : ctx.partnerId;
 
       final inserted = await sbClient
           .from('game_questions')
           .insert({
-            'partnership_id': partnershipId,
+            'partnership_id': ctx.partnershipId,
             'question_code': bankItem.questionCode,
             'status': 'pending',
             'user_id_a': userIdA,
@@ -147,10 +134,84 @@ class GameRepository extends BaseRepository {
         status: inserted['status'] as String?,
         userIdA: userIdA,
         userIdB: userIdB,
-        optionA: nameFor(userIdA),
-        optionB: nameFor(userIdB),
+        optionA: ctx.nameFor(userIdA),
+        optionB: ctx.nameFor(userIdB),
       );
     });
+  }
+
+  Future<_GameFetchContext> _buildGameFetchContext(int uid) async {
+    final partnershipData = await getActivePartnership();
+    final partnershipId = partnershipData?['partnership_id'] as int?;
+    final partnerId = partnershipData?['partner_id'] as int?;
+    if (partnershipId == null || partnerId == null) {
+      throw Exception('No active partnership');
+    }
+
+    final locale = await LanguageHelper.currentLocaleCode();
+    final myName = await StorageService.getUsername();
+    final partnerName = partnershipData?['partner_display_name'] as String?;
+
+    return (
+      uid: uid,
+      partnershipId: partnershipId,
+      partnerId: partnerId,
+      locale: locale,
+      nameFor: (int userId) => resolvePlayerName(
+        userId: userId,
+        currentUserId: uid,
+        myName: myName,
+        partnerName: partnerName,
+      ),
+    );
+  }
+
+  Future<GameNewQuestionResponse?> _fetchActiveQuestionFor(
+      _GameFetchContext ctx) async {
+    final existing = await sbClient
+        .from('game_questions')
+        .select('id, question_code, status, user_id_a, user_id_b, created_at')
+        .eq('partnership_id', ctx.partnershipId)
+        .neq('status', 'both_answered')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (existing == null) return null;
+
+    final answers = await sbClient
+        .from('game_answers')
+        .select('user_id')
+        .eq('game_id', existing['id'] as int)
+        .toList();
+    final hasAnswered = answers.any((a) => a['user_id'] == ctx.uid);
+    final partnerAnswered = answers.any((a) => a['user_id'] == ctx.partnerId);
+
+    final userIdA = existing['user_id_a'] as int?;
+    final userIdB = existing['user_id_b'] as int?;
+    final questionCode = existing['question_code'] as String?;
+
+    try {
+      final questionText = await _resolveQuestionText(questionCode, ctx.locale);
+
+      return GameNewQuestionResponse(
+        success: true,
+        id: existing['id'] as int,
+        question: questionText,
+        questionCode: questionCode,
+        status: existing['status'] as String?,
+        userIdA: userIdA,
+        userIdB: userIdB,
+        optionA: userIdA != null ? ctx.nameFor(userIdA) : 'Opzione A',
+        optionB: userIdB != null ? ctx.nameFor(userIdB) : 'Opzione B',
+        hasAnswered: hasAnswered,
+        partnerAnswered: partnerAnswered,
+      );
+    } catch (e) {
+      // If we can't resolve the text, don't return a response with empty
+      // question - rethrow
+      rethrow;
+    }
   }
 
   Future<
@@ -263,7 +324,10 @@ class GameRepository extends BaseRepository {
         }
       }
 
-      // Popola i testi delle domande dal catalogo per la lingua corrente
+      // Popola i testi delle domande dal catalogo per la lingua corrente:
+      // una sola query per locale della chain, filtrata sui codici richiesti —
+      // niente risoluzioni per-codice ridondanti (G4). I codici che nessun
+      // locale traduce restano vuoti.
       final questionCodesToFetch = historyMap.values
           .map((m) => m['question_code'] as String?)
           .whereType<String>()
@@ -271,35 +335,23 @@ class GameRepository extends BaseRepository {
 
       final Map<String, String> questionTextsMap = {};
       if (questionCodesToFetch.isNotEmpty) {
-        // Catalogo parzialmente tradotto: i codici ancora assenti si
-        // riprovano sul locale predefinito dell'app invece di restare vuoti.
-        for (final localeCode in LanguageHelper.localeChain(locale)) {
-          final bankItemsRes =
-              await _bankRepo.fetchQuestionsByLocale(localeCode);
-          final bankItems = switch (bankItemsRes) {
-            Success(value: final v) => v,
-            GenericError(:final message) =>
-              throw Exception('Bank fetch failed ($localeCode): $message'),
-            NetworkError(:final message) =>
-              throw Exception('Bank network error ($localeCode): $message'),
-          };
-
-          for (final item in bankItems) {
-            if (questionCodesToFetch.contains(item.questionCode)) {
-              questionTextsMap[item.questionCode] = item.text;
-            }
-          }
-
-          if (questionTextsMap.length == questionCodesToFetch.length) break;
-        }
+        final res = await _bankRepo.fetchTextsForCodes(
+          codes: questionCodesToFetch,
+          locale: locale,
+        );
+        questionTextsMap.addAll(switch (res) {
+          Success(value: final v) => v,
+          GenericError(:final message) =>
+            throw Exception('Bank fetch failed: $message'),
+          NetworkError(:final message) =>
+            throw Exception('Bank network error: $message'),
+        });
       }
 
       for (final item in historyMap.values) {
         final code = item['question_code'] as String?;
-        if (code != null && questionTextsMap.containsKey(code)) {
-          item['question'] = questionTextsMap[code];
-        } else if (code != null && !questionTextsMap.containsKey(code)) {
-          item['question'] = await _resolveQuestionText(code, locale);
+        if (code != null) {
+          item['question'] = questionTextsMap[code] ?? '';
         }
       }
 

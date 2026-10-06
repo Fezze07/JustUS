@@ -333,6 +333,11 @@ class StorageService {
     await _saveJsonList(_feat(_keyGameHistory), items, (e) => e.toJson());
   }
 
+  static Future<void> clearGameHistory() async {
+    final p = await prefs;
+    await p.remove(_feat(_keyGameHistory));
+  }
+
   static Future<List<GameHistoryItem>> getGameHistory() async {
     return _getJsonList(_feat(_keyGameHistory), GameHistoryItem.fromJson);
   }
