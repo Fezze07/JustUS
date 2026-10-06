@@ -16,9 +16,7 @@
 #   when invoked from WSL), but only when WSL is actually the environment.
 #
 # READINESS
-#   The mock AI container is polled on /health until it answers or the timeout
-#   expires, instead of a blind `sleep 5` that is either flaky (slow CI) or
-#   wasted time (fast machines).
+#   Runs parallel checks across Backend, Flutter, Duplication, and SQL tests.
 #
 # LOGS
 #   Logs go to Backend/test/logs/ (git-ignored). On success they are removed; on failure
@@ -29,8 +27,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.test.yml"
-MOCK_AI_HEALTH_URL="${MOCK_AI_HEALTH_URL:-http://127.0.0.1:11434/health}"
-MOCK_AI_TIMEOUT_SEC="${MOCK_AI_TIMEOUT_SEC:-60}"
 
 # -----------------------------------------------------------------------------
 # Environment detection
@@ -69,17 +65,6 @@ compose() {
   run docker compose -f "$COMPOSE_ARG" "$@"
 }
 
-# -----------------------------------------------------------------------------
-# Teardown + logging
-# -----------------------------------------------------------------------------
-MOCK_AI_STARTED=0
-cleanup() {
-  if [ "$MOCK_AI_STARTED" = "1" ]; then
-    compose down --remove-orphans >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup EXIT
-
 export ENV=test
 export NODE_ENV=test
 
@@ -89,45 +74,7 @@ FLUTTER_LOG="$LOG_DIR/flutter.log"
 DUPLICATION_LOG="$LOG_DIR/duplication.log"
 SQL_LOG="$LOG_DIR/supabase.log"
 
-# -----------------------------------------------------------------------------
-# Mock AI: start it, then WAIT FOR READINESS (no fixed sleep).
-# -----------------------------------------------------------------------------
-start_mock_ai() {
-  if ! has docker; then
-    warn "docker not found — mock AI will not be started."
-    warn "Tests that need the AI endpoint will fall back to their local stubs."
-    return 0
-  fi
-
-  if ! compose up -d mock-ai; then
-    warn "Could not start the mock AI container; continuing without it."
-    return 0
-  fi
-  MOCK_AI_STARTED=1
-
-  log "Waiting for Mock AI readiness at $MOCK_AI_HEALTH_URL ..."
-  local deadline=$(( $(date +%s) + MOCK_AI_TIMEOUT_SEC ))
-  while [ "$(date +%s)" -lt "$deadline" ]; do
-    if has curl && curl -fsS --max-time 2 "$MOCK_AI_HEALTH_URL" >/dev/null 2>&1; then
-      log "Mock AI is ready."
-      return 0
-    fi
-    # Fallback for environments without curl: a TCP connect is enough to know
-    # the listener is up, since /health is served by the same process.
-    if ! has curl && has bash && (exec 3<>"/dev/tcp/127.0.0.1/11434") 2>/dev/null; then
-      exec 3>&- 2>/dev/null || true
-      log "Mock AI is ready (TCP probe)."
-      return 0
-    fi
-    sleep 1
-  done
-
-  warn "Mock AI did not become ready within ${MOCK_AI_TIMEOUT_SEC}s; continuing."
-  return 0
-}
-
 mkdir -p "$LOG_DIR"
-start_mock_ai
 
 # -----------------------------------------------------------------------------
 # Code generation
