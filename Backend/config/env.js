@@ -59,11 +59,6 @@ const env = {
   mediaDownloadUrlExpiresSeconds: parseNumber(process.env.MEDIA_DOWNLOAD_URL_EXPIRES_SECONDS, 300),
   maxUploadBytes: parseNumber(process.env.MAX_UPLOAD_BYTES, 15 * 1024 * 1024),
   largeUploadThresholdBytes: parseNumber(process.env.LARGE_UPLOAD_THRESHOLD_BYTES, 5 * 1024 * 1024),
-  aiMaxTokens: parseNumber(process.env.AI_MAX_TOKENS, 160),
-  aiTimeoutMs: parseNumber(process.env.AI_TIMEOUT_MS, 12_000),
-  aiDailyTokenLimit: parseNumber(process.env.AI_DAILY_TOKEN_LIMIT, 4_000),
-  aiCircuitBreakerThreshold: parseNumber(process.env.AI_CIRCUIT_BREAKER_THRESHOLD, 5),
-  aiCircuitBreakerCooldownMs: parseNumber(process.env.AI_CIRCUIT_BREAKER_COOLDOWN_MS, 60_000),
   requestSigningMaxSkewMs: parseNumber(process.env.REQUEST_SIGNING_MAX_SKEW_MS, 5 * 60_000),
   logRetentionDays: requirePositiveNumber(
     process.env.LOG_RETENTION_DAYS,

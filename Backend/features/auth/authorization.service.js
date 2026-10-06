@@ -2,29 +2,24 @@ const roleCapabilities = {
   guest: [],
   user: [
     "can_media_upload",
-    "can_profile_update",
-    "can_ai_call"
+    "can_profile_update"
   ],
   premium: [
     "can_media_upload",
     "can_profile_update",
-    "can_ai_call",
     "can_upload_large",
   ],
   moderator: [
     "can_media_upload",
     "can_profile_update",
-    "can_ai_call",
     "can_moderate_content",
   ],
   system: [
     "can_media_upload",
     "can_profile_update",
-    "can_ai_call",
     "can_upload_large",
     "can_system_access",
   ],
-  "ai-worker": ["can_ai_call", "can_system_access"],
 };
 
 function normalizeRole(role) {
