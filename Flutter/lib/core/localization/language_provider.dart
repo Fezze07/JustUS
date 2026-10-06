@@ -35,6 +35,12 @@ class LanguageProvider extends ChangeNotifier {
 
     _locale = resolvedLocale;
     LanguageHelper.setAppLocale(resolvedLocale);
+
+    await Future.wait([
+      StorageService.clearCachedGameQuestion(),
+      CacheService.clearCheckpoints([CacheService.kGameAnswers]),
+    ]);
+
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();

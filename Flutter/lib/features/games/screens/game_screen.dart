@@ -251,15 +251,6 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                       color: context.palette.contentPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.loc.game_aiGeneratingSubtitle,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: context.palette.contentTertiary,
-                    ),
-                  ),
                 ] else if (state.currentQuestion != null) ...[
                   Text(
                     context.loc.game_questionOfDay,

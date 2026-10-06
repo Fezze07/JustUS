@@ -55,8 +55,12 @@ class GameState extends BaseState with CheckpointMixin {
     final partnershipData = results[1] as Map<String, dynamic>?;
     final partnerName = partnershipData?['partner_display_name'] as String?;
 
-    String name(int userId) =>
-        userId == uid ? (myName ?? 'Tu') : (partnerName ?? 'Partner');
+    String name(int userId) => resolvePlayerName(
+          userId: userId,
+          currentUserId: uid,
+          myName: myName,
+          partnerName: partnerName,
+        );
 
     return q.copyWith(
       optionA: q.userIdA != null ? name(q.userIdA!) : 'Opzione A',
@@ -75,12 +79,16 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> _fetchAllInBackground({required int epoch}) async {
     final token = _beginCheckpointToken();
+    var historyFetched = false;
     await Future.wait([
       fetchStats(),
-      fetchHistory(epoch: epoch, token: token),
+      fetchHistory(
+          epoch: epoch, token: token, onSuccess: () => historyFetched = true),
     ]);
 
-    await _updateGameCheckpoint(epoch: epoch, token: token);
+    if (historyFetched) {
+      await _updateGameCheckpoint(epoch: epoch, token: token);
+    }
   }
 
   Future<void> _updateGameCheckpoint({required int epoch, int? token}) async {
@@ -237,7 +245,8 @@ class GameState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<void> fetchHistory({required int epoch, int? token}) async {
+  Future<void> fetchHistory(
+      {required int epoch, int? token, void Function()? onSuccess}) async {
     final writeToken = token ?? _beginCheckpointToken();
     final result = await _repo.fetchGameHistory();
 
@@ -246,6 +255,7 @@ class GameState extends BaseState with CheckpointMixin {
         _history = value;
         await StorageService.saveGameHistory(value);
         await _updateGameCheckpoint(epoch: epoch, token: writeToken);
+        onSuccess?.call();
       },
     );
     notifyListeners();
@@ -329,13 +339,10 @@ class GameState extends BaseState with CheckpointMixin {
       return;
     }
 
-    final question = newRecord['question'] as String?;
     final status = newRecord['status'] as String?;
-
-    if (question == null && status == null) return;
+    if (status == null) return;
 
     _currentQuestion = _currentQuestion!.copyWith(
-      question: question,
       status: status,
     );
 

@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:justus/all_imports.dart';
 
 class AppLanguage {
@@ -9,14 +11,12 @@ class AppLanguage {
   final String englishName;
   final String nativeName;
   final String flagEmoji;
-  final String aiTranslationHint;
 
   const AppLanguage({
     required this.code,
     required this.englishName,
     required this.nativeName,
     required this.flagEmoji,
-    required this.aiTranslationHint,
   });
 
   Locale get locale => Locale(code);
@@ -32,19 +32,18 @@ abstract final class LanguageHelper {
       englishName: 'Italian',
       nativeName: 'Italiano',
       flagEmoji: '🇮🇹',
-      aiTranslationHint: 'Italiano naturale, tono caldo e diretto.',
     ),
     AppLanguage(
       code: 'en',
       englishName: 'English',
       nativeName: 'English',
       flagEmoji: '🇬🇧',
-      aiTranslationHint: 'Natural English, warm and concise tone.',
     ),
   ];
 
-  static List<Locale> get supportedLocales =>
-      supportedLanguages.map((language) => language.locale).toList(growable: false);
+  static List<Locale> get supportedLocales => supportedLanguages
+      .map((language) => language.locale)
+      .toList(growable: false);
 
   static Locale resolveLocale(Locale? locale) {
     if (locale == null) return fallbackLocale;
@@ -61,6 +60,17 @@ abstract final class LanguageHelper {
     }
 
     return resolveLocale(Locale(languageCode.trim().toLowerCase()));
+  }
+
+  /// Ordered language codes to try when a catalog is only partly translated:
+  /// the requested [languageCode] first, then [fallbackLocale]. A missing
+  /// translation degrades to the app default instead of empty text.
+  static List<String> localeChain(String languageCode) {
+    final requested = resolveLanguageCode(languageCode).languageCode;
+
+    return requested == fallbackLocale.languageCode
+        ? [requested]
+        : [requested, fallbackLocale.languageCode];
   }
 
   static Locale localeResolutionCallback(
@@ -91,18 +101,6 @@ abstract final class LanguageHelper {
     return supportedLanguages.any((language) => language.code == languageCode);
   }
 
-  static Map<String, String> aiTranslationContext(Locale locale) {
-    final language = languageForLocale(locale);
-
-    return {
-      'languageCode': language.code,
-      'englishName': language.englishName,
-      'nativeName': language.nativeName,
-      'styleHint': language.aiTranslationHint,
-      'arbTemplate': 'lib/core/localization/intl_it.arb',
-    };
-  }
-
   static AppLocalizations? _appLoc;
 
   static AppLocalizations get appLoc {
@@ -123,5 +121,27 @@ abstract final class LanguageHelper {
   static void initFromSystemLocale() {
     final locale = ui.PlatformDispatcher.instance.locale;
     setAppLocale(resolveLocale(locale));
+  }
+
+  /// Returns the current app locale language code (e.g. `'it'`, `'en'`).
+  ///
+  /// Resolution order:
+  /// 1. Already-initialised [appLoc] (in-memory, zero I/O).
+  /// 2. Value persisted in [SharedPreferences] under [storageKey].
+  /// 3. System locale via [initFromSystemLocale] as a last resort.
+  static Future<String> currentLocaleCode() async {
+    if (isLocaleInitialized) return appLoc.localeName;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(storageKey);
+      if (saved != null && saved.isNotEmpty) {
+        setAppLocale(Locale(saved));
+      } else {
+        initFromSystemLocale();
+      }
+    } catch (_) {
+      initFromSystemLocale();
+    }
+    return appLoc.localeName;
   }
 }

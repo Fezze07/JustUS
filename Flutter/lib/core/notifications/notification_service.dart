@@ -7,9 +7,7 @@ import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:justus/all_imports.dart';
 
@@ -187,17 +185,7 @@ class NotificationService {
     }
 
     // Load the user's saved locale (N1)
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedLanguageCode = prefs.getString(LanguageHelper.storageKey);
-      if (savedLanguageCode != null && savedLanguageCode.isNotEmpty) {
-        LanguageHelper.setAppLocale(Locale(savedLanguageCode));
-      } else {
-        LanguageHelper.initFromSystemLocale();
-      }
-    } catch (_) {
-      LanguageHelper.initFromSystemLocale();
-    }
+    await LanguageHelper.currentLocaleCode();
 
     String title;
     String body;
@@ -358,7 +346,8 @@ class NotificationService {
     return hash & 0x7fffffff;
   }
 
-  static int _nextNotificationId = DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
+  static int _nextNotificationId =
+      DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
 
   int _notificationId(RemoteMessage message) {
     final raw =

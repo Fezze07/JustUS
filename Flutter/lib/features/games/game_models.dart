@@ -4,6 +4,56 @@
 
 abstract class GameModels {}
 
+/// Resolves a display name for [userId] given the current user's names.
+///
+/// Returns [myName] when [userId] matches [currentUserId], otherwise
+/// [partnerName]. Falls back to `'Tu'` / `'Partner'` when the name is null.
+/// Single source of truth — replaces the duplicated local closures that
+/// previously existed in both GameRepository and GameState (D5).
+String resolvePlayerName({
+  required int userId,
+  required int currentUserId,
+  required String? myName,
+  required String? partnerName,
+}) =>
+    userId == currentUserId ? (myName ?? 'Tu') : (partnerName ?? 'Partner');
+
+class GameQuestionBankItem {
+  final String questionCode;
+  final String locale;
+  final String text;
+  final String? createdAt;
+  final String? updatedAt;
+
+  GameQuestionBankItem({
+    required this.questionCode,
+    required this.locale,
+    required this.text,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory GameQuestionBankItem.fromJson(Map<String, dynamic> json) {
+    return GameQuestionBankItem(
+      questionCode: (json['question_code'] as String?) ?? '',
+      locale: (json['locale'] as String?) ?? '',
+      text: (json['text'] as String?) ?? '',
+      createdAt: json['created_at'] as String?,
+      updatedAt: json['updated_at'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'question_code': questionCode,
+      'locale': locale,
+      'text': text,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    };
+  }
+}
+
 class GameStatsResponse {
   final bool success;
   final int totalMatches;
@@ -22,6 +72,7 @@ class GameNewQuestionResponse {
   final bool success;
   final int id;
   final String question;
+  final String? questionCode;
   final String optionA;
   final String optionB;
   final String? status;
@@ -35,6 +86,7 @@ class GameNewQuestionResponse {
     required this.success,
     required this.id,
     required this.question,
+    this.questionCode,
     required this.optionA,
     required this.optionB,
     this.userIdA,
@@ -50,6 +102,7 @@ class GameNewQuestionResponse {
       success: (json['success'] as bool?) ?? false,
       id: (json['id'] as num?)?.toInt() ?? 0,
       question: (json['question'] as String?) ?? '',
+      questionCode: json['question_code'] as String?,
       optionA: ((json['option_a'] ?? json['optionA']) as String?) ?? '',
       optionB: ((json['option_b'] ?? json['optionB']) as String?) ?? '',
       userIdA: ((json['user_id_a'] ?? json['userIdA']) as num?)?.toInt(),
@@ -70,6 +123,7 @@ class GameNewQuestionResponse {
       'success': success,
       'id': id,
       'question': question,
+      if (questionCode != null) 'question_code': questionCode,
       'optionA': optionA,
       'optionB': optionB,
       'userIdA': userIdA,
@@ -85,6 +139,7 @@ class GameNewQuestionResponse {
     bool? success,
     int? id,
     String? question,
+    String? questionCode,
     String? optionA,
     String? optionB,
     int? userIdA,
@@ -98,6 +153,7 @@ class GameNewQuestionResponse {
       success: success ?? this.success,
       id: id ?? this.id,
       question: question ?? this.question,
+      questionCode: questionCode ?? this.questionCode,
       optionA: optionA ?? this.optionA,
       optionB: optionB ?? this.optionB,
       userIdA: userIdA ?? this.userIdA,
@@ -106,54 +162,6 @@ class GameNewQuestionResponse {
       message: message ?? this.message,
       hasAnswered: hasAnswered ?? this.hasAnswered,
       partnerAnswered: partnerAnswered ?? this.partnerAnswered,
-    );
-  }
-}
-
-class GameQuestion {
-  final int id;
-  final String question;
-  final String createdAt;
-  final int? partnershipId;
-
-  GameQuestion({
-    required this.id,
-    required this.question,
-    required this.createdAt,
-    this.partnershipId,
-  });
-
-  factory GameQuestion.fromJson(Map<String, dynamic> json) {
-    return GameQuestion(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      question: ((json['question'] ?? json['question_text'] ?? json['text'])
-              as String?) ??
-          '',
-      createdAt: (json['created_at'] as String?) ?? '',
-      partnershipId: (json['partnership_id'] as num?)?.toInt(),
-    );
-  }
-}
-
-class GameAnswer {
-  final int gameId;
-  final int userId;
-  final int? selectedOption;
-  final String createdAt;
-
-  GameAnswer({
-    required this.gameId,
-    required this.userId,
-    this.selectedOption,
-    required this.createdAt,
-  });
-
-  factory GameAnswer.fromJson(Map<String, dynamic> json) {
-    return GameAnswer(
-      gameId: (json['game_id'] as num?)?.toInt() ?? 0,
-      userId: (json['user_id'] as num?)?.toInt() ?? 0,
-      selectedOption: (json['selected_option'] as num?)?.toInt(),
-      createdAt: (json['created_at'] as String?) ?? '',
     );
   }
 }

@@ -22,8 +22,6 @@ class ApiRoutes {
   static const String mediaFile = '$apiPrefix/media/file';
   static const String mediaDelete = '$apiPrefix/media/delete';
 
-  static const String aiQuestion = '$apiPrefix/ai/question';
-
   static const String notifyPartner = '$apiPrefix/notify/partner';
 
   static const String userWipe = '$apiPrefix/users/wipe';

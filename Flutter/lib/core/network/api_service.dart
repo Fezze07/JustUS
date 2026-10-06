@@ -508,19 +508,6 @@ class ApiService {
     );
   }
 
-  // -------------------- AI Question Generation --------------------
-
-  Future<ResultWrapper<Map<String, dynamic>>> generateAiQuestion() async {
-    return _post(
-      ApiRoutes.aiQuestion,
-      body: {},
-      requireSignature: true,
-      extraHeaders: {'X-Idempotency-Key': _uuid.v4()},
-      timeout: const Duration(seconds: 60),
-      label: 'AI Question Generation',
-    );
-  }
-
   // -------------------- Notifications --------------------
 
   /// Sends a notification key + params so the receiver's device

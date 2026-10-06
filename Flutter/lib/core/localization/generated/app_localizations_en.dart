@@ -42,16 +42,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageSavedMessage => 'Language updated';
 
   @override
-  String get aiTranslationSectionTitle => 'AI TRANSLATIONS';
-
-  @override
-  String get aiTranslationReadyTitle => 'Ready for future translations';
-
-  @override
-  String get aiTranslationReadySubtitle =>
-      'ARB keys are organized to expand new languages and AI workflows.';
-
-  @override
   String get profileSettingsTitle => 'Profile & Settings';
 
   @override
@@ -732,11 +722,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get game_dailyGame => 'DAILY GAME';
 
   @override
-  String get game_generatingQuestion => 'Generating the question...';
-
-  @override
-  String get game_aiGeneratingSubtitle =>
-      'AI is creating something special for you';
+  String get game_generatingQuestion => 'Fetching the question…';
 
   @override
   String get game_questionOfDay => 'Question of the Day';
@@ -745,7 +731,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get game_allCaughtUp => 'Ready for a new question?';
 
   @override
-  String get game_tryFetchingAgain => 'Yes, generate one!';
+  String get game_tryFetchingAgain => 'Find another one!';
 
   @override
   String get game_invalidOption => 'Error: invalid option';
@@ -761,9 +747,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get game_noActivePartnership => 'No active partnership found';
-
-  @override
-  String get game_aiGenerationError => 'AI generation error';
 
   @override
   String get update_availableTitle => 'Update available!';

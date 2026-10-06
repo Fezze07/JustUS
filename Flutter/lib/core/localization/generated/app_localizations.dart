@@ -164,24 +164,6 @@ abstract class AppLocalizations {
   /// **'Lingua aggiornata'**
   String get languageSavedMessage;
 
-  /// Titolo sezione preparatoria per traduzioni AI.
-  ///
-  /// In it, this message translates to:
-  /// **'TRADUZIONI AI'**
-  String get aiTranslationSectionTitle;
-
-  /// Titolo card informativa sul supporto AI futuro.
-  ///
-  /// In it, this message translates to:
-  /// **'Pronto per traduzioni future'**
-  String get aiTranslationReadyTitle;
-
-  /// Descrizione card informativa sul supporto AI futuro.
-  ///
-  /// In it, this message translates to:
-  /// **'Le chiavi ARB sono organizzate per espandere nuove lingue e workflow AI.'**
-  String get aiTranslationReadySubtitle;
-
   /// Titolo header della schermata profilo.
   ///
   /// In it, this message translates to:
@@ -1505,14 +1487,8 @@ abstract class AppLocalizations {
   /// No description provided for @game_generatingQuestion.
   ///
   /// In it, this message translates to:
-  /// **'Generando la domanda...'**
+  /// **'Recupero della domanda…'**
   String get game_generatingQuestion;
-
-  /// No description provided for @game_aiGeneratingSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'L’IA sta creando qualcosa di speciale per voi'**
-  String get game_aiGeneratingSubtitle;
 
   /// No description provided for @game_questionOfDay.
   ///
@@ -1529,7 +1505,7 @@ abstract class AppLocalizations {
   /// No description provided for @game_tryFetchingAgain.
   ///
   /// In it, this message translates to:
-  /// **'Certo, generane una!'**
+  /// **'Cercane un\'altra!'**
   String get game_tryFetchingAgain;
 
   /// No description provided for @game_invalidOption.
@@ -1561,12 +1537,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Nessuna partnership attiva trovata'**
   String get game_noActivePartnership;
-
-  /// No description provided for @game_aiGenerationError.
-  ///
-  /// In it, this message translates to:
-  /// **'Errore generazione AI'**
-  String get game_aiGenerationError;
 
   /// No description provided for @update_availableTitle.
   ///

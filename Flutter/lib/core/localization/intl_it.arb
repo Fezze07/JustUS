@@ -44,18 +44,6 @@
   "@languageSavedMessage": {
     "description": "Messaggio snackbar dopo il cambio lingua."
   },
-  "aiTranslationSectionTitle": "TRADUZIONI AI",
-  "@aiTranslationSectionTitle": {
-    "description": "Titolo sezione preparatoria per traduzioni AI."
-  },
-  "aiTranslationReadyTitle": "Pronto per traduzioni future",
-  "@aiTranslationReadyTitle": {
-    "description": "Titolo card informativa sul supporto AI futuro."
-  },
-  "aiTranslationReadySubtitle": "Le chiavi ARB sono organizzate per espandere nuove lingue e workflow AI.",
-  "@aiTranslationReadySubtitle": {
-    "description": "Descrizione card informativa sul supporto AI futuro."
-  },
   "profileSettingsTitle": "Profilo e impostazioni",
   "@profileSettingsTitle": {
     "description": "Titolo header della schermata profilo."
@@ -289,17 +277,15 @@
   "game_statusWaiting": "In attesa del partner",
   "game_statusWaitingForYou": "In attesa della tua risposta",
   "game_dailyGame": "GIOCO DEL GIORNO",
-  "game_generatingQuestion": "Generando la domanda...",
-  "game_aiGeneratingSubtitle": "L’IA sta creando qualcosa di speciale per voi",
+  "game_generatingQuestion": "Recupero della domanda…",
   "game_questionOfDay": "Domanda del giorno",
   "game_allCaughtUp": "Pronti per una nuova domanda?",
-  "game_tryFetchingAgain": "Certo, generane una!",
+  "game_tryFetchingAgain": "Cercane un'altra!",
   "game_invalidOption": "Errore: opzione non valida",
   "game_answerSent": "Risposta inviata!",
   "game_waitPartner": "Aspetta che il partner risponda",
   "game_noQuestionAvailable": "Nessuna domanda disponibile",
   "game_noActivePartnership": "Nessuna partnership attiva trovata",
-  "game_aiGenerationError": "Errore generazione AI",
   "update_availableTitle": "Aggiornamento disponibile!",
   "update_newVersion": "È disponibile una nuova versione di JustUs.",
   "update_changelogTitle": "Novità:",
