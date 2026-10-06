@@ -2,7 +2,7 @@ CREATE TABLE "public"."game_questions" (
   "id"             integer                  NOT NULL DEFAULT nextval('public.game_questions_id_seq'::regclass),
   "created_at"     timestamp with time zone DEFAULT now(),
   "partnership_id" integer,
-  "question"       text,
+  "question_code"  text,
   "status"         text                     DEFAULT 'pending'::text,
   "user_id_a"      integer,
   "user_id_b"      integer,
@@ -22,6 +22,8 @@ CREATE INDEX idx_game_questions_partnership_id ON public.game_questions USING bt
 CREATE INDEX idx_game_questions_user_id_a ON public.game_questions USING btree (user_id_a);
 
 CREATE INDEX idx_game_questions_user_id_b ON public.game_questions USING btree (user_id_b);
+
+CREATE INDEX idx_game_questions_question_code ON public.game_questions USING btree (question_code);
 
 CREATE POLICY "game_questions_related" ON "public"."game_questions"
   FOR ALL

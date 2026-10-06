@@ -65,10 +65,16 @@ INSERT INTO public.drive_items (id, type, name, partnership_id) VALUES
   (9011, 'image', 'pending-photo.png',  9002),
   (9012, 'image', 'rejected-photo.png', 9003);
 
-INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b) VALUES
-  (9040, 9001, 'accepted-q',  9001, 9002),
-  (9041, 9002, 'pending-q',   9001, 9003),
-  (9043, 9001, 'accepted-q2', 9001, 9002);
+INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
+  (9040, 9001, 'game_q_accepted',  9001, 9002),
+  (9041, 9002, 'game_q_pending',   9001, 9003),
+  (9043, 9001, 'game_q_accepted2', 9001, 9002);
+
+-- The wording lives in the bank now, so the codes above are seeded there too.
+INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
+  ('game_q_accepted',  'it', 'accepted-q'),
+  ('game_q_pending',   'it', 'pending-q'),
+  ('game_q_accepted2', 'it', 'accepted-q2');
 
 INSERT INTO public.moods (id, user_id, mood_type_id) VALUES
   (9050, 9002, NULL),

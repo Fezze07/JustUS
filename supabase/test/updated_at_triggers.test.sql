@@ -40,8 +40,12 @@ INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUE
 INSERT INTO public.partnerships (id, user_id_1, user_id_2, status) VALUES
   (9001, 9001, 9002, 'accepted');
 
-INSERT INTO public.game_questions (id, partnership_id, question, status, user_id_a, user_id_b) VALUES
-  (9001, 9001, 'Mandatory checkpoint test question', 'pending', 9001, 9002);
+INSERT INTO public.game_questions (id, partnership_id, question_code, status, user_id_a, user_id_b) VALUES
+  (9001, 9001, 'game_q_checkpoint', 'pending', 9001, 9002);
+
+-- The wording lives in the bank now, so the code above is seeded there too.
+INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
+  ('game_q_checkpoint', 'it', 'Mandatory checkpoint test question');
 
 -- Every fixture row carries a 2020-01-01 timestamp pair, so an advancing
 -- trigger is unmistakable.

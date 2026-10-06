@@ -62,10 +62,16 @@ INSERT INTO public.missyou (id, partnership_id) VALUES
   (9031, 9002),
   (9032, 9003);
 
-INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b) VALUES
-  (9040, 9001, 'accepted-q', 9001, 9002),
-  (9041, 9002, 'pending-q',  9001, 9003),
-  (9042, 9003, 'rejected-q', 9001, 9004);
+INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
+  (9040, 9001, 'game_q_accepted', 9001, 9002),
+  (9041, 9002, 'game_q_pending',  9001, 9003),
+  (9042, 9003, 'game_q_rejected', 9001, 9004);
+
+-- The wording lives in the bank now, so the codes above are seeded there too.
+INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
+  ('game_q_accepted', 'it', 'accepted-q'),
+  ('game_q_pending',  'it', 'pending-q'),
+  ('game_q_rejected', 'it', 'rejected-q');
 
 INSERT INTO public.game_answers (game_id, user_id, selected_option) VALUES
   (9040, 9001, 1),

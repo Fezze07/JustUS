@@ -66,8 +66,12 @@ INSERT INTO public.bucket_items (id, text, partnership_id) VALUES
 INSERT INTO public.missyou (id, partnership_id) VALUES
   (9001, 9001);
 
-INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b) VALUES
-  (9001, 9001, 'anon-sweep-question', 9001, 9002);
+INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
+  (9001, 9001, 'game_q_anon_sweep', 9001, 9002);
+
+-- The wording lives in the bank, so the marker asserted in section A resolves.
+INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
+  ('game_q_anon_sweep', 'it', 'anon-sweep-question');
 
 INSERT INTO public.game_answers (game_id, user_id, selected_option) VALUES
   (9001, 9002, 1);

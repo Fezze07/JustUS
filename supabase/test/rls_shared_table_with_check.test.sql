@@ -74,10 +74,17 @@ INSERT INTO public.missyou (id, partnership_id) VALUES
   (9031, 9002),
   (9032, 9003);
 
-INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b) VALUES
-  (9040, 9001, 'accepted-q', 9001, 9002),
-  (9041, 9002, 'pending-q',  9001, 9003),
-  (9042, 9003, 'rejected-q', 9001, 9004);
+INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
+  (9040, 9001, 'game_q_accepted', 9001, 9002),
+  (9041, 9002, 'game_q_pending',  9001, 9003),
+  (9042, 9003, 'game_q_rejected', 9001, 9004);
+
+-- The wording lives in the bank now, so the codes above are seeded there too.
+INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
+  ('game_q_accepted',      'it', 'accepted-q'),
+  ('game_q_pending',       'it', 'pending-q'),
+  ('game_q_rejected',      'it', 'rejected-q'),
+  ('game_q_accepted_new',  'it', 'accepted-new-q');
 
 -- Pre-flight: a fixture that failed to insert would leave every "must be 0"
 -- leak assertion satisfied for the wrong reason.
@@ -134,8 +141,8 @@ BEGIN
   END IF;
 
   v_state := pg_temp.rls_try($q$
-    INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b)
-    VALUES (9113, 9001, 'accepted-new-q', 9001, 9002)$q$);
+    INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b)
+    VALUES (9113, 9001, 'game_q_accepted_new', 9001, 9002)$q$);
   IF v_state IS NOT NULL THEN
     RAISE EXCEPTION 'A failed: game_questions insert into the accepted partnership raised %', v_state;
   END IF;
@@ -225,8 +232,8 @@ BEGIN
   END IF;
 
   v_state := pg_temp.rls_try($q$
-    INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b)
-    VALUES (9123, 9002, 'pending-q', 9001, 9003)$q$);
+    INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b)
+    VALUES (9123, 9002, 'game_q_pending', 9001, 9003)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
     RAISE EXCEPTION 'B failed: game_questions insert into pending partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
@@ -262,8 +269,8 @@ BEGIN
   END IF;
 
   v_state := pg_temp.rls_try($q$
-    INSERT INTO public.game_questions (id, partnership_id, question, user_id_a, user_id_b)
-    VALUES (9133, 9003, 'rejected-q', 9001, 9004)$q$);
+    INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b)
+    VALUES (9133, 9003, 'game_q_rejected', 9001, 9004)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
     RAISE EXCEPTION 'C failed: game_questions insert into rejected partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
