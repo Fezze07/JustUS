@@ -46,6 +46,7 @@ const Set<String> _standalone = <String>{
   'lib/features/mood/mood_models.dart',
   'lib/shared/utils/date/app_date_utils.dart',
   'lib/shared/utils/extensions/supabase_query_extensions.dart',
+  'lib/shared/utils/row/row_utils.dart',
   'lib/shared/widgets/tab_screen.dart',
 };
 

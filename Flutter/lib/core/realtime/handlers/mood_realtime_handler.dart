@@ -24,7 +24,7 @@ class MoodRealtimeHandler extends RealtimeHandler {
   @override
   void onNewEvent(sb.PostgresChangePayload payload) {
     final changedUserId =
-        session.rowUserId(session.currentRecord(payload), 'user_id');
+        rowInt(session.currentRecord(payload), 'user_id');
     if (changedUserId == null) return;
 
     _batch.add(changedUserId);

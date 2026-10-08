@@ -2,8 +2,6 @@
 // JustUs App - Game Models
 // =============================================================================
 
-abstract class GameModels {}
-
 /// Resolves a display name for [userId] given the current user's names.
 ///
 /// Returns [myName] when [userId] matches [currentUserId], otherwise
@@ -17,6 +15,11 @@ String resolvePlayerName({
   required String? partnerName,
 }) =>
     userId == currentUserId ? (myName ?? 'Tu') : (partnerName ?? 'Partner');
+
+/// Resolves an option display label for a nullable user ID, falling back to
+/// `'Opzione A'` or `'Opzione B'`. Single source of truth for option fallback (D9).
+String optionLabelFor(int? userId, String fallbackLabel, String Function(int) nameFor) =>
+    userId != null ? nameFor(userId) : fallbackLabel;
 
 class GameQuestionBankItem {
   final String questionCode;
@@ -59,13 +62,6 @@ class GameStatsResponse {
   final int totalMatches;
 
   GameStatsResponse({required this.success, required this.totalMatches});
-
-  factory GameStatsResponse.fromJson(Map<String, dynamic> json) {
-    return GameStatsResponse(
-      success: (json['success'] as bool?) ?? false,
-      totalMatches: (json['totalMatches'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 class GameNewQuestionResponse {
@@ -194,9 +190,7 @@ class GameHistoryItem {
   factory GameHistoryItem.fromJson(Map<String, dynamic> json) {
     return GameHistoryItem(
       questionId: (json['id'] as num?)?.toInt() ?? 0,
-      question: ((json['question'] ?? json['text'] ?? json['question_text'])
-              as String?) ??
-          '',
+      question: (json['question'] as String?) ?? '',
       userOption: (json['user_option'] as num?)?.toInt(),
       partnerOption: (json['partner_option'] as num?)?.toInt(),
       createdAt: (json['created_at'] as String?) ?? '',

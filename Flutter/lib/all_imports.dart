@@ -101,6 +101,7 @@ export 'package:justus/features/auth/screens/register_screen.dart';
 export 'package:justus/features/auth/screens/reset_password_screen.dart';
 export 'package:justus/shared/utils/extensions/result_extensions.dart';
 export 'package:justus/core/network/result_wrapper.dart';
+export 'package:justus/shared/utils/row/row_utils.dart';
 export 'package:justus/features/auth/screens/splash_screen.dart';
 export 'package:justus/core/local_storage/storage_service.dart';
 export 'package:justus/shared/utils/extensions/supabase_query_extensions.dart';

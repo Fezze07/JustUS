@@ -1532,12 +1532,6 @@ abstract class AppLocalizations {
   /// **'Nessuna domanda disponibile'**
   String get game_noQuestionAvailable;
 
-  /// No description provided for @game_noActivePartnership.
-  ///
-  /// In it, this message translates to:
-  /// **'Nessuna partnership attiva trovata'**
-  String get game_noActivePartnership;
-
   /// No description provided for @update_availableTitle.
   ///
   /// In it, this message translates to:

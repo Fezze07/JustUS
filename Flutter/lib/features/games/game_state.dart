@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/widgets.dart';
 
 import 'package:justus/all_imports.dart';
 
@@ -132,16 +133,10 @@ class GameState extends BaseState with CheckpointMixin {
 
   Future<void> _fetchAllInBackground({required int epoch}) async {
     final token = _beginCheckpointToken();
-    var historyFetched = false;
     await Future.wait([
       fetchStats(),
-      fetchHistory(
-          epoch: epoch, token: token, onSuccess: () => historyFetched = true),
+      fetchHistory(epoch: epoch, token: token),
     ]);
-
-    if (historyFetched) {
-      await _updateGameCheckpoint(epoch: epoch, token: token);
-    }
   }
 
   Future<void> _updateGameCheckpoint({required int epoch, int? token}) async {
@@ -213,6 +208,58 @@ class GameState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
+  List<GameHistoryItem> _historyWithAnswer({
+    required int gameId,
+    int? userOption,
+    int? partnerOption,
+    bool updateExistingOnly = false,
+    bool deleteUserOption = false,
+    bool deletePartnerOption = false,
+    String? questionText,
+  }) {
+    var found = false;
+    final newHistory = <GameHistoryItem>[];
+
+    for (final item in _history) {
+      if (item.questionId == gameId) {
+        found = true;
+        final newUser = deleteUserOption
+            ? null
+            : (userOption ?? item.userOption);
+        final newPartner = deletePartnerOption
+            ? null
+            : (partnerOption ?? item.partnerOption);
+
+        if (newUser == null && newPartner == null) continue;
+
+        newHistory.add(GameHistoryItem(
+          questionId: item.questionId,
+          question: item.question,
+          userOption: newUser,
+          partnerOption: newPartner,
+          createdAt: item.createdAt,
+        ));
+      } else {
+        newHistory.add(item);
+      }
+    }
+
+    if (!found && !updateExistingOnly && (userOption != null || partnerOption != null)) {
+      newHistory.insert(
+        0,
+        GameHistoryItem(
+          questionId: gameId,
+          question: questionText ?? _currentQuestion?.question ?? '',
+          userOption: userOption,
+          partnerOption: partnerOption,
+          createdAt: DateTime.now().toIso8601String(),
+        ),
+      );
+    }
+
+    return newHistory;
+  }
+
   Future<void> submitAnswer(String votedFor) async {
     final epoch = CacheService.checkpointEpoch;
     final token = _beginCheckpointToken();
@@ -226,7 +273,10 @@ class GameState extends BaseState with CheckpointMixin {
       option = _currentQuestion!.userIdB;
     }
     if (option == null) {
-      setMessage('Errore: opzione non valida');
+      final loc = await AppLocalizations.delegate.load(
+        Locale(await LanguageHelper.currentLocaleCode()),
+      );
+      setMessage(loc.game_invalidOption);
       setLoading(false);
       notifyListeners();
 
@@ -237,42 +287,23 @@ class GameState extends BaseState with CheckpointMixin {
 
     await result.handleAsync(
       onSuccess: (value) async {
+        final loc = await AppLocalizations.delegate.load(
+          Locale(await LanguageHelper.currentLocaleCode()),
+        );
         final wasPending = !_currentQuestion!.partnerAnswered;
-        setMessage('Risposta inviata! ✨');
+        setMessage(loc.game_answerSent);
         _currentQuestion = _currentQuestion!.copyWith(
           status: 'waiting',
-          message: 'Aspetta che il partner risponda',
+          message: loc.game_waitPartner,
           hasAnswered: true,
         );
         await StorageService.saveGameQuestion(_currentQuestion!);
 
-        var found = false;
-        final newHistory = <GameHistoryItem>[];
-        for (final item in _history) {
-          if (item.questionId == _currentQuestion!.id) {
-            found = true;
-            newHistory.add(GameHistoryItem(
-              questionId: item.questionId,
-              question: item.question,
-              userOption: option,
-              partnerOption: item.partnerOption,
-              createdAt: item.createdAt,
-            ));
-          } else {
-            newHistory.add(item);
-          }
-        }
-        if (!found) {
-          newHistory.insert(
-              0,
-              GameHistoryItem(
-                questionId: _currentQuestion!.id,
-                question: _currentQuestion!.question,
-                userOption: option,
-                createdAt: DateTime.now().toIso8601String(),
-              ));
-        }
-        _history = newHistory;
+        _history = _historyWithAnswer(
+          gameId: _currentQuestion!.id,
+          userOption: option,
+          questionText: _currentQuestion!.question,
+        );
         await StorageService.saveGameHistory(_history);
 
         if (!wasPending) {
@@ -323,13 +354,11 @@ class GameState extends BaseState with CheckpointMixin {
       fetchStats(),
       fetchHistory(epoch: epoch, token: token),
     ]);
-
-    await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
   Future<void> handleAnswerDelete(Map<String, dynamic> oldRecord) async {
-    final gameId = _rowInt(oldRecord, 'game_id');
-    final userId = _rowInt(oldRecord, 'user_id');
+    final gameId = rowInt(oldRecord, 'game_id');
+    final userId = rowInt(oldRecord, 'user_id');
 
     if (gameId == null || userId == null) return;
 
@@ -346,27 +375,15 @@ class GameState extends BaseState with CheckpointMixin {
       await StorageService.saveGameQuestion(_currentQuestion!);
     }
 
-    final newHistory = <GameHistoryItem>[];
-    for (final item in _history) {
-      if (item.questionId == gameId && _currentUserId != null) {
-        final newUser = (userId == _currentUserId) ? null : item.userOption;
-        final newPartner =
-            (userId != _currentUserId) ? null : item.partnerOption;
-        if (newUser == null && newPartner == null) continue;
-        newHistory.add(GameHistoryItem(
-          questionId: item.questionId,
-          question: item.question,
-          userOption: newUser,
-          partnerOption: newPartner,
-          createdAt: item.createdAt,
-        ));
-      } else {
-        newHistory.add(item);
-      }
+    if (_currentUserId != null) {
+      _history = _historyWithAnswer(
+        gameId: gameId,
+        deleteUserOption: userId == _currentUserId,
+        deletePartnerOption: userId != _currentUserId,
+        updateExistingOnly: true,
+      );
+      await StorageService.saveGameHistory(_history);
     }
-
-    _history = newHistory;
-    await StorageService.saveGameHistory(_history);
     notifyListeners();
   }
 
@@ -375,7 +392,7 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> handleQuestionDelete(Map<String, dynamic> oldRecord) async {
-    final id = _rowInt(oldRecord, 'id');
+    final id = rowInt(oldRecord, 'id');
     if (id == null) return;
 
     if (_currentQuestion != null && _currentQuestion!.id == id) {
@@ -389,7 +406,7 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> handleQuestionUpdate(Map<String, dynamic> newRecord) async {
-    final id = _rowInt(newRecord, 'id');
+    final id = rowInt(newRecord, 'id');
     if (id == null || _currentQuestion == null || _currentQuestion!.id != id) {
       return;
     }
@@ -414,9 +431,9 @@ class GameState extends BaseState with CheckpointMixin {
   Future<void> handleAnswerInsert(Map<String, dynamic> newRecord) async {
     final epoch = CacheService.checkpointEpoch;
     final token = _beginCheckpointToken();
-    final gameId = _rowInt(newRecord, 'game_id');
-    final userId = _rowInt(newRecord, 'user_id');
-    final selectedOption = _rowInt(newRecord, 'selected_option');
+    final gameId = rowInt(newRecord, 'game_id');
+    final userId = rowInt(newRecord, 'user_id');
+    final selectedOption = rowInt(newRecord, 'selected_option');
 
     if (gameId == null || userId == null || selectedOption == null) return;
 
@@ -434,61 +451,41 @@ class GameState extends BaseState with CheckpointMixin {
       notifyListeners();
     }
 
-    var found = false;
-    final newHistory = <GameHistoryItem>[];
-    for (final item in _history) {
-      if (item.questionId == gameId) {
-        found = true;
-        if (_currentUserId != null) {
-          newHistory.add(GameHistoryItem(
-            questionId: item.questionId,
-            question: item.question,
-            userOption:
-                userId == _currentUserId ? selectedOption : item.userOption,
-            partnerOption:
-                userId != _currentUserId ? selectedOption : item.partnerOption,
-            createdAt: item.createdAt,
-          ));
-        } else {
-          newHistory.add(item);
-        }
-      } else {
-        newHistory.add(item);
-      }
-    }
+    final isUser = _currentUserId != null && userId == _currentUserId;
+    final isPartner = _currentUserId != null && userId != _currentUserId;
 
-    if (!found) {
+    final exists = _history.any((item) => item.questionId == gameId);
+
+    if (exists) {
+      _history = _historyWithAnswer(
+        gameId: gameId,
+        userOption: isUser ? selectedOption : null,
+        partnerOption: isPartner ? selectedOption : null,
+      );
+      await StorageService.saveGameHistory(_history);
+    } else {
       if (_currentQuestion != null && _currentQuestion!.id == gameId) {
-        newHistory.insert(
-            0,
-            GameHistoryItem(
-              questionId: gameId,
-              question: _currentQuestion!.question,
-              userOption: _currentUserId != null && userId == _currentUserId
-                  ? selectedOption
-                  : null,
-              partnerOption: _currentUserId != null && userId != _currentUserId
-                  ? selectedOption
-                  : null,
-              createdAt: DateTime.now().toIso8601String(),
-            ));
-        _history = newHistory;
+        _history = _historyWithAnswer(
+          gameId: gameId,
+          userOption: isUser ? selectedOption : null,
+          partnerOption: isPartner ? selectedOption : null,
+          questionText: _currentQuestion!.question,
+        );
         await StorageService.saveGameHistory(_history);
       } else {
         await fetchHistory(epoch: epoch, token: token);
       }
-    } else {
-      _history = newHistory;
-      await StorageService.saveGameHistory(_history);
     }
 
     await _updateGameCheckpoint(epoch: epoch, token: token);
   }
 
   Future<void> handleAnswerUpdate(Map<String, dynamic> newRecord) async {
-    final gameId = _rowInt(newRecord, 'game_id');
+    final gameId = rowInt(newRecord, 'game_id');
 
     if (gameId == null) return;
+
+    _currentUserId ??= await StorageService.getUserId();
 
     if (_currentUserId == null ||
         (_currentQuestion?.id != gameId &&
@@ -507,51 +504,15 @@ class GameState extends BaseState with CheckpointMixin {
           await StorageService.saveGameQuestion(_currentQuestion!);
         }
 
-        var updated = false;
-        final newHistory = <GameHistoryItem>[];
-        for (final item in _history) {
-          if (item.questionId == gameId) {
-            newHistory.add(GameHistoryItem(
-              questionId: item.questionId,
-              question: item.question,
-              userOption: value.userOption,
-              partnerOption: value.partnerOption,
-              createdAt: item.createdAt,
-            ));
-            updated = true;
-          } else {
-            newHistory.add(item);
-          }
-        }
-
-        if (!updated &&
-            _currentQuestion != null &&
-            _currentQuestion!.id == gameId) {
-          newHistory.insert(
-            0,
-            GameHistoryItem(
-              questionId: _currentQuestion!.id,
-              question: _currentQuestion!.question,
-              userOption: value.userOption,
-              partnerOption: value.partnerOption,
-              createdAt: DateTime.now().toIso8601String(),
-            ),
-          );
-        }
-
-        _history = newHistory;
+        _history = _historyWithAnswer(
+          gameId: gameId,
+          userOption: value.userOption,
+          partnerOption: value.partnerOption,
+        );
         await StorageService.saveGameHistory(_history);
         notifyListeners();
       },
     );
-  }
-
-  int? _rowInt(Map<String, dynamic> row, String key) {
-    final value = row[key];
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value);
-    return null;
   }
 
   void clear() {

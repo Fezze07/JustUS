@@ -113,20 +113,23 @@ class GameQuestionBankRepository extends BaseRepository {
     String locale,
     Set<String> excludeSet,
   ) async {
-    final rows = await sbClient
-        .from('game_question_bank')
-        .select(_kColumns)
-        .eq('locale', locale)
-        .toList();
+    final res = await fetchQuestionsByLocale(locale);
+    final items = switch (res) {
+      Success(value: final v) => v,
+      GenericError(:final message) =>
+        throw Exception('Failed to fetch questions by locale: $message'),
+      NetworkError(:final message) =>
+        throw Exception('Network error fetching questions by locale: $message'),
+    };
 
-    if (rows.isEmpty) return null;
+    if (items.isEmpty) return null;
 
     // Filtra lato client; se esclude tutto, usa l'intero pool (fallback).
     final candidates = excludeSet.isEmpty
-        ? rows
-        : rows.where((r) => !excludeSet.contains(r['question_code'])).toList();
+        ? items
+        : items.where((i) => !excludeSet.contains(i.questionCode)).toList();
 
-    final pool = candidates.isNotEmpty ? candidates : rows;
-    return GameQuestionBankItem.fromJson(pool[Random().nextInt(pool.length)]);
+    final pool = candidates.isNotEmpty ? candidates : items;
+    return pool[Random().nextInt(pool.length)];
   }
 }

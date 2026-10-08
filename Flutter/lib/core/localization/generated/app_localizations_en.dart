@@ -746,9 +746,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get game_noQuestionAvailable => 'No question available';
 
   @override
-  String get game_noActivePartnership => 'No active partnership found';
-
-  @override
   String get update_availableTitle => 'Update available!';
 
   @override

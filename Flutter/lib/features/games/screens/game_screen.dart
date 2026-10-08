@@ -20,6 +20,30 @@ class GameScreen extends TabScreen {
 
 class _GameScreenState extends State<GameScreen> with TabScreenMixin {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final gameState = context.read<GameState>();
+      gameState.addListener(_handleGameStateMessage);
+    });
+  }
+
+  void _handleGameStateMessage() {
+    final gameState = context.read<GameState>();
+    final msg = gameState.message;
+    if (msg != null && msg.isNotEmpty && mounted) {
+      ErrorHandler.showSnackBar(context, msg);
+      gameState.clearMessage();
+    }
+  }
+
+  @override
+  void dispose() {
+    context.read<GameState>().removeListener(_handleGameStateMessage);
+    super.dispose();
+  }
+
+  @override
   Future<void> loadData({bool force = false}) async {
     if (force) {
       await CacheService.clearCheckpoints([CacheService.kGameAnswers]);
@@ -351,38 +375,42 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        VPUserAvatar(
+        _buildStatusAvatar(
           name: userProfile?.username ?? context.loc.common_youTitle,
           imageUrl: userPicUrl,
-          indicator: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-                color: context.palette.canvas, shape: BoxShape.circle),
-            child: Icon(
-              userDone ? Icons.check_circle : Icons.access_time,
-              color:
-                  userDone ? context.palette.accentPurple : context.palette.contentDisabled,
-              size: 24,
-            ),
-          ),
+          isDone: userDone,
         ),
-        VPUserAvatar(
+        _buildStatusAvatar(
           name: partnerProfile?.username ?? context.loc.common_partner,
           imageUrl: partnerProfile?.profilePicUrl,
-          indicator: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-                color: context.palette.canvas, shape: BoxShape.circle),
-            child: Icon(
-              partnerDone ? Icons.check_circle : Icons.access_time,
-              color: partnerDone
-                  ? context.palette.accentPurple
-                  : context.palette.contentDisabled,
-              size: 24,
-            ),
-          ),
+          isDone: partnerDone,
         ),
       ],
+    );
+  }
+
+  Widget _buildStatusAvatar({
+    required String name,
+    required String? imageUrl,
+    required bool isDone,
+  }) {
+    return VPUserAvatar(
+      name: name,
+      imageUrl: imageUrl,
+      indicator: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: context.palette.canvas,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          isDone ? Icons.check_circle : Icons.access_time,
+          color: isDone
+              ? context.palette.accentPurple
+              : context.palette.contentDisabled,
+          size: 24,
+        ),
+      ),
     );
   }
 }

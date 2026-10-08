@@ -65,18 +65,7 @@ class RealtimeSyncSession {
     return payload.oldRecord;
   }
 
-  int? rowUserId(Map<String, dynamic> row, String key) {
-    return rowInt(row, key);
-  }
 
-  int? rowInt(Map<String, dynamic> row, String key) {
-    final value = row[key];
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value);
-
-    return null;
-  }
 
   bool isRelevantUserProfile(sb.PostgresChangePayload payload) {
     final profileUserId = rowInt(currentRecord(payload), 'user_id');
@@ -86,7 +75,7 @@ class RealtimeSyncSession {
   }
 
   bool isRelevantMood(sb.PostgresChangePayload payload) {
-    final changedUserId = rowUserId(currentRecord(payload), 'user_id');
+    final changedUserId = rowInt(currentRecord(payload), 'user_id');
     if (changedUserId == null) return false;
 
     return changedUserId == userId || changedUserId == partnerId;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:justus/all_imports.dart';
 
@@ -105,7 +106,7 @@ class GameRepository extends BaseRepository {
       }
 
       // Determinazione casuale dell'ordine di User A e User B
-      final isSwap = (DateTime.now().millisecondsSinceEpoch % 2) == 0;
+      final isSwap = Random().nextBool();
       final userIdA = isSwap ? ctx.partnerId : uid;
       final userIdB = isSwap ? uid : ctx.partnerId;
 
@@ -202,8 +203,8 @@ class GameRepository extends BaseRepository {
         status: existing['status'] as String?,
         userIdA: userIdA,
         userIdB: userIdB,
-        optionA: userIdA != null ? ctx.nameFor(userIdA) : 'Opzione A',
-        optionB: userIdB != null ? ctx.nameFor(userIdB) : 'Opzione B',
+        optionA: optionLabelFor(userIdA, 'Opzione A', ctx.nameFor),
+        optionB: optionLabelFor(userIdB, 'Opzione B', ctx.nameFor),
         hasAnswered: hasAnswered,
         partnerAnswered: partnerAnswered,
       );

@@ -64,9 +64,13 @@ void main() {
     final state = GameState(repository: FakeGameRepository());
     await state.fetchNewQuestion();
 
+    final loc = await AppLocalizations.delegate.load(
+      Locale(await LanguageHelper.currentLocaleCode()),
+    );
+
     await state.submitAnswer('A');
 
-    expect(state.message, 'Risposta inviata! ✨');
+    expect(state.message, loc.game_answerSent);
     expect(state.currentQuestion?.status, 'waiting');
   });
 
@@ -118,10 +122,14 @@ void main() {
     final state = GameState(repository: FakeGameRepository());
     await state.fetchNewQuestion(); // Sets currentQuestion to 101
 
+    final loc = await AppLocalizations.delegate.load(
+      Locale(await LanguageHelper.currentLocaleCode()),
+    );
+
     // Pass an invalid option 'C'
     await state.submitAnswer('C');
 
-    expect(state.message, 'Errore: opzione non valida');
+    expect(state.message, loc.game_invalidOption);
     expect(state.isLoading, isFalse);
     expect(
         state.currentQuestion?.status, 'pending'); // Did not change to waiting
