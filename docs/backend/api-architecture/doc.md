@@ -29,10 +29,10 @@ This document provides a reverse-engineering analysis of the communication topol
                    ┌─────────────────────────────┼──────────────────────────────┐
                    │                             │                              │
                    ▼                             ▼                              ▼
-      ┌─────────────────────────┐   ┌──────────────────────────┐   ┌──────────────────────────┐
-      │   Cloudflare R2 Bucket   │   │   OpenRouter AI API      │   │ Firebase Admin FCM API   │
-      │  (Pre-signed PUT / GET) │   │ (Chat Completions LLM)   │   │ (Push Notification SDK)  │
-      └─────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘
+      ┌─────────────────────────┐   ┌────────────────────────────────────────────┐
+      │   Cloudflare R2 Bucket   │   │            Firebase Admin FCM API          │
+      │  (Pre-signed PUT / GET) │   │           (Push Notification SDK)          │
+      └─────────────────────────┘   └────────────────────────────────────────────┘
 ```
 
 ---
@@ -41,10 +41,9 @@ This document provides a reverse-engineering analysis of the communication topol
 
 | Service / System | Role / Purpose | Base URL / Entry Point | Auth Mechanism |
 |---|---|---|---|
-| **Node.js Express Backend** | Custom API business logic, media signing, AI proxies, push dispatch | `https://api.justus.app/api/v1` (or local port) | Supabase JWT Bearer + HMAC Signatures |
+| **Node.js Express Backend** | Custom API business logic, media signing, push dispatch | `https://api.justus.app/api/v1` (or local port) | Supabase JWT Bearer + HMAC Signatures |
 | **Supabase Auth & Database** | Primary DB, Auth sessions, Row Level Security (RLS), Realtime WS | `https://<ref>.supabase.co` | JWT Bearer (`anon` / `authenticated` / `service_role`) |
 | **Cloudflare R2 Storage** | Object storage for Drive media & Profile pictures | `https://<bucket>.<account>.r2.cloudflarestorage.com` | AWS S3 V4 Pre-signed URLs |
-| **OpenRouter AI Gateway** | Multi-model LLM API gateway for relationship question generation | `https://openrouter.ai/api/v1/chat/completions` | API Key (`Bearer ${OPENROUTER_API_KEY}`) |
 | **Firebase Cloud Messaging** | Mobile Push Notifications (Android/iOS) | Firebase Admin Node.js SDK v14 | Service Account Private Key JSON |
 
 ---
@@ -55,30 +54,18 @@ The Flutter client uses a **hybrid architecture** by design:
 
 1. **Direct Supabase Access (PostgREST / RLS / RPC)**:
    - Used for domain CRUD operations that map directly to single tables or PostgreSQL views with strict Row-Level Security (RLS) policies.
-   - **Direct Access Features**: Mood tracking (`moods`, RPC `set_mood`), Miss-You signals (`missyou`, RPC `send_missyou`), Bucket List (`bucket_items`), Game answers/history (`game_answers`, `v_game_dashboard`), Drive metadata & favorites (`drive_items`, `favorites`, `v_drive_dashboard`, RPC `get_or_create_emoji`), Partnership requests (`rpc/request_partnership`, `rpc/accept_partnership`).
+   - **Direct Access Features**: Mood tracking (`moods`, RPC `set_mood`), Miss-You signals (`missyou`, RPC `send_missyou`), Bucket List (`bucket_items`), Game questions & answers (`game_questions`, `game_answers`, `game_question_bank`), Drive metadata & favorites (`drive_items`, `favorites`, `v_drive_dashboard`, RPC `get_or_create_emoji`), Partnership requests (`rpc/request_partnership`, `rpc/accept_partnership`).
    - **Architectural Justification**: Eliminates backend boilerplate for simple CRUD while leveraging PostgreSQL RLS for multi-tenant isolation.
 
 2. **Node.js Express Backend API (`/api/v1`)**:
    - Used for operations requiring elevated privileges, third-party API orchestration, HMAC signing, heavy rate limiting, or atomic domain wipes.
-   - **Backend API Features**: AI question generation (`POST /api/v1/ai/question`), Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`), Session binding (`/api/v1/auth/session-sync`), Account data wipe (`/api/v1/users/wipe`).
+   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`), Session binding (`/api/v1/auth/session-sync`), Account data wipe (`/api/v1/users/wipe`).
 
 ---
 
 ## Endpoints Inventory (`/api/v1`)
 
-### 1. AI Feature Endpoints
-
-#### `POST /api/v1/ai/question`
-- **Controller**: `generateQuestionController` ([`ai.routes.js`](file:///f:/JustUS/Backend/features/ai/ai.routes.js))
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `capability("can_ai_call")` $\rightarrow$ `limited(aiRateLimit)` $\rightarrow$ `withIdempotency("ai-question")` $\rightarrow$ `signed("ai-question")` $\rightarrow$ `validated({ body: aiSchema })`
-- **Rate Limit**: Composite (`ip`: 10/min, `user`: 6/min, `endpoint`: 20/10min).
-- **Idempotency**: 24-hour in-memory cache on `Idempotency-Key` header.
-- **External Dependencies**: OpenRouter API (`https://openrouter.ai/api/v1/chat/completions`). Models: `openrouter/free`, `openai/gpt-oss-120b:free`, `nvidia/nemotron-3-super:free`.
-- **Database Dependencies**: `get_partnership_names` RPC via `adminSupabase`. Inserts generated question into `game_questions`.
-
----
-
-### 2. Media & Cloudflare R2 Endpoints
+### 1. Media & Cloudflare R2 Endpoints
 
 #### `POST /api/v1/media/upload-url`
 - **Controller**: `presignUploadController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
@@ -106,7 +93,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ---
 
-### 3. Authentication & Device Endpoints
+### 2. Authentication & Device Endpoints
 
 #### `POST /api/v1/auth/device-token`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token")` $\rightarrow$ `validated({ body: updateDeviceTokenSchema })`
@@ -124,7 +111,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ---
 
-### 4. Push Notification Endpoints
+### 3. Push Notification Endpoints
 
 #### `POST /api/v1/notify/partner` / `POST /api/v1/notify/:type`
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
@@ -133,7 +120,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ---
 
-### 5. User Domain Operations
+### 4. User Domain Operations
 
 #### `POST /api/v1/users/wipe`
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))
@@ -143,7 +130,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ---
 
-### 6. System & Health Routes
+### 5. System & Health Routes
 
 #### `GET /api/v1/ping`
 - Returns `{ status: "ok" }` health check.

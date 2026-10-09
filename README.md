@@ -18,9 +18,9 @@ A simple, powerful way to stay connected throughout the day.
 - **One-Tap Notifies**: Send a quick "I miss you" notification to your partner with a single tap.
 - **Shared Counter**: A persistent counter celebrates every time you've thought of each other, creating a visual record of your bond.
 
-### 🎮 AI-Powered Couple Game
+### 🎮 Couple Game
 Discover new layers of your relationship every day.
-- **Daily Challenges**: A fresh "who is more likely to…" question is generated on demand through the **[OpenRouter](https://openrouter.ai/) AI gateway**, which walks a fallback chain of free models (`openrouter/free` → `openai/gpt-oss-120b:free` → `nvidia/nemotron-3-super:free`) under a per-user daily token quota and a circuit breaker.
+- **Daily Challenges**: "Who is more likely to…" questions are served from a Supabase question catalog (`game_question_bank`) with one row per locale, so new questions and translations need no app release.
 - **Interactive Voting**: Partners vote between two options (each other) on fun and meaningful scenarios.
 - **Shared History**: Build a library of memories by revisiting past questions and seeing how your answers align over time.
 
@@ -58,9 +58,8 @@ Your privacy is our priority.
 
 ### **Backend Infrastructure** (Hybrid)
 - **Database & Auth**: [Supabase](https://supabase.com/) (PostgreSQL + GoTrue) for real-time data and secure authentication.
-- **Service Layer**: [Node.js](https://nodejs.org/) (Express) acting as a secure gateway for AI and Media services.
+- **Service Layer**: [Node.js](https://nodejs.org/) (Express) acting as a secure gateway for Media services.
 - **Cloud Storage**: [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) for private media hosting.
-- **AI Engine**: [OpenRouter](https://openrouter.ai/) chat-completions gateway (`Backend/config/aiConfig.js`) — no local model runtime required; only `OPENROUTER_API_KEY` is needed.
 - **Notifications**: [Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging).
 
 ---
@@ -72,7 +71,6 @@ Your privacy is our priority.
 - [Node.js](https://nodejs.org/) (v20.19+ / v22 LTS)
 - A [Supabase](https://supabase.com/) project (PostgreSQL + Auth + Realtime) with the schema from `supabase/schemas/**` applied
 - A private [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) bucket
-- An [OpenRouter](https://openrouter.ai/) API key (AI game questions)
 - A Firebase service-account JSON for FCM (push notifications)
 
 ### 2. Backend Setup
@@ -122,8 +120,7 @@ The repository includes an isolated test setup for both backend and Flutter code
 Test environment highlights:
 - `ENV=test` / `NODE_ENV=test` support via the root `.env.test`
 - mocked Supabase / R2 boundaries for backend route tests
-- local mock AI server in `Backend/test/mock-ai/server.js`
-- Docker stack in `scripts/docker-compose.test.yml`; `npm run validate` uses it only to start the mock AI container (skipped automatically when Docker is unavailable)
+- optional Docker stack in `scripts/docker-compose.test.yml`; `npm run validate` can run the backend Jest suite in a `node:20-alpine` container (skipped automatically when Docker is unavailable)
 - Flutter unit/widget tests under `Flutter/test/`
 - Supabase RLS/SQL tests under `supabase/test/` (run via `scripts/run-sql-tests.sh`, skipped without a database URL)
 - reports/logs from a failed run are preserved under `Backend/test/logs/`
@@ -134,9 +131,9 @@ Test environment highlights:
 
 ```text
 .
-├── Backend/          # Node.js Service Layer (AI, Media, Security)
-│   ├── config/       # Env loading, AI provider, routes map, Supabase/R2 clients
-│   ├── features/     # Domain features (ai, auth, media, notifications, user)
+├── Backend/          # Node.js Service Layer (Media, Security)
+│   ├── config/       # Env loading, routes map, Supabase/R2 clients
+│   ├── features/     # Domain features (auth, media, notifications, user)
 │   ├── core/         # Errors, infra clients, logger, cron jobs (log retention)
 │   ├── middleware/   # JWT validation, HMAC/nonce checks, rate limits, sanitization
 │   ├── services/     # Request signing/fingerprinting, app version metadata

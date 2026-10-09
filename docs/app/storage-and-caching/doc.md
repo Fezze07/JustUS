@@ -70,7 +70,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyRecentEmojis` | `recent_emojis` | `List<String>` | `MoodState.fetchRecentCoupleEmojis`, `MoodState.updateMood` | `MoodState._loadMoodScreenCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kMoods` checkpoint | Up to 10 entries, order = recency |
 | `_keyTimeline` | `mood_timeline` | `List<MoodEntry>` (JSON) | `MoodState.fetchTimeline`, `MoodState.loadMoreTimeline`, `MoodState.updateMood` | `MoodState._loadMoodScreenCache` | Until overwrite (partial pages only) | `p.clear()` | `clearAppCache` | `CacheService.kMoods` checkpoint | **Overwritten to only 4 items on each full refetch** — deep pages lost on re-init (`:179–184`) |
 | `_keyBucketList` | `bucket_list` | `List<BucketItem>` (JSON) | `BucketState.fetchBucket`, `BucketState.applyRealtimeEvent` (debounced 2s, flushed on app-pause/dispose) | `BucketState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kBucketItems` checkpoint (created\_at-based) | |
-| `_keyGameQuestion` | `game_question` | `GameNewQuestionResponse` (JSON) | `GameState.fetchNewQuestion`, `GameState.handleQuestionInsert/Update/Delete`, `GameState.submitAnswer` | `GameState._loadFromCache`, `GameState._resolveCachedNames` | Until overwritten or both\_answered | `p.clear()` | `clearAppCache` | Cleared explicitly on `both_answered` / delete (`clearCachedGameQuestion`) | Contains user names (optionA/optionB resolved on cache read at `:44–69`) |
+| `_keyGameQuestion` | `game_question` | `GameNewQuestionResponse` (JSON) | `GameState.fetchNewQuestion`, `GameState.handleQuestionInsert/Update/Delete`, `GameState.submitAnswer` | `GameState._loadFromCache`, `GameState._resolveCachedNames` | Until overwritten or both\_answered | `p.clear()` | `clearAppCache` | Cleared explicitly on `both_answered` / delete (`clearCachedGameQuestion`) | Contains user names (optionA/optionB resolved on cache read at `:103–127`) |
 | `_keyGameHistory` | `game_history` | `List<GameHistoryItem>` (JSON) | `GameState.fetchHistory`, `GameState.submitAnswer`, `GameState.handleAnswerInsert/Update/Delete` | `GameState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kGameAnswers` checkpoint | |
 | `_keyDriveCache` | `drive_cache` | `List<DriveItem>` (JSON) | `DriveState.syncDriveItems`, `DriveState.refreshFromRealtime`, `DriveState.addFileItemR2`, `DriveState.deleteItem`, `DriveState.toggleFavorite`, `DriveState.addReaction` | `DriveState._loadFromCache` | Until overwrite | `p.clear()` | `clearAppCache` | `CacheService.kDriveItems` checkpoint (updated\_at-based) | Full list re-serialized on every mutation; writes serialized through `CacheWriteQueue` (F-SC12 resolved) |
 | `_keyUserProfile` | `user_profile` | `User` (JSON) | `ProfileState.loadProfile`, `ProfileState.updateDisplayName`, `ProfileState.uploadProfilePhoto` | `ProfileState.loadProfile` (cache-first) | Until overwrite | `p.clear()` | `clearAppCache` | **None** — only overwritten on explicit `loadProfile(force)` | **Contains PII: email, authId, partnershipCode** — stored in plaintext (`:52–63` of `auth_models.dart`) |
@@ -84,6 +84,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | Key constant | Storage key string | Data type | Producer | Consumer | Lifetime | Logout | Wipe | See §Checkpoints |
 |---|---|---|---|---|---|---|---|---|
 | `kGameAnswers` | `chk_game_answers` | `String` (ISO timestamp or `EMPTY`) | `GameState._updateGameCheckpoint` | `BaseRepository.hasChanges` via `GameRepository.hasNewGameActivity` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** (survives wipe) | §Checkpoints |
+| `kGameQuestions` | `chk_game_questions` | `String` (ISO timestamp or `EMPTY`) | `GameState._fetchActiveQuestion` | `BaseRepository.hasChanges` via `GameRepository.hasNewGameActivity` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 | `kMoods` | `chk_moods` | `String` (ISO timestamp or `EMPTY`) | `MoodState._updateMoodsCheckpoint` | `BaseRepository.hasChanges` via `MoodRepository.hasNewMoods` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 | `kBucketItems` | `chk_bucket_items` | `String` (ISO timestamp or `EMPTY`) | `BucketState._updateBucketCheckpoint` | `BaseRepository.hasChanges` via `BucketRepository.hasNewBucketItems` | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
 | `kDriveItems` | `chk_drive_items` | `String` (ISO timestamp or `EMPTY`) | `DriveState._updateDriveCheckpointFromItems`, `syncDriveItems`, `hasDriveChanges` | `DriveRepository.fetchChangeProbe` (compared against `public.drive_change_probe()`), `fetchDriveItemsIncremental` (as query bound) | Until overwritten | `CacheService.clearAll` → `p.remove` | **Not cleared** | §Checkpoints |
@@ -140,8 +141,12 @@ Checkpoint keys are partnership-scoped (`chk_x:<partnership_id>` via `CacheServi
 ### Per-checkpoint analysis
 
 **chk\_game\_answers** (`CacheService.kGameAnswers`)
-- Updated by: `GameState._updateGameCheckpoint` (`:90–106` of `game_state.dart`) — max of `game_answers.updated_at` filtered by `[uid, partnerId]`.
+- Updated by: `GameState._updateGameCheckpoint` (`:195–207` of `game_state.dart`) — max of `game_answers.updated_at` filtered by `[uid, partnerId]`.
 - Compared field: `game_answers.updated_at` — bumped on every UPDATE by the `set_public_game_answers_updated_at` BEFORE-UPDATE trigger (including the upsert in `submitAnswer`), so partner answer changes are detected by checkpoint on cold start and polling fallback.
+
+**chk\_game\_questions** (`CacheService.kGameQuestions`)
+- Updated by: `GameState._fetchActiveQuestion` (`:179–181` of `game_state.dart`) — max of `game_questions.created_at` for the active question.
+- Compared field: `game_questions.created_at` — detects a partner-created question on cold start / polling, since inserting a question is an INSERT (completion is an UPDATE handled by Realtime and does not advance `created_at`).
 
 **chk\_moods** (`CacheService.kMoods`)
 - Updated by: `MoodState._updateMoodsCheckpoint` (`:70–79` of `mood_state.dart`) — max of all timeline entry `createdAt` + `userMoodUpdatedAt` + `partnerMoodUpdatedAt`.
@@ -198,7 +203,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 `AuthState.logout()` (`:534–548` of `auth_state.dart`):
 
 1. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
-2. `CacheService.clearAll()` — removes all 5 checkpoint keys from SharedPreferences.
+2. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
 3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, which is read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes **all** secure storage keys.
 4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`.
 
@@ -211,7 +216,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 `ProfileState.wipeAppData()` (`:139–149` of `profile_state.dart`):
 1. Backend `POST /api/v1/user/wipe` — server deletes the user's data.
 2. `StorageService.clearAppCache()` — removes the feature-cache SharedPreferences keys.
-3. `CacheService.clearAll()` — removes all 5 checkpoint keys (base + scoped variants).
+3. `CacheService.clearAll()` — removes all 6 checkpoint keys (base + scoped variants).
 4. `emptyAppMediaCaches()` — empties the `MediaCacheManager` **and** `DefaultCacheManager` file stores (best-effort; platform failures are logged, never fail the wipe).
 5. Feature states `clear()` — resets in-memory state.
 6. `RealtimeSyncService.refreshChannel()` — resubscribes after suppress/resume.
@@ -274,7 +279,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 **Evidence**: `clearAppCache()` at `:368–387` clears 14 keys — `_keyUsername` and `_keyPartnerDisplayName` are **not** in the list. `ProfileState.wipeAppData()` runs `clearAppCache()` + `CacheService.clearAll()` + `emptyAppMediaCaches()`, none of which remove the identity keys.
 
-**What**: After a data wipe, the app retains the old username and partner display name. These are used by `GameState._resolveCachedNames` (`:51–69`) to resolve question option labels from cache, and by all `notifyPartnerOnce` calls to include a `partnerName` param. After a wipe + re-partner, the old username is correct (user's own name doesn't change), but the partner display name may be stale until re-fetched.
+**What**: After a data wipe, the app retains the old username and partner display name. These are used by `GameState._resolveCachedNames` (`:103–127`) to resolve question option labels from cache, and by all `notifyPartnerOnce` calls to include a `partnerName` param. After a wipe + re-partner, the old username is correct (user's own name doesn't change), but the partner display name may be stale until re-fetched.
 
 **Impact**: Minor — name corrects itself after the next `setPartner` call.
 
@@ -301,7 +306,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 3. **Feature caches are partitioned per-partnership, not per-user.** Read/write keys are namespaced with the active partnership id (`base:<partnership_id>`), so one account's cached data under partnership A is never exposed under partnership B; transitions purge all variants. Logout must clear all data — `StorageService.clearAll()` satisfies this by calling `p.clear()`.
 4. **Feature caches cannot be read before `loadWithChangeDetection` completes.** This is an architectural invariant — all feature state reads (from UI) occur after `init()` completes. Violated only if realtime events arrive before init finishes (possible during startup).
 5. **`MediaCacheManager` is a singleton** (`:11–12`). Only one instance exists per process. The `Config` (stalePeriod, maxNrOfCacheObjects) is fixed at construction time.
-6. **Checkpoints are written after every successful network fetch.** Every `fetchFromNetwork` path writes a checkpoint. Partial failures (e.g. `fetchStats` succeeds but `fetchHistory` fails) may leave checkpoints inconsistent with the actual cache state. The checkpoint reflects whatever was fetched, not the full intended fetch.
+6. **Checkpoints are written after every successful network fetch.** Every `fetchFromNetwork` path writes a checkpoint. Partial failures (e.g. `fetchActiveQuestion` succeeds but `fetchHistory` fails) may leave checkpoints inconsistent with the actual cache state. The checkpoint reflects whatever was fetched, not the full intended fetch.
 
 ---
 

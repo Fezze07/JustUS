@@ -299,7 +299,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 
 ### HMAC Relationship
 
-- **Purpose**: High-risk routes (`/device-token`, `/media/upload-url`, `/media/complete`, `/ai/question`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
+- **Purpose**: High-risk routes (`/auth/device-token`, `/auth/device-token-revoke`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
 - **Secret Generation**: Created via `crypto.randomBytes(32).toString("hex")` in `generateBindingSecret()`.
 - **Secret Lifecycle**:
   - Generated on backend during `/auth/session-bind`.

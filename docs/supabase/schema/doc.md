@@ -18,7 +18,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ---
 
-## Table & Constraint Specifications (25 Tables)
+## Table & Constraint Specifications (26 Tables)
 
 ### 1. Core Users & Partnership Domain
 
@@ -97,11 +97,13 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('bucket_items_id_seq')`), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `text` (`text` NOT NULL), `category` (`character varying`), `done` (`boolean` DEFAULT `false`), `created_at` (`timestamp with time zone`, DEFAULT `now()`).
 - **RLS:** `bucket_items_partnership_access` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
 
-#### `game_questions` & `game_answers`
-- **SQL Source:** `game_questions.sql`, `game_answers.sql`
-- **`game_questions`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `text` (`text` NOT NULL), `created_at`.
+#### `game_question_bank`, `game_questions` & `game_answers`
+- **SQL Source:** `game_question_bank.sql`, `game_questions.sql`, `game_answers.sql`
+- **`game_question_bank`:** `question_code` (`text` NOT NULL), `locale` (`text` NOT NULL), `text` (`text` NOT NULL), `created_at` (`timestamp with time zone`, DEFAULT `now()`), `updated_at` (`timestamp with time zone`, DEFAULT `now()`). PRIMARY KEY `(question_code, locale)`. Trigger `set_public_game_question_bank_updated_at` (BEFORE UPDATE).
+- **`game_question_bank` RLS:** `game_question_bank_read_all` (FOR SELECT, `TO PUBLIC`, `USING (true)`) — the static, world-readable question catalog. No INSERT/UPDATE/DELETE policy exists, so client roles cannot write it.
+- **`game_questions`:** `id` (`integer`, PK, DEFAULT `nextval('game_questions_id_seq'::regclass)`), `created_at` (`timestamp with time zone`, DEFAULT `now()`), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `question_code` (`text`), `status` (`text`, DEFAULT `'pending'`), `user_id_a` / `user_id_b` (`integer`, FK -> `users.id`). Indexes on `partnership_id`, `user_id_a`, `user_id_b`, `question_code`.
 - **`game_questions` RLS:** `game_questions_related` (FOR ALL, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
-- **`game_answers`:** `game_id` (`integer`, FK -> `game_questions.id`), `user_id` (`integer`, FK -> `users.id`), `selected_option` (`integer`), `created_at`. UNIQUE/PK: `(game_id, user_id)`.
+- **`game_answers`:** `game_id` (`integer`, FK -> `game_questions.id` ON DELETE CASCADE), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `selected_option` (`integer`), `created_at` / `updated_at` (`timestamp with time zone`). PRIMARY KEY: `(game_id, user_id)`. Trigger `tr_game_answers_update_question_status` (AFTER INSERT OR UPDATE -> `update_game_question_status()` sets the parent `game_questions.status` to `'both_answered'` once both partners have answered).
 - **`game_answers` RLS:** `game_answers_manage_own` (INSERT WITH CHECK self + game in accepted partnership), `game_answers_update_own` (UPDATE USING self, WITH CHECK self + game in accepted partnership), `game_answers_delete_own` (DELETE self), `game_answers_related_select` (SELECT through the parent game in an accepted partnership).
 
 #### `drive_items`, `drive_item_reactions`, `favorites`, `drive_file_types`, `emojis`

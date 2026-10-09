@@ -1,259 +1,203 @@
-# Couple AI Game Subsystem - JustUS
+# Couple Game Subsystem - JustUS
 
 ## Overview
 
-This document provides a reverse-engineered analysis of the **Couple AI Game Subsystem** in the JustUS application. It covers end-to-end question generation, prompt templates, OpenRouter model fallback chains, daily token quota management, in-memory circuit breaking, request idempotency, A/B answer mapping, real-time partner answer synchronization, match calculation, and historical game statistics.
+This document describes the **Couple Game subsystem** in the JustUS application. Question text is served from a static Supabase catalog (`game_question_bank`) — there is **no AI generation, no backend route and no external provider**. The subsystem selects a question for the couple, tracks each partner's vote (Option A vs Option B, where the options are the two partners), computes agreement, synchronizes partner answers in realtime, and keeps a local history.
 
-The Couple AI Game subsystem engages linked couples by generating daily relationship quiz questions ("Who is more likely to..."), tracking individual votes (Option A vs Option B), calculating agreement matches, and maintaining a historical log of couple answers.
+The game engages linked couples with relationship quiz questions ("Who is more likely to…"). Each question is an instance row in `game_questions` referencing a catalog entry by stable `question_code`; each vote is a row in `game_answers`.
 
 ---
 
 ## Architecture & Component Mapping
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          FLUTTER FRONTEND LAYER                         │
-│  GameScreen • GameState • GameRepository • GameModels                   │
-│  RealtimeSyncService                                                    │
-└────────────────────┬───────────────────────────────▲────────────────────┘
-                     │                               │
-       REST API /    │                               │ Supabase Realtime
-       Supabase SDK  │                               │ Postgres Changes
-                     ▼                               │ (game_questions, game_answers)
-┌────────────────────────────────────────────────────┴────────────────────┐
-│                       NODE.JS / EXPRESS API LAYER                       │
-│  POST /api/v1/ai/question                                               │
-│  Middleware: authenticated → capability → limited → withIdempotency      │
-│              → signed → validated                                       │
-│  Services: createAiQuestion → reserveAiTokens → canExecute              │
-│            → generateAIQuestion (OpenRouter API)                        │
-└────────────────────┬────────────────────────────────────────────────────┘
-                     │
-                     ▼ External Provider Call
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           OPENROUTER AI API                             │
-│  Primary: openrouter/free                                               │
-│  Fallback 1: openai/gpt-oss-120b:free                                   │
-│  Fallback 2: nvidia/nemotron-3-super:free                               │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      FLUTTER FRONTEND                        │
+│  GameScreen • GameState • GameRepository                     │
+│  GameQuestionBankRepository • GameModels                     │
+│  RealtimeSyncService (GameRealtimeHandler + GameEventBuffer) │
+└───────────────┬──────────────────────────────▲──────────────┘
+                │ Supabase SDK (PostgREST)      │ Supabase Realtime
+                │ RLS-scoped reads/writes       │ (game_questions, game_answers)
+                ▼                               │
+┌───────────────────────────────────────────────┴─────────────┐
+│                    SUPABASE (PostgreSQL)                     │
+│  game_question_bank  (static catalog, SELECT-only)           │
+│  game_questions      (per-couple question instance)          │
+│  game_answers        (per-user vote)                         │
+│  trigger: update_game_question_status → 'both_answered'      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): UI rendering for current question card, Option A / Option B voting buttons, and historical game list.
-   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): State manager maintaining `_currentQuestion` and `_history`. Handles answer submission, real-time question/answer payloads, and local state persistence.
-   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): Network repository calling Express AI API (`_api.generateAiQuestion()`) and Supabase tables (`game_questions`, `game_answers`).
-   - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): Data models `GameNewQuestionResponse`, `GameQuestion`, `GameAnswer`, and `GameHistoryItem`.
+   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): Game tab UI. Renders the current-question card (`GameNewQuestionResponse`), the Option A / Option B voting buttons, the "you vs partner" answer status avatars, and the last five history entries (`GameHistoryItem`) via `GameHistoryCard`. Empty states: `game_noQuestionAvailable` when the catalog has no question for the couple's locale, `game_allCaughtUp` otherwise.
+   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): `GameState extends BaseState with CheckpointMixin`. Owns `_currentQuestion`, `_history`, `_noQuestionAvailable` and the realtime handlers. Subscribes to `LanguageProvider` and refetches the active question + history (read-only) when the language changes; never inserts a question on a locale switch.
+   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): `GameRepository extends BaseRepository`. All data access goes through Supabase (no backend call): `fetchActiveQuestion` (read-only), `fetchNewGameQuestion` (create-from-catalog-if-missing), `submitAnswer`, `fetchAnswerStatus`, `hasNewGameActivity` (checkpoint gate), `fetchGameHistory`.
+   - [game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart): `GameQuestionBankRepository` — catalog access: `fetchQuestionsByLocale`, `fetchQuestionText`, `fetchTextsForCodes`, `pickQuestionForGame`, all with locale fallback.
+   - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): `GameQuestionBankItem` (catalog row), `GameNewQuestionResponse` (active question), `GameHistoryItem` (history row, with `isMatched`/`isDisagreed`), plus the shared helpers `resolvePlayerName` and `optionLabelFor`.
+   - Realtime: [game_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/game_realtime_handler.dart) routes `game_questions`/`game_answers` events into `GameState`; `game_questions` **insert/delete** dispatch immediately, every other game event is buffered FIFO in `game_event_buffer.dart` and flushed in delivery order.
 
-2. **Node.js / Express API**:
-   - [ai.routes.js](file:///f:/JustUS/Backend/features/ai/ai.routes.js): Express router defining `POST /api/v1/ai/question` with composite rate limiting, idempotency middleware, request signing, and schema validation.
-   - [aiQuestion.service.js](file:///f:/JustUS/Backend/features/ai/aiQuestion.service.js): Orchestrates template selection, circuit breaker evaluation, token quota reservation, AI provider call, and failure reporting.
-   - [aiConfig.js](file:///f:/JustUS/Backend/config/aiConfig.js): Contains 64 Italian question templates (`tipiDomanda`), OpenRouter model array, AI prompt builder, response cleaner, and token count estimator.
-   - Infrastructure Services: `circuitBreaker.js`, `quotaService.js`, `idempotencyStore.js`.
+2. **Database Layer (Supabase / PostgreSQL)**: see the schema section below. There is no Node.js/Express involvement in this feature.
 
-3. **Database Layer (Supabase / PostgreSQL)**:
-   - `public.game_questions`: Table storing generated game questions. Columns: `id` (integer PK), `partnership_id` (integer FK), `question` (text), `status` (character varying, e.g. `'pending'`, `'both_answered'`), `user_id_a` (integer FK), `user_id_b` (integer FK), `created_at` (timestamptz).
-   - `public.game_answers`: Table storing user votes. Composite PK: `(game_id, user_id)`. Columns: `game_id` (integer FK), `user_id` (integer FK), `selected_option` (integer FK/id), `created_at` (timestamptz).
+---
+
+## Database Schema
+
+### `game_question_bank` (catalog)
+
+- **SQL Source:** [game_question_bank.sql](file:///f:/JustUS/supabase/schemas/public/tables/game_question_bank.sql)
+- **Columns:** `question_code` (`text`, NOT NULL), `locale` (`text`, NOT NULL), `text` (`text`, NOT NULL), `created_at` / `updated_at` (`timestamptz`, DEFAULT `now()`).
+- **Primary Key:** `(question_code, locale)` — the same question code may have one row per locale, so new translations are added without touching Flutter.
+- **RLS:** `game_question_bank_read_all` — `FOR SELECT TO PUBLIC USING (true)`. The catalog is world-readable; no client role can write it (the broad table GRANT is not exercised because no INSERT/UPDATE policy exists).
+- **Trigger:** `set_public_game_question_bank_updated_at` (BEFORE UPDATE → `set_current_timestamp_updated_at()`).
+- **Seed:** the repository contains **no seed** for this table (only the SQL tests insert rows), so a fresh database starts with an empty catalog and the app shows the "no question available" state until rows are loaded.
+
+### `game_questions` (per-couple instance)
+
+- **SQL Source:** [game_questions.sql](file:///f:/JustUS/supabase/schemas/public/tables/game_questions.sql)
+- **Columns:** `id` (`integer`, PK, DEFAULT `nextval('game_questions_id_seq')`), `created_at` (`timestamptz`), `partnership_id` (`integer`, FK → `partnerships.id` ON DELETE CASCADE), `question_code` (`text`), `status` (`text`, DEFAULT `'pending'`), `user_id_a` / `user_id_b` (`integer`, FK → `users.id`).
+- **Indexes:** `idx_game_questions_partnership_id`, `idx_game_questions_user_id_a`, `idx_game_questions_user_id_b`, `idx_game_questions_question_code`.
+- **RLS:** `game_questions_related` (`FOR ALL TO PUBLIC`, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
+- There is **no `text`/`question` column** and **no `active` flag**: text lives in the catalog and the active question is the couple's newest row whose `status != 'both_answered'`.
+
+### `game_answers` (votes)
+
+- **SQL Source:** [game_answers.sql](file:///f:/JustUS/supabase/schemas/public/tables/game_answers.sql)
+- **Columns:** `game_id` (`integer`, FK → `game_questions.id` ON DELETE CASCADE), `user_id` (`integer`, FK → `users.id` ON DELETE CASCADE), `selected_option` (`integer`), `created_at` / `updated_at` (`timestamptz`).
+- **Primary Key:** `(game_id, user_id)` — one vote per user per question; re-voting is an upsert. Index `idx_game_answers_user_id`.
+- **Triggers:**
+  - `set_public_game_answers_updated_at` (BEFORE UPDATE) — bumps `updated_at` on every vote change (the checkpoint compares on this field).
+  - `tr_game_answers_update_question_status` (AFTER INSERT OR UPDATE) → `update_game_question_status()`: flips the parent `game_questions.status` to `'both_answered'` once `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`.
+- **RLS:** `game_answers_delete_own`, `game_answers_manage_own` (INSERT: self + parent game in an accepted partnership), `game_answers_related_select` (SELECT through the parent game in an accepted partnership), `game_answers_update_own`.
 
 ---
 
 ## End-to-End Execution Trace
 
 ```
-1. Question Request (Flutter UI / GameRepository)
+1. Cold start / tab activation (GameScreen.loadData → GameState.init)
    │
-   ├── Checks active question in DB (public.game_questions where status != 'both_answered')
-   │     ├── If active question exists: Reuses existing question (bypasses AI call)
-   │     └── If no active question: Invokes POST /api/v1/ai/question
+   └── loadWithChangeDetection:
+         ├── _loadFromCache: restore _currentQuestion (GameNewQuestionResponse) and
+         │     _history from StorageService; re-resolve option labels for the current locale.
+         ├── _hasGameChanges → GameRepository.hasNewGameActivity(uid, partnerId, partnershipId):
+         │     ├── game_answers.updated_at (user_id IN [uid, partnerId]) via CacheService.kGameAnswers
+         │     └── else game_questions.created_at (partnership_id) via CacheService.kGameQuestions
+         └── _fetchAllInBackground (unawaited): Future.wait([fetchHistory, _fetchActiveQuestion])
+
+2. Read the active question (read-only, never inserts)
    │
-2. Backend Middleware Pipeline (Express)
+   └── GameRepository.fetchActiveQuestion → _fetchActiveQuestionFor(ctx):
+         ├── getActivePartnership() → partnershipId + partnerId (throws if none)
+         ├── SELECT game_questions WHERE partnership_id = ? AND status != 'both_answered'
+         │     ORDER BY created_at DESC LIMIT 1
+         ├── if none → return null (GameState sets _noQuestionAvailable)
+         ├── SELECT game_answers.user_id WHERE game_id = ? → hasAnswered / partnerAnswered
+         ├── resolve text via GameQuestionBankRepository.fetchQuestionText(question_code, locale)
+         │     (walks LanguageHelper.localeChain: requested locale → app fallback)
+         └── build GameNewQuestionResponse with optionA/optionB = partner display names
+
+3. Create a question if the couple has none (user taps "find another one")
    │
-   ├── authenticated() -> Validates JWT
-   ├── capability("can_ai_call") -> Verifies user permissions
-   ├── limited(aiRateLimit) -> Enforces composite rate limits (IP, User, Endpoint)
-   ├── withIdempotency("ai-question") -> Checks 24h in-memory idempotency cache
-   ├── signed("ai-question") -> Validates request signature
-   └── validated({ body: aiSchema }) -> Validates optional request body
+   └── GameState.fetchNewQuestion → GameRepository.fetchNewGameQuestion:
+         ├── if an active question already exists → return it (no insert, no notification)
+         ├── SELECT game_questions.question_code WHERE partnership_id = ? (played codes)
+         ├── pickQuestionForGame(locale, excludeCodes) from game_question_bank:
+         │     walks the locale chain; picks a random row excluding already-played codes;
+         │     if every code is excluded it falls back to the whole locale pool
+         ├── if the catalog (and fallback locale) is empty → Success(null)
+         │     → GameState sets noQuestionAvailable and clears any cached question
+         ├── random swap: userIdA / userIdB = (child, partner) or (partner, child)
+         ├── INSERT game_questions (partnership_id, question_code, status: 'pending',
+         │     user_id_a, user_id_b) → RETURN id, status, users
+         └── notifyPartnerOnce('newQuestion') (fire-and-forget)
+
+4. Voting
    │
-3. Pre-Execution Checks (createAiQuestion)
+   └── GameState.submitAnswer('A' | 'B') → maps the code to userIdA / userIdB
+         → GameRepository.submitAnswer(questionId, selectedOption):
+               UPSERT game_answers { game_id, user_id, selected_option }
+                 ON CONFLICT (game_id, user_id)
+               unawaited(notifyPartnerOnce('answerSubmitted', {partnerName}))
+         → GameState optimistically sets hasAnswered, updates _history and its checkpoint,
+           and clears the active question once the partner had already answered.
+
+5. Realtime synchronization
    │
-   ├── Selects template from tipiDomanda (64 Italian prefixes)
-   ├── Circuit Breaker Check (canExecute("ai-question"))
-   │     └── If open (>= 5 failures within 60s): Throws SYS_FAIL_001 with static fallbackQuestion
-   └── Quota Reservation (reserveAiTokens(userId, 120))
-         └── If quota exceeded (> 4000 tokens/day): Logs security event & throws SEC_BLOCK_001
+   └── GameRealtimeHandler (subscription scoped to the active partnership):
+         ├── game_questions INSERT → handleQuestionInsert → fetchNewQuestion(showLoading: false)
+         ├── game_questions DELETE → handleQuestionDelete → clear question + scrub history
+         ├── game_questions UPDATE → handleQuestionUpdate → update status only;
+         │     on 'both_answered' clear the question + cache
+         └── game_answers INSERT/UPDATE/DELETE → buffered FIFO → handleAnswerInsert /
+               handleAnswerUpdate (re-fetch authoritative status) / handleAnswerDelete
+
+6. Completion & match evaluation
    │
-4. AI Provider & Fallback Model Loop (generateAIQuestion)
-   │
-   ├── Model 1: "openrouter/free"
-   │     ├── Sends POST to https://openrouter.ai/api/v1/chat/completions (timeout: 12s)
-   │     ├── Cleans response (cleanAiResponse: strips markdown & non-JSON text)
-   │     └── Parses & validates JSON schema (parseAiQuestion: requires {"question": "..."})
-   │
-   ├── Fallback Model 2: "openai/gpt-oss-120b:free" (If Model 1 throws HTTP/timeout/parse error)
-   ├── Fallback Model 3: "nvidia/nemotron-3-super:free" (If Model 2 fails)
-   └── If all 3 models fail: Increments circuit breaker failure counter (onFailure)
-   │
-5. Persistence & Database Insertion (Flutter GameRepository)
-   │
-   ├── Inserts into public.game_questions (partnership_id, question, status='pending', user_id_a, user_id_b)
-   └── Triggers partner push notification (notifyPartnerOnce('newQuestion'))
-   │
-6. Voting & Partner Synchronization (Flutter GameScreen)
-   │
-   ├── User A votes Option A or B -> Upserts into public.game_answers (game_id, user_id, selected_option)
-   ├── Realtime Broadcast -> Supabase Realtime emits INSERT on game_answers
-   ├── Partner User B receives event via RealtimeSyncService -> Updates local GameState
-   │
-7. Result Calculation
-   │
-   └── When both partners have answered (hasAnswered && partnerAnswered):
-         ├── DB trigger tr_game_answers_update_question_status sets game_questions status to 'both_answered'
-         │   (emits a game_questions UPDATE, received on the waiting device's RealtimeSyncService subscription)
-          └── Evaluates Match (isMatched: userOption == partnerOption) or Disagreement
+   └── When both partners have answered, the DB trigger sets status = 'both_answered'
+         and emits a game_questions UPDATE (clears the waiting device's active question).
+         GameHistoryItem.isMatched  → userOption == partnerOption
+         GameHistoryItem.isDisagreed → userOption != partnerOption
 ```
 
 ---
 
-## Infrastructure Analysis & Required Questions
+## Question Selection, Locale Fallback & Catalog
 
-### 1. Quota Enforcement (`quotaService.js`)
+### Selection rule (`pickQuestionForGame`)
 
-- **Enforcement Location**: Enforced in Node.js Backend inside `createAiQuestion()` ([aiQuestion.service.js:31](file:///f:/JustUS/Backend/features/ai/aiQuestion.service.js#L31)) prior to dispatching any HTTP call to OpenRouter.
-- **Limit & Budget**: Default daily token limit is **4,000 tokens per day** (`env.aiDailyTokenLimit` in [env.js:47](file:///f:/JustUS/Backend/config/env.js#L47)). Each request reserves an up-front fixed budget of **120 tokens** (`reserveAiTokens(user.profileId, 120)`).
-- **Token Counting**:
-  - Up-front reservation: 120 tokens subtracted from available daily budget before making the AI request.
-  - Post-generation estimation: `estimateTokenCount(text)` in `aiConfig.js` estimates actual response length via `Math.max(1, Math.ceil(text.length / 4))`.
-- **Reset Schedule**: Resets daily at **UTC Midnight**. `getDayKey()` returns `new Date().toISOString().slice(0, 10)` (`YYYY-MM-DD`).
-- **Scope**: **Per User**. The tracking key in `aiDailyUsage` map is `${userId}:${dayKey}` using `user.profileId`.
+- Reads the whole catalogue for a locale in one query (`fetchQuestionsByLocale`), filters out already-played `question_code`s **client-side**, and picks a random entry.
+- Excludes codes the couple has already played (queried from `game_questions`). If the exclusion empties the pool, it falls back to the entire locale pool (so play never hard-stops) without a second DB round trip.
+- Walks `LanguageHelper.localeChain(locale)` (e.g. `en → it`); the first locale that yields an item wins. A code with no translation in any chained locale stays empty in history.
 
-### 2. Circuit Breaker (`circuitBreaker.js`)
+### Text resolution
 
-- **State Location**: Lives in Node.js process **in-memory `Map`** (`circuits = new Map()`) in `Backend/core/infra/circuitBreaker.js`.
-- **Threshold**: **5 consecutive failures** (`env.aiCircuitBreakerThreshold = 5`).
-- **Cooldown Duration**: **60 seconds** (`env.aiCircuitBreakerCooldownMs = 60_000`).
-- **State Transition**:
-  - When failure count reaches 5, `openUntil` is set to `Date.now() + 60,000`.
-  - While open, `canExecute("ai-question")` returns `{ allowed: false, retryAfterMs }`.
-  - Throws `AppError(SYS_FAIL_001)` with error details containing `fallbackQuestion` ("Chi dei due sceglierebbe la meta migliore per una vacanza?") and `retryAfterMs`.
-  - Upon any successful AI completion (`onSuccess`), `failures` and `openUntil` are reset to 0.
-- **Process Restart Survival**: **NO**. Because state is stored in an in-memory `Map`, process restarts clear all circuit states (`circuits.clear()`) and reset failure counters to 0.
+- `fetchQuestionText(questionCode, locale)` — one `(question_code, locale)` lookup per chained locale until a non-empty text is found.
+- `fetchTextsForCodes(codes, locale)` — history path: one `IN (...)` query per chained locale, resolving as many codes as possible per pass and stopping when all are resolved (avoids per-code round trips).
 
-### 3. Idempotency Store (`idempotencyStore.js`)
+### Language change at runtime
 
-- **Middleware**: `withIdempotency("ai-question")` in `ai.routes.js`.
-- **Key Format**: `namespace:userId:key` built from request header `x-idempotency-key`.
-- **Expiration**: Cached responses expire after **24 hours** (`24 * 60 * 60_000` ms).
-- **Process Restart Survival**: **NO**. Idempotency cache is stored in Node process memory (`responses = new Map()`). Server restarts wipe all cached idempotent responses.
-
-### 4. Concurrency & Race Condition Vulnerabilities
-
-- **Quota Bypass**: Synchronous JavaScript map access prevents thread race conditions inside a single Node event loop execution, but if a single user dispatches multiple simultaneous asynchronous HTTP requests before the quota limit is reached, all requests will evaluate `current + tokens <= 4000` concurrently before any of them finish, exceeding the total daily budget.
-- **Circuit Breaker Bypass**: Multiple concurrent requests sent while failure count is at 4 will all pass `canExecute()` simultaneously before any of them record a 5th failure.
-- **Idempotency Bypass**: If two identical requests containing the same `x-idempotency-key` arrive simultaneously before the first request completes and calls `saveEntry()`, both requests will pass the `getEntry()` check and execute duplicate AI queries.
-
----
-
-## AI Prompt Templates & Provider Fallback Chains
-
-### 1. Italian Prompt Templates (`tipiDomanda`)
-
-Defined in [aiConfig.js:4-21](file:///f:/JustUS/Backend/config/aiConfig.js#L4-L21). Contains **64 Italian question prefix templates**, categorized into:
-- Comparison prefixes: `"Chi è più propenso a…"`, `"Chi è più bravo a…"`, `"Chi impiega più tempo a…"`, `"Chi è più romantico…"`, `"Chi ha più pazienza…"`.
-- Preference & hypothetical prefixes: `"Quale dei due preferisce…"`, `"Quale dei due sarebbe capace di…"`, `"Quale dei due farebbe una figuraccia mentre…"`.
-- Couple scenario prefixes: `"Tra voi due, chi sarebbe più adatto a…"`, `"Tra voi two, chi finirebbe per…"`, `"Chi dei due scoppierebbe a ridere mentre…"`.
-
-### 2. OpenRouter Provider Fallback Chain
-
-The AI provider loop iterates through array `MODELS` in [aiConfig.js:27-31](file:///f:/JustUS/Backend/config/aiConfig.js#L27-L31):
-
-1. **Model 1 (Primary)**: `"openrouter/free"`
-2. **Model 2 (Fallback 1)**: `"openai/gpt-oss-120b:free"`
-3. **Model 3 (Fallback 2)**: `"nvidia/nemotron-3-super:free"`
-
-#### Execution Logic
-- Sends HTTP POST to `https://openrouter.ai/api/v1/chat/completions` with a 12-second timeout (`env.aiTimeoutMs = 12000`).
-- If Model 1 throws an error (HTTP 4xx/5xx, timeout, network failure, or returns empty/invalid content), the error is caught, logged as `ai.model_failed`, and execution immediately proceeds to Model 2, then Model 3.
-- If all 3 models fail, the error is thrown up to `generateQuestionController`, which calls `onAiQuestionFailure("ai-question")` to record a failure in the circuit breaker.
-
----
-
-## Response Validation & Sanitization
-
-Generated AI responses undergo multi-stage validation before being returned to the user:
-
-1. **Markdown & Formatting Cleanup (`cleanAiResponse`)**:
-   - File: [ai.utils.js:6-21](file:///f:/JustUS/Backend/features/ai/ai.utils.js#L6-L21)
-   - Strips markdown code blocks (````json ... ```` or ```` ... ````).
-   - Trims any trailing or leading text outside the outer JSON braces `{ ... }`.
-2. **JSON Schema Parsing (`parseAiQuestion`)**:
-   - File: [ai.utils.js:30-37](file:///f:/JustUS/Backend/features/ai/ai.utils.js#L30-L37)
-   - Executes `JSON.parse(cleanedText)`.
-   - Validates that `json.question` exists and is a non-empty string.
-   - Truncates question text to a maximum of `maxTokens * 4` characters (160 * 4 = 640 chars).
-   - If `JSON.parse()` fails or `question` property is missing, throws an exception, triggering the model fallback loop.
+`GameState` registers a `LanguageProvider` listener. On a real language change it calls the **read-only** `fetchActiveQuestion` and `fetchHistory` (with the current checkpoint epoch/token), so the on-screen question switches language without inserting a new question or notifying the partner. `setLanguageCode` clears the game question/history cache and the `kGameAnswers` checkpoint so the next `init()` re-fetches.
 
 ---
 
 ## Game Mechanics: A/B Options, Voting & Realtime Sync
 
-### 1. A/B Option Mapping
+### 1. A/B option mapping
 
-- Options do **not** represent arbitrary answers; they represent the two partners.
-- In `GameRepository.fetchNewGameQuestion()` ([game_repository.dart:109-113](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart#L109-L113)):
-  - `userIdA` is assigned to the creator/requester of the question.
-  - `userIdB` is assigned to the partner.
-  - `Option A` displays `nameFor(userIdA)` ("Tu" or user's display name).
-  - `Option B` displays `nameFor(userIdB)` (Partner's display name).
+- Options do **not** represent arbitrary answers; each represents one partner.
+- `fetchNewGameQuestion` assigns `userIdA`/`userIdB` to the creator and the partner in a **random** order (`Random().nextBool()`), so neither partner is always Option A.
+- Labels come from `resolvePlayerName` (self → own name / `common_youTitle`; partner → partner display name / `common_partner`) wrapped by `optionLabelFor` (falls back to `game_optionA`/`game_optionB` when a user id is null).
 
-### 2. Voting & Answer Submission
+### 2. Voting
 
-- User selects Option A or Option B in `GameScreen`.
-- Calls `GameRepository.submitAnswer(questionId, selectedOption)`.
-- Executes SQL `UPSERT` on `public.game_answers` with composite conflict target `(game_id, user_id)`.
-- Fires partner push notification `notifyPartnerOnce('answerSubmitted')`.
+- `GameState.submitAnswer` maps `'A'`/`'B'` to the corresponding user id and calls `GameRepository.submitAnswer`.
+- The repository upserts `game_answers` with conflict target `(game_id, user_id)` and fires `notifyPartnerOnce('answerSubmitted', {partnerName})`.
+- `game_answers_update_own` / `game_answers_manage_own` RLS restrict each member to their own row, validated against the parent game's accepted partnership.
 
-### 3. Realtime Synchronization & Match Calculation
+### 3. Realtime synchronization
 
-- `RealtimeSyncService` subscribes to Postgres change events on `game_questions` and `game_answers`.
-- When an `INSERT` or `UPDATE` on `game_answers` is received, `GameRealtimeHandler.handle` (buffered FIFO via `GameEventBuffer`) updates local `GameState`.
-- When both partners have submitted answers (`hasAnswered && partnerAnswered`):
-  - The `tr_game_answers_update_question_status` DB trigger (`SECURITY DEFINER`, `AFTER INSERT OR UPDATE` on `game_answers`) sets `game_questions.status = 'both_answered'`; the Flutter client no longer calls `updateQuestionStatus`. The resulting `game_questions` UPDATE arrives on the realtime channel and clears the active question.
-  - Matches are evaluated:
-    - **Match** (`isMatched`): `userOption == partnerOption` (both partners voted for the same person).
-    - **Disagreement** (`isDisagreed`): `userOption != partnerOption`.
+- The subscription is configured per active partnership (both `game_questions` and `game_answers` are in the `supabase_realtime` publication).
+- `game_questions` INSERT/DELETE are applied immediately; all other events go through the `GameEventBuffer` FIFO flush (trailing-edge 150 ms). This keeps a partner's answer INSERT and the subsequent `both_answered` UPDATE — which routinely land within the debounce window — applied in delivery order rather than keeping only the last event.
+- Self echoes are guarded: `handleQuestionInsert` ignores the client's own question id, and `handleAnswerInsert` ignores the current user's own insert.
 
 ---
-
-## Discovered Bugs, Defects, and Inconsistencies
-
-During reverse-engineering analysis, the following technical findings were identified:
-
-### 1. DEFECT: In-Memory Infrastructure Volatility
-
-* **WHAT**: Circuit breaker states, token quota counters, and idempotency responses are stored in Node process memory maps.
-* **WHERE**: `circuitBreaker.js`, `quotaService.js`, `idempotencyStore.js`.
-* **WHY**: No external cache store (such as Redis) is configured for infrastructure state management.
-* **WHEN**: Backend process restarts or redeploys.
-* **IMPACT**: Server restarts clear all active rate limits, token quotas, circuit breaker cooldowns, and cached idempotency keys.
-* **CONFIDENCE**: **HIGH**
-
-
----
-
 
 ## Implementation Status Matrix
 
 | Subsystem / Feature | Status | Notes |
 |---|---|---|
-| 64 Italian Question Templates | **IMPLEMENTED** | `tipiDomanda` in `aiConfig.js` |
-| OpenRouter Multi-Model Fallback | **IMPLEMENTED** | 3-model chain (`free`, `gpt-oss-120b`, `nemotron-3`) |
-| Response Cleaning & Validation | **IMPLEMENTED** | `cleanAiResponse` & `parseAiQuestion` |
-| Daily Token Quota (4000 tokens) | **IMPLEMENTED** | `quotaService.js` (per-user, resets UTC midnight) |
-| Circuit Breaker Protection | **IMPLEMENTED** | 5 failures -> 60s cooldown with static fallback |
-| Idempotency Key Middleware | **IMPLEMENTED** | `withIdempotency` 24h cache |
-| Partner A/B Option Mapping | **IMPLEMENTED** | Options map to couple member display names |
-| Realtime Answer Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `game_answers` |
-| Persistent Infrastructure State | **NOT IMPLEMENTED** | Quotas/circuits reset on server restart (in-memory) |
-| Server-Side Status Trigger | **IMPLEMENTED** | `tr_game_answers_update_question_status` trigger sets `status = 'both_answered'` on second answer INSERT/UPDATE |
+| Static Supabase question catalog (`game_question_bank`) | **IMPLEMENTED** | PK `(question_code, locale)`, SELECT-only RLS |
+| No AI / no external provider / no backend route | **IMPLEMENTED** | `Backend/features/ai/**` deleted; `api_service.dart` has no `generateAiQuestion` |
+| `question_code` stable reference | **IMPLEMENTED** | Written only on insert (`game_repository.dart`), never regenerated |
+| Random question without repeats | **IMPLEMENTED** | `pickQuestionForGame` excludes played codes, falls back to the full pool |
+| Locale-aware text with fallback chain | **IMPLEMENTED** | `LanguageHelper.localeChain` in the bank repository |
+| Runtime language switch | **IMPLEMENTED** | `GameState` read-only refetch on `LanguageProvider` change |
+| Read-only active-question fetch | **IMPLEMENTED** | `fetchActiveQuestion` never inserts/notifies |
+| Empty-catalog state | **IMPLEMENTED** | `pickQuestionForGame` → `Success(null)` → `noQuestionAvailable` |
+| Partner A/B option mapping | **IMPLEMENTED** | Random creator/partner order; display names |
+| Realtime answer sync + FIFO burst handling | **IMPLEMENTED** | `GameRealtimeHandler` + `GameEventBuffer` |
+| Server-side completion trigger | **IMPLEMENTED** | `tr_game_answers_update_question_status` → `'both_answered'` |
+| Catalog seed in the repository | **NOT IMPLEMENTED** | Rows must be loaded into `game_question_bank` out-of-band |

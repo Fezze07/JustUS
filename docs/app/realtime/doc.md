@@ -328,7 +328,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 - insert → **immediate** `handleQuestionInsert` → `fetchNewQuestion(showLoading: false)` (fresh question). (`GameRealtimeHandler`)
 - delete → **immediate** `handleQuestionDelete` → clears the question if it matches and scrubs history by `questionId`.
-- update → 150 ms FIFO flush → `handleQuestionUpdate`: updates `question`/`status`; on `both_answered` clears the question + cache.
+- update → 150 ms FIFO flush → `handleQuestionUpdate`: updates `status` only (the question text comes from the catalog); on `both_answered` clears the question + cache.
 
 ### game_answers
 
@@ -360,7 +360,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 Events are dropped in normal operation in three ways:
 
 1. **Debounce coalescing (trailing-edge)** — bursts collapse into one activation, but the buffered payload is flushed **entirely** (FIFO), so intermediate events are no longer lost:
-   - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and stats stay in sync.
+   - Game answers: all events of a burst are buffered and applied in delivery order via `game_event_buffer.dart`. In the common two-player flow, the partner's `game_answers` INSERT and the `both_answered` `game_questions` UPDATE landing within 150 ms are both applied — history and question status stay in sync.
    - Mood: the distinct `changedUserId` union of the burst is refreshed; a mixed-user burst refreshes both sides (`mood_change_batch.dart`).
 2. **Reaction scoping** — `drive_item_reactions` are processed whenever the *reacting user* is self or partner (independent of the in-memory drive list), then trigger a trailing-edge full drive refresh that loads the item and its reaction state — a reaction on a not-yet-loaded item is applied once the refresh completes (F-RT8 resolved). Residual cost: every reaction lands as a debounced full drive refresh rather than a surgical update.
 3. **Replay/dedup boundary** — events older than the 80-entry window on a replay are re-processed (duplicate) or lost only in the sense described above.
@@ -389,7 +389,7 @@ Enforced server-side by RLS on the WebSocket (a JWT only receives rows its polic
 
 ## Timestamp Checkpoint Races
 
-The Realtime layer interacts with the partnership-scoped checkpoint keys (`chk_moods`, `chk_game_answers`, `chk_bucket_items`, `chk_drive_items`, `chk_miss_you`). Relevant races:
+The Realtime layer interacts with the partnership-scoped checkpoint keys (`chk_moods`, `chk_game_answers`, `chk_game_questions`, `chk_bucket_items`, `chk_drive_items`, `chk_miss_you`). Relevant races:
 
 ### R-1: Checkpoint write-back vs. concurrent Realtime refresh (LOW)
 

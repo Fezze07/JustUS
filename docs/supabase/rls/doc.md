@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document presents a comprehensive audit and analysis of the **Row Level Security (RLS)** policies configured across all 25 public database tables in the JustUS platform.
+This document presents a comprehensive audit and analysis of the **Row Level Security (RLS)** policies configured across all 26 public database tables in the JustUS platform.
 
 The analysis evaluates table-level access controls, user ownership enforcement, partner data sharing rules, backend privilege boundaries, and security vulnerabilities identified in policy logic.
 
@@ -10,7 +10,7 @@ The analysis evaluates table-level access controls, user ownership enforcement, 
 
 ## RLS Enforcement Status Matrix
 
-Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
+Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 
 | Table Name | RLS Status | SELECT Policy | INSERT Policy | UPDATE Policy | DELETE Policy | Target Roles |
 | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
@@ -22,6 +22,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 | `bucket_items` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `game_questions` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `game_answers` | **ENABLED** | Partnership Members | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | `PUBLIC` |
+| `game_question_bank` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `drive_items` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `drive_item_reactions` | **ENABLED** | Partnership Members | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | `PUBLIC` |
 | `favorites` | **ENABLED** | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | `PUBLIC` |
@@ -101,6 +102,10 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 - **`WITH CHECK`:** INSERT and UPDATE both carry explicit `WITH CHECK` combining self-ownership **and** a parent-in-accepted-partnership subquery — a `game_answers.game_id`, `drive_item_reactions.item_id`, or `favorites.item_id` must reference a row in the caller's **accepted** partnership. `favorites` is a `FOR ALL` policy; `game_answers`/`drive_item_reactions` have per-operation INSERT/UPDATE policies.
 - **Assessment:** Granular ownership properly enforced on write operations; a row can no longer be created/moved to reference a parent outside the caller's accepted partnership.
 
+#### `game_question_bank` (global question catalog)
+- **Policies:** `game_question_bank_read_all` (FOR SELECT, `TO PUBLIC`, `USING (true)`). No INSERT/UPDATE/DELETE policy exists.
+- **Assessment:** **WORLD-READABLE STATIC CATALOG**. Any client (including `anon`) can read question text for every locale, while writes are impossible through PostgREST because no write policy grants them — the catalog is maintained out-of-band (`service_role` / SQL). `game_questions.question_code` references a catalog code by convention (no FK), so removing a catalog row never breaks existing game rows or history.
+
 ---
 
 ### 3. Application Architecture & Access Boundary Mapping
@@ -135,7 +140,7 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 ```
 
 1. **Flutter Client Layer:**
-   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`, and calls the `get_pending_invitations` RPC for pending-request identity.
+   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_question_bank` (read-only catalog), `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`, and calls the `get_pending_invitations` RPC for pending-request identity.
    - All Flutter direct requests pass through Supabase PostgREST with user JWT context, evaluating RLS policies.
 
 2. **Backend Server Layer:**
@@ -146,10 +151,11 @@ Row Level Security is **ENABLED** on all 25 tables in the `public` schema.
 
 ## Implementation Status
 
-- **RLS Activation on All Tables:** **100% IMPLEMENTED** (25/25 tables)
+- **RLS Activation on All Tables:** **100% IMPLEMENTED** (26/26 tables)
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`is_in_partnership`, `is_partner_of`, and `private.is_related_user` all require `status = 'accepted'`)
 - **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (is_in_partnership(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
 - **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_manage_own`; backend-only on `logs_auth_failures`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)
+- **Read-Only Question Catalog:** **IMPLEMENTED** (`game_question_bank` carries only a `FOR SELECT TO PUBLIC USING (true)` policy, so it is world-readable and client-unwritable)

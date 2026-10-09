@@ -100,7 +100,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Screens & Widgets
 - [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart): Main violet-punk styled screen rendering connected avatars, names, partner code, IDENTITY setting group (display name edit dialog), debug utilities, logout button, and version label.
-- [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart): Screen listing supported languages (`_LanguageTile`) and AI translation readiness card.
+- [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart): Screen listing supported languages (`_LanguageTile`); selecting a language calls `LanguageProvider.setLanguageCode`.
 - [`change_password_screen.dart`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Form with text fields for current password, new password, and confirmation password.
 
 ### Key Logic & Repositories

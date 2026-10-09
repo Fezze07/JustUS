@@ -248,8 +248,8 @@ notifySchema = z.object({
 | 1 | `requestAccepted` | PartnershipRepository | `acceptPartnerRequest` after RPC `accept_partnership` (`partnership_repository.dart:101-104`) | `{partnerName}` | `notif_requestAccepted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 2 | `missyou` | MissYouRepository | `sendMissYou` after RPC `send_missyou` (`missyou_repository.dart:12-15`) | `{partnerName}` | `notif_missyou_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 3 | `moodUpdated` | MoodRepository | `updateMood` after RPC `set_mood` (`mood_repository.dart:15-21`) | `{partnerName, emojiChar}` | `notif_moodUpdated_title/body({partnerName})` — emoji param unused | PARTIALLY IMPLEMENTED |
-| 4 | `answerSubmitted` | GameRepository | `submitAnswer` after `game_answers` upsert (`game_repository.dart:57-60`) | `{partnerName}` | `notif_answerSubmitted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 5 | `newQuestion` | GameRepository | `fetchNewGameQuestion` after AI-generated `game_questions` insert (`game_repository.dart:137-140`) | `{}` (no name) | `notif_newQuestion_title/body` (no params) | PARTIALLY IMPLEMENTED |
+| 4 | `answerSubmitted` | GameRepository | `submitAnswer` after `game_answers` upsert (`game_repository.dart:51-54`) | `{partnerName}` | `notif_answerSubmitted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 5 | `newQuestion` | GameRepository | `fetchNewGameQuestion` after `game_questions` insert (`game_repository.dart:120-123`) | `{}` (no name) | `notif_newQuestion_title/body` (no params) | PARTIALLY IMPLEMENTED |
 | 6 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 7 | `reactionAdded` | DriveRepository | `addReaction` after `drive_item_reactions` insert (`drive_repository.dart:139-145`) | `{partnerName, emojiChar}` | `notif_reactionAdded_title/body({partnerName, emojiChar})` | PARTIALLY IMPLEMENTED |
 | 8 | `bucketItemAdded` | BucketRepository | `addBucketItem` after `bucket_items` insert (`bucket_repository.dart:49-52`) | `{partnerName}` | `notif_bucketItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
@@ -263,7 +263,7 @@ notifySchema = z.object({
 - **`requestAccepted`**: fired from `acceptPartnerRequest` (rpc), a UI-triggered accept. The request *creation* (`requestPartnership`/`invite`) and **rejection do not notify** — the architecture doc (F11) records the rejection asymmetry.
 - **`missyou`**: no throttling client-side; holding the miss-you button queues one `notifyPartnerOnce` per `sendMissYou` RPC success — the 12/min user rate limit is the only cap.
 - **`moodUpdated`**: `emojiChar` is passed in params but the ARB body `notif_moodUpdated_body({partnerName})` does not interpolate it, and the server template omits it too — the emoji payload is effectively unused in both localization passes.
-- **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`Una nuova domanda ti aspetta!` / `A new question awaits you!`). Fired on `fetchNewGameQuestion` — i.e. only when the sender's client pulls a new question, not when the backend inserts one.
+- **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`Una nuova domanda ti aspetta!` / `A new question awaits you!`). Fired on `fetchNewGameQuestion` only when the sender's client actually creates the `game_questions` row; a partner's client that discovers the row (Realtime insert or cold-start read) returns the existing question without notifying.
 - **`reactionAdded`**: the only type whose ARB body uses two params (`{partnerName}`, `{emojiChar}`); rendered with the actual reaction emoji.
 
 ---

@@ -16,7 +16,7 @@ The platform supports two languages:
 
 - **`LanguageHelper`** ([language_helper.dart](file:///f:/JustUS/Flutter/lib/core/localization/language_helper.dart)):
   - Defines constants: `storageKey = 'app_language_code'`, `fallbackLocale = Locale('it')`.
-  - Maintains `supportedLanguages` catalog (`AppLanguage` objects containing `code`, `englishName`, `nativeName`, `flagEmoji`, `aiTranslationHint`).
+  - Maintains `supportedLanguages` catalog (`AppLanguage` objects containing `code`, `englishName`, `nativeName`, `flagEmoji`).
   - Resolves locales with fallback fallback logic (`resolveLocale`, `resolveLanguageCode`).
   - Implements `localeResolutionCallback` for Flutter `MaterialApp`.
   - Manages static `AppLocalizations? _appLoc` for non-contextual or background isolate translation access (`LanguageHelper.appLoc`, `LanguageHelper.initFromSystemLocale()`).

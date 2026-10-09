@@ -8,7 +8,7 @@ This document provides a technical reverse-engineering analysis of the security 
 
 ## Global Request Pipeline Execution Order
 
-The exact execution order of middleware in the application pipeline is determined directly from source code ([`app.js`](file:///f:/JustUS/Backend/app.js), [`routes/v1.js`](file:///f:/JustUS/Backend/routes/v1.js), [`features/ai/ai.routes.js`](file:///f:/JustUS/Backend/features/ai/ai.routes.js)):
+The exact execution order of middleware in the application pipeline is determined directly from source code ([`app.js`](file:///f:/JustUS/Backend/app.js), [`routes/v1.js`](file:///f:/JustUS/Backend/routes/v1.js), [`features/media/media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js)):
 
 ```
  1. Request Context Init    (requestContext)
@@ -26,7 +26,7 @@ The exact execution order of middleware in the application pipeline is determine
 12. HMAC Request Signing    (requireSignedRequest / signed())
     └── Nonce Check         (consumeNonce inside requireSignedRequest)
 13. Input Validation        (validateRequest / validated(schema))
-14. Route Handler           (generateQuestionController, etc.)
+14. Route Handler           (deleteMediaController, etc.)
 ```
 
 > [!IMPORTANT]
@@ -101,9 +101,9 @@ The exact execution order of middleware in the application pipeline is determine
 
 ### 5. RBAC & Capabilities System
 
-- **Threat Addressed**: Unauthorized access to specific endpoints (e.g. AI calls, media uploads, admin features).
-- **Implementation Location**: [`middleware/authorizeCapabilities.js`](file:///f:/JustUS/Backend/middleware/authorizeCapabilities.js), [`utils/security/roleResolver.js`](file:///f:/JustUS/Backend/utils/security/roleResolver.js).
-- **Request Flow**: `authenticateToken` resolves user role from `user_roles` table, maps role to capabilities array (e.g. `user` $\rightarrow$ `['can_ai_call', 'can_media_upload']`). `authorizeCapabilities(...requiredCapabilities)` checks if `req.user.capabilities` contains all required permissions.
+- **Threat Addressed**: Unauthorized access to specific endpoints (e.g. media uploads, profile updates, admin features).
+- **Implementation Location**: [`middleware/authorizeCapabilities.js`](file:///f:/JustUS/Backend/middleware/authorizeCapabilities.js), [`features/auth/authorization.service.js`](file:///f:/JustUS/Backend/features/auth/authorization.service.js).
+- **Request Flow**: `authenticateToken` resolves user role from `user_roles` table, maps role to capabilities array (e.g. `user` $\rightarrow$ `['can_media_upload', 'can_profile_update']`). `authorizeCapabilities(...requiredCapabilities)` checks if `req.user.capabilities` contains all required permissions.
 - **Failure Behavior**: Throws `AppError({ errorKey: "SEC_AUTH_001", message: "Missing capability" })`.
 - **Multi-Instance Behavior**: Fully stateless per-request based on authenticated user context.
 
@@ -150,7 +150,7 @@ The exact execution order of middleware in the application pipeline is determine
 
 ### 9. Idempotency
 
-- **Threat Addressed**: Duplicate execution of critical operations (e.g. AI question generation) caused by network retries.
+- **Threat Addressed**: Duplicate execution of critical operations (e.g. login-attempt reporting) caused by network retries.
 - **Implementation Location**: [`middleware/idempotencyMiddleware.js`](file:///f:/JustUS/Backend/middleware/idempotencyMiddleware.js), [`core/infra/idempotencyStore.js`](file:///f:/JustUS/Backend/core/infra/idempotencyStore.js).
 - **Request Flow**:
   1. Checks `Idempotency-Key` or `X-Idempotency-Key` header. If absent, proceeds.
