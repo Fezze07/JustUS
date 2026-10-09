@@ -492,9 +492,9 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Client-side ARB localization (8 keys) | IMPLEMENTED (unknown-key gap — F-PN7; emoji param unused for `moodUpdated`) |
 | Foreground local-notification rendering | IMPLEMENTED (iOS double-presentation risk — F-PN1) |
 | Stable notification IDs (hash of server `notificationId`) | IMPLEMENTED |
-| Notification tap → destination navigation | NOT IMPLEMENTED (no listeners; cross-doc F-N5) |
-| `getNotificationAppLaunchDetails` payload consumption | NOT IMPLEMENTED (payload pushed to unlistened stream) |
-| `FirebaseMessaging.getInitialMessage` consumption | NOT IMPLEMENTED (never read) |
+| Notification tap → destination navigation | IMPLEMENTED (`onNotificationTap` listener in `MainShellState`) |
+| `getNotificationAppLaunchDetails` payload consumption | IMPLEMENTED (read at launch, routes via `onNotificationTap`) |
+| `FirebaseMessaging.getInitialMessage` consumption | IMPLEMENTED (read at launch, routes via `onNotificationTap`) |
 | Web push rendering | NOT IMPLEMENTED (F-PN2) |
 | Desktop (Windows/macOS/Linux) push delivery | NOT IMPLEMENTED (local plugin configured; no remote trigger) |
 | Background isolate custom rendering | NOT IMPLEMENTED (dead code — F-PN3) |

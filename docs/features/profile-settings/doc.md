@@ -253,7 +253,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart)
   - `_LanguageTile`: Renders language option and calls `LanguageProvider.setLanguageCode()`.
 - [`change_password_screen.dart`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart)
-  - `_ChangePasswordScreenState`: Password change form (UI stub).
+  - `_ChangePasswordScreenState`: Password change form with reauthentication, loading state, localized validation & error handling.
 - [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart)
   - `loadProfile()`: Throttled fetch of user and partner profile data.
   - `uploadProfilePhoto()`: Uploads image file, updates local profile version (`saveProfilePicVersion`) and evicts the previous picture from `MediaCacheManager` (`evictAppMediaFile`).

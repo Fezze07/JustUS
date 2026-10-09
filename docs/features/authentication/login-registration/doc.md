@@ -339,7 +339,6 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 ## Known Issues
 
-- **Forgot Password Button is a No-Op**: The "Forgot Password?" button in `LoginScreen` ([login_screen.dart:68](file:///f:/JustUS/Flutter/lib/features/auth/screens/login_screen.dart#L68)) has an empty `onPressed: () {}` callback.
 - **In-Memory Risk State Reset on Server Restart**: Node backend risk state (`loginAttempts`) is held in Node process memory. Backend restarts clear all active lockout counters and strike levels.
 
 ---
@@ -349,8 +348,8 @@ During the reverse-engineering analysis, the following structural bugs, security
 ### Flutter Frontend
 - [login_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/login_screen.dart): UI rendering for login form, input controllers, submit triggers.
 - [register_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart): UI rendering for registration form and email confirmation modal.
-- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): State management methods `login()`, `register()`, `_checkLoginRisk()`, `_reportFailedLogin()`, `_syncBackendSession()`, `setLoginData()`.
-- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): API wrapper methods `signInWithPassword()`, `signUp()`, `checkLoginRisk()`, `reportFailedLogin()`.
+- [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): State management methods `login()`, `register()`, `resetPassword()`, `_checkLoginRisk()`, `_reportFailedLogin()`, `_syncBackendSession()`, `setLoginData()`.
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): API wrapper methods `signInWithPassword()`, `signUp()`, `resetPasswordForEmail()`, `checkLoginRisk()`, `reportFailedLogin()`.
 - [captcha_service.dart](file:///f:/JustUS/Flutter/lib/features/auth/captcha_service.dart): Turnstile Managed-mode challenge inside a dialog, `getCaptchaToken()`.
 - [validators.dart](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart): Client input validation regex methods `validateEmail()`, `validatePassword()`, `validateRequired()`.
 
@@ -380,4 +379,4 @@ During the reverse-engineering analysis, the following structural bugs, security
 | Backend Session Sync & Binding | **IMPLEMENTED** | `syncSessionController` & `auth_sessions` |
 | FCM Device Token Registration | **IMPLEMENTED** | `updateDeviceToken` |
 | Post-Login Navigation Routing | **IMPLEMENTED** | Routes to `MainShell` if partnered, else `PartnerScreen` |
-| Forgot Password Flow | **NOT IMPLEMENTED** | Button exists with empty callback |
+| Forgot Password Flow | **IMPLEMENTED** | `AuthState.resetPassword(email)` via `Supabase.client.auth.resetPasswordForEmail` |

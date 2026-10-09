@@ -27,7 +27,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
   3. Returns JSON response `{ success: true, data }`.
 * **Mail Dispatch Verification**:
   - **No email is dispatched** during the invitation flow.
-  - The database RPC creates a pending row in `partnership_invitations` and registers an in-app notification in `notifications`.
+  - The database RPC creates a pending row in `public.partnerships` (`status = 'pending'`). Neither `partnership_invitations` nor `notifications` tables exist in the schema.
 * **Status**: **PARTIALLY IMPLEMENTED (In-App Database Record Only; No Outbound Email Dispatch)**.
 
 ---

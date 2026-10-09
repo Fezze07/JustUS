@@ -47,7 +47,7 @@ The exact execution order of middleware in the application pipeline is determine
   4. Compute expected HMAC: `HMAC-SHA256(secret, `${METHOD}.${path}.${timestamp}.${nonce}.${sha256(body)}`)`.
   5. Constant-time string equality comparison (`expectedSignature === signature`).
   6. Call `consumeNonce` to record nonce usage.
-- **Failure Behavior**: Throws `AppError({ errorKey: "SEC_AUTH_002" })` or `SEC_BLOCK_001` (401/403).
+- **Failure Behavior**: Throws `AppError({ errorKey: "SEC-SIGNATURE-001" })` or `SEC-BLOCK-001` (401/403).
 - **Storage & Expiration**: Session secret stored in PostgreSQL `auth_sessions.binding_secret`.
 - **Bypass Possibilities**: Requests on routes not wrapped with `signed(...)` helper skip HMAC verification completely.
 - **Multi-Instance Behavior**: HMAC verification is stateless given the session `bindingSecret` in database/request; works across multi-instance nodes.
@@ -59,7 +59,7 @@ The exact execution order of middleware in the application pipeline is determine
 - **Threat Addressed**: Replay attacks where an attacker intercepts a valid signed HTTP request and re-sends it later.
 - **Implementation Location**: [`middleware/requireSignedRequest.js`](file:///f:/JustUS/Backend/middleware/requireSignedRequest.js#L50), [`middleware/requireFreshNonce.js`](file:///f:/JustUS/Backend/middleware/requireFreshNonce.js#L17).
 - **Request Flow**: Parses `x-request-timestamp`. Rejects request if `Math.abs(Date.now() - timestamp) > env.requestSigningMaxSkewMs` (5 minutes).
-- **Failure Behavior**: Returns `SEC_AUTH_002` ("Signed request expired") or `API_VALIDATION_001` ("Invalid request timestamp").
+- **Failure Behavior**: Returns `SEC-SIGNATURE-001` ("Signed request expired") or `API-VALIDATION-001` ("Invalid request timestamp").
 - **Multi-Instance Behavior**: Depends on server clock synchronization (NTP across instances). Clock drift between instances can cause legitimate requests to fail skew checks.
 
 ---
@@ -93,7 +93,7 @@ The exact execution order of middleware in the application pipeline is determine
   6. Enforce session binding: verify `device_fingerprint_hash`, `user_agent_hash`, and check if `revoked_at` is null.
   7. Detect subnet/IP range changes (`isIpRangeChanged`) and log security events.
   8. Attach `req.user` (with `profileId`, `role`, `capabilities`) and `req.sessionBinding` (`bindingSecret`).
-- **Failure Behavior**: Returns `AUTH_FAIL_002` (missing token), `AUTH_FAIL_004` (invalid role), `AUTH_FAIL_005` (no profile/invalid session binding).
+- **Failure Behavior**: Returns `AUTH-FAIL-002` (missing token), `AUTH-FAIL-004` (invalid role), `AUTH-FAIL-005` (no profile/invalid session binding).
 - **Storage**: `auth_sessions` table in Supabase PostgreSQL.
 - **Multi-Instance Behavior**: Fully stateful via PostgreSQL queries; consistent across instances.
 
@@ -104,7 +104,7 @@ The exact execution order of middleware in the application pipeline is determine
 - **Threat Addressed**: Unauthorized access to specific endpoints (e.g. media uploads, profile updates, admin features).
 - **Implementation Location**: [`middleware/authorizeCapabilities.js`](file:///f:/JustUS/Backend/middleware/authorizeCapabilities.js), [`features/auth/authorization.service.js`](file:///f:/JustUS/Backend/features/auth/authorization.service.js).
 - **Request Flow**: `authenticateToken` resolves user role from `user_roles` table, maps role to capabilities array (e.g. `user` $\rightarrow$ `['can_media_upload', 'can_profile_update']`). `authorizeCapabilities(...requiredCapabilities)` checks if `req.user.capabilities` contains all required permissions.
-- **Failure Behavior**: Throws `AppError({ errorKey: "SEC_AUTH_001", message: "Missing capability" })`.
+- **Failure Behavior**: Throws `AppError({ errorKey: "SEC-AUTH-001", message: "Missing capability" })`.
 - **Multi-Instance Behavior**: Fully stateless per-request based on authenticated user context.
 
 ---
@@ -124,7 +124,7 @@ The exact execution order of middleware in the application pipeline is determine
      - Strike 2: 1000ms delay penalty.
      - Strike 4+: 15-minute hard ban (`bannedUntil = Date.now() + 15 * 60_000`).
 - **Storage & Sweeping**: Stored in NodeJS process memory (`buckets = new Map()`, `penalties = new Map()`). Swept every 15 minutes by `_sweepRateLimitMaps`.
-- **Failure Behavior**: Sets `Retry-After` header, logs security event, returns `SEC_BLOCK_001` (429 Too Many Requests).
+- **Failure Behavior**: Sets `Retry-After` header, logs security event, returns `SEC-BLOCK-001` (429 Too Many Requests).
 - **Multi-Instance Weakness**: **CRITICAL MULTI-INSTANCE DEFECT**: Because `buckets` and `penalties` maps are **purely in-memory**, rate limits and bans are **NOT shared across cluster instances**. An attacker can bypass rate limits and strike bans by distributing requests across multiple backend worker nodes (e.g., N instances multiplier).
 
 ---
@@ -143,8 +143,8 @@ The exact execution order of middleware in the application pipeline is determine
 
 - **Threat Addressed**: Slowloris attacks, hanging backend operations consuming connection pools.
 - **Implementation Location**: [`middleware/timeoutMiddleware.js`](file:///f:/JustUS/Backend/middleware/timeoutMiddleware.js), [`app.js`](file:///f:/JustUS/Backend/app.js#L22).
-- **Request Flow**: Applies `req.setTimeout(timeoutMs)` and `res.setTimeout(timeoutMs)` using `env.requestTimeoutMs` (default 30,000ms).
-- **Failure Behavior**: If timeout triggers before headers sent, passes `AppError({ errorKey: "API_TIMEOUT_001" })` to error handler (504 Gateway Timeout).
+- **Request Flow**: Applies `req.setTimeout(timeoutMs)` and `res.setTimeout(timeoutMs)` using `env.requestTimeoutMs` (default 15,000ms).
+- **Failure Behavior**: If timeout triggers before headers sent, passes `AppError({ errorKey: "API-TIMEOUT-001" })` to error handler (504 Gateway Timeout).
 
 ---
 
@@ -193,7 +193,7 @@ The exact execution order of middleware in the application pipeline is determine
 - **Implementation Location**: [`utils/http/corsUtils.js`](file:///f:/JustUS/Backend/utils/http/corsUtils.js), [`app.js:24`](file:///f:/JustUS/Backend/app.js#L24).
 - **Request Flow**: Checks `Origin` header. Compares against `env.allowedOrigins`.
 - **Allowed Headers**: `Authorization`, `Content-Type`, `X-Request-Id`, `X-Request-Timestamp`, `X-Request-Nonce`, `X-Request-Signature`, `X-Idempotency-Key`, `Idempotency-Key`, `X-Device-Fingerprint`, `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
-- **Failure Behavior**: If origin not allowed, returns `AppError({ errorKey: "SEC_AUTH_001", message: "Origin not allowed" })`.
+- **Failure Behavior**: If origin not allowed, returns `AppError({ errorKey: "SEC-AUTH-001", message: "Origin not allowed" })`.
 
 ---
 

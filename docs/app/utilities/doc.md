@@ -234,10 +234,7 @@ The utilities covered include:
 
 ### Unused / Partially Unused Utilities
 
-1. **`maybeGt` in `SupabaseQueryExtensions`**:
-   - `maybeGt` ([`supabase_query_extensions.dart:20`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart#L20)) has zero callers in the application.
-2. **`toSingle` in `SupabaseQueryExtensions`**:
-   - `toSingle` ([`supabase_query_extensions.dart:35`](file:///f:/JustUS/Flutter/lib/shared/utils/extensions/supabase_query_extensions.dart#L35)) has zero callers in the application. Repositories call `.maybeSingle()` directly on Postgrest builders instead of using this extension helper.
+*No active unused utilities.*
 
 ---
 
@@ -251,7 +248,7 @@ The utilities covered include:
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |
 | **DialogUtils** | `shared/utils/ui/dialog_utils.dart` | IMPLEMENTED | Clean wrapper around error and invite dialogs. |
 | **ResultWrapper & Extensions** | `core/network/result_wrapper.dart`, `shared/utils/extensions/result_extensions.dart` | IMPLEMENTED | Robust functional error handling pattern used throughout repositories. |
-| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | PARTIALLY IMPLEMENTED | `maybeGt` and `toSingle` are completely unused dead code. |
+| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | IMPLEMENTED | Provides clean query building helpers (`maybeFilterIn`, `maybeEq`); unused dead code removed under 7.3. |
 | **AppDateUtils** | `shared/utils/date/app_date_utils.dart` | IMPLEMENTED | Pure static helpers; some date formatting remains duplicated in feature screens. |
 | **TabScreen / TabScreenMixin** | `shared/widgets/tab_screen.dart` | IMPLEMENTED | Consistently used across all primary app tabs for activation-based loading. |
 | **AnsiLogger** | `core/utils/ansi_logger.dart` | IMPLEMENTED | Widely used across network, auth, and realtime components; disabled in release builds. |

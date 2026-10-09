@@ -99,7 +99,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 ### Failure behavior
 
-- If `AuthState.init()` itself throws (e.g. storage read error, or `logout()` triggered mid-init), the exception propagates into `_checkAuth`, which has **no try/catch**. Because the future is `unawaited`, the error surfaces to the zone -> `runZonedGuarded` -> `handleGlobal` -> post-frame overlay. The splash spinner can remain on screen.
+- `_checkAuth()` wraps `init()` and destination resolution in a `try/catch` block. If an unhandled exception occurs, it logs the failure via `AnsiLogger` and navigates to `LoginScreen` as a safe fallback.
 - `handleGlobal` defers UI to a post-frame callback specifically because it is invoked from build/error phases (see Error Handling).
 
 ### Can initialization run more than once?
@@ -348,7 +348,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 - `ThemeProvider` (`lib/core/theme/theme_provider.dart`): `ThemeMode _mode = ThemeMode.dark`, `loadSavedMode()`, `toggle()`, `setThemeMode()`.
 - `AppTheme` (`lib/core/theme/app_theme.dart`): Material 3 light/dark, seed color `AppColors.primary` (#7F13EC), Google Fonts Plus Jakarta Sans, styled AppBar/Card/Input/FilledButton/Dialog.
 - `AppColors` (`lib/core/theme/app_colors.dart`): "Violet-Punk" palette (primary `0xFF7F13EC`, neon aqua/purple/blue/green/pink, `deepViolet`, `punkPurple`, `cardDark`, etc.).
-- **Persistence**: the mode is stored under `ThemeProvider.storageKey` (`app_theme_mode`) in `SharedPreferences` and read back by `loadSavedMode()` before `runApp` (like `LanguageProvider.loadSavedLocale()`), so a restart restores the selection with no first-frame flash. `StorageService.clearAll()` preserves the key across logout/wipe, since it is device-level rather than account-level. No screen calls `setThemeMode()`/`toggle()` yet, so the stored value stays at its `ThemeMode.dark` default (see `theming/doc.md` Finding 2).
+- **Persistence**: the mode is stored under `ThemeProvider.storageKey` (`app_theme_mode`) in `SharedPreferences` and read back by `loadSavedMode()` before `runApp` (like `LanguageProvider.loadSavedLocale()`), so a restart restores the selection with no first-frame flash. `StorageService.clearAll()` preserves the key across logout/wipe, since it is device-level rather than account-level. Settings tiles on `ProfileScreen` allow toggling themes.
 
 ---
 

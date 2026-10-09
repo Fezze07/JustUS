@@ -67,7 +67,7 @@ _checkAuth:
 Observations:
 
 - The splash **blocks navigation until `AuthState.init()` completes** (secure-storage reads + optional session-sync + optional device-token registration).
-- `_checkAuth()` has **no try/catch** and is `unawaited`; a throw (e.g. storage error, logout during init) escapes to the zone -> `ErrorHandler.handleGlobal` -> post-frame overlay. The splash spinner remains forever with no navigation (stuck screen).
+- `_checkAuth()` is wrapped in a `try/catch` block; if an error occurs during initialization, it logs the exception via `AnsiLogger` and navigates safely to `LoginScreen` (falling back from stuck spinner states).
 - `fetchPartnership()` failures are handled by `runSafe` -> `ErrorHandler` (snackbar/dialog), **and `partner` stays null** -> the splash **navigates to `PartnerScreen` even when a partnership actually exists**. This is a navigation decision based on failed data. `PartnerScreen` self-heals: it shows the existing-partner card (its own `ProfileState` load) whose tap goes to `MainShell`.
 - Uses inline `MaterialPageRoute`, ignoring the declared `/homepage` and `/partner` named routes.
 
@@ -197,10 +197,8 @@ Actually used (grep of `pushNamed`):
 
 **Not implemented.**
 
-- `NotificationService` exposes `Stream<String?> get onNotificationTap` (notification_service.dart:29-31). Payloads are pushed from: launch details (line 53-58), `onDidReceiveNotificationResponse` (line 107-108).
-- **There are no listeners/subscribers to `onNotificationTap` anywhere** (grep). Foreground `onMessage` only renders a local notification (line 69-74).
-- Consequently: tapping a notification while the app is in background opens the app to whatever screen the cold/resume flow shows (normally `MainShell`); the notification payload is never interpreted and never navigates to a relevant screen.
-- Notification payloads carry `notificationKey`, ids etc. but no routing directive.
+- `NotificationService` exposes `Stream<String?> get onNotificationTap` (notification_service.dart:29-31). Payloads are pushed from launch details and `onDidReceiveNotificationResponse`.
+- `MainShellState` subscribes to `onNotificationTap`, parsing destination tabs/routes from payload JSON and navigating dynamically when notifications are tapped.
 
 ---
 
@@ -246,9 +244,7 @@ Two mechanisms:
 
 ## Navigation after password change
 
-- `ChangePasswordScreen` (change_password_screen.dart): reached via `/change-password` (profile_screen.dart:327). On submit: local `Form` validation -> success snackbar -> `Navigator.pop(context)` (lines 92-97) back to Profile.
-- **The screen is a stub**: it never invokes `AuthState.changePassword` or any repository call - no password is actually changed. Consequently no session refresh/logout is performed after "change" (there is nothing to refresh).
-- No deep-link/token path: Supabase would require a one-time token via email; nothing handles such a link (see Deep links).
+- `ChangePasswordScreen` (change_password_screen.dart): reached via `/change-password` (profile_screen.dart:327). On submit: validates inputs, reauthenticates with current password, invokes `AuthState.changePassword(...)`, shows success snackbar, and pops back to Profile.
 
 ---
 
@@ -263,17 +259,17 @@ Two mechanisms:
 | 5 | Fresh registration | Register -> confirm-email dialog -> pop,pop -> Login | IMPLEMENTED (email verification mandatory) |
 | 6 | Login success | Login -> based on hasPartner -> `pushReplacement` (MainShell|PartnerScreen) | IMPLEMENTED |
 | 7 | Invitation accept | PartnerScreen -> accept -> fetch -> `pushReplacement` MainShell | IMPLEMENTED |
-| 8 | Notification tap (foreground/background) | tap -> payload on `onNotificationTap` -> **no listener** -> no navigation | NOT IMPLEMENTED |
-| 9 | Launch-from-notification | `getNotificationAppLaunchDetails` -> payload stream -> no listener -> splash default route | NOT IMPLEMENTED (payload ignored) |
+| 8 | Notification tap (foreground/background) | tap -> payload on `onNotificationTap` -> `MainShellState` listener -> tab switch / route | IMPLEMENTED |
+| 9 | Launch-from-notification | `getNotificationAppLaunchDetails` -> payload stream -> `MainShellState` listener -> tab switch | IMPLEMENTED |
 | 10 | Logout (Profile button) | dialog -> AuthState.logout -> `pushAndRemoveUntil` LoginScreen | IMPLEMENTED |
 | 11 | Session expiry (401, refresh failed) | onSessionExpired -> logout (state) -> GenericError(401) -> reauth dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED |
 | 12 | Reauth-required error (authFail001/002/003/006 or "401") | ErrorHandler dialog -> `pushNamedAndRemoveUntil('/login')` | IMPLEMENTED |
 | 13 | Forced update | Homepage post-frame -> checkVersion -> non-dismissible VPDialog -> `launchUrl` (external) | IMPLEMENTED (no in-app nav) |
 | 14 | Failed session restoration (no session) | init -> logout -> LoginScreen | IMPLEMENTED |
 | 15 | Failed session restoration (network) | init partial -> still isLoggedIn -> PartnerScreen (possible mis-route + degraded UI) | IMPLEMENTED (edge behavior) |
-| 16 | Partnership ended at runtime | delete event -> data refresh only -> stays in MainShell | NOT IMPLEMENTED (no redirect) |
+| 16 | Partnership ended at runtime | delete event -> auto-redirect to `PartnerScreen` | IMPLEMENTED |
 | 17 | Account wipe | no navigation; stays in shell | IMPLEMENTED |
-| 18 | Password change | stub; pop only | NOT IMPLEMENTED (no actual change) |
+| 18 | Password change | submit form -> reauthenticate -> `changePassword` -> pop | IMPLEMENTED |
 
 ---
 
@@ -311,7 +307,7 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Partnership-driven navigation (reverse) | IMPLEMENTED (auto-redirect to `PartnerScreen` when partnership removed) |
 | Logout navigation | IMPLEMENTED |
 | Wipe navigation | IMPLEMENTED (stays in shell) |
-| Password-change navigation | STUB (no real change) |
+| Password-change navigation | IMPLEMENTED |
 | Lazy tab building | IMPLEMENTED (widgets) |
 | Tab switch-back reload | IMPLEMENTED (all tabs including `HomepageScreen` use `TabScreenMixin`) |
 | Forced-update dialog | IMPLEMENTED (external launch) |
