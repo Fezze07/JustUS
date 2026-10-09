@@ -14,14 +14,12 @@ class _NoopAuthRepository extends AuthRepository {
 
 class _CacheOnlyGameRepository extends GameRepository {
   @override
-  Future<bool> hasNewGameActivity(int uid, int partnerId) async => false;
+  Future<bool> hasNewGameActivity(
+          int uid, int partnerId, int? partnershipId) async =>
+      false;
 
   @override
   Future<Map<String, dynamic>?> getActivePartnership() async => null;
-
-  @override
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async =>
-      Success(GameStatsResponse(success: true, totalMatches: 0));
 
   @override
   Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async =>
@@ -171,7 +169,6 @@ void main() {
     await StorageService.saveTotalMissYou(5);
     await CacheService.saveCheckpoint(
         CacheService.kMissYou, DateTime.now().toUtc().toIso8601String());
-    await StorageService.saveGameMatches(3);
     await StorageService.saveGameHistory([
       GameHistoryItem(
         questionId: 101,
@@ -216,7 +213,6 @@ void main() {
     expect(mood.userMood, '😀');
     expect(homepage.totalMissYou, 5);
     expect(bucket.items, isNotEmpty);
-    expect(game.gameStats, 3);
     expect(game.history, isNotEmpty);
     expect(drive.driveItems, isNotEmpty);
     // Precondition: favourites were actually built, so the post-logout
@@ -232,7 +228,6 @@ void main() {
     expect(mood.recentEmojis, isEmpty);
     expect(homepage.totalMissYou, 0);
     expect(bucket.items, isEmpty);
-    expect(game.gameStats, 0);
     expect(game.history, isEmpty);
     expect(drive.driveItems, isEmpty);
     expect(drive.favoriteItems, isEmpty);
@@ -291,7 +286,6 @@ void main() {
     await StorageService.saveUserId(1);
     await StorageService.savePartner(7, 'Alex');
     await StorageService.saveUsername('Alex');
-    await StorageService.saveGameMatches(3);
     await StorageService.saveGameHistory([
       GameHistoryItem(
         questionId: 101,
@@ -303,7 +297,6 @@ void main() {
     // A cached question must actually exist, otherwise `currentQuestion isNull`
     // below would hold before the clear and prove nothing.
     await StorageService.saveGameQuestion(GameNewQuestionResponse(
-      success: true,
       id: 101,
       question: 'Chi dei due organizza meglio i test?',
       optionA: 'Fede',
@@ -319,7 +312,6 @@ void main() {
     // Preconditions.
     expect(game.currentQuestion, isNotNull);
     expect(game.currentQuestion?.id, 101);
-    expect(game.gameStats, 3);
     expect(game.history, isNotEmpty);
     expect(await StorageService.getUserId(), 1);
 
@@ -327,7 +319,6 @@ void main() {
 
     expect(game.currentQuestion, isNull);
     expect(game.history, isEmpty);
-    expect(game.gameStats, 0);
     expect(game.isFetchingQuestion, isFalse);
   });
 

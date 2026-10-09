@@ -269,7 +269,6 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 | `partner_display_name` | Partner Display Name | **YES** |
 | `miss_you` | Miss You Count | **YES** |
 | `bucket_list` | Cached Bucket Items | **YES** |
-| `game_matches` | Game Matches Count | **YES** |
 | `game_question` | Cached Game Question | **YES** |
 | `game_history` | Cached Game History | **YES** |
 | `drive_cache` | Cached Drive Items | **YES** |

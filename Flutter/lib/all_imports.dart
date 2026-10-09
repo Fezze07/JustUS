@@ -108,6 +108,7 @@ export 'package:justus/shared/utils/extensions/supabase_query_extensions.dart';
 export 'package:justus/core/network/supabase_service.dart';
 export 'package:justus/shared/widgets/tab_screen.dart';
 export 'package:justus/core/theme/theme_provider.dart';
+export 'package:justus/core/realtime/trailing_edge_debounce.dart';
 export 'package:justus/core/version/update_service.dart';
 export 'package:justus/features/settings/user_repository.dart';
 export 'package:justus/shared/utils/ui/validators.dart';

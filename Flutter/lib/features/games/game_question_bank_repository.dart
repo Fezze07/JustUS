@@ -118,8 +118,8 @@ class GameQuestionBankRepository extends BaseRepository {
       Success(value: final v) => v,
       GenericError(:final message) =>
         throw Exception('Failed to fetch questions by locale: $message'),
-      NetworkError(:final message) =>
-        throw Exception('Network error fetching questions by locale: $message'),
+      _ =>
+        throw Exception('Failed to fetch questions by locale: unforeseen error'),
     };
 
     if (items.isEmpty) return null;

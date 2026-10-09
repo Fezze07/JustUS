@@ -32,6 +32,8 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> _refreshForLocaleChange() async {
+    final epoch = CacheService.checkpointEpoch;
+    final token = _beginCheckpointToken();
     final result = await _repo.fetchActiveQuestion();
     switch (result) {
       case Success<GameNewQuestionResponse?>(:final value):
@@ -45,17 +47,21 @@ class GameState extends BaseState with CheckpointMixin {
           await StorageService.clearCachedGameQuestion();
         }
         notifyListeners();
-      case GenericError():
-      case NetworkError():
+      default:
         // Keep the previous question: a silent locale refresh should not
         // clobber state on a transient failure.
         break;
     }
+
+    // setLocale already cleared the history cache and the kGameAnswers
+    // checkpoint, so the in-memory history keeps the previous language until
+    // the next init(). Refetch it here in the new language (with checkpoint)
+    // so the change is visible immediately, even while the Game tab is open.
+    await fetchHistory(epoch: epoch, token: token);
   }
 
   GameNewQuestionResponse? _currentQuestion;
   List<GameHistoryItem> _history = [];
-  int _gameStats = 0;
   bool _isFetchingQuestion = false;
   bool _noQuestionAvailable = false;
   int? _currentUserId;
@@ -66,7 +72,6 @@ class GameState extends BaseState with CheckpointMixin {
 
   GameNewQuestionResponse? get currentQuestion => _currentQuestion;
   List<GameHistoryItem> get history => _history;
-  int get gameStats => _gameStats;
   bool get isFetchingQuestion => _isFetchingQuestion;
   bool get noQuestionAvailable => _noQuestionAvailable;
 
@@ -91,7 +96,6 @@ class GameState extends BaseState with CheckpointMixin {
       // cache, otherwise the screen mixes locales.
       _currentQuestion = null;
     }
-    _gameStats = await StorageService.getGameMatches();
     _history = await StorageService.getGameHistory();
     notifyListeners();
   }
@@ -101,12 +105,10 @@ class GameState extends BaseState with CheckpointMixin {
     final uid = _currentUserId;
     if (uid == null) return q;
 
-    final results = await Future.wait([
-      StorageService.getUsername(),
-      _repo.getActivePartnership(),
-    ]);
-    final myName = results[0] as String?;
-    final partnershipData = results[1] as Map<String, dynamic>?;
+    final locale = await LanguageHelper.currentLocaleCode();
+    final myName = await StorageService.getUsername();
+    final partnershipData = await _repo.getActivePartnership();
+    final loc = await AppLocalizations.delegate.load(Locale(locale));
     final partnerName = partnershipData?['partner_display_name'] as String?;
 
     String name(int userId) => resolvePlayerName(
@@ -114,11 +116,13 @@ class GameState extends BaseState with CheckpointMixin {
           currentUserId: uid,
           myName: myName,
           partnerName: partnerName,
+          youFallback: loc.common_youTitle,
+          partnerFallback: loc.common_partner,
         );
 
     return q.copyWith(
-      optionA: q.userIdA != null ? name(q.userIdA!) : 'Opzione A',
-      optionB: q.userIdB != null ? name(q.userIdB!) : 'Opzione B',
+      optionA: optionLabelFor(q.userIdA, loc.game_optionA, name),
+      optionB: optionLabelFor(q.userIdB, loc.game_optionB, name),
     );
   }
 
@@ -128,15 +132,64 @@ class GameState extends BaseState with CheckpointMixin {
     if (uid == null) return false;
     if (partnerId == null) return true;
 
-    return _repo.hasNewGameActivity(uid, partnerId);
+    final partnershipId = await StorageService.getPartnershipId();
+    return _repo.hasNewGameActivity(uid, partnerId, partnershipId);
   }
 
   Future<void> _fetchAllInBackground({required int epoch}) async {
     final token = _beginCheckpointToken();
     await Future.wait([
-      fetchStats(),
       fetchHistory(epoch: epoch, token: token),
+      _fetchActiveQuestion(epoch: epoch, token: token),
     ]);
+  }
+
+  /// Read-only fetch of the server's active question.
+  ///
+  /// Runs inside the background sync because a partner-created question is
+  /// invisible from a warm cache while no `game_answers` activity exists yet;
+  /// Realtime only delivers live events and never replays a question that was
+  /// created while this device was offline. Never inserts and never notifies
+  /// the partner.
+  Future<void> _fetchActiveQuestion({required int epoch, int? token}) async {
+    final result = await _repo.fetchActiveQuestion();
+
+    await result.handleAsync(
+      onSuccess: (value) async {
+        if (value != null) {
+          _currentQuestion = value;
+          _noQuestionAvailable = false;
+          await StorageService.saveGameQuestion(value);
+        } else {
+          _currentQuestion = null;
+          _noQuestionAvailable = true;
+          await StorageService.clearCachedGameQuestion();
+        }
+        await _updateQuestionCheckpoint(epoch: epoch, token: token);
+        notifyListeners();
+      },
+    );
+  }
+
+  Future<void> _updateQuestionCheckpoint(
+      {required int epoch, int? token}) async {
+    final partnershipId = await StorageService.getPartnershipId();
+    if (partnershipId == null) return;
+
+    await saveMaxTimestampCheckpoint(
+      checkpointKey: CacheService.kGameQuestions,
+      timestamps: [
+        await _repo.fetchMaxTimestamp(
+          table: 'game_questions',
+          field: 'created_at',
+          filterColumn: 'partnership_id',
+          filterValues: [partnershipId],
+        ),
+      ],
+      epoch: epoch,
+      writerToken: token,
+      currentToken: token == null ? null : _checkpointToken,
+    );
   }
 
   Future<void> _updateGameCheckpoint({required int epoch, int? token}) async {
@@ -223,12 +276,10 @@ class GameState extends BaseState with CheckpointMixin {
     for (final item in _history) {
       if (item.questionId == gameId) {
         found = true;
-        final newUser = deleteUserOption
-            ? null
-            : (userOption ?? item.userOption);
-        final newPartner = deletePartnerOption
-            ? null
-            : (partnerOption ?? item.partnerOption);
+        final newUser =
+            deleteUserOption ? null : (userOption ?? item.userOption);
+        final newPartner =
+            deletePartnerOption ? null : (partnerOption ?? item.partnerOption);
 
         if (newUser == null && newPartner == null) continue;
 
@@ -244,7 +295,9 @@ class GameState extends BaseState with CheckpointMixin {
       }
     }
 
-    if (!found && !updateExistingOnly && (userOption != null || partnerOption != null)) {
+    if (!found &&
+        !updateExistingOnly &&
+        (userOption != null || partnerOption != null)) {
       newHistory.insert(
         0,
         GameHistoryItem(
@@ -294,7 +347,6 @@ class GameState extends BaseState with CheckpointMixin {
         setMessage(loc.game_answerSent);
         _currentQuestion = _currentQuestion!.copyWith(
           status: 'waiting',
-          message: loc.game_waitPartner,
           hasAnswered: true,
         );
         await StorageService.saveGameQuestion(_currentQuestion!);
@@ -309,25 +361,12 @@ class GameState extends BaseState with CheckpointMixin {
         if (!wasPending) {
           _currentQuestion = null;
           await StorageService.clearCachedGameQuestion();
-          await fetchStats();
         }
         await _updateGameCheckpoint(epoch: epoch, token: token);
       },
     );
 
     setLoading(false);
-    notifyListeners();
-  }
-
-  Future<void> fetchStats() async {
-    final result = await _repo.fetchGameStats();
-
-    result.handle(
-      onSuccess: (value) async {
-        _gameStats = value.totalMatches;
-        await StorageService.saveGameMatches(value.totalMatches);
-      },
-    );
     notifyListeners();
   }
 
@@ -348,12 +387,7 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> refreshFromRealtime() async {
-    final epoch = CacheService.checkpointEpoch;
-    final token = _beginCheckpointToken();
-    await Future.wait([
-      fetchStats(),
-      fetchHistory(epoch: epoch, token: token),
-    ]);
+    await _fetchAllInBackground(epoch: CacheService.checkpointEpoch);
   }
 
   Future<void> handleAnswerDelete(Map<String, dynamic> oldRecord) async {
@@ -388,6 +422,12 @@ class GameState extends BaseState with CheckpointMixin {
   }
 
   Future<void> handleQuestionInsert(Map<String, dynamic> newRecord) async {
+    final id = rowInt(newRecord, 'id');
+    // The client's own insert echoes back over Realtime; that question is
+    // already `_currentQuestion`, so refetching would issue a duplicate
+    // active-question round trip and repaint the same question (UI flicker).
+    if (id != null && _currentQuestion?.id == id) return;
+
     await fetchNewQuestion(showLoading: false);
   }
 
@@ -518,7 +558,6 @@ class GameState extends BaseState with CheckpointMixin {
   void clear() {
     _currentQuestion = null;
     _history = [];
-    _gameStats = 0;
     _currentUserId = null;
     _isFetchingQuestion = false;
     _noQuestionAvailable = false;

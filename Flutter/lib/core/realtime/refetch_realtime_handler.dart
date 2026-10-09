@@ -16,7 +16,8 @@ import 'package:justus/all_imports.dart';
 ///   restriction, e.g. `user_profiles` is `update`-only).
 /// - [refetch] — the full-state reload, including any cache invalidation
 ///   (`BaseRepository.clearPartnershipCache`).
-class RefetchRealtimeHandler extends RealtimeHandler {
+class RefetchRealtimeHandler extends RealtimeHandler
+    with TrailingEdgeDebounce {
   RefetchRealtimeHandler({
     required super.session,
     required bool Function(sb.PostgresChangePayload payload) isRelevant,
@@ -29,27 +30,20 @@ class RefetchRealtimeHandler extends RealtimeHandler {
   final Future<void> Function() _refetch;
 
   /// Quiet window before the single refetch runs (trailing edge).
+  @override
   final Duration debounce;
-
-  Timer? _refreshTimer;
 
   @override
   bool isRelevant(sb.PostgresChangePayload payload) => _isRelevant(payload);
 
   @override
-  void onNewEvent(sb.PostgresChangePayload payload) {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer(debounce, () {
-      _refreshTimer = null;
-      unawaited(_refetch());
-    });
-  }
+  void onNewEvent(sb.PostgresChangePayload payload) => schedule();
 
   @override
-  void clear() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-  }
+  Future<void> flush() => _refetch();
+
+  @override
+  void clear() => cancelPending();
 
   @override
   void dispose() => clear();

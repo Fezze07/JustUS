@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class CacheService {
   static const kGameAnswers = 'chk_game_answers';
+  static const kGameQuestions = 'chk_game_questions';
   static const kMoods = 'chk_moods';
   static const kBucketItems = 'chk_bucket_items';
   static const kDriveItems = 'chk_drive_items';
@@ -10,6 +11,7 @@ class CacheService {
 
   static const _allKeys = [
     kGameAnswers,
+    kGameQuestions,
     kMoods,
     kBucketItems,
     kDriveItems,

@@ -734,6 +734,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get game_questionOfDay => 'Domanda del giorno';
 
   @override
+  String get game_optionA => 'Opzione A';
+
+  @override
+  String get game_optionB => 'Opzione B';
+
+  @override
   String get game_allCaughtUp => 'Pronti per una nuova domanda?';
 
   @override
@@ -744,9 +750,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get game_answerSent => 'Risposta inviata!';
-
-  @override
-  String get game_waitPartner => 'Aspetta che il partner risponda';
 
   @override
   String get game_noQuestionAvailable => 'Nessuna domanda disponibile';

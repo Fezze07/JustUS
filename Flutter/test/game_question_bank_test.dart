@@ -9,8 +9,6 @@ void main() {
         'question_code': 'game_q_000001',
         'locale': 'it',
         'text': 'Qual è il mio piatto preferito?',
-        'created_at': '2026-10-06T10:00:00Z',
-        'updated_at': '2026-10-06T10:00:00Z',
       };
 
       final item = GameQuestionBankItem.fromJson(json);
@@ -18,11 +16,6 @@ void main() {
       expect(item.questionCode, 'game_q_000001');
       expect(item.locale, 'it');
       expect(item.text, 'Qual è il mio piatto preferito?');
-
-      final exported = item.toJson();
-      expect(exported['question_code'], 'game_q_000001');
-      expect(exported['locale'], 'it');
-      expect(exported['text'], 'Qual è il mio piatto preferito?');
     });
   });
 
@@ -33,10 +26,10 @@ void main() {
         'id': 12,
         'question': 'Who is more romantic?',
         'question_code': 'game_q_000002',
-        'option_a': 'User A',
-        'option_b': 'User B',
-        'user_id_a': 10,
-        'user_id_b': 20,
+        'optionA': 'User A',
+        'optionB': 'User B',
+        'userIdA': 10,
+        'userIdB': 20,
         'status': 'pending',
       };
 

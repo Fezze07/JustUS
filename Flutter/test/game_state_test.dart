@@ -11,7 +11,6 @@ class FakeGameRepository extends GameRepository {
   Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
     return Success(
       GameNewQuestionResponse(
-        success: true,
         id: 101,
         question: 'Chi dei due organizza meglio i test?',
         optionA: 'Fede',
@@ -21,11 +20,6 @@ class FakeGameRepository extends GameRepository {
         status: 'pending',
       ),
     );
-  }
-
-  @override
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async {
-    return Success(GameStatsResponse(success: true, totalMatches: 3));
   }
 
   @override
@@ -97,7 +91,6 @@ void main() {
 
     // Let's force a previous question to ensure it gets cleared.
     await StorageService.saveGameQuestion(GameNewQuestionResponse(
-        success: true,
         id: 999,
         question: 'Old',
         optionA: 'A',
@@ -146,7 +139,6 @@ void main() {
 
     // Cache an active question in the old language.
     await StorageService.saveGameQuestion(GameNewQuestionResponse(
-        success: true,
         id: 101,
         question: 'Chi dei due organizza meglio i test?',
         optionA: 'Fede',
@@ -174,31 +166,180 @@ void main() {
     expect(repo.inserts, 0);
     expect(state.currentQuestion?.id, 101);
     expect(state.currentQuestion?.question, _enQuestion);
-    expect((await StorageService.getCachedGameQuestion())?.question,
-        _enQuestion);
+    expect(
+        (await StorageService.getCachedGameQuestion())?.question, _enQuestion);
 
-    // setLocale cleared the history cache; the next game-tab activation
-    // (simulated by init()) refetches the history in English, no restart.
-    expect(await StorageService.getGameHistory(), isEmpty);
-    repo.refetchHistory = true;
-    await state.init();
-    for (var i = 0; i < 50 && state.history.isEmpty; i++) {
+    // B2: the history is already in English in memory right after setLocale —
+    // no game-tab re-activation (init()) needed.
+    for (var i = 0;
+        i < 50 &&
+            !(state.history.isNotEmpty &&
+                state.history.single.question == _enQuestion);
+        i++) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
+    expect(state.history, hasLength(1));
     expect(state.history.single.question, _enQuestion);
+    expect(repo.historyFetches, greaterThan(0));
+  });
+
+  test(
+      'init() restores a partner-created active question from the server '
+      '(B1, clean cache)', () async {
+    await StorageService.saveUserId(42);
+    await StorageService.savePartner(77, 'Claretta');
+    await StorageService.savePartnershipId(9001);
+
+    final repo = ColdStartGameRepository();
+    final state = GameState(repository: repo);
+
+    // init() fans the network fetch out async (loadWithChangeDetection), so
+    // poll until the background sync lands.
+    await state.init();
+    GameNewQuestionResponse? cached;
+    for (var i = 0; i < 50; i++) {
+      cached = await StorageService.getCachedGameQuestion();
+      if (cached?.id == 101) break;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    // Read-only: the server question is fetched, never re-created.
+    expect(repo.activeQuestionFetches, 1);
+    expect(repo.inserts, 0);
+    expect(state.currentQuestion?.id, 101);
+    expect(state.currentQuestion?.question, _coldQuestion);
+    expect(state.noQuestionAvailable, isFalse);
+    expect(cached, isNotNull);
+    expect(await CacheService.getCheckpoint(CacheService.kGameQuestions),
+        isNotNull);
+  });
+
+  test(
+      'init() drops a stale cached question when the server has none active '
+      '(B1)', () async {
+    await StorageService.saveGameQuestion(GameNewQuestionResponse(
+      id: 999,
+      question: 'Old',
+      optionA: 'A',
+      optionB: 'B',
+      userIdA: 1,
+      userIdB: 2,
+      status: 'pending',
+    ));
+    await StorageService.saveUserId(42);
+    await StorageService.savePartner(77, 'Claretta');
+    await StorageService.savePartnershipId(9001);
+
+    final repo = ColdStartGameRepository(
+        active: const Success<GameNewQuestionResponse?>(null));
+    final state = GameState(repository: repo);
+
+    await state.init();
+    for (var i = 0; i < 50; i++) {
+      if ((await StorageService.getCachedGameQuestion()) == null &&
+          state.noQuestionAvailable) {
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    expect(repo.inserts, 0);
+    expect(repo.activeQuestionFetches, 1);
+    expect(state.currentQuestion, isNull);
+    expect(state.noQuestionAvailable, isTrue);
+    expect(await StorageService.getCachedGameQuestion(), isNull);
+  });
+
+  test(
+      'handleQuestionInsert ignores the echo of our own insert (same id) and '
+      'still refetches a partner-created one (new id)', () async {
+    final repo = CountingGameRepository();
+    final state = GameState(repository: repo);
+
+    await state.fetchNewQuestion();
+    expect(state.currentQuestion?.id, 101);
+    expect(repo.newQuestionFetches, 1);
+
+    // Our own insert echoes back over Realtime with the same id: no second
+    // active-question round trip and no second repaint.
+    await state.handleQuestionInsert({'id': 101, 'partnership_id': 9001});
+    expect(repo.newQuestionFetches, 1);
+    expect(state.currentQuestion?.id, 101);
+
+    // A partner-created question carries a new id: it must still be fetched.
+    await state.handleQuestionInsert({'id': 202, 'partnership_id': 9001});
+    expect(repo.newQuestionFetches, 2);
   });
 }
 
 const _enQuestion = 'Which one plans dates better?';
 
+const _coldQuestion = 'Chi dei due organizza meglio i test?';
+
+class ColdStartGameRepository extends GameRepository {
+  ColdStartGameRepository({
+    ResultWrapper<GameNewQuestionResponse?>? active,
+  }) : activeResult =
+            active ?? Success<GameNewQuestionResponse?>(_coldActiveQuestion);
+
+  final ResultWrapper<GameNewQuestionResponse?> activeResult;
+
+  int activeQuestionFetches = 0;
+  int inserts = 0;
+
+  static final _coldActiveQuestion = GameNewQuestionResponse(
+    id: 101,
+    question: _coldQuestion,
+    optionA: 'Fede',
+    optionB: 'Claretta',
+    userIdA: 42,
+    userIdB: 77,
+    status: 'pending',
+  );
+
+  @override
+  Future<bool> hasNewGameActivity(
+      int uid, int partnerId, int? partnershipId) async {
+    return true;
+  }
+
+  @override
+  Future<ResultWrapper<GameNewQuestionResponse?>> fetchActiveQuestion() async {
+    activeQuestionFetches++;
+    return activeResult;
+  }
+
+  @override
+  Future<ResultWrapper<GameNewQuestionResponse?>> fetchNewGameQuestion() async {
+    inserts++;
+    return const Success<GameNewQuestionResponse?>(null);
+  }
+
+  @override
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+    return const Success<List<GameHistoryItem>>([]);
+  }
+
+  @override
+  Future<String?> fetchMaxTimestamp({
+    required String table,
+    required String field,
+    String? filterColumn,
+    List<Object> filterValues = const [],
+  }) async {
+    return '2026-10-08T00:00:00.000Z';
+  }
+}
+
 class LocaleRefreshGameRepository extends GameRepository {
   int activeQuestionFetches = 0;
   int inserts = 0;
-  bool refetchHistory = false;
+  int historyFetches = 0;
 
   @override
-  Future<bool> hasNewGameActivity(int uid, int partnerId) async =>
-      refetchHistory;
+  Future<bool> hasNewGameActivity(
+          int uid, int partnerId, int? partnershipId) async =>
+      false;
 
   @override
   Future<Map<String, dynamic>?> getActivePartnership() async {
@@ -214,7 +355,6 @@ class LocaleRefreshGameRepository extends GameRepository {
     activeQuestionFetches++;
     return Success<GameNewQuestionResponse?>(
       GameNewQuestionResponse(
-        success: true,
         id: 101,
         question: _enQuestion,
         optionA: 'Fede',
@@ -231,7 +371,6 @@ class LocaleRefreshGameRepository extends GameRepository {
     inserts++;
     return Success<GameNewQuestionResponse?>(
       GameNewQuestionResponse(
-        success: true,
         id: 101,
         question: _enQuestion,
         optionA: 'Fede',
@@ -244,16 +383,16 @@ class LocaleRefreshGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async {
-    return Success(GameStatsResponse(success: true, totalMatches: 3));
-  }
-
-  @override
   Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+    historyFetches++;
+    // The server serves question texts in the CURRENT app locale, so switch
+    // between the two variants to reproduce the stale-history-not-refetched
+    // bug (B2): before setLocale the history is Italian.
+    final locale = await LanguageHelper.currentLocaleCode();
     return Success<List<GameHistoryItem>>([
       GameHistoryItem(
         questionId: 101,
-        question: _enQuestion,
+        question: locale == 'en' ? _enQuestion : _coldQuestion,
         userOption: 1,
         partnerOption: 2,
         createdAt: '2026-01-01T00:00:00Z',
@@ -283,8 +422,28 @@ class ConfigurableFakeGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async {
-    return Success(GameStatsResponse(success: true, totalMatches: 0));
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+    return const Success<List<GameHistoryItem>>([]);
+  }
+}
+
+class CountingGameRepository extends GameRepository {
+  int newQuestionFetches = 0;
+
+  @override
+  Future<ResultWrapper<GameNewQuestionResponse?>> fetchNewGameQuestion() async {
+    newQuestionFetches++;
+    return Success<GameNewQuestionResponse?>(
+      GameNewQuestionResponse(
+        id: 101,
+        question: 'Chi dei due organizza meglio i test?',
+        optionA: 'Fede',
+        optionB: 'Claretta',
+        userIdA: 42,
+        userIdB: 77,
+        status: 'pending',
+      ),
+    );
   }
 
   @override

@@ -83,7 +83,7 @@ Supabase Postgres commit
 | Subscription | `realtime_connection.dart` `subscribe()` | 1 channel, 9 `.onPostgresChanges` bindings (wiring in `realtime_sync_service.dart`) |
 | Filtering | `realtime_sync_session.dart` | Client relevance: user/partner/partnership |
 | Deduplication | `realtime_sync_session.dart` `markSeen()` | FIFO LRU of 80 event keys |
-| Debounce | handler files | 120/150 ms trailing-edge timers + buffered flush |
+| Debounce | `trailing_edge_debounce.dart` mixin | shared 120/150 ms trailing-edge timer + buffered flush |
 | State update | feature states | `refreshFromRealtime()` / granular handlers |
 | UI update | `notifyListeners()` | Provider consumers (screens/tabs) |
 
@@ -113,17 +113,21 @@ All nine bindings register with `event: sb.PostgresChangeEvent.all`, `schema: 'p
 
 All debounces are **trailing-edge**: each incoming event cancels the pending timer and restarts it, so a burst collapses into one activation. The game debouncer additionally **buffers** its burst and flushes it FIFO, so no intermediate game event is dropped.
 
-| Debouncer | Timer | Delay | Coalesces | Consequence of coalescing |
+Every trailing-edge timer in the app is provided by one shared mixin, `TrailingEdgeDebounce` (`lib/core/realtime/trailing_edge_debounce.dart`), which owns the `Timer`/cancel/restart scaffolding: a host sets `debounce`, calls `schedule()` on each event, implements `flush()` (the trailing-edge action) and may implement `discard()` (drop buffered work). There are **no per-file timer reimplementations** — the mixin is mixed into the handlers, the two realtime coalescers, `BucketState` (cache write), `AuthState` (locale sync) and `RealtimeSyncConnection` (lifecycle resume).
+
+| Debouncer | Host (`with TrailingEdgeDebounce`) | Delay | Coalesces | Consequence of coalescing |
 |---|---|---|---|---|
 | Mood | `MoodChangeBatch` (`mood_change_batch.dart`) | 120 ms | multiple mood events | The **union** of distinct `changedUserId`s in the burst is flushed; a same-window burst from BOTH users refreshes both sides — nothing is skipped. |
-| Partnership | `RefetchRealtimeHandler._refreshTimer` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
+| Partnership | `RefetchRealtimeHandler` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
 | Game (answers + question updates) | `GameEventBuffer` (`game_event_buffer.dart`) | 150 ms | multiple game events | Full burst is buffered **FIFO** and every event is applied in delivery order — nothing is dropped. |
 | Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce". |
-| Drive | `RefetchRealtimeHandler._refreshTimer` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
-| User profile | `RefetchRealtimeHandler._refreshTimer` | 150 ms | `user_profiles` updates (self or partner row) | One refresh pass: partnership cache cleared, then `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Full refetch, order-insensitive. |
+| Drive | `RefetchRealtimeHandler` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
+| User profile | `RefetchRealtimeHandler` | 150 ms | `user_profiles` updates (self or partner row) | One refresh pass: partnership cache cleared, then `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Full refetch, order-insensitive. |
 | Bucket | — | **none** | n/a | Immediate granular `applyRealtimeEvent` in commit order. |
+| Bucket cache write | `BucketState` (2 s) | 2 s | a burst of realtime mutations | One coalesced cache write (`flush()`); paused/dispose force an immediate flush at the current checkpoint epoch. |
 | MissYou | — | **none** | n/a | Immediate `addMissYou()` / `refreshFromRealtime()`. |
-| Lifecycle resume | `RealtimeSyncConnection._lifecycleDebounceTimer` | 300 ms | app-resume bursts (task switcher) | One reconnect + full `_refreshAll`. |
+| Lifecycle resume | `RealtimeSyncConnection` | 300 ms | app-resume bursts (task switcher) | One reconnect + full `_refreshAll`. |
+| Locale sync | `AuthState` | 500 ms | app-resume bursts | One `_syncDeviceLocale()` (backend device token `locale` field). |
 
 ---
 

@@ -10,7 +10,8 @@ import 'package:justus/all_imports.dart';
 /// Created and torn down by [RealtimeSyncService]; feature handlers are wired
 /// via [bindings] and a shared [RealtimeSyncSession] supplies the identity and
 /// processing-suppression flags.
-class RealtimeSyncConnection with WidgetsBindingObserver {
+class RealtimeSyncConnection
+    with WidgetsBindingObserver, TrailingEdgeDebounce {
   RealtimeSyncConnection({
     required sb.SupabaseClient client,
     required RealtimeSyncSession session,
@@ -29,7 +30,6 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
   sb.RealtimeChannel? _channel;
   StreamSubscription<dynamic>? _authSubscription;
   Timer? _reconnectTimer;
-  Timer? _lifecycleDebounceTimer;
   Timer? _pollingFallbackTimer;
 
   bool _disposed = false;
@@ -42,6 +42,10 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
 
   bool get foreground => _foreground;
   bool get usePollingFallback => _usePollingFallback;
+
+  /// Trailing-edge window before a resume triggers one reconnect attempt.
+  @override
+  Duration get debounce => const Duration(milliseconds: 300);
 
   /// Registers as a lifecycle observer and subscribes to auth token-refresh.
   void start() {
@@ -87,24 +91,23 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         _foreground = true;
         if (_session.userId != null) {
-          _lifecycleDebounceTimer?.cancel();
-          _lifecycleDebounceTimer =
-              Timer(const Duration(milliseconds: 300), () {
-            _lifecycleDebounceTimer = null;
-            _reconnectAttempt = 0;
-            scheduleReconnect(refreshAfterSubscribe: true);
-          });
+          schedule();
         }
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _foreground = false;
-        _lifecycleDebounceTimer?.cancel();
-        _lifecycleDebounceTimer = null;
+        cancelPending();
         unawaited(unsubscribe());
       case AppLifecycleState.inactive:
         break;
     }
+  }
+
+  @override
+  Future<void> flush() async {
+    _reconnectAttempt = 0;
+    scheduleReconnect(refreshAfterSubscribe: true);
   }
 
   void scheduleReconnect(
@@ -201,8 +204,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
       return;
     }
 
-    _lifecycleDebounceTimer?.cancel();
-    _lifecycleDebounceTimer = null;
+    cancelPending();
 
     _subscribing = true;
     _session.suppressProcessing = false;
@@ -306,7 +308,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver {
 
     _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    _lifecycleDebounceTimer?.cancel();
+    cancelPending();
     _reconnectTimer?.cancel();
     _pollingFallbackTimer?.cancel();
     await _authSubscription?.cancel();

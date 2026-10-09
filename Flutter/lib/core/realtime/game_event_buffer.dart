@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:justus/all_imports.dart';
+
 /// Applies a decoded game realtime event to [sink] in FIFO order.
 ///
 /// [table] / [eventType] mirror the Supabase payload (`game_questions` /
@@ -30,23 +32,23 @@ class _BufferedGameEvent {
 /// Trailing-edge debounce FIFO for game realtime events.
 ///
 /// A burst of game events (e.g. a partner's `game_answers` INSERT followed
-/// within [debounce] by the `game_questions` UPDATE that marks
+/// within the debounce window by the `game_questions` UPDATE that marks
 /// `both_answered`) is buffered instead of collapsing to the last event, so
 /// no intermediate event is ever dropped (F-RT1). Every buffered event is
 /// applied to [sink] in delivery order when the debounce elapses.
-class GameEventBuffer {
+class GameEventBuffer with TrailingEdgeDebounce {
   GameEventBuffer({
     required this.sink,
     this.debounce = const Duration(milliseconds: 150),
   });
 
   final GameEventSink sink;
+
+  @override
   final Duration debounce;
 
   final Queue<_BufferedGameEvent> _pending = Queue<_BufferedGameEvent>();
-  Timer? _timer;
 
-  /// Number of events still waiting to be applied (for tests/inspection).
   int get pendingCount => _pending.length;
 
   /// Buffers [event] and (trailing edge) restarts the flush timer.
@@ -62,21 +64,11 @@ class GameEventBuffer {
       newRecord: newRecord,
       oldRecord: oldRecord,
     ));
-    _timer?.cancel();
-    _timer = Timer(debounce, () {
-      _timer = null;
-      unawaited(_drain());
-    });
+    schedule();
   }
 
-  /// Applies every buffered event immediately, in FIFO order.
-  Future<void> drain() async {
-    _timer?.cancel();
-    _timer = null;
-    await _drain();
-  }
-
-  Future<void> _drain() async {
+  @override
+  Future<void> flush() async {
     while (_pending.isNotEmpty) {
       final event = _pending.removeFirst();
       await sink(
@@ -84,10 +76,9 @@ class GameEventBuffer {
     }
   }
 
+  @override
+  void discard() => _pending.clear();
+
   /// Cancels the pending flush and drops all buffered events.
-  void clear() {
-    _timer?.cancel();
-    _timer = null;
-    _pending.clear();
-  }
+  void clear() => cancelPending();
 }

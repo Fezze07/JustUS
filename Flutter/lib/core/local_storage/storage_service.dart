@@ -35,7 +35,6 @@ class StorageService {
   static const String _keyPartnerDisplayName = 'partner_display_name';
   static const String _keyMissYouTotal = 'miss_you';
   static const String _keyBucketList = 'bucket_list';
-  static const String _keyGameMatches = 'game_matches';
   static const String _keyGameQuestion = 'game_question';
   static const String _keyGameHistory = 'game_history';
   static const String _keyDriveCache = 'drive_cache';
@@ -65,7 +64,6 @@ class StorageService {
     _keyRecentEmojis,
     _keyTimeline,
     _keyBucketList,
-    _keyGameMatches,
     _keyGameQuestion,
     _keyGameHistory,
     _keyDriveCache,
@@ -304,17 +302,6 @@ class StorageService {
   }
 
   // -------------------- Game --------------------
-
-  static Future<void> saveGameMatches(int total) async {
-    final p = await prefs;
-    await p.setInt(_feat(_keyGameMatches), total);
-  }
-
-  static Future<int> getGameMatches() async {
-    final p = await prefs;
-
-    return p.getInt(_feat(_keyGameMatches)) ?? 0;
-  }
 
   static Future<void> saveGameQuestion(GameNewQuestionResponse question) async {
     await _saveJson(_feat(_keyGameQuestion), question.toJson());

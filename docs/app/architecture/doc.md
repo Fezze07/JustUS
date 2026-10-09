@@ -278,6 +278,7 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
 - `realtime_table_binding.dart` — declarative `RealtimeTableBinding` (table + payload callback).
 - `realtime_handler.dart` — `RealtimeHandler` (abstract base, template method): the shared preamble (suppress guard → relevance → `markSeen` dedup) plus `clear()`/`dispose()`. Every feature handler extends it, so a preamble change propagates to all features.
 - `refetch_realtime_handler.dart` — `RefetchRealtimeHandler`: trailing-edge debounce (150 ms) → one `refetch()`. The single full-refetch strategy for `partnerships` / `drive_items`+`drive_item_reactions` / `user_profiles` (replaces the former per-feature classes), wired in the facade with an `isRelevant` predicate + `refetch` closure.
+- `trailing_edge_debounce.dart` — `TrailingEdgeDebounce` mixin: the one trailing-edge timer scaffolding (`schedule()` / `drain()` / `cancelPending()` + host `flush()` / `discard()`), mixed into the handlers, the two coalescers, `BucketState` (cache write), `AuthState` (locale sync) and `RealtimeSyncConnection` (lifecycle). No file reimplements the cancel/restart timer.
 - `handlers/` — feature strategies extending the base: `MoodRealtimeHandler` (distinct-user coalescing), `MissYouRealtimeHandler` (immediate), `BucketRealtimeHandler` (immediate granular), `GameRealtimeHandler` (immediate + FIFO buffer).
 
 `RealtimeSyncService`:

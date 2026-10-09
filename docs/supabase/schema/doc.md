@@ -165,28 +165,27 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 20 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 19 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `accept_partnership(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
 2. `request_partnership(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
 3. `current_user_id()`: Converts `auth.uid()` (`uuid`) to internal `users.id` (`integer`).
 4. `generate_unique_partnership_code()`: Generates random 6-character uppercase alphanumeric code checking unicity against `user_profiles`.
 5. `get_accepted_partner(target_user_id integer)`: STABLE function returning single active partner user ID.
-6. `get_game_stats(p_uid bigint, p_partner_id bigint)`: `SECURITY DEFINER` function counting matched game answers between partners.
-7. `get_or_create_emoji(p_emoji_char text)`: Inserts emoji into `emojis` if missing and returns ID.
-8. `get_partnership_names(p_user_id integer)`: `SECURITY DEFINER` returning `{ name1, name2 }` JSON. Executable only by `service_role`.
-9. `get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `current_user_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
-10. `handle_new_auth_user()`: `SECURITY DEFINER` trigger function on `auth.users` insert. Revoked from `PUBLIC`, granted only to `postgres`, `service_role`.
-11. `is_in_partnership(p_partnership_id integer)`: RLS validation helper returning `true` only when the caller is a member of the partnership **and** its `status = 'accepted'`.
-12. `is_partner_of(other_user_id integer)`: RLS validation helper returning `true` only when the caller and the target share a partnership whose `status = 'accepted'`.
-13. `send_missyou()`: Inserts `missyou` record for caller's active partnership.
-14. `set_mood(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji.
-15. `cleanup_old_logs(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver.
-16. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
-17. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
-18. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
-19. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`; granted to `authenticated`, `postgres`, `service_role`.
-20. `update_game_question_status()`: `SECURITY DEFINER` SET `search_path = public` trigger function (returns `trigger`) on `game_answers`; sets `game_questions.status = 'both_answered'` when `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`. Revoked from `PUBLIC`, `anon`, `authenticated`; granted only to `postgres`, `service_role`. PostgreSQL performs no `EXECUTE` privilege check when firing a trigger, so no client role needs the grant and the function is not reachable over PostgREST RPC.
+6. `get_or_create_emoji(p_emoji_char text)`: Inserts emoji into `emojis` if missing and returns ID.
+7. `get_partnership_names(p_user_id integer)`: `SECURITY DEFINER` returning `{ name1, name2 }` JSON. Executable only by `service_role`.
+8. `get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `current_user_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+9. `handle_new_auth_user()`: `SECURITY DEFINER` trigger function on `auth.users` insert. Revoked from `PUBLIC`, granted only to `postgres`, `service_role`.
+10. `is_in_partnership(p_partnership_id integer)`: RLS validation helper returning `true` only when the caller is a member of the partnership **and** its `status = 'accepted'`.
+11. `is_partner_of(other_user_id integer)`: RLS validation helper returning `true` only when the caller and the target share a partnership whose `status = 'accepted'`.
+12. `send_missyou()`: Inserts `missyou` record for caller's active partnership.
+13. `set_mood(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji.
+14. `cleanup_old_logs(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver.
+15. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
+16. `set_current_timestamp_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
+17. `update_updated_at_column()`: Trigger function setting `NEW.updated_at = now()`.
+18. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`; granted to `authenticated`, `postgres`, `service_role`.
+19. `update_game_question_status()`: `SECURITY DEFINER` SET `search_path = public` trigger function (returns `trigger`) on `game_answers`; sets `game_questions.status = 'both_answered'` when `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`. Revoked from `PUBLIC`, `anon`, `authenticated`; granted only to `postgres`, `service_role`. PostgreSQL performs no `EXECUTE` privilege check when firing a trigger, so no client role needs the grant and the function is not reachable over PostgREST RPC.
 
 > `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 

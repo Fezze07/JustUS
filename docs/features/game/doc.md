@@ -41,10 +41,10 @@ The Couple AI Game subsystem engages linked couples by generating daily relation
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): UI rendering for current question card, Option A / Option B voting buttons, match statistics counter, and historical game list.
-   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): State manager maintaining `_currentQuestion`, `_history`, and `_gameStats`. Handles answer submission, real-time question/answer payloads, and local state persistence.
-   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): Network repository calling Express AI API (`_api.generateAiQuestion()`), Supabase tables (`game_questions`, `game_answers`), and stored procedure (`get_game_stats`).
-   - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): Data models `GameNewQuestionResponse`, `GameQuestion`, `GameAnswer`, `GameHistoryItem`, and `GameStatsResponse`.
+   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): UI rendering for current question card, Option A / Option B voting buttons, and historical game list.
+   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): State manager maintaining `_currentQuestion` and `_history`. Handles answer submission, real-time question/answer payloads, and local state persistence.
+   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): Network repository calling Express AI API (`_api.generateAiQuestion()`) and Supabase tables (`game_questions`, `game_answers`).
+   - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): Data models `GameNewQuestionResponse`, `GameQuestion`, `GameAnswer`, and `GameHistoryItem`.
 
 2. **Node.js / Express API**:
    - [ai.routes.js](file:///f:/JustUS/Backend/features/ai/ai.routes.js): Express router defining `POST /api/v1/ai/question` with composite rate limiting, idempotency middleware, request signing, and schema validation.
@@ -55,7 +55,6 @@ The Couple AI Game subsystem engages linked couples by generating daily relation
 3. **Database Layer (Supabase / PostgreSQL)**:
    - `public.game_questions`: Table storing generated game questions. Columns: `id` (integer PK), `partnership_id` (integer FK), `question` (text), `status` (character varying, e.g. `'pending'`, `'both_answered'`), `user_id_a` (integer FK), `user_id_b` (integer FK), `created_at` (timestamptz).
    - `public.game_answers`: Table storing user votes. Composite PK: `(game_id, user_id)`. Columns: `game_id` (integer FK), `user_id` (integer FK), `selected_option` (integer FK/id), `created_at` (timestamptz).
-   - `get_game_stats(p_uid, p_partner_id)` RPC: Stored procedure calculating total agreement matches between partners.
 
 ---
 
@@ -112,8 +111,7 @@ The Couple AI Game subsystem engages linked couples by generating daily relation
    └── When both partners have answered (hasAnswered && partnerAnswered):
          ├── DB trigger tr_game_answers_update_question_status sets game_questions status to 'both_answered'
          │   (emits a game_questions UPDATE, received on the waiting device's RealtimeSyncService subscription)
-         ├── Evaluates Match (isMatched: userOption == partnerOption) or Disagreement
-         └── Refreshes match statistics (get_game_stats RPC)
+          └── Evaluates Match (isMatched: userOption == partnerOption) or Disagreement
 ```
 
 ---
@@ -225,7 +223,6 @@ Generated AI responses undergo multi-stage validation before being returned to t
   - Matches are evaluated:
     - **Match** (`isMatched`): `userOption == partnerOption` (both partners voted for the same person).
     - **Disagreement** (`isDisagreed`): `userOption != partnerOption`.
-  - Invokes `get_game_stats` RPC to update total couple matches count.
 
 ---
 
@@ -258,6 +255,5 @@ During reverse-engineering analysis, the following technical findings were ident
 | Idempotency Key Middleware | **IMPLEMENTED** | `withIdempotency` 24h cache |
 | Partner A/B Option Mapping | **IMPLEMENTED** | Options map to couple member display names |
 | Realtime Answer Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `game_answers` |
-| Agreement Match Calculation | **IMPLEMENTED** | `isMatched` check & `get_game_stats` RPC |
 | Persistent Infrastructure State | **NOT IMPLEMENTED** | Quotas/circuits reset on server restart (in-memory) |
 | Server-Side Status Trigger | **IMPLEMENTED** | `tr_game_answers_update_question_status` trigger sets `status = 'both_answered'` on second answer INSERT/UPDATE |

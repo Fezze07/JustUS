@@ -156,9 +156,18 @@ DUPLICATION_PID=$!
 
     echo ""
     echo "--- PHASE 1.5: Hardcoded String Check ---"
+    # Hardcoded UI strings that should be routed through loc.
+    #  - Matches a UI-bearing named parameter followed by a string literal,
+    #    in single OR double quotes.
+    #  - Matches a bare Text('literal') / Text("literal") constructor.
+    # message:/description: are deliberately NOT scanned: they also feed
+    # technical error payloads (AppError/GenericError/NetworkError + logging),
+    # which are code-level strings; production UI shows localized text through
+    # ErrorCodes.userMessage(code, ctx.loc), so those must not go into loc.
     # `[[:space:]]` instead of `\s`: GNU-specific, breaks on BSD/macOS grep.
-    HARDCODED=$(grep -rnE "(title|subtitle|hintText):[[:space:]]*'[A-Za-z]" lib/features/ \
-      --include="*.dart" 2>/dev/null \
+    HARDCODED=$(grep -rnE \
+      "(title|subtitle|hintText|labelText|label|tooltip|semanticLabel|helperText|errorText|counterText|content|text|heading|actionLabel|buttonText|prefixText|suffixText):[[:space:]]*['\"][A-Za-z]|Text\([[:space:]]*['\"][A-Za-z]" \
+      lib/features/ --include="*.dart" 2>/dev/null \
       | grep -v "context\.loc\." \
       | grep -v "AppLocalizations\." || true)
     if [ -n "$HARDCODED" ]; then

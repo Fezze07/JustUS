@@ -10,7 +10,6 @@ class GameBurstFakeRepository extends GameRepository {
   Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
     return Success(
       GameNewQuestionResponse(
-        success: true,
         id: 101,
         question: 'Chi dei due organizza meglio i test?',
         optionA: 'Fede',
@@ -20,11 +19,6 @@ class GameBurstFakeRepository extends GameRepository {
         status: 'pending',
       ),
     );
-  }
-
-  @override
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async {
-    return Success(GameStatsResponse(success: true, totalMatches: 3));
   }
 
   @override
@@ -41,7 +35,7 @@ class GameBurstFakeRepository extends GameRepository {
 
 /// F-RT1 acceptance: when both-answered game events are applied (i.e. nothing
 /// is dropped by the debounce), the partner answer INSERT updates history and
-/// the subsequent question UPDATE clears the question / updates stats.
+/// the subsequent question UPDATE clears the question.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -82,7 +76,7 @@ void main() {
     expect(await StorageService.getGameHistory(), isNotEmpty);
   });
 
-  test('submitAnswer after partner answer updates stats', () async {
+  test('submitAnswer after partner answer clears the question', () async {
     final state = await readyState();
 
     await state.handleAnswerInsert({
@@ -93,7 +87,6 @@ void main() {
 
     await state.submitAnswer('A');
 
-    expect(state.gameStats, 3);
     expect(state.currentQuestion, isNull);
     expect(state.history.first.userOption, 42);
     expect(state.history.first.partnerOption, 42);

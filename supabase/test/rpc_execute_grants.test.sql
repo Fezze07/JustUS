@@ -64,7 +64,6 @@ DECLARE
     'public.current_user_id()',
     'public.generate_unique_partnership_code()',
     'public.get_accepted_partner(integer)',
-    'public.get_game_stats(bigint, bigint)',
     'public.get_or_create_emoji(text)',
     'public.get_pending_invitations()',
     'public.is_in_partnership(integer)',
@@ -95,7 +94,6 @@ END $$;
 DO $$
 DECLARE
   v_fn text[] := ARRAY[
-    'public.get_game_stats(bigint, bigint)',
     'public.get_pending_invitations()',
     'public.request_partnership(text, text, integer)'
   ];

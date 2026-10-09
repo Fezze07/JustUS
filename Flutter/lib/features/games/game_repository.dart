@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/widgets.dart';
 
 import 'package:justus/all_imports.dart';
 
@@ -11,6 +12,8 @@ typedef _GameFetchContext = ({
   int partnerId,
   String locale,
   String Function(int userId) nameFor,
+  String optionALabel,
+  String optionBLabel,
 });
 
 class GameRepository extends BaseRepository {
@@ -23,21 +26,13 @@ class GameRepository extends BaseRepository {
     if (code == null) {
       throw Exception('Question code is null');
     }
-    ResultWrapper<String?> res = await _bankRepo.fetchQuestionText(
+    final res = await _bankRepo.fetchQuestionText(
       questionCode: code,
       locale: locale,
     );
-    String? text = res.valueOrNull;
+    final text = res.valueOrNull;
     if (text == null || text.isEmpty) {
-      // Retry once
-      res = await _bankRepo.fetchQuestionText(
-        questionCode: code,
-        locale: locale,
-      );
-      text = res.valueOrNull;
-      if (text == null || text.isEmpty) {
-        throw Exception('Failed to resolve question text for code: $code');
-      }
+      throw Exception('Failed to resolve question text for code: $code');
     }
     return text;
   }
@@ -96,8 +91,8 @@ class GameRepository extends BaseRepository {
       final bankItem = bankItemRes.valueOrNull;
       if (bankItem == null) {
         // Success(null) = catalogo vuoto: segnale "nessuna domanda
-        // disponibile", non un errore. Gli errori veri (GenericError/
-        // NetworkError) continuano come prima.
+        // disponibile", non un errore. Gli errori veri (GenericError)
+        // continuano come prima.
         if (bankItemRes is Success) {
           return null;
         }
@@ -128,7 +123,6 @@ class GameRepository extends BaseRepository {
       ));
 
       return GameNewQuestionResponse(
-        success: true,
         id: inserted['id'] as int,
         question: bankItem.text,
         questionCode: bankItem.questionCode,
@@ -150,6 +144,7 @@ class GameRepository extends BaseRepository {
     }
 
     final locale = await LanguageHelper.currentLocaleCode();
+    final loc = await AppLocalizations.delegate.load(Locale(locale));
     final myName = await StorageService.getUsername();
     final partnerName = partnershipData?['partner_display_name'] as String?;
 
@@ -159,11 +154,15 @@ class GameRepository extends BaseRepository {
       partnerId: partnerId,
       locale: locale,
       nameFor: (int userId) => resolvePlayerName(
-        userId: userId,
-        currentUserId: uid,
-        myName: myName,
-        partnerName: partnerName,
-      ),
+            userId: userId,
+            currentUserId: uid,
+            myName: myName,
+            partnerName: partnerName,
+            youFallback: loc.common_youTitle,
+            partnerFallback: loc.common_partner,
+          ),
+      optionALabel: loc.game_optionA,
+      optionBLabel: loc.game_optionB,
     );
   }
 
@@ -192,27 +191,20 @@ class GameRepository extends BaseRepository {
     final userIdB = existing['user_id_b'] as int?;
     final questionCode = existing['question_code'] as String?;
 
-    try {
-      final questionText = await _resolveQuestionText(questionCode, ctx.locale);
+    final questionText = await _resolveQuestionText(questionCode, ctx.locale);
 
-      return GameNewQuestionResponse(
-        success: true,
-        id: existing['id'] as int,
-        question: questionText,
-        questionCode: questionCode,
-        status: existing['status'] as String?,
-        userIdA: userIdA,
-        userIdB: userIdB,
-        optionA: optionLabelFor(userIdA, 'Opzione A', ctx.nameFor),
-        optionB: optionLabelFor(userIdB, 'Opzione B', ctx.nameFor),
-        hasAnswered: hasAnswered,
-        partnerAnswered: partnerAnswered,
-      );
-    } catch (e) {
-      // If we can't resolve the text, don't return a response with empty
-      // question - rethrow
-      rethrow;
-    }
+    return GameNewQuestionResponse(
+      id: existing['id'] as int,
+      question: questionText,
+      questionCode: questionCode,
+      status: existing['status'] as String?,
+      userIdA: userIdA,
+      userIdB: userIdB,
+      optionA: optionLabelFor(userIdA, ctx.optionALabel, ctx.nameFor),
+      optionB: optionLabelFor(userIdB, ctx.optionBLabel, ctx.nameFor),
+      hasAnswered: hasAnswered,
+      partnerAnswered: partnerAnswered,
+    );
   }
 
   Future<
@@ -251,33 +243,30 @@ class GameRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<GameStatsResponse>> fetchGameStats() async {
-    return withCouple((uid, partnerId) async {
-      if (partnerId == null) {
-        return GameStatsResponse(success: true, totalMatches: 0);
-      }
-
-      final response = await sbClient.rpc(
-        'get_game_stats',
-        params: {
-          'p_uid': uid,
-          'p_partner_id': partnerId,
-        },
-      );
-
-      final matches = response as int? ?? 0;
-
-      return GameStatsResponse(success: true, totalMatches: matches);
-    });
-  }
-
-  Future<bool> hasNewGameActivity(int uid, int partnerId) {
-    return hasChanges(
+  /// True when either the couple's answers or the couple's questions are
+  /// newer than the local checkpoints. Watching `game_questions` too keeps a
+  /// partner-created question visible on the next cold start: `created_at` is
+  /// bumped by the INSERT, while `game_answers` may have no new row yet and
+  /// Realtime never replays the offline-created event (B1).
+  Future<bool> hasNewGameActivity(
+      int uid, int partnerId, int? partnershipId) async {
+    final answersChanged = await hasChanges(
       table: 'game_answers',
       field: 'updated_at',
       filterColumn: 'user_id',
       filterValues: [uid, partnerId],
       cacheKey: CacheService.kGameAnswers,
+    );
+    if (answersChanged || partnershipId == null) {
+      return answersChanged;
+    }
+
+    return hasChanges(
+      table: 'game_questions',
+      field: 'created_at',
+      filterColumn: 'partnership_id',
+      filterValues: [partnershipId],
+      cacheKey: CacheService.kGameQuestions,
     );
   }
 
@@ -344,8 +333,7 @@ class GameRepository extends BaseRepository {
           Success(value: final v) => v,
           GenericError(:final message) =>
             throw Exception('Bank fetch failed: $message'),
-          NetworkError(:final message) =>
-            throw Exception('Bank network error: $message'),
+          _ => throw Exception('Bank fetch failed: unforeseen error'),
         });
       }
 

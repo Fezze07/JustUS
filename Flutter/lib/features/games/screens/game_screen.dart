@@ -83,8 +83,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                       const SizedBox(height: 16),
 
                       // Daily Game Card
-                      Selector<GameState, (GameNewQuestionResponse?, bool, bool,
-                          bool)>(
+                      Selector<GameState,
+                          (GameNewQuestionResponse?, bool, bool, bool)>(
                         selector: (_, s) => (
                           s.currentQuestion,
                           s.isFetchingQuestion,
@@ -172,7 +172,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                                       status: status,
                                       badgeColor: badgeColor,
                                       icon: icon,
-                                      userImageUrl: profile.versionedProfilePicUrl,
+                                      userImageUrl:
+                                          profile.versionedProfilePicUrl,
                                       partnerImageUrl:
                                           profile.partnerProfile?.profilePicUrl,
                                     ),
@@ -203,8 +204,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
           decoration: BoxDecoration(
             color: context.palette.surface,
             shape: BoxShape.circle,
-            border:
-                Border.all(color: context.palette.accentPurple.withValues(alpha: 0.2)),
+            border: Border.all(
+                color: context.palette.accentPurple.withValues(alpha: 0.2)),
             boxShadow: [
               BoxShadow(
                   color: context.palette.shadowStrong,
@@ -251,7 +252,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                     color: context.palette.accentPurple.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                     border: Border.all(
-                        color: context.palette.accentPurple.withValues(alpha: 0.3)),
+                        color: context.palette.accentPurple
+                            .withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     context.loc.game_dailyGame,
@@ -265,7 +267,8 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                 ),
                 const SizedBox(height: 24),
                 if (state.isFetchingQuestion) ...[
-                  CircularProgressIndicator(color: context.palette.accentPurple),
+                  CircularProgressIndicator(
+                      color: context.palette.accentPurple),
                   const SizedBox(height: 16),
                   Text(
                     context.loc.game_generatingQuestion,
@@ -300,8 +303,12 @@ class _GameScreenState extends State<GameScreen> with TabScreenMixin {
                   _buildOptionButton(context, state, 'A',
                       state.currentQuestion!.optionA, context.palette.info),
                   const SizedBox(height: 16),
-                  _buildOptionButton(context, state, 'B',
-                      state.currentQuestion!.optionB, context.palette.accentPurple),
+                  _buildOptionButton(
+                      context,
+                      state,
+                      'B',
+                      state.currentQuestion!.optionB,
+                      context.palette.accentPurple),
                 ] else ...[
                   Center(
                     child: Column(

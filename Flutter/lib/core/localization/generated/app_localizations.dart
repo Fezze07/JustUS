@@ -1496,6 +1496,18 @@ abstract class AppLocalizations {
   /// **'Domanda del giorno'**
   String get game_questionOfDay;
 
+  /// No description provided for @game_optionA.
+  ///
+  /// In it, this message translates to:
+  /// **'Opzione A'**
+  String get game_optionA;
+
+  /// No description provided for @game_optionB.
+  ///
+  /// In it, this message translates to:
+  /// **'Opzione B'**
+  String get game_optionB;
+
   /// No description provided for @game_allCaughtUp.
   ///
   /// In it, this message translates to:
@@ -1519,12 +1531,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Risposta inviata!'**
   String get game_answerSent;
-
-  /// No description provided for @game_waitPartner.
-  ///
-  /// In it, this message translates to:
-  /// **'Aspetta che il partner risponda'**
-  String get game_waitPartner;
 
   /// No description provided for @game_noQuestionAvailable.
   ///

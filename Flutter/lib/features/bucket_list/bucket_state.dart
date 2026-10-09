@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:justus/all_imports.dart';
 
 class BucketState extends BaseState
-    with CheckpointMixin, WidgetsBindingObserver {
+    with CheckpointMixin, WidgetsBindingObserver, TrailingEdgeDebounce {
   final BucketRepository _repository;
 
   BucketState({BucketRepository? repository})
@@ -18,8 +18,12 @@ class BucketState extends BaseState
   List<BucketItem> _items = [];
   final Set<int> _knownIds = {};
   bool _isInitLoading = false;
-  Timer? _cacheDebounceTimer;
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
+  int _pendingCacheEpoch = 0;
+
+  /// Trailing-edge window before the coalesced cache write is persisted.
+  @override
+  Duration get debounce => const Duration(seconds: 2);
 
   /// Monotonic counter bumped by every incremental realtime mutation. A full
   /// snapshot fetch that captured an older value will NOT clobber the list —
@@ -30,8 +34,7 @@ class BucketState extends BaseState
 
   @override
   void dispose() {
-    _cacheDebounceTimer?.cancel();
-    _cacheDebounceTimer = null;
+    cancelPending();
     WidgetsBinding.instance.removeObserver(this);
     final epoch = CacheService.checkpointEpoch;
     unawaited(_flushCache(epoch: epoch));
@@ -44,8 +47,7 @@ class BucketState extends BaseState
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        _cacheDebounceTimer?.cancel();
-        _cacheDebounceTimer = null;
+        cancelPending();
         final epoch = CacheService.checkpointEpoch;
         unawaited(_flushCache(epoch: epoch));
         break;
@@ -208,11 +210,12 @@ class BucketState extends BaseState
   // --- Debounced cache ---
 
   void _scheduleCacheSave(int epoch) {
-    _cacheDebounceTimer?.cancel();
-    _cacheDebounceTimer = Timer(const Duration(seconds: 2), () {
-      unawaited(_flushCache(epoch: epoch));
-    });
+    _pendingCacheEpoch = epoch;
+    schedule();
   }
+
+  @override
+  Future<void> flush() => _flushCache(epoch: _pendingCacheEpoch);
 
   Future<void> _flushCache({required int epoch}) {
     final snapshot = List<BucketItem>.from(_items);
@@ -224,8 +227,7 @@ class BucketState extends BaseState
   }
 
   void clear() {
-    _cacheDebounceTimer?.cancel();
-    _cacheDebounceTimer = null;
+    cancelPending();
     _itemsVersion++;
     _items = [];
     _knownIds.clear();
