@@ -164,6 +164,7 @@ await adminSupabase
 - **Scoped by `user_id`**: `device_token` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
 - Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
 - Client side: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
+- Unrevoked stale rows (e.g. offline logout or session expiration) are deleted by the periodic 30-day retention job (`sweepStaleUserDevices` in `retentionJob.js`, `USER_DEVICE_RETENTION_DAYS = 30`), ensuring unrefreshed registrations cannot be targeted indefinitely.
 - The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same token via the upsert.
 
 ---

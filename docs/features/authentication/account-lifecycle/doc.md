@@ -181,7 +181,7 @@ Logout Initiated (Profile / Partner Screen)
 | Hanging request | cut off by a 5 s timeout (`deviceRevokeTimeout`), teardown continues |
 | `401` after a failed refresh | reported as a `401` error result, **without** firing `ApiService.onSessionExpired` — that callback *is* `logout()`, so escalating here would re-enter the teardown |
 
-If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until the next successful login on that device re-registers the same token.
+If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until re-registered or deleted by the periodic 30-day retention sweep (`sweepStaleUserDevices` in `retentionJob.js`), which purges rows whose `updated_at` timestamp predates 30 days (`USER_DEVICE_RETENTION_DAYS = 30`).
 
 ---
 

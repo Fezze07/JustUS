@@ -3,6 +3,7 @@
  *
  * Runs scheduled cleanup jobs to enforce data-retention policies:
  *   - security_events, api_access_logs, api_error_logs → delete after LOG_RETENTION_DAYS
+ *   - user_devices → delete unrefreshed rows after USER_DEVICE_RETENTION_DAYS (30 days)
  *   - request_nonces → delete rows past their expires_at (default: daily sweep)
  *   - R2 incomplete multipart uploads → abort after MULTIPART_MAX_AGE_MS (default 48 h)
  *   - R2 orphaned finalized objects → delete after ORPHAN_MAX_AGE_MS (default 24 h)
@@ -27,8 +28,10 @@ const {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const LOG_RETENTION_DAYS = env.logRetentionDays;
+const USER_DEVICE_RETENTION_DAYS = 30;
 const NONCE_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 const LOG_SWEEP_INTERVAL_MS   = 24 * 60 * 60 * 1000;      // every 24 h
+const USER_DEVICE_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 h
 const MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h
 const MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000;         // 48 h
 const ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
@@ -72,6 +75,25 @@ async function sweepOldLogs() {
     } catch (err) {
       await logError({ error: { message: err.message, name: err.name }, event: "retention.logs.failed", table });
     }
+  }
+}
+
+// ── User devices sweep ────────────────────────────────────────────────────────
+
+async function sweepStaleUserDevices() {
+  const cutoff = new Date(Date.now() - USER_DEVICE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    const { error, count } = await adminSupabase
+      .from("user_devices")
+      .delete({ count: "exact" })
+      .lt("updated_at", cutoff);
+
+    if (error) throw error;
+    if (count > 0) {
+      logInfo("retention.user_devices", { deleted: count });
+    }
+  } catch (err) {
+    await logError({ error: { message: err.message, name: err.name }, event: "retention.user_devices.failed" });
   }
 }
 
@@ -192,26 +214,47 @@ async function sweepStaleOrphanObjects() {
   }
 }
 
-// ── Startup ───────────────────────────────────────────────────────────────────
+// ── Startup & Lifecycle ───────────────────────────────────────────────────────
 
-function startRetentionJobs() {
+let intervalIds = [];
+
+function stopRetentionJobs() {
+  for (const id of intervalIds) {
+    clearInterval(id);
+  }
+  intervalIds = [];
+}
+
+async function startRetentionJobs() {
+  stopRetentionJobs();
+
   // Run immediately on startup, then on schedule
-  sweepExpiredNonces();
-  sweepOldLogs();
-  sweepStalMultipartUploads();
-  sweepStaleOrphanObjects();
+  const initialSweeps = Promise.all([
+    sweepExpiredNonces(),
+    sweepOldLogs(),
+    sweepStaleUserDevices(),
+    sweepStalMultipartUploads(),
+    sweepStaleOrphanObjects(),
+  ]);
 
-  setInterval(sweepExpiredNonces, NONCE_SWEEP_INTERVAL_MS);
-  setInterval(sweepOldLogs, LOG_SWEEP_INTERVAL_MS);
-  setInterval(sweepStalMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS);
-  setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS);
+  intervalIds = [
+    setInterval(sweepExpiredNonces, NONCE_SWEEP_INTERVAL_MS),
+    setInterval(sweepOldLogs, LOG_SWEEP_INTERVAL_MS),
+    setInterval(sweepStaleUserDevices, USER_DEVICE_SWEEP_INTERVAL_MS),
+    setInterval(sweepStalMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS),
+    setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS),
+  ];
 
   logInfo("retention.started", {
     logRetentionDays: LOG_RETENTION_DAYS,
+    userDeviceRetentionDays: USER_DEVICE_RETENTION_DAYS,
     nonceSweepIntervalH: NONCE_SWEEP_INTERVAL_MS / 3_600_000,
     r2MultipartMaxAgeH: MULTIPART_MAX_AGE_MS / 3_600_000,
     r2OrphanMaxAgeH: ORPHAN_MAX_AGE_MS / 3_600_000,
   });
+
+  await initialSweeps;
 }
 
-module.exports = { startRetentionJobs };
+module.exports = { startRetentionJobs, stopRetentionJobs };
+

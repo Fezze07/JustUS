@@ -115,6 +115,7 @@ module.exports = {
   get sha256() { return require('./utils/auth/cryptoUtils').sha256; },
   get signRequest() { return require('./services/requestSigningService').signRequest; },
   get startRetentionJobs() { return require('./core/jobs/retentionJob').startRetentionJobs; },
+  get stopRetentionJobs() { return require('./core/jobs/retentionJob').stopRetentionJobs; },
   get success() { return require('./utils/http/responseUtils').success; },
   get timeoutMiddleware() { return require('./middleware/timeoutMiddleware'); },
   get trackSession() { return require('./features/auth/authRisk.service').trackSession; },
