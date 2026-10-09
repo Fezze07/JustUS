@@ -205,11 +205,11 @@ Password requirements and their enforcement locations were empirically verified 
 
 | Rule | Requirement | Enforced in Flutter | Enforced in Backend | Enforced in Supabase |
 |---|---|---|---|---|
-| Minimum Length | >= 8 characters | YES (`password.length < 8`) | NO | YES (Configurable, default >= 6/8) |
-| Lowercase Letter | Must contain `[a-z]` | YES (`RegExp(r'[a-z]')`) | NO | NO |
-| Uppercase Letter | Must contain `[A-Z]` | YES (`RegExp(r'[A-Z]')`) | NO | NO |
-| Number | Must contain `[0-9]` | YES (`RegExp(r'[0-9]')`) | NO | NO |
-| Special Symbol | Must contain `[!@#\$%^&*(),.?":{}|<>]` | YES (`RegExp(r'[!@#\$%^&*(),.?":{}|<>]')`) | NO | NO |
+| Minimum Length | >= 8 characters | YES (`password.length < 8`) | NO | YES (`minimum_password_length = 8`) |
+| Lowercase Letter | Must contain `[a-z]` | YES (`RegExp(r'[a-z]')`) | NO | YES (`password_requirements`) |
+| Uppercase Letter | Must contain `[A-Z]` | YES (`RegExp(r'[A-Z]')`) | NO | YES (`password_requirements`) |
+| Number | Must contain `[0-9]` | YES (`RegExp(r'[0-9]')`) | NO | YES (`password_requirements`) |
+| Special Symbol | Must contain `[!@#\$%^&*(),.?":{}|<>]` | YES (`RegExp(r'[!@#\$%^&*(),.?":{}|<>]')`) | NO | YES (`password_requirements`, symbol = any non-alphanumeric) |
 
 ### Layer Details
 
@@ -231,7 +231,9 @@ Password requirements and their enforcement locations were empirically verified 
    - The Node backend does **not** process user password inputs during registration or login. Zod schemas (`loginRiskSchema`, `loginAttemptSchema`, `sessionSyncSchema`) do not include password fields.
 
 3. **Supabase Auth**
-   - Handles password storage and hash generation (Bcrypt/Argon2). Complex character rules (uppercase, digit, symbol) are not natively evaluated by default Supabase GoTrue unless custom Auth Hooks or client-side checks are enforced.
+   - Handles password storage and hash generation (bcrypt). GoTrue natively evaluates password strength: the linked project is configured with `minimum_password_length = 8` and `password_requirements = "lower_upper_letters_digits_symbols"`, so a registration or password change missing an uppercase letter, a lowercase letter, a digit or a symbol is rejected server-side with a `WeakPasswordError`. This is the authoritative check — a request that bypasses Flutter still hits it.
+   - The Flutter regexes are a stricter subset: their symbol class (`[!@#\$%^&*(),.?":{}|<>]`) is smaller than GoTrue's (any non-alphanumeric character), so the client only ever rejects passwords the server would also reject.
+   - Both settings are tracked in `supabase/config.toml` (lines 181/184) and verified against the linked project with `supabase config diff`.
 
 ---
 
@@ -308,12 +310,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 
 During the reverse-engineering analysis, the following structural bugs, security flaws, and implementation inconsistencies were discovered:
 
-### 1. INCONSISTENCY: Password Validation Rules Enforced Only on Client
-- **Finding**: Strict regex rules for uppercase, lowercase, numeric, and symbol characters are enforced solely in Flutter's `Validators.validatePassword`.
-- **Defect**: Neither the Node backend nor Supabase Auth database rules validate complex password character patterns on registration.
-- **Impact**: Any registration request bypassing the Flutter client (e.g., via direct REST API calls) can register accounts with weak passwords.
-
-### 2. SECURITY RISK: Unprotected Backend Risk Check Endpoints
+### 1. SECURITY RISK: Unprotected Backend Risk Check Endpoints
 - **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`). Turnstile verification intentionally stays on Supabase Auth only (single-use token — it cannot also be consumed by the backend).
 - **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
 
@@ -360,7 +357,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 | Feature / Subsystem | Implementation Status | Notes / Caveats |
 |---|---|---|
 | Registration UI & Form Input | **IMPLEMENTED** | `RegisterScreen` |
-| Client Input & Password Validation | **IMPLEMENTED** | `Validators` (Client-side regex) |
+| Client Input & Password Validation | **IMPLEMENTED** | `Validators` (client regex) + Supabase GoTrue `minimum_password_length` / `password_requirements` |
 | Turnstile CAPTCHA Integration | **IMPLEMENTED** | `CaptchaService` Managed-mode widget; token verified by Supabase Auth native integration |
 | Supabase Auth Registration | **IMPLEMENTED** | `signUp()` with metadata & redirect |
 | PostgreSQL Profile Trigger | **IMPLEMENTED** | `handle_new_auth_user()` trigger |
