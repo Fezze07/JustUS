@@ -76,6 +76,11 @@ function evaluateRule(rule, name, now, req) {
 
   const bucketKey = `${name}:${rule.name}:${key}`;
   const existing = buckets.get(bucketKey);
+
+  if (rule.distinctValue) {
+    return evaluateDistinctRule(rule, name, now, req, bucketKey, penaltyKey, existing);
+  }
+
   const state = existing && existing.resetAt > now
     ? existing
     : { count: 0, resetAt: now + rule.windowMs };
@@ -84,14 +89,62 @@ function evaluateRule(rule, name, now, req) {
   buckets.set(bucketKey, state);
 
   if (state.count > rule.max) {
-    const penalty = applyPenalty(name, penaltyKey);
-    return {
-      retryAfterSeconds: Math.ceil((state.resetAt - now) / 1000),
-      penalty
-    };
+    return rateLimitExceeded(state, name, now, penaltyKey);
   }
 
   return { retryAfterSeconds: 0, penalty: null };
+}
+
+/**
+ * Distinct-value variant of `evaluateRule`: the bucket counts how many *different*
+ * `rule.distinctValue(req)` values (e.g. email addresses) one key (e.g. an IP) has
+ * presented inside the window, instead of counting requests. Asking about the same
+ * value again is free — a legitimate user retrying one login is never penalised —
+ * while a client enumerating many values trips the cap.
+ * @param {object} rule - The rule to evaluate (must define `distinctValue`).
+ * @param {string} name - The parent limiter name.
+ * @param {number} now - Current timestamp.
+ * @param {import('express').Request} req - Express request.
+ * @param {string} bucketKey - Cache key for this rule/key pair.
+ * @param {string} penaltyKey - Strike key shared across the parent limiter.
+ * @param {object | undefined} existing - Existing bucket state, if any.
+ * @returns {object} Evaluation result (retryAfterSeconds, penalty).
+ */
+function evaluateDistinctRule(rule, name, now, req, bucketKey, penaltyKey, existing) {
+  const value = rule.distinctValue(req);
+  if (!value) return { retryAfterSeconds: 0, penalty: null };
+
+  const state = existing && existing.resetAt > now && existing.values
+    ? existing
+    : { count: 0, values: new Set(), resetAt: now + rule.windowMs };
+
+  state.values.add(value);
+  state.count = state.values.size;
+  buckets.set(bucketKey, state);
+
+  if (state.count > rule.max) {
+    return rateLimitExceeded(state, name, now, penaltyKey);
+  }
+
+  return { retryAfterSeconds: 0, penalty: null };
+}
+
+/**
+ * Shared "limit exceeded" branch: applies the strike penalty to the rule/key pair
+ * and returns the retry window. Used by both the request-count and distinct-value
+ * evaluators so a single value is the source of truth.
+ * @param {object} state - The bucket state that exceeded `rule.max`.
+ * @param {string} name - The parent limiter name.
+ * @param {number} now - Current timestamp.
+ * @param {string} penaltyKey - Strike key shared across the parent limiter.
+ * @returns {object} Violation result (retryAfterSeconds, penalty).
+ */
+function rateLimitExceeded(state, name, now, penaltyKey) {
+  const penalty = applyPenalty(name, penaltyKey);
+  return {
+    retryAfterSeconds: Math.ceil((state.resetAt - now) / 1000),
+    penalty
+  };
 }
 
 /**

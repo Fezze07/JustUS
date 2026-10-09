@@ -11,6 +11,7 @@ const {
   withIdempotency,
   ipKey,
   deviceKey,
+  emailValue,
   DEFAULT_WINDOW_MS,
 } = require("../../all_imports");
 
@@ -47,6 +48,9 @@ const loginRiskRateLimit = createCompositeRateLimit({
   rules: [
     { name: "ip",     windowMs: DEFAULT_WINDOW_MS, max: 20, key: ipKey },
     { name: "device", windowMs: DEFAULT_WINDOW_MS, max: 10, key: deviceKey },
+    // Cap distinct emails per IP so the unsigned endpoints cannot be used to
+    // enumerate addresses or inflate counters for many keys from one source.
+    { name: "ip-email", windowMs: DEFAULT_WINDOW_MS, max: 5, key: ipKey, distinctValue: emailValue },
   ],
 });
 

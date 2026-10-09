@@ -72,6 +72,44 @@ describe("auth routes", () => {
     expect(response.body.error.code).toBe("API-VALIDATION-001");
   });
 
+  test("caps how many distinct emails one IP may probe", async () => {
+    const app = createApp();
+    const deviceFingerprint = "device-fingerprint-enum";
+
+    for (let i = 1; i <= 5; i += 1) {
+      const response = await request(app)
+        .post("/api/v1/auth/login-risk-check")
+        .send({ email: `probe-${i}@example.com`, deviceFingerprint });
+
+      expect(response.status).toBe(200);
+    }
+
+    // The 6th distinct email from the same IP trips the per-IP cap, bounding
+    // address enumeration and per-key counter inflation on the unsigned route.
+    const blocked = await request(app)
+      .post("/api/v1/auth/login-risk-check")
+      .send({ email: "probe-6@example.com", deviceFingerprint });
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe("SEC-BLOCK-001");
+  });
+
+  test("does not penalise repeated checks for the same email", async () => {
+    const app = createApp();
+    const payload = {
+      email: "repeat@example.com",
+      deviceFingerprint: "device-fingerprint-repeat",
+    };
+
+    for (let i = 0; i < 6; i += 1) {
+      const response = await request(app)
+        .post("/api/v1/auth/login-risk-check")
+        .send(payload);
+
+      expect(response.status).toBe(200);
+    }
+  });
+
   test("blocks repeated failed login attempts", async () => {
     const app = createApp();
     const payload = {

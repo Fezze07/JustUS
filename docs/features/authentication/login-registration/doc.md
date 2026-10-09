@@ -287,6 +287,20 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 - Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails. Increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
 - Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. A successful login clears the counter through `clearFailedLogins()` in the session-sync handler.
 
+### Request Validation & Abuse Controls
+
+Both endpoints run `loginRiskSchema`, which requires a well-formed email (`z.string().email()`) and a `deviceFingerprint` of 12–128 characters; a malformed payload is rejected with `400 API-VALIDATION-001` before it reaches the risk engine.
+
+Because the routes are intentionally unsigned, abuse is bounded by a composite rate limiter (`loginRiskRateLimit` in [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js)):
+
+| Rule | Key | Window | Cap |
+|---|---|---|---|
+| `ip` | client IP | 60 s | 20 requests |
+| `device` | `deviceFingerprint` | 60 s | 10 requests |
+| `ip-email` | client IP, counting **distinct** emails | 60 s | 5 distinct emails |
+
+The `ip-email` rule counts how many *different* emails one IP presents per window — asking about the same email again is free — so a single source cannot enumerate addresses or inflate counters for many keys. Violations answer `429 SEC-BLOCK-001`.
+
 ---
 
 ## Error Handling
@@ -310,9 +324,9 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 
 During the reverse-engineering analysis, the following structural bugs, security flaws, and implementation inconsistencies were discovered:
 
-### 1. SECURITY RISK: Unprotected Backend Risk Check Endpoints
-- **Finding**: The Node backend risk check endpoints (`/login-risk-check` and `/login-attempt`) do not require request signing (`signed()` middleware is absent on these routes in `auth.routes.js`). Turnstile verification intentionally stays on Supabase Auth only (single-use token — it cannot also be consumed by the backend).
-- **Impact**: An attacker can flood `/login-risk-check` or `/login-attempt` with arbitrary email strings to manipulate strike counters or exhaustion limits.
+### 1. SECURITY RISK: Unsigned risk-check endpoints (residual, by design)
+- **Finding**: `POST /login-risk-check` and `POST /login-attempt` are intentionally unsigned — the single-use Turnstile token is consumed by Supabase Auth and cannot also be verified on the Node backend, so no `signed()` layer applies. Instead the routes rely on `loginRiskSchema` (email-shape + device-fingerprint validation), the composite rate limiter (20/min per IP, 10/min per device) and the 5-distinct-emails/min per-IP cap (see § Request Validation & Abuse Controls).
+- **Residual**: the endpoints accept unauthenticated input, so the protections are only as strong as the IP/device rate limits, which are in-memory and per-process. A distributed source (many IPs, or requests spread across backend instances) can still consume the request budget and add `loginAttempts` map entries, and it can observe the strike state of the exact `(email, deviceFingerprint, ip)` triple it presents — never another user's, because that triple is part of the counter key. These per-process semantics are tracked as a cross-cutting concern in Phase 10 (10.3–10.8).
 
 ---
 

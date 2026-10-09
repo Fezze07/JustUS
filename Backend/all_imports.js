@@ -45,6 +45,7 @@ module.exports = {
   get deleteUserR2Objects() { return require('./features/user/user.controller').deleteUserR2Objects; },
   get deviceKey() { return require('./utils/auth/rateLimitKeys').deviceKey; },
   get dispatchNotification() { return require('./features/notifications/notification.service').dispatchNotification; },
+  get emailValue() { return require('./utils/auth/rateLimitKeys').emailValue; },
   get env() { return require('./config/env').env; },
   get ERROR_CODES() { return require('./core/errors/AppError').ERROR_CODES; },
   get errorHandler() { return require('./middleware/errorHandler'); },

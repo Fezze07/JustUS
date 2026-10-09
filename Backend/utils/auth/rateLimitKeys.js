@@ -41,4 +41,19 @@ const userKey = (req) => req.user?.profileId;
  */
 const deviceKey = (req) => req.body?.deviceFingerprint;
 
-module.exports = { DEFAULT_WINDOW_MS, ipKey, userKey, deviceKey };
+/**
+ * Distinct-value extractor by email (from request body), lowercased and trimmed.
+ * Set as a rule's `distinctValue` so `createCompositeRateLimit` caps how many
+ * different emails one key (typically an IP) may present per window, instead of
+ * counting every request — bounding enumeration and per-key map growth.
+ * @param {import('express').Request} req
+ * @returns {string | undefined}
+ */
+const emailValue = (req) => {
+  const raw = req.body?.email;
+  if (typeof raw !== "string") return undefined;
+  const normalized = raw.trim().toLowerCase();
+  return normalized || undefined;
+};
+
+module.exports = { DEFAULT_WINDOW_MS, ipKey, userKey, deviceKey, emailValue };
