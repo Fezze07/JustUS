@@ -48,7 +48,7 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 | `_keyRefreshToken` | `refresh_token` | `String?` | `AuthState.setLoginData`, `tokenRefreshed` listener, `ApiService._tryRefreshToken` | `AuthState.init` (bootstrap); the Supabase SDK uses its own in-session refresh token for refreshes | Session lifetime | `deleteAll` | `deleteAll` | Manual refresh now delegates to `auth.refreshSession()`; this key is a cold-start mirror only (todo# 1.6) |
 | `_keyPartnerId` | `partner_id` | `int?` (stored as string) | `AuthState.setPartner`, `PartnerState.refreshFromRealtime` | `StorageService.getPartnerId` (all feature states/repos) | Partnership lifetime | `deleteAll` | `deleteAll` | Sentinel `-1` translated to `null` (`:207`) |
 | `_keyPartnershipId` | `partnership_id` | `int?` (stored as string) | `AuthState.setPartner`, `PartnerState.refreshFromRealtime` | `StorageService.getPartnershipId`, `AuthState.init` | Partnership lifetime | `deleteAll` | `deleteAll` | |
-| `_keyDeviceFingerprint` | `device_fingerprint` | `String` (UUID v4) | `StorageService.getOrCreateDeviceFingerprint` | `ApiService._buildHeaders`, `DeviceTokenService.getDeviceFingerprint`, `AuthState._syncBackendSession` | Device lifetime — **destroyed on logout** | `deleteAll` **deletes this** | `deleteAll` | See F-SC1 |
+| `_keyDeviceFingerprint` | `device_fingerprint` | `String` (UUID v4) | `StorageService.getOrCreateDeviceFingerprint` | `ApiService._buildHeaders`, `DeviceTokenService.getDeviceFingerprint`, `AuthState._syncBackendSession` | Device lifetime — persists logout; regenerates only on app-data clear / reinstall | **preserved** by `clearAll` | kept (wipe never touches secure storage) | Device attribute, not user data |
 | `_keyRequestBindingSecret` | `request_binding_secret` | `String?` | `AuthState._syncBackendSession` via `StorageService.saveRequestBindingSecret` | `ApiService._buildHeaders` | Session lifetime | `deleteAll` | `deleteAll` | Also bridges into `ApiService._cachedRequestBindingSecret`; if missing, `ApiService._buildHeaders` re-runs `_syncBackendSession` through `onMissingBindingSecret` before signing (deduplicated in-flight, 30s cooldown) |
 
 ### SharedPreferences — Authentication & Identity
@@ -204,10 +204,10 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 1. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
 2. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
-3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, which is read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes **all** secure storage keys.
-4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`.
+3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, `app_theme_mode`, and `notifications_enabled`, which are read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes the tokens/IDs, but `_keyDeviceFingerprint` is read before the `deleteAll()` and re-persisted after it, so it survives logout.
+4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`; the next `_buildHeaders` re-reads the preserved fingerprint from secure storage, so no new UUID is ever minted by a logout.
 
-**Net effect**: All cached feature data, identity, tokens, and the device fingerprint are wiped. The language preference (`app_language_code`) is preserved as a device-level preference. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) is **not** cleared. F-SC1 (fingerprint) and F-SC9 (media cache)
+**Net effect**: All cached feature data, identity, and tokens are wiped. The language (`app_language_code`), theme (`app_theme_mode`), notifications-enabled and **the device fingerprint** are preserved as device-level state. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) is **not** cleared (F-SC9).
 
 ---
 
@@ -226,18 +226,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 ---
 
 ## Edge Cases & Race Conditions
-
-### F-SC1: Logout destroys the device fingerprint
-
-**Evidence**: `FlutterSecureStorage.deleteAll()` at `storage_service.dart:392` removes `_keyDeviceFingerprint`. On next login, `getOrCreateDeviceFingerprint` generates a new UUID v4 (`:180–181`).
-
-**What**: The backend binds sessions to `device_fingerprint_hash` (`authMiddleware.js:170–171`, `session.utils.js:23–25`). A new fingerprint on each logout/reattempt resets the device identity, defeating risk-based detection (`authRisk.service.js:13–15`). The device fingerprint is intended to persist across sessions, not per-account.
-
-**Impact**: Backend login-risk tracking and session binding become ineffective after logout/re-login. A malicious user could bypass device-level login-rate restrictions by logging out and back in.
-
-**Confidence**: HIGH
-
----
 
 ### F-SC9: Media file cache not cleared on logout
 
@@ -291,11 +279,9 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 1. **PII in SharedPreferences plaintext**: `user_profile` and `partner_profile` JSON caches contain `email`, `authId`, and `partnershipCode` fields stored as unencrypted strings in SharedPreferences (`auth_models.dart:52–63`). On rooted/jailbroken devices, this data is accessible via filesystem inspection. Flutter secure storage is only used for tokens and IDs — not for profile PII. F-SC18 (MEDIUM confidence)
 
-2. **Device fingerprint deleted on logout**: F-SC1 details this. The fingerprint should persist across sessions for device-level security (risk analysis, session binding). Deleting it on logout defeats its purpose.
+2. **Media files not encrypted on disk**: flutter\_cache\_manager stores files in the app cache directory in plaintext. On a compromised device, cached R2 media (including profile pictures) is readable.
 
-3. **Media files not encrypted on disk**: flutter\_cache\_manager stores files in the app cache directory in plaintext. On a compromised device, cached R2 media (including profile pictures) is readable.
-
-4. **Binding secret bridge across layers**: `StorageService.saveRequestBindingSecret` at `:186–189` directly mutates `ApiService._cachedRequestBindingSecret` — a static field on a different class. This creates a hidden bidirectional dependency that makes the boundary between storage and networking porous.
+3. **Binding secret bridge across layers**: `StorageService.saveRequestBindingSecret` at `:186–189` directly mutates `ApiService._cachedRequestBindingSecret` — a static field on a different class. This creates a hidden bidirectional dependency that makes the boundary between storage and networking porous.
 
 ---
 
@@ -319,6 +305,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/test_helpers/mock_secure_storage.dart` | Mocks `flutter_secure_storage` platform channel for test isolation. |
 | `Flutter/test/drive_sync_test.dart` | F-SC7 deletion detection via row-count mismatch + full-refetch merge; matching row counts keep the incremental cursor path; a re-entering tab inside the 10 s probe TTL issues no new probe while a local mutation invalidates it at once. |
 | `Flutter/test/logout_state_reset_test.dart` | `drive.clear()` drops the memoized change probe, so the next account never inherits it. |
+| `Flutter/test/device_fingerprint_persistence_test.dart` | F-SC1: `clearAll()` preserves `_keyDeviceFingerprint` across a logout/login cycle (same UUID returned after `clearAll` + `clearHeadersCache`) while still wiping the session-bound secure storage values (user id, tokens, binding secret) and leaves the fingerprint intact. |
 | `Flutter/test/drive_cache_serialization_test.dart` | F-SC12: concurrent optimistic mutation + trailing refresh serialize their cache writes — the cache ends equal to the final in-memory drive list (no older snapshot clobbering a newer one). |
 | `Flutter/test/bucket_flush_test.dart` | F-SC13: app-pause and `dispose()` flush the pending 2s-debounced bucket cache write immediately. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
@@ -327,7 +314,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 | `Flutter/test/base_state_test.dart` | F-SM1/F-SM2: frame coalescing (`BaseState.notifyListeners`) — same-frame mutations collapse to one notification, a later frame notifies again, the pending flag resets even with no listener attached. `runSafe` loading/message contract, `handleResult` per-branch notification + `ErrorHandler` forwarding, `loadWithChangeDetection` ordering and fire-and-forget error absorption. Checkpoints: the real `BaseRepository.hasChanges` comparison against a mocked `SharedPreferences` and a stubbed server timestamp — absent checkpoint, unchanged timestamp, newer, older, the `EMPTY` sentinel, emptied table, and unparseable date on either side. Change gate: an unchanged server timestamp performs zero fetches **and** zero checkpoint writes and leaves the stored value byte-identical (with a positive control proving the gated writer is reachable), and `MoodState.initHome` keeps both the network and the `kMoods` checkpoint untouched while `hasNewMoods` is false, fetches both moods and advances the checkpoint when it is true, and stays closed when no user id is stored. |
 
-**Not covered by tests**: `StorageService` direct read/write paths (non-feature), `CheckpointMixin`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are covered — F-SC12/F-SC13; `BaseRepository.hasChanges` and `loadWithChangeDetection` are covered by `test/base_state_test.dart`, including the zero-fetch/zero-write outcome for an unchanged checkpoint.)
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature) apart from the fingerprint-preservation path (F-SC1), `CheckpointMixin`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are covered — F-SC12/F-SC13; `BaseRepository.hasChanges` and `loadWithChangeDetection` are covered by `test/base_state_test.dart`, including the zero-fetch/zero-write outcome for an unchanged checkpoint.)
 
 ---
 
@@ -354,6 +341,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `profile_pic_version` used to bust image cache | IMPLEMENTED (`v=` query param on the own-avatar URL + `evictAppMediaFile` on upload) |
 | `reportFailedLogin` wired from UI | IMPLEMENTED (`AuthState.login()` on every credential failure) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
+| Device fingerprint persistence across logout | IMPLEMENTED (preserved by `clearAll`, F-SC1) |
 | Theme preference persistence across restart + logout | IMPLEMENTED (`app_theme_mode`; restored pre-`runApp`, preserved by `clearAll`) |
 
 ---

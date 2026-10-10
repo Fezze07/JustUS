@@ -355,7 +355,7 @@ None currently identified.
 
 ## Edge Cases
 
-1. **Device Fingerprint Loss**: Clearing app data or reinstalling regenerates `_keyDeviceFingerprint` in `FlutterSecureStorage`. Subsequent API calls send a new `X-Device-Fingerprint`, triggering `AUTH_FAIL_006` ("Client binding mismatch") and forcing the user to log in again.
+1. **Device Fingerprint Loss**: The fingerprint lives in `FlutterSecureStorage` and deliberately **survives logout** — `StorageService.clearAll()` (`:453`) re-persists `_keyDeviceFingerprint` after `_secureStorage.deleteAll()`, so a logout/login cycle keeps the same `X-Device-Fingerprint` and never resets the backend strike key or session binding (F-SC1). It regenerates only when app data is cleared or the app is reinstalled; subsequent API calls then send a new `X-Device-Fingerprint`, triggering `AUTH_FAIL_006` ("Client binding mismatch") and forcing the user to log in again.
 2. **IP Address Mobility**: Moving between cellular and Wi-Fi changes `req.ip`. Because `isIpRangeChanged()` only logs a security event rather than throwing an exception, user sessions remain active without disruption.
 
 ---

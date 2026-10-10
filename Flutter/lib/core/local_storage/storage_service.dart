@@ -459,6 +459,8 @@ class StorageService {
     final preservedBool = <String, bool?>{
       _keyNotificationsEnabled: p.getBool(_keyNotificationsEnabled),
     };
+    final preservedFingerprint =
+        await _secureStorage.read(key: _keyDeviceFingerprint);
     await p.clear();
     for (final entry in preservedString.entries) {
       final value = entry.value;
@@ -473,6 +475,10 @@ class StorageService {
       }
     }
     await _secureStorage.deleteAll();
+    if (preservedFingerprint != null && preservedFingerprint.isNotEmpty) {
+      await _secureStorage.write(
+          key: _keyDeviceFingerprint, value: preservedFingerprint);
+    }
     _activePartnershipId = null;
     CacheService.setPartnership(null);
   }
