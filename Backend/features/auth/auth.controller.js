@@ -43,6 +43,7 @@ const updateDeviceToken = asyncHandler(async (req, res) => {
         user_agent: clientUserAgent,
         device_type: deviceType,
         last_ip: lastIp,
+        session_id: req.auth?.claims?.session_id ?? null,
         ...(locale && { locale }),
       },
       { onConflict: "device_token" }

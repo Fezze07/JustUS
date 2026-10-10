@@ -8,6 +8,7 @@ CREATE TABLE "public"."user_devices" (
   "device_token" text,
   "updated_at"   timestamp with time zone DEFAULT now(),
   "locale"       text,
+  "session_id"   uuid,
   CONSTRAINT "user_devices_device_token_key" UNIQUE (device_token),
   CONSTRAINT "user_devices_pkey" PRIMARY KEY (id),
   CONSTRAINT "user_devices_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
@@ -17,6 +18,8 @@ ALTER TABLE "public"."user_devices"
   ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX idx_user_devices_user_id ON public.user_devices USING btree (user_id);
+
+CREATE INDEX idx_user_devices_session_id ON public.user_devices USING btree (session_id);
 
 CREATE TRIGGER update_user_devices_updated_at
   BEFORE UPDATE ON public.user_devices

@@ -121,6 +121,7 @@ DECLARE
     'public.debug_wipe_user_data(integer)',
     'public.get_partnership_names(integer)',
     'public.handle_new_auth_user()',
+    'public.purge_user_devices_dead_sessions()',
     'public.update_game_question_status()'
   ];
   v_sig    text;

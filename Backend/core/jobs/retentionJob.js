@@ -3,7 +3,9 @@
  *
  * Runs scheduled cleanup jobs to enforce data-retention policies:
  *   - security_events, api_access_logs, api_error_logs → delete after LOG_RETENTION_DAYS
- *   - user_devices → delete unrefreshed rows after USER_DEVICE_RETENTION_DAYS (30 days)
+ *   - user_devices → delete rows whose auth.sessions link is dead (session
+ *     deleted at logout or past its not_after) plus unrefreshed rows after
+ *     USER_DEVICE_RETENTION_DAYS (30 days)
  *   - request_nonces → delete rows past their expires_at (default: daily sweep)
  *   - R2 incomplete multipart uploads → abort after MULTIPART_MAX_AGE_MS (default 48 h)
  *   - R2 orphaned finalized objects → delete after ORPHAN_MAX_AGE_MS (default 24 h)
@@ -83,14 +85,24 @@ async function sweepOldLogs() {
 async function sweepStaleUserDevices() {
   const cutoff = new Date(Date.now() - USER_DEVICE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   try {
+    const deadSessionPrune = await adminSupabase.rpc(
+      "purge_user_devices_dead_sessions"
+    );
+    if (deadSessionPrune.error) throw deadSessionPrune.error;
+
     const { error, count } = await adminSupabase
       .from("user_devices")
       .delete({ count: "exact" })
       .lt("updated_at", cutoff);
 
     if (error) throw error;
-    if (count > 0) {
-      logInfo("retention.user_devices", { deleted: count });
+
+    const byDeadSession = Number(deadSessionPrune.data) || 0;
+    const byAge = count ?? 0;
+    const deleted = byDeadSession + byAge;
+
+    if (deleted > 0) {
+      logInfo("retention.user_devices", { deleted, byDeadSession, byAge });
     }
   } catch (err) {
     await logError({ error: { message: err.message, name: err.name }, event: "retention.user_devices.failed" });

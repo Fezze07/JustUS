@@ -201,6 +201,37 @@ describe("auth routes", () => {
     expect(blocked.body.error.code).toBe("SEC-BLOCK-002");
   });
 
+  test("registers the device token with the caller's session id", async () => {
+    const userDevicesQuery = createQueryBuilder();
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "user_devices") {
+        return userDevicesQuery;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/device-token")
+      .send({
+        deviceToken: "fcm-token-that-is-long-enough",
+        locale: "it",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(userDevicesQuery.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 42,
+        device_token: "fcm-token-that-is-long-enough",
+        session_id: "session-1",
+        locale: "it",
+      }),
+      { onConflict: "device_token" }
+    );
+  });
+
   test("revokes only the caller's own device token row", async () => {
     const userDevicesQuery = createQueryBuilder();
 

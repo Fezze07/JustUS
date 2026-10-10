@@ -48,7 +48,7 @@ Both password writes end with `AuthState._revokeOtherSessions()` ([auth_state.da
 | No live session | the SDK sends nothing, so no revoke is attempted |
 
 - **Push registrations die with the sessions**: after revoking the other sessions, the client keeps its **own** device token and asks the backend to delete every *other* `user_devices` row (`POST /api/v1/auth/device-token-revoke-all`, middleware stack `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token-revoke-all")` → `validated({ body: revokeDeviceTokenSchema })`, same rate-limit bucket as the logout revoke). The delete is scoped `user_id = me AND device_token != mine`, so the caller's own pushes keep flowing. The deleted rows are **durable**: `POST /api/v1/auth/device-token` is `authenticated()`, and the other devices' Supabase sessions are already dead, so a revoked device gets `401` and cannot re-register. The same best-effort contract applies — a failure is logged and never fails the change, and a 5 s timeout (`sessionRevokeTimeout`) bounds it.
-- **Residual — push registrations survive only when the revoke-all cannot land**: if the local token is unresolvable the call is skipped outright (mirroring the logout revoke's `UNKNOWN_DEVICE_TOKEN` guard), and an offline call or a crash between the two revokes leaves the rows in place. Those rows then stop receiving pushes only when the device itself hits a `401` (and runs the [logout revoke](#logout)), or when the 30-day retention sweep ages them out.
+- **Residual — push registrations survive only when the revoke-all cannot land**: if the local token is unresolvable the call is skipped outright (mirroring the logout revoke's `UNKNOWN_DEVICE_TOKEN` guard), and an offline call or a crash between the two revokes leaves the rows in place. Those rows then stop receiving pushes only when the device itself hits a `401` (and runs the [logout revoke](#logout)), or when the retention sweep prunes them — rows whose `session_id` no longer resolves to a live session at the next sweep run, age-purged rows after `USER_DEVICE_RETENTION_DAYS`.
 - **Residual — the local token mirror is stale**: the re-auth `signInWithPassword` creates a *new* session on this device, and the subsequent `others` revoke deletes the older one that `AuthState._accessToken` / `StorageService` still hold. Harmless: every authenticated request and the Realtime JWT are read from the live SDK session, and the stale copy only feeds the `isLoggedIn` check.
 
 ---
@@ -102,17 +102,21 @@ static Future<String> getDeviceToken() async {
       user_agent: clientUserAgent,
       device_type: deviceType,
       last_ip: lastIp,
+      session_id: req.auth?.claims?.session_id ?? null,
       ...(locale && { locale }),
     },
     { onConflict: "device_token" }
   );
   ```
 
+- The upsert records the session that registered the token (`req.auth.claims.session_id`, resolved by the auth middleware) into `user_devices.session_id`. That session link is what lets the retention sweep prune rows whose session is gone even when the client-side logout revoke never lands — see [Logout](#logout) and [Notification Cleanup](#notification-cleanup). No FK constraint on the column: `auth.sessions` rows can disappear before the sweep runs, and a FK would auto-null the very pointer the sweep needs. Tokens from legacy tokens without a `session_id` claim store `NULL` and fall back to the age-based purge.
+
 #### Multi-User Device Replacement Behavior
 Because `onConflict: "device_token"` is used, if User A logs out and User B logs in on the **same physical device**:
 - User B's login triggers `updateDeviceToken()`.
 - The `user_devices` table row matching `device_token` is updated to set `user_id = userB.profileId`.
 - This automatically transfers push notification targeting to User B.
+- The same upsert overwrites `session_id` with User B's live session, so the row stays prunable but never pruned while that session is alive.
 
 ### Token Revocation
 
@@ -182,7 +186,7 @@ Logout Initiated (Profile / Partner Screen)
 | Hanging request | cut off by a 5 s timeout (`deviceRevokeTimeout`), teardown continues |
 | `401` after a failed refresh | reported as a `401` error result, **without** firing `ApiService.onSessionExpired` — that callback *is* `logout()`, so escalating here would re-enter the teardown |
 
-If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until re-registered or deleted by the periodic 30-day retention sweep (`sweepStaleUserDevices` in `retentionJob.js`), which purges rows whose `updated_at` timestamp predates 30 days (`USER_DEVICE_RETENTION_DAYS = 30`).
+If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until re-registered or deleted by the retention sweep (`sweepStaleUserDevices` in `retentionJob.js`). The row's `session_id` (recorded at registration from `req.auth.claims.session_id`) is what lets the cleanup converge without the client: the sweep first calls the `purge_user_devices_dead_sessions()` RPC, which deletes rows whose `session_id` has no `auth.sessions` counterpart left (a logout that reached GoTrue deleted it), or no counterpart still live (`not_after IS NULL OR not_after > now()`) — which is where an offline logout lands once its refresh window lapses and GoTrue removes the session. The age purge for rows whose `updated_at` predates `USER_DEVICE_RETENTION_DAYS = 30` remains the backstop for legacy registrations without a session link and for an app killed before `signOut()` ever fired — that session is still genuinely alive, so neither mechanism acts any sooner.
 
 ---
 
@@ -304,7 +308,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 - **Backend Row**: `logout()` deletes this device's row from `user_devices` via `POST /api/v1/auth/device-token-revoke` (`AuthState._revokeDeviceToken()`), scoped to the logged-out `user_id`. Once the row is gone the backend has no token to target for that account, so server-initiated pushes stop arriving on the device.
 - **Local FCM Token**: `logout()` still does **not** call `FirebaseMessaging.instance.deleteToken()`; the FCM registration itself stays valid on the device. That is harmless for targeting — with no `user_devices` row nothing is sent — and it keeps the next login cheap, since the same token is re-registered by the upsert. The token is re-registered at app start, at login, and on `onTokenRefresh`.
-- **Best-Effort**: an offline (or already-expired-session) logout skips the revoke and leaves the row behind. It self-heals on the next successful login from that device; until then a stale row can still receive pushes for a logged-out account.
+- **Best-Effort**: an offline (or already-expired-session) logout skips the revoke and leaves the row behind. The cleanup then converges server-side without the client: the row still carries the `session_id` of the session it registered, and `sweepStaleUserDevices` prunes rows whose session is gone or lapsed at its next run (see [Logout](#logout)). An app killed before `signOut()` is the one case that outlives both the revoke and the session prune — that session is still alive, so the row waits for the 30-day age purge.
 
 ---
 
@@ -320,7 +324,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 1. **Logout During Active HTTP Requests**: In-flight requests failing after `logout()` are handled by `_safeCall`. Since `StorageService` is already wiped, token refresh fails and no re-authentication state is modified.
 2. **Account Wipe Operating Without Logout**: `ProfileState.wipeAppData()` executes database purging without touching session tokens or clearing `AuthState`, allowing seamless app usage post-wipe. The push registration survives the wipe, which is correct: the session stays active.
 3. **Password Change on a Device with a Pre-existing Session**: the re-auth inside `changePassword` opens a *second* session for this same device, so the `others` revoke deletes the session the app was using before the change. Only its copy in `AuthState._accessToken` / `StorageService` is affected — requests and the Realtime JWT read the live SDK session, so nothing breaks, but those stored values are dead tokens until the next refresh.
-4. **Password Change While Other Devices Are Logged In**: those devices lose API access immediately (their `auth.sessions` rows are gone), and their `user_devices` rows are deleted at once by the revoke-all (`POST /api/v1/auth/device-token-revoke-all`), so server-initiated pushes stop with the sessions — see [Other-Session Revocation](#other-session-revocation). If that best-effort call cannot land, they keep receiving pushes until they next hit a `401` and run the logout revoke, or until the 30-day retention sweep.
+4. **Password Change While Other Devices Are Logged In**: those devices lose API access immediately (their `auth.sessions` rows are gone), and their `user_devices` rows are deleted at once by the revoke-all (`POST /api/v1/auth/device-token-revoke-all`), so server-initiated pushes stop with the sessions — see [Other-Session Revocation](#other-session-revocation). If that best-effort call cannot land, they keep receiving pushes until they next hit a `401` and run the logout revoke, or until the retention sweep prunes them (dead-session rows at the next sweep run, otherwise the 30-day age window).
 5. **No Session Available for the Revoke**: `updatePasswordNew` runs from a recovery deep link; when no live session exists (link opened in a client that never resolved it) the SDK sends no revoke, so the other sessions survive. The password change itself still succeeds.
 
 ---
@@ -348,7 +352,8 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 ## Database Objects
 
-- **Table `user_devices`**: PostgreSQL table storing `user_id`, `device_token`, `user_agent`, `device_type`, `last_ip`, `locale`. Primary conflict target: `device_token`. No active/revoked flag: deactivation is a row delete, and the `logs_api_access` / `logs_api_errors` / `logs_security_events` foreign keys are `ON DELETE SET NULL`.
+- **Table `user_devices`**: PostgreSQL table storing `user_id`, `device_token`, `user_agent`, `device_type`, `last_ip`, `locale`, `session_id` (the `auth.sessions` row that registered the token; nullable, no FK — the dead-session sweep reads it). Primary conflict target: `device_token`. No active/revoked flag: deactivation is a row delete, and the `logs_api_access` / `logs_api_errors` / `logs_security_events` foreign keys are `ON DELETE SET NULL`.
+- **Function `purge_user_devices_dead_sessions`**: SECURITY DEFINER RPC invoked by the retention job, deletes `user_devices` rows whose `session_id` no longer resolves to a live `auth.sessions` row (gone, or past its `not_after`). Backend-only: revoked from PUBLIC/anon/authenticated, granted to postgres and service_role.
 - **Procedure `debug_wipe_user_data`**: Stored procedure executed during account wipe to erase user domain records.
 
 ---
@@ -366,4 +371,5 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 | In-Memory State Provider Cleanup | **IMPLEMENTED** | `onClearFeatureStates` hook wired in `RealtimeSyncScope` resets the six provider singletons |
 | Device Token Unregistration | **IMPLEMENTED** | `AuthState._revokeDeviceToken()` → `POST /api/v1/auth/device-token-revoke` (best-effort, 5 s cap) |
 | Other-Device Push Registration Revocation on Password Write | **IMPLEMENTED** | `AuthState._revokeOtherDeviceTokens()` → `POST /api/v1/auth/device-token-revoke-all` (best-effort, 5 s cap) |
+| Stale Registration Cleanup (dead-session + age) | **IMPLEMENTED** | `sweepStaleUserDevices` → `purge_user_devices_dead_sessions()` RPC (rows whose session is gone/lapsed die at the next run) + `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback |
 | Account Wipe (Debug Data Erase) | **IMPLEMENTED** | `debug_wipe_user_data` procedure |

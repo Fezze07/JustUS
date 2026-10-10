@@ -74,6 +74,7 @@ jest.mock("../config/db", () => {
   return {
     adminSupabase: {
       from: fromMock,
+      rpc: jest.fn().mockResolvedValue({ data: 0, error: null }),
     },
     __queryBuilder: queryBuilder,
     __fromMock: fromMock,
@@ -109,8 +110,11 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_api_access");
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_api_errors");
 
-    // 3. User devices sweep test (30-day cutoff)
+    // 3. User devices sweep test (dead-session prune + 30-day cutoff)
     expect(adminSupabase.from).toHaveBeenCalledWith("user_devices");
+    expect(adminSupabase.rpc).toHaveBeenCalledWith(
+      "purge_user_devices_dead_sessions"
+    );
     const userDeviceLtCalls = __queryBuilder.lt.mock.calls.filter(call => call[0] === "updated_at");
     expect(userDeviceLtCalls.length).toBeGreaterThan(0);
     const userDeviceCutoff = new Date(userDeviceLtCalls[0][1]).getTime();
@@ -134,6 +138,30 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(mockListObjects).toHaveBeenCalledWith("uploads/");
     expect(mockListObjects).toHaveBeenCalledWith("profile/");
     expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/stale_orphan.jpg"]);
+  });
+
+  test("ages out unrefreshed rows even when the dead-session prune found none", async () => {
+    adminSupabase.rpc.mockResolvedValue({ data: 4, error: null });
+    __queryBuilder.lt.mockResolvedValue({ error: null, count: 2 });
+
+    await startRetentionJobs();
+
+    expect(adminSupabase.rpc).toHaveBeenCalledWith(
+      "purge_user_devices_dead_sessions"
+    );
+    expect(__queryBuilder.lt).toHaveBeenCalledWith(
+      "updated_at",
+      expect.any(String)
+    );
+  });
+
+  test("swallows a dead-session prune failure so the remaining sweeps still run", async () => {
+    adminSupabase.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "rpc rejected" },
+    });
+
+    await expect(startRetentionJobs()).resolves.toBeUndefined();
   });
 });
 
