@@ -81,6 +81,12 @@ class AuthRepository extends BaseRepository {
     return _api.revokeDeviceToken(deviceToken);
   }
 
+  /// Drops every other push registration of the account, keeping [keepDeviceToken]'s.
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
+      String keepDeviceToken) async {
+    return _api.revokeOtherDeviceTokens(keepDeviceToken);
+  }
+
   Future<void> signOut() async {
     await sbClient.auth.signOut();
   }

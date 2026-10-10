@@ -454,6 +454,21 @@ class ApiService {
     );
   }
 
+  /// Deletes every `user_devices` row of this account except the caller's own,
+  /// so the push registrations die with the sessions a password change revokes.
+  /// Best-effort like [revokeDeviceToken]: a failure must never affect the
+  /// password change it follows, and a 401 must not re-enter the teardown.
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
+      String keepDeviceToken) async {
+    return _post(
+      ApiRoutes.authDeviceTokenRevokeAll,
+      body: {'deviceToken': keepDeviceToken},
+      requireSignature: true,
+      notifySessionExpired: false,
+      label: 'Revoke Other Device Tokens',
+    );
+  }
+
   Future<ResultWrapper<Map<String, dynamic>>> inviteUser(
       Map<String, dynamic> body) async {
     return _post(ApiRoutes.authInvite, body: body, label: 'Invite User');

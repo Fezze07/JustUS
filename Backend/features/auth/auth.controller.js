@@ -76,6 +76,27 @@ const revokeDeviceToken = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+const revokeOtherDeviceTokens = asyncHandler(async (req, res) => {
+  const { deviceToken } = req.body;
+  const userId = req.user.profileId;
+
+  const { error: deleteError } = await adminSupabase
+    .from("user_devices")
+    .delete()
+    .eq("user_id", userId)
+    .neq("device_token", deviceToken);
+
+  if (deleteError) {
+    throw new AppError({
+      errorKey: "DB_WRITE_001",
+      message: "Failed to revoke other device tokens",
+      details: deleteError,
+    });
+  }
+
+  res.json({ success: true });
+});
+
 const checkLoginRiskController = asyncHandler(async (req, res) => {
   const result = checkLoginRisk({
     email: req.body.email,
@@ -203,6 +224,7 @@ const invitePartnerController = asyncHandler(async (req, res) => {
 module.exports = {
   updateDeviceToken,
   revokeDeviceToken,
+  revokeOtherDeviceTokens,
   checkLoginRiskController,
   registerFailedLoginController,
   bindSessionController,

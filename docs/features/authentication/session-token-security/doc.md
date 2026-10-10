@@ -164,7 +164,7 @@ On HTTP `401`, `ApiService._safeCall`:
 
 A password write is the only operation in the app that ends other sessions.
 
-- File: [auth_repository.dart:89-94](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L89-L94) & [auth_state.dart:781-799](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L781-L799)
+- File: [auth_repository.dart:85-99](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L85-L99) & [auth_state.dart:783-817](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L783-L817)
 - Called by `AuthState.changePassword()` (authenticated flow) and `AuthState.updatePasswordNew()` (recovery deep link) after `auth.updateUser(password:)` succeeds.
 
 ```
@@ -183,8 +183,9 @@ The live session and the Realtime JWT are untouched; the secure-storage mirror k
 
 - **Scope `others` keeps the caller alive**: the SDK sends no local `signOut()` and fires no `signedOut` event for this scope, so `AuthState.logout()` is not triggered and the device that changed the password stays in.
 - **Effect on the other devices**: GoTrue runs `DELETE FROM auth.sessions WHERE id != <current>` on scope `others`, so their refresh tokens *and* their unexpired access tokens are rejected at once — every authenticated call resolves the JWT's `session_id`, and a missing session answers `session_not_found` before the 1 h JWT lifetime matters. `authenticateToken` maps that to `AUTH_FAIL_001` (`401`), which drives the other device through the standard [401 handling](#401-handling--request-retry): the refresh fails, `onSessionExpired` logs it out and its device-token row is revoked.
-- **Best-effort**: the revoke runs after the password is already written, is bounded by a 5 s timeout and swallows its errors, so a failed revoke never turns a successful change into a failure. When it does not land, the other sessions survive until their tokens expire.
-- **Not covered**: the backend-side traces of the other sessions (`auth_sessions` rows, `user_devices` push registrations) are untouched — see [account-lifecycle](../features/authentication/account-lifecycle/doc.md#other-session-revocation).
+- **Best-effort**: the revokes run after the password is already written, are each bounded by a 5 s timeout and swallow their errors, so a failed revoke never turns a successful change into a failure. When `signOut(others)` does not land, the other sessions survive until their tokens expire; when `POST /api/v1/auth/device-token-revoke-all` does not land, the other `user_devices` rows survive until they hit a `401` (logout revoke) or age out of the 30-day retention sweep.
+- **Push registrations die with the sessions**: right after `signOut(others)`, the client posts its own token to `POST /api/v1/auth/device-token-revoke-all` (authenticated + signed + rate-limited). The backend deletes every row of the account except the caller's own, so a revoked device stops receiving pushes *now* — and cannot re-register, because the same route that registers rows is `authenticated()` and its session is already gone.
+- **Not covered**: the `auth_sessions` rows themselves (GoTrue's side) are never removed by the backend — the tokens are rejected purely by `session_id` resolution. See [account-lifecycle](../features/authentication/account-lifecycle/doc.md#other-session-revocation).
 
 ---
 
@@ -299,7 +300,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 
 ### HMAC Relationship
 
-- **Purpose**: High-risk routes (`/auth/device-token`, `/auth/device-token-revoke`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
+- **Purpose**: High-risk routes (`/auth/device-token`, `/auth/device-token-revoke`, `/auth/device-token-revoke-all`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
 - **Secret Generation**: Created via `crypto.randomBytes(32).toString("hex")` in `generateBindingSecret()`.
 - **Secret Lifecycle**:
   - Generated on backend during `/auth/session-bind`.
@@ -365,7 +366,7 @@ None currently identified.
 - [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart): Core HTTP client, `_buildHeaders()`, `_safeCall()`, `_tryRefreshToken()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Secure storage wrapper for access token, refresh token, fingerprint, binding secret.
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): Global auth state, session initialization, lifecycle locale sync.
-- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`).
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`) and `revokeOtherDeviceTokens()` (`POST /auth/device-token-revoke-all`).
 
 ### Backend Node.js
 - [authMiddleware.js](file:///f:/JustUS/Backend/middleware/authMiddleware.js): `authenticateToken()`, `verifyToken()`, profile resolution, session binding validation.
@@ -394,7 +395,7 @@ None currently identified.
 | Supabase JWT Authentication | **IMPLEMENTED** | Verified via `authSupabase.auth.getUser` |
 | Token Storage (`FlutterSecureStorage`) | **IMPLEMENTED** | Secure storage wrapper |
 | Token Refresh (SDK-mediated) | **IMPLEMENTED** | `Supabase.refreshSession()` owns refresh; the backend `/auth/refresh` proxy no longer exists. One path, one rotation |
-| Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` after `updateUser(password:)`; current session kept, revoke best-effort (5 s cap) |
+| Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` + `POST /auth/device-token-revoke-all` after `updateUser(password:)`; current session and its push registration kept, both revokes best-effort (5 s cap) |
 | Token Lifetime Policy Enforcement | **IMPLEMENTED** | Checked in `tokenUtils.js` |
 | Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |

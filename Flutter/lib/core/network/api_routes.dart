@@ -12,6 +12,8 @@ class ApiRoutes {
   static const String authDeviceToken = '$apiPrefix/auth/device-token';
   static const String authDeviceTokenRevoke =
       '$apiPrefix/auth/device-token-revoke';
+  static const String authDeviceTokenRevokeAll =
+      '$apiPrefix/auth/device-token-revoke-all';
   static const String authInvite = '$apiPrefix/auth/invite';
   static const String authLoginRiskCheck = '$apiPrefix/auth/login-risk-check';
   static const String authLoginAttempt = '$apiPrefix/auth/login-attempt';

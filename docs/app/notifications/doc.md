@@ -164,8 +164,28 @@ await adminSupabase
 - **Scoped by `user_id`**: `device_token` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
 - Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
 - Client side: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
-- Unrevoked stale rows (e.g. offline logout or session expiration) are deleted by the periodic 30-day retention job (`sweepStaleUserDevices` in `retentionJob.js`, `USER_DEVICE_RETENTION_DAYS = 30`), ensuring unrefreshed registrations cannot be targeted indefinitely.
+- Unrevoked stale rows (e.g. offline logout, session expiration, or a password-change revoke-all that could not land) are deleted by the periodic 30-day retention job (`sweepStaleUserDevices` in `retentionJob.js`, `USER_DEVICE_RETENTION_DAYS = 30`), ensuring unrefreshed registrations cannot be targeted indefinitely.
 - The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same token via the upsert.
+
+### Backend other-device revocation — `POST /api/v1/auth/device-token-revoke-all`
+
+A password change kills every *other* session of the account ([account-lifecycle — Other-Session Revocation](../features/authentication/account-lifecycle/doc.md#other-session-revocation)), and the `user_devices` rows must die with them: otherwise a stolen or abandoned device keeps receiving the account's pushes until it 401s or ages out.
+
+`revokeOtherDeviceTokens` (`auth.controller.js:79-101`):
+
+```js
+await adminSupabase
+  .from("user_devices")
+  .delete()
+  .eq("user_id", userId)
+  .neq("device_token", deviceToken);
+```
+
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token-revoke-all")` → `validated({body: revokeDeviceTokenSchema })` (`auth.routes.js:79-89`), sharing `authRateLimit`.
+- **Keeps the caller's own row**: the `device_token` in the body is the one to keep, so the device changing the password does not lose its pushes.
+- **The delete is durable**: the registration route is `authenticated()`, and the other devices' Supabase sessions were already revoked by `signOut(scope: others)`, so a deleted device cannot re-register — its requests answer `401`.
+- Idempotent and fail-safe: nothing to delete answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
+- Client side: `AuthRepository.revokeOtherDeviceTokens()` → `ApiService.revokeOtherDeviceTokens()`, called by `AuthState._revokeOtherDeviceTokens()` (`auth_state.dart:797-817`) immediately after `_revokeOtherSessions()` on both password writes (`changePassword`, `updatePasswordNew`). Best-effort like the logout revoke: 5 s cap, errors swallowed, `401` does not re-enter the teardown, and an unresolvable token skips the call — the 30-day retention sweep above is the backstop.
 
 ---
 
@@ -481,6 +501,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Token refresh re-registration | IMPLEMENTED |
 | Locale sync on resume / language change | IMPLEMENTED |
 | Token revocation at logout (`POST /auth/device-token-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
+| Other-device token revocation on password write (`POST /auth/device-token-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
 | JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
 | Request signing on notify endpoint | NOT IMPLEMENTED (F-PN10) |
@@ -512,7 +533,7 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`.
+`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`. `POST /auth/device-token-revoke-all` is asserted to delete every row but the one whose token is in the body (`eq user_id`, `neq device_token`), with the same failure and validation cases.
 
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, token cleanup, locale grouping, invalid-token deletion, or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 

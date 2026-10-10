@@ -20,6 +20,7 @@ const API_V1_PATHS = {
   authInvite: `${API_V1_PREFIX}/auth/invite`,
   authDeviceToken: `${API_V1_PREFIX}/auth/device-token`,
   authDeviceTokenRevoke: `${API_V1_PREFIX}/auth/device-token-revoke`,
+  authDeviceTokenRevokeAll: `${API_V1_PREFIX}/auth/device-token-revoke-all`,
   mediaFile: `${API_V1_PREFIX}/media/file`,
   mediaDelete: `${API_V1_PREFIX}/media/delete`,
   userWipe: `${API_V1_PREFIX}/users/wipe`,

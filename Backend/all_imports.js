@@ -103,6 +103,7 @@ module.exports = {
   get resolveNotificationTarget() { return require('./features/notifications/notification.service').resolveNotificationTarget; },
   get revokeDeviceToken() { return require('./features/auth/auth.controller').revokeDeviceToken; },
   get revokeDeviceTokenSchema() { return require('./features/auth/auth.schemas').revokeDeviceTokenSchema; },
+  get revokeOtherDeviceTokens() { return require('./features/auth/auth.controller').revokeOtherDeviceTokens; },
   get sanitizePayload() { return require('./core/logger').sanitizePayload; },
   get sanitizeRequest() { return require('./middleware/sanitizeRequest'); },
   get saveEntry() { return require('./core/infra/idempotencyStore').saveEntry; },

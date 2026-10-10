@@ -439,6 +439,7 @@ class AuthState extends BaseState
       }
 
       await _revokeOtherSessions();
+      await _revokeOtherDeviceTokens();
     });
   }
 
@@ -500,6 +501,7 @@ class AuthState extends BaseState
       }
 
       await _revokeOtherSessions();
+      await _revokeOtherDeviceTokens();
 
       return ChangePasswordResult.success;
     } catch (e, st) {
@@ -785,6 +787,33 @@ class AuthState extends BaseState
           tag: 'AuthState');
     } catch (e) {
       AnsiLogger.error('Other session revoke failed: $e', tag: 'AuthState');
+    }
+  }
+
+  /// Keeps the caller's own row and deletes every other `user_devices` row, so
+  /// the push registrations die with the sessions `_revokeOtherSessions` just
+  /// killed. Strictly best-effort and bounded by [sessionRevokeTimeout]; an
+  /// unresolvable local token skips the call and leaves the 30-day retention
+  /// sweep (`sweepStaleUserDevices`) as the backstop.
+  Future<void> _revokeOtherDeviceTokens() async {
+    try {
+      final keepToken = await DeviceTokenService.getDeviceToken();
+      if (keepToken.isEmpty || keepToken == 'UNKNOWN_DEVICE_TOKEN') return;
+
+      final result =
+          await _authRepo.revokeOtherDeviceTokens(keepToken).timeout(
+                _sessionRevokeTimeout,
+              );
+      if (result is Success) {
+        AnsiLogger.auth('Other device tokens revoked after password change',
+            tag: 'AuthState');
+      } else {
+        AnsiLogger.error('Other device token revoke failed: $result',
+            tag: 'AuthState');
+      }
+    } catch (e) {
+      AnsiLogger.error('Other device token revoke failed: $e',
+          tag: 'AuthState');
     }
   }
 }

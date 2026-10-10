@@ -14,10 +14,17 @@ import 'test_helpers/mock_secure_storage.dart';
 /// password is already changed when it runs, so it must not turn a successful
 /// change into a failure.
 class _RecordingAuthRepository extends AuthRepository {
-  _RecordingAuthRepository({this.onRevoke, this.reAuthError});
+  _RecordingAuthRepository({
+    this.onRevoke,
+    this.onDeviceRevoke,
+    this.reAuthError,
+    this.deviceRevokeError,
+  });
 
   final Future<void> Function()? onRevoke;
+  final Future<void> Function()? onDeviceRevoke;
   final Object? reAuthError;
+  final Object? deviceRevokeError;
   final List<String> calls = [];
 
   static final sb.Session _session = sb.Session(
@@ -68,6 +75,16 @@ class _RecordingAuthRepository extends AuthRepository {
     calls.add('revokeOtherSessions');
     await onRevoke?.call();
   }
+
+  @override
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
+      String keepDeviceToken) async {
+    calls.add('revokeOtherDeviceTokens:$keepDeviceToken');
+    final error = deviceRevokeError;
+    if (error != null) return GenericError(message: '$error');
+    await onDeviceRevoke?.call();
+    return const Success(<String, dynamic>{'success': true});
+  }
 }
 
 class _NoSessionAuthRepository extends _RecordingAuthRepository {
@@ -97,10 +114,17 @@ AuthState _stateWith(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  const String kKeepToken = 'fcm-token-kept-by-the-caller-0123456789';
+
   setUp(() {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    DeviceTokenService.tokenOverride = () async => kKeepToken;
+  });
+
+  tearDown(() {
+    DeviceTokenService.tokenOverride = null;
   });
 
   test('a password change signs the other sessions out', () async {
@@ -113,10 +137,15 @@ void main() {
     );
 
     expect(result, ChangePasswordResult.success);
-    // The revoke runs last: the password must already be written, and it needs
-    // the session created by the re-auth to stay untouched.
-    expect(repo.calls,
-        ['signInWithPassword', 'changePassword', 'revokeOtherSessions']);
+    // The session revoke runs last, followed by the push-registration revoke:
+    // the password must already be written, and each needs the session created
+    // by the re-auth to stay untouched.
+    expect(repo.calls, [
+      'signInWithPassword',
+      'changePassword',
+      'revokeOtherSessions',
+      'revokeOtherDeviceTokens:$kKeepToken',
+    ]);
     expect(state.isLoading, isFalse);
   });
 
@@ -126,7 +155,11 @@ void main() {
 
     expect(await state.updatePasswordNew('new-password'), isTrue);
 
-    expect(repo.calls, ['updatePasswordWithoutCurrent', 'revokeOtherSessions']);
+    expect(repo.calls, [
+      'updatePasswordWithoutCurrent',
+      'revokeOtherSessions',
+      'revokeOtherDeviceTokens:$kKeepToken',
+    ]);
   });
 
   test('a failed revoke never turns a successful change into a failure',
@@ -144,6 +177,7 @@ void main() {
     expect(result, ChangePasswordResult.success);
     expect(repo.calls, contains('changePassword'));
     expect(repo.calls, contains('revokeOtherSessions'));
+    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
     expect(state.isLoading, isFalse);
   });
 
@@ -164,6 +198,58 @@ void main() {
 
     expect(result, ChangePasswordResult.success);
     expect(repo.calls, contains('revokeOtherSessions'));
+    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+  });
+
+  test('a failing push-registration revoke never fails the change', () async {
+    final repo = _RecordingAuthRepository(
+      deviceRevokeError: 'backend rejected the delete',
+    );
+    final state = _stateWith(repo);
+
+    final result = await state.changePassword(
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    );
+
+    expect(result, ChangePasswordResult.success);
+    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+  });
+
+  test('a push-registration revoke that never answers does not block the change',
+      () async {
+    final repo =
+        _RecordingAuthRepository(onDeviceRevoke: () => Completer<void>().future);
+    final state = _stateWith(repo);
+
+    final result = await state
+        .changePassword(
+          currentPassword: 'old-password',
+          newPassword: 'new-password',
+        )
+        .timeout(const Duration(seconds: 10));
+
+    expect(result, ChangePasswordResult.success);
+    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+  });
+
+  test('an unresolvable local token skips the revoke-all but not the sessions',
+      () async {
+    DeviceTokenService.tokenOverride = () async => 'UNKNOWN_DEVICE_TOKEN';
+    final repo = _RecordingAuthRepository();
+    final state = _stateWith(repo);
+
+    final result = await state.changePassword(
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    );
+
+    expect(result, ChangePasswordResult.success);
+    expect(repo.calls, [
+      'signInWithPassword',
+      'changePassword',
+      'revokeOtherSessions',
+    ]);
   });
 
   test('a wrong current password never reaches the revoke', () async {

@@ -158,7 +158,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 Every feature exposes `*Repository extends BaseRepository`:
 
-- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`, run after a password write), `changePassword`, `updatePasswordWithoutCurrent`, `updateDeviceToken` (backend, signed).
+- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherDeviceTokens` (`POST /auth/device-token-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateDeviceToken` (backend, signed).
 - `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `sendPartnerRequest` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `GameQuestionBankRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase tables/views/RPCs); `DriveRepository`, `UserRepository` and `VersionRepository` also make signed backend calls for media, notifications and version checks where needed.
 
