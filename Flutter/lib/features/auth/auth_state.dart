@@ -742,6 +742,7 @@ class AuthState extends BaseState
     await CacheService.clearAll();
     await StorageService.clearAll();
     ApiService.clearHeadersCache();
+    await emptyAppMediaCaches();
     _accessToken = null;
     _refreshToken = null;
     _username = null;

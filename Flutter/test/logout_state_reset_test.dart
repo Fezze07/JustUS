@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:justus/all_imports.dart';
+import 'test_helpers/mock_path_provider.dart';
 import 'test_helpers/mock_secure_storage.dart';
 
 /// Regression tests for 4.9 / F-SM7: logout must reset the six feature states
@@ -132,6 +133,7 @@ void main() {
 
   setUp(() {
     installMockSecureStorage();
+    installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
   });

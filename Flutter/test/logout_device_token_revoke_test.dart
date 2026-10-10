@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:justus/all_imports.dart';
+import 'test_helpers/mock_path_provider.dart';
 import 'test_helpers/mock_secure_storage.dart';
 
 /// Regression tests for 9.2: logout must drop the push registration for this
@@ -45,6 +46,7 @@ void main() {
 
   setUp(() {
     installMockSecureStorage();
+    installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
     DeviceTokenService.tokenOverride = () async => kTestFcmToken;

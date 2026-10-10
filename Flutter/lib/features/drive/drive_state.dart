@@ -410,13 +410,6 @@ class DriveState extends BaseState with CheckpointMixin {
     }, showLoading: false);
   }
 
-  // ---------------------------------------------------------------------------
-  // Cache management
-  // ---------------------------------------------------------------------------
-  Future<void> clearMediaCache() async {
-    await emptyAppMediaCaches();
-  }
-
   void clear() {
     _driveItems = [];
     _rebuildFavorites();

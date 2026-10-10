@@ -101,8 +101,8 @@ There are **three coordinated logout/invalidation mechanisms** — `StorageServi
 
 | Manager | Cache key / DB name | Max objects | Stale period | URL keys used | Consumer | Clear on logout/wipe? |
 |---|---|---|---|---|---|---|
-| `MediaCacheManager` (singleton) | `justus_media_cache` | 300 | 30 days | `item.content` (raw R2 filename like `drive/...`) from drive grid; resolved `?filename=...` URL from `VPAvatar` — the own avatar carries `&v=<profile_pic_version>` (`ApiService.versionedMediaUrl`) | `DriveScreen._buildGridViewCell` (`:317`), `VPAvatar` (`:201–203`), via `CachedNetworkImage` | **NO** — `emptyCache()` exists in `DriveState` (`:282`) but is **never called** from UI. `DriveState.clearMediaCache` is dead code. Single-file eviction (`evictAppMediaFile`) is used by the profile-photo upload only. |
-| Default (`DefaultCacheManager`) | `libCachedImageData` (default) | default | 1 week default | Resolved `/api/v1/media/file?filename=...` URL from `drive_grid_item.dart:68`, `protected_network_image.dart:31` (no cacheManager param) | `DriveGridItem._buildContent` (`:79`), `ProtectedNetworkImage` in drive\_item\_screen (`:281`), `VPAvatar` fallback in vp\_widgets if cacheManager passed as default | **NO** |
+| `MediaCacheManager` (singleton) | `justus_media_cache` | 300 | 30 days | `item.content` (raw R2 filename like `drive/...`) from drive grid; resolved `?filename=...` URL from `VPAvatar` — the own avatar carries `&v=<profile_pic_version>` (`ApiService.versionedMediaUrl`) | `DriveScreen._buildGridViewCell` (`:317`), `VPAvatar` (`:201–203`), via `CachedNetworkImage` | **YES** — `emptyAppMediaCaches()` from both `logout()` and `wipeAppData()` (F-SC9 resolved); single-file eviction (`evictAppMediaFile`) on profile-photo upload |
+| Default (`DefaultCacheManager`) | `libCachedImageData` (default) | default | 1 week default | Resolved `/api/v1/media/file?filename=...` URL from `drive_grid_item.dart:68`, `protected_network_image.dart:31` (no cacheManager param) | `DriveGridItem._buildContent` (`:79`), `ProtectedNetworkImage` in drive\_item\_screen (`:281`), `VPAvatar` fallback in vp\_widgets if cacheManager passed as default | **YES** — cleared by the same `emptyAppMediaCaches()` on logout + wipe |
 
 ---
 
@@ -190,8 +190,8 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 | Cache | Expiration | Eviction | Max size | Notes |
 |---|---|---|---|---|
-| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Cleared on wipe; not cleared on logout. |
-| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on wipe; not cleared on logout. |
+| `MediaCacheManager` (file cache) | `stalePeriod = 30 days` | LRU after 300 objects (`maxNrOfCacheObjects`) | 300 objects | `flutter_cache_manager` internal SQLite DB. Cleared on logout and wipe (`emptyAppMediaCaches()`). |
+| `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on logout and wipe (`emptyAppMediaCaches()`). |
 | SharedPreferences feature caches | **No TTL** | Never evicted | N/A | Overwritten on each fetch. Multiple concurrent writes can race (see §Edge Cases). |
 | Checkpoints | **No TTL** | Never evicted until overwritten | N/A | Reset on logout (`CacheService.clearAll`), **wipe** (`CacheService.clearAll` from `wipeAppData`), or explicit force-refresh (`clearCheckpoints`). |
 | `PartnershipRepository._activePartnershipFuture` | In-memory only | Invalidated by `clearPartnershipCache()` or user-id mismatch detection | 1 future | Static map in `PartnershipRepository` (`:9–10`). Clears on realtime partnership event, but **not** on logout. Self-heals on next call with different user-id. |
@@ -200,20 +200,21 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ## Logout Behavior
 
-`AuthState.logout()` (`:534–548` of `auth_state.dart`):
+`AuthState.logout()` (`:739–757` of `auth_state.dart`):
 
 1. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
 2. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
 3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, `app_theme_mode`, and `notifications_enabled`, which are read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes the tokens/IDs, but `_keyDeviceFingerprint` is read before the `deleteAll()` and re-persisted after it, so it survives logout.
 4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`; the next `_buildHeaders` re-reads the preserved fingerprint from secure storage, so no new UUID is ever minted by a logout.
+5. `emptyAppMediaCaches()` — empties both on-disk media stores, `MediaCacheManager` and `DefaultCacheManager`, so the previous account's profile pictures and drive media never survive into the next session. Best-effort: platform failures are logged and never block logout (same helper `wipeAppData` uses).
 
-**Net effect**: All cached feature data, identity, and tokens are wiped. The language (`app_language_code`), theme (`app_theme_mode`), notifications-enabled and **the device fingerprint** are preserved as device-level state. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) is **not** cleared (F-SC9).
+**Net effect**: All cached feature data, identity, and tokens are wiped. The language (`app_language_code`), theme (`app_theme_mode`), notifications-enabled and **the device fingerprint** are preserved as device-level state. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) **is** cleared by `emptyAppMediaCaches()` (F-SC9 resolved).
 
 ---
 
 ## Wipe Behavior
 
-`ProfileState.wipeAppData()` (`:139–149` of `profile_state.dart`):
+`ProfileState.wipeAppData()` (`:151–163` of `profile_state.dart`):
 1. Backend `POST /api/v1/user/wipe` — server deletes the user's data.
 2. `StorageService.clearAppCache()` — removes the feature-cache SharedPreferences keys.
 3. `CacheService.clearAll()` — removes all 6 checkpoint keys (base + scoped variants).
@@ -226,18 +227,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 ---
 
 ## Edge Cases & Race Conditions
-
-### F-SC9: Media file cache not cleared on logout
-
-**Evidence**: `logout()` at `auth_state.dart:534–548` clears SharedPreferences and secure storage but not the flutter\_cache\_manager file store — the wipe path clears it (`emptyAppMediaCaches()`, see Wipe Behavior) but logout does not. `DriveState.clearMediaCache()` (`:323–325`) delegates to `emptyAppMediaCaches()` but is still not wired into any UI/lifecycle hook.
-
-**What**: On a shared device, after logging out of account A and into account B, cached images from account A's media (profile pictures, drive images) remain on disk. If `CachedNetworkImage` is given the same URL key (e.g. a profile picture object key that happens to match), the old image from account A is shown to account B. In practice, R2 object keys include user-specific paths (e.g. `drive/42/...`), so direct cross-account display via the same key is unlikely — but the files remain on disk and are accessible via the app's cache directory.
-
-**Impact**: Privacy concern on shared devices. Cached files are not encrypted (flutter\_cache\_manager stores raw files in the app cache directory). Not a direct data-exposure bug (no R2 key reuse across accounts), but residual data persists.
-
-**Confidence**: MEDIUM (unlikely actual display cross-account, but files remain)
-
----
 
 ### F-SC15: `StorageService.prefs` async getter reinitializes if `_prefs` is null
 
@@ -310,17 +299,18 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `Flutter/test/bucket_flush_test.dart` | F-SC13: app-pause and `dispose()` flush the pending 2s-debounced bucket cache write immediately. |
 | `Flutter/test/partnership_scope_test.dart` | F-SC8: per-partnership namespacing of feature caches/checkpoints, no purge on same id, purge on transition, `clearPartner`/`clearAll`/`clearAppCache` namespace clearing. |
 | `Flutter/test/profile_state_test.dart` | F-SC10/F-SC11: `wipeAppData` clears checkpoints, feature caches and profile keys (runs with `test_helpers/mock_path_provider.dart` so `emptyAppMediaCaches` executes for real). F-SC2: `uploadProfilePhoto` persists a `profile_pic_version` that appears as `?v=` on `versionedProfilePicUrl`, a fresh `ProfileState` restores it, an unversioned profile renders the plain URL, and `clear()` drops it. |
+| `Flutter/test/logout_media_cache_clear_test.dart` | F-SC9: `logout()` — not just `wipeAppData` — empties both on-disk media stores: files seeded into `MediaCacheManager` via `putFile` are verified present before logout and gone after (falsifiable — reverting the `emptyAppMediaCaches()` call in logout breaks the test). Runs with `test_helpers/mock_path_provider.dart`. |
 | `Flutter/test/test_helpers/mock_path_provider.dart` | Mocks `plugins.flutter.io/path_provider` so `flutter_cache_manager` works in widget tests. |
 | `Flutter/test/api_service_test.dart` | Covers HTTP error handling — no storage-specific assertions. |
 | `Flutter/test/base_state_test.dart` | F-SM1/F-SM2: frame coalescing (`BaseState.notifyListeners`) — same-frame mutations collapse to one notification, a later frame notifies again, the pending flag resets even with no listener attached. `runSafe` loading/message contract, `handleResult` per-branch notification + `ErrorHandler` forwarding, `loadWithChangeDetection` ordering and fire-and-forget error absorption. Checkpoints: the real `BaseRepository.hasChanges` comparison against a mocked `SharedPreferences` and a stubbed server timestamp — absent checkpoint, unchanged timestamp, newer, older, the `EMPTY` sentinel, emptied table, and unparseable date on either side. Change gate: an unchanged server timestamp performs zero fetches **and** zero checkpoint writes and leaves the stored value byte-identical (with a positive control proving the gated writer is reachable), and `MoodState.initHome` keeps both the network and the `kMoods` checkpoint untouched while `hasNewMoods` is false, fetches both moods and advances the checkpoint when it is true, and stays closed when no user id is stored. |
 
-**Not covered by tests**: `StorageService` direct read/write paths (non-feature) apart from the fingerprint-preservation path (F-SC1), `CheckpointMixin`, media-cache clearing on **logout**, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are covered — F-SC12/F-SC13; `BaseRepository.hasChanges` and `loadWithChangeDetection` are covered by `test/base_state_test.dart`, including the zero-fetch/zero-write outcome for an unchanged checkpoint.)
+**Not covered by tests**: `StorageService` direct read/write paths (non-feature) apart from the fingerprint-preservation path (F-SC1), `CheckpointMixin`, `CacheService.needsRefresh`. (Concurrent cache write races and bucket dispose/app-pause flush are covered — F-SC12/F-SC13; `BaseRepository.hasChanges` and `loadWithChangeDetection` are covered by `test/base_state_test.dart`, including the zero-fetch/zero-write outcome for an unchanged checkpoint. Media-cache clearing is covered on both paths — logout by `test/logout_media_cache_clear_test.dart`, wipe by `test/profile_state_test.dart`.)
 
 ---
 
 ## Known Issues
 
-- `DriveState.clearMediaCache()` delegates to `emptyAppMediaCaches()` but is still not called from any UI/lifecycle hook (the wipe path calls the helper directly). F-SC9
+None.
 
 ---
 
@@ -333,11 +323,11 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `CheckpointMixin` (max-timestamp checkpoint) | IMPLEMENTED |
 | `loadWithChangeDetection` (cache → checkpoint → fire-and-forget network) | IMPLEMENTED |
 | `MediaCacheManager` (R2 file cache, 30-day TTL, 300 items) | IMPLEMENTED |
-| `MediaCacheManager.emptyCache()` wired to UI | NOT IMPLEMENTED (dead code) |
+| `MediaCacheManager.emptyCache()` wired to UI | IMPLEMENTED (`emptyAppMediaCaches()` from `logout()` + `wipeAppData`) |
 | JSON encode/decode offloaded via `compute()` | IMPLEMENTED |
 | Feature cache invalidation on partnership change | IMPLEMENTED (namespaced + purged on transition) |
 | Media cache clearing on wipe | IMPLEMENTED (F-SC11: `emptyAppMediaCaches` from `wipeAppData`) |
-| Media cache clearing on logout | NOT IMPLEMENTED (F-SC9) |
+| Media cache clearing on logout | IMPLEMENTED (F-SC9 resolved: `emptyAppMediaCaches` from `logout()`) |
 | `profile_pic_version` used to bust image cache | IMPLEMENTED (`v=` query param on the own-avatar URL + `evictAppMediaFile` on upload) |
 | `reportFailedLogin` wired from UI | IMPLEMENTED (`AuthState.login()` on every credential failure) |
 | Language preference persistence across logout | IMPLEMENTED (preserved, F-SC4) |
@@ -350,6 +340,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 - **No per-user key namespacing.** All cache keys are global strings (e.g. `bucket_list`, `drive_cache`). Cross-account safety depends entirely on `clearAll()` being called on logout. No defense-in-depth exists.
 - **SharedPreferences is not the ideal store for large JSON blobs.** `drive_cache` can grow to contain hundreds of `DriveItem` objects with metadata and reactions, all serialized into a single `p.setString` call on every mutation. On Android, SharedPreferences serializes all pending writes synchronously to disk on app backgrounding — large values cause jank.
-- **`flutter_cache_manager` file store is separate from SharedPreferences.** Clearing SharedPreferences (via `p.clear()`) does NOT remove cached media files. Media cleanup requires explicit `MediaCacheManager().emptyCache()` calls, which are currently dead code.
+- **`flutter_cache_manager` file store is separate from SharedPreferences.** Clearing SharedPreferences (via `p.clear()`) does NOT remove cached media files. Media cleanup runs `emptyAppMediaCaches()` from both `logout()` and `wipeAppData()`, and it empties `MediaCacheManager` and `DefaultCacheManager` together.
 - **Token storage is written by both the `tokenRefreshed` listener and `ApiService._tryRefreshToken`.** Both are downstream of the same Supabase SDK `auth.refreshSession()` call, and gotrue dedupes concurrent refreshes by refresh token, so the two writers persist identical values and cannot race (todo# 1.6).
 - **`PartnershipRepository._activePartnershipFuture` is a static future-keyed cache.** It persists across tab switches and even across cold starts (the static variable lives for the process lifetime). This is the only in-memory-only cache in the system. All others are persisted to disk.
