@@ -94,22 +94,16 @@ All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/
 
 ## Discovered Vulnerabilities, Inconsistencies & Defective Patterns
 
-### 1. BUG: Error Code Prefix Mismatch in `logAppError` Dispatcher
-- **Finding**: In [`logger.js:198`](file:///f:/JustUS/Backend/core/logger.js#L198), `logAppError` attempts to split error codes by underscore `_`:
-  `const area = opts.code?.split("_")[0] ?? "";`
-- **Impact**: All standard `AppError` codes use hyphens `-` (e.g. `AUTH-FAIL-001`, `SEC-BLOCK-001`). `split("_")[0]` returns the full string `"AUTH-FAIL-001"` instead of `"AUTH"`. As a result, the `switch (area)` statement fails to match `"AUTH"` or `"SEC"`, falling through to `default:` and writing **ALL authentication and security errors into `logs_api_errors` instead of `logs_auth_failures` or `logs_security_events`**.
-- **Confidence**: **HIGH**
-
-### 2. BUG: In-Memory Provider Contamination & Swallowed Exceptions in `AuthState`
+### 1. BUG: In-Memory Provider Contamination & Swallowed Exceptions in `AuthState`
 - **Finding**: In `AuthState.login()` and `AuthState.init()`, certain secondary fetch failures (such as partner details or FCM device token updates) wrap network calls in silent `try { ... } catch (_)` blocks without rethrowing or notifying the UI.
 - **Impact**: Secondary failures leave `AuthState` in a partially populated state without alerting the user.
 - **Confidence**: **HIGH**
 
-### 3. BUG: UI Thread Crash Risk on Overlay Snackbar Placement
+### 2. BUG: UI Thread Crash Risk on Overlay Snackbar Placement
 - **Finding**: In [`error_handler.dart:158-167`](file:///f:/JustUS/Flutter/lib/core/error_handling/error_handler.dart#L158-L167), `_showSnackBar()` checks `SchedulerBinding.instance.schedulerPhase` to defer execution if triggered during build/layout. However, `handleGlobal` calls `WidgetsBinding.instance.addPostFrameCallback`, but if an exception occurs inside a build method, `handle` called directly from UI widgets can attempt to manipulate `Overlay` state if `context` is stale.
 - **Confidence**: **MEDIUM**
 
-### 4. INCONSISTENCY: Development Debug Leak via `details` Parameter
+### 3. INCONSISTENCY: Development Debug Leak via `details` Parameter
 - **Finding**: In `errorHandler.js:70-74`, in non-production environments (`NODE_ENV !== "production"`), `errorBody.details` and `errorBody.stack` are attached directly to the JSON HTTP response.
 - **Impact**: Staging or test environments exposing debug mode can leak internal SQL queries, file paths, and database schema structures to clients.
 - **Confidence**: **HIGH**

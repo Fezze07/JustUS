@@ -195,7 +195,7 @@ function logInfo(event, payload = {}) {
  */
 async function logAppError(opts) {
   const base = buildBaseLogRecord(opts);
-  const area = opts.code?.split("_")[0] ?? ""; // Note: changed from '-' to '_' to match AppError codes
+  const area = opts.code?.split("-")[0] ?? "";
 
   await routeLogByArea(area, base, opts.payload);
 }
