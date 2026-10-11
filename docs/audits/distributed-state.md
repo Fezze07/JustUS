@@ -33,7 +33,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 * **Lifecycle & Expiration**: Swept every 15 minutes via `_sweepRateLimitMaps()`.
 * **Persistence Layer**: **NONE** (100% in-memory).
 * **Process Restart Behavior**: Completely wiped on restart. All rate limits and active 15-minute IP bans are immediately reset.
-* **Multi-Instance Behavior**: **UNSAFE (CRITICAL)**. Request volume is split across backend nodes. An attacker submitting 100 requests across 4 load-balanced instances will only trigger 25 requests per instance, completely bypassing configured rate limits and penalty strike bans.
+* **Multi-Instance Behavior**: **UNSAFE (HIGH)**. Request volume is split across backend nodes. An attacker submitting 100 requests across 4 load-balanced instances will only trigger 25 requests per instance, completely bypassing configured rate limits and penalty strike bans. Severity aligned with `docs/backend/security/doc.md`; the single-instance deployment is accepted.
 * **Failure Mode**: Complete rate-limiting bypass under horizontally scaled environments.
 
 ---
@@ -104,6 +104,8 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 ---
 
 ## Recommended Remediation Architecture
+
+> **Decision:** no shared store (Redis/KeyDB) is adopted. The backend runs as a single instance, so the per-process mechanisms below are accepted constraints rather than defects. This section is retained as the reference design that horizontal scaling would require — it is not an active work item.
 
 To make the backend multi-instance ready, safe for horizontal scaling, and resilient against process crashes:
 

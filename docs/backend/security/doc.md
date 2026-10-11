@@ -4,6 +4,9 @@
 
 This document provides a technical reverse-engineering analysis of the security architecture implemented in the JustUS Node.js/Express backend server. It covers authentication, session binding, request signing, replay protection, rate limiting, sanitization, response headers, and multi-instance deployment implications.
 
+> [!IMPORTANT]
+> **Deployment assumption — single instance.** The backend runs as a **single Node.js instance**. Controls that keep state in process memory by design — rate-limit buckets and bans (`rateLimit.js`), login strikes (`authRisk.service.js`) and idempotency responses (`idempotencyStore.js`) — are not shared between processes. Horizontal scaling would require a shared store and is **out of scope**; the per-process behavior recorded below is a documented constraint of the single-instance deployment, not an active defect.
+
 ---
 
 ## Global Request Pipeline Execution Order
@@ -125,7 +128,7 @@ The exact execution order of middleware in the application pipeline is determine
      - Strike 4+: 15-minute hard ban (`bannedUntil = Date.now() + 15 * 60_000`).
 - **Storage & Sweeping**: Stored in NodeJS process memory (`buckets = new Map()`, `penalties = new Map()`). Swept every 15 minutes by `_sweepRateLimitMaps`.
 - **Failure Behavior**: Sets `Retry-After` header, logs security event, returns `SEC-BLOCK-001` (429 Too Many Requests).
-- **Multi-Instance Weakness**: **CRITICAL MULTI-INSTANCE DEFECT**: Because `buckets` and `penalties` maps are **purely in-memory**, rate limits and bans are **NOT shared across cluster instances**. An attacker can bypass rate limits and strike bans by distributing requests across multiple backend worker nodes (e.g., N instances multiplier).
+- **Multi-Instance Behavior**: `buckets` and `penalties` are **process-local**, so rate limits and bans are not shared across instances and are wiped on restart or deploy. Under horizontal scaling an attacker could distribute requests across N nodes for roughly N× the allowance, and a ban recorded on one node would be unknown to the others. **Accepted** under the single-instance deployment assumption (see Overview) — this is a documented per-process constraint of severity **HIGH**, not a defect to be remediated with a shared store.
 
 ---
 
@@ -199,9 +202,11 @@ The exact execution order of middleware in the application pipeline is determine
 
 ## Multi-Instance Vulnerability Analysis Matrix
 
+> Levels describe behavior **if** the single-instance deployment assumption (see Overview) were violated by horizontal scaling. Under the assumed single-instance deployment, the per-process rows below are accepted constraints, not active defects.
+
 | Security Control | Storage Mechanism | Multi-Instance Behavior | Vulnerability Level |
 |---|---|---|---|
-| **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node**. Limits scale linearly with worker instance count. Strikes/Bans are bypassed across nodes. | **HIGH** |
+| **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node** (accepted — single instance). Limits scale linearly with worker instance count; strikes/bans are bypassed across nodes under horizontal scaling. | **HIGH** |
 | **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node**. Retried requests on different instances bypass cache and re-execute. | **HIGH** |
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. DB primary key constraint prevents cross-node replays. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
