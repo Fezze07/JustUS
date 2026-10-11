@@ -262,7 +262,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 ### Risk Service Specification
 
 - File: [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js)
-- Storage Mechanism: In-memory `Map` (`loginAttempts = new Map()`). State expires after 15 minutes of inactivity (`15 * 60_000` ms).
+- Storage Mechanism: In-memory `Map` (`loginAttempts = new Map()`) held in the Node process, so the counter is **per instance** (see § Known Issues). State expires after 15 minutes of inactivity (`15 * 60_000` ms).
 - Attempt Key Composition:
   ```js
   const key = [
@@ -339,7 +339,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 ## Known Issues
 
-- **In-Memory Risk State Reset on Server Restart**: Node backend risk state (`loginAttempts`) is held in Node process memory. Backend restarts clear all active lockout counters and strike levels.
+- **In-Memory Risk State is Per-Instance**: Node backend risk state (`loginAttempts`) is held in process memory, so the strike counter is **per backend instance**. Failures, strike levels and the 10/30-minute lockouts are neither shared across instances nor persisted: a credential-stuffing source spread over several nodes divides its attempts below the threshold, and a restart or deploy clears every active lockout counter and strike level. The backend is deployed as a **single instance**, so this is an accepted constraint (Phase 10.4) rather than a defect, and within that instance the lockout fires on the documented schedule (5 failures → 10 min, 8 → 30 min).
 
 ---
 

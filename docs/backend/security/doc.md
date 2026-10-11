@@ -207,6 +207,7 @@ The exact execution order of middleware in the application pipeline is determine
 | Security Control | Storage Mechanism | Multi-Instance Behavior | Vulnerability Level |
 |---|---|---|---|
 | **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node** (accepted — single instance). Limits scale linearly with worker instance count; strikes/bans are bypassed across nodes under horizontal scaling. | **HIGH** |
+| **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies. | **HIGH** |
 | **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node**. Retried requests on different instances bypass cache and re-execute. | **HIGH** |
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. DB primary key constraint prevents cross-node replays. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
