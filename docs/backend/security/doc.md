@@ -160,7 +160,7 @@ The exact execution order of middleware in the application pipeline is determine
   2. Constructs cache key: `${namespace}:${userId ?? "anonymous"}:${key}`.
   3. Checks in-memory store (`responses.get(cacheKey)`). If valid entry exists, returns cached response immediately.
   4. Otherwise, wraps `res.json()` to intercept and store response status code and body for 24 hours (`Date.now() + 24 * 60 * 60_000`).
-- **Multi-Instance Weakness**: **CRITICAL MULTI-INSTANCE DEFECT**: Idempotency responses are stored **exclusively in an in-memory `Map`** (`responses = new Map()`). A retried request hitting a different instance will bypass idempotency cache and re-execute the operation.
+- **Multi-Instance Behavior**: Idempotency responses are stored **exclusively in an in-memory `Map`** (`responses = new Map()`), so the guarantee is **per instance**: a retried request hitting a different instance bypasses the cache and re-executes the operation, and a restart erases every cached entry. **Accepted** under the single-instance deployment assumption (see Overview) — severity **HIGH**, a documented per-process constraint rather than a defect to be remediated with a shared store. Within one instance a retried key returns the first response and is executed once.
 
 ---
 
@@ -208,7 +208,7 @@ The exact execution order of middleware in the application pipeline is determine
 |---|---|---|---|
 | **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node** (accepted — single instance). Limits scale linearly with worker instance count; strikes/bans are bypassed across nodes under horizontal scaling. | **HIGH** |
 | **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies. | **HIGH** |
-| **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node**. Retried requests on different instances bypass cache and re-execute. | **HIGH** |
+| **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node** (accepted — single instance). Retried requests on different instances bypass the cache and re-execute; within one instance a retried key returns the first response and runs once. | **HIGH** |
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. DB primary key constraint prevents cross-node replays. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
 | **HMAC Verification** | Request Payload + DB Session Secret | **Multi-Instance Safe**. Stateless computation per request. | **LOW (SAFE)** |

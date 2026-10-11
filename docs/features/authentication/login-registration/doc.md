@@ -285,7 +285,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 
 - Pre-login check (`POST /api/v1/auth/login-risk-check`): Evaluates risk **before** credential verification. If `blocked` is true, throws `AppError(SEC_BLOCK_002)` with HTTP 429 status code.
 - Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails. Increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
-- Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. A successful login clears the counter through `clearFailedLogins()` in the session-sync handler.
+- Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. The idempotency cache is in-memory and **per instance** (single-instance deployment; see `docs/backend/security/doc.md` §9). A successful login clears the counter through `clearFailedLogins()` in the session-sync handler.
 
 ### Request Validation & Abuse Controls
 
