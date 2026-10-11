@@ -343,7 +343,7 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 ## Security Properties
 
 1. **Anti-Token Hijacking**: Stolen JWTs cannot be used on an attacker's device without matching both `X-Device-Fingerprint` and `X-Client-User-Agent` hashes stored in `auth_sessions`.
-2. **Replay & Tamper Protection**: Signed API routes enforce a 5-minute timestamp skew window (`REQUEST_SIGNING_MAX_SKEW_MS`) and consume single-use nonces stored in Redis/Memory (`consumeNonce`).
+2. **Replay & Tamper Protection**: Signed API routes enforce a 5-minute timestamp skew window (`REQUEST_SIGNING_MAX_SKEW_MS`) and consume single-use nonces reserved atomically in the PostgreSQL `request_nonces` table (`consumeNonce`), with an in-memory cache as a fast path.
 
 ---
 

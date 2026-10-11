@@ -381,7 +381,7 @@ describe("Security Integration Tests", () => {
       expect(replay.body.error.message).toContain("Replay request detected");
     });
 
-    test.failing(
+    test(
       "FAIL: A replay is refused by the database when the in-process nonce cache misses",
       async () => {
         setupAuthSuccess();

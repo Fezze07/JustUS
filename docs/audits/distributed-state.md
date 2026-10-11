@@ -16,10 +16,10 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 * **Data Structure**: `const consumedNonces = new Map();`
 * **Purpose**: Prevents replay attacks by checking if a request signature nonce has already been consumed.
 * **Lifecycle & Expiration**: Items stored in memory with timestamp; swept every 10 minutes via `_sweepExpiredNonces()`.
-* **Persistence Layer**: Dual storage — checks memory first, then attempts DB fallback via `adminSupabase.from("request_nonces").insert(...)`.
-* **Process Restart Behavior**: In-memory map is wiped, relying entirely on DB fallback.
-* **Multi-Instance Behavior**: **PARTIALLY SAFE WITH CONCURRENCY RISK**. If Instance A receives a nonce, it stores it in memory and inserts to Supabase. If Instance B receives the same nonce concurrently before Instance A completes the DB insert, both instances may process the request.
-* **Failure Mode**: Replay attacks are possible under high concurrency across distinct instance nodes due to race conditions prior to database lock/insertion.
+* **Persistence Layer**: Postgres-first — the insert into `request_nonces` is the authoritative replay check; the memory map is only a cache set **after** the insert is accepted. `request_nonces.nonce` carries a `UNIQUE` constraint.
+* **Process Restart Behavior**: In-memory cache is wiped on restart; the database table remains the store of record and continues to reject replays.
+* **Multi-Instance Behavior**: **SAFE**. The `request_nonces` insert is the authoritative check and `nonce` is `UNIQUE`, so concurrent inserts of the same nonce from different instances resolve atomically in the database — exactly one succeeds, the other fails with `23505` and is rejected. The memory map is only a cache of nonces already accepted by this process, so a cold node cannot accept a nonce the database already holds.
+* **Failure Mode**: If the database is unreachable, protection degrades to memory-only (fail-open on non-`23505` DB errors), bounded by the accepted single-instance deployment assumption.
 
 ---
 
@@ -94,7 +94,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 
 | Mechanism | File | Storage Type | Multi-Instance Safe? | Risk / Impact |
 | :--- | :--- | :--- | :--- | :--- |
-| **Request Nonce Store** | `core/infra/nonceStore.js` | In-Memory + DB Fallback | **PARTIALLY** | Race condition replay attacks under concurrent loads |
+| **Request Nonce Store** | `core/infra/nonceStore.js` | Postgres-first (`request_nonces`) + Memory cache | **SAFE** | Single-winner atomic reservation via DB `UNIQUE (nonce)`; memory-only fallback when the DB is unreachable |
 | **Composite Rate Limiter** | `middleware/rateLimit.js` | 100% In-Memory | **UNSAFE** | Rate limits & IP bans bypassed completely across multi-node cluster |
 | **Login Risk & Strikes** | `features/auth/authRisk.service.js` | 100% In-Memory | **UNSAFE** | Brute-force credential stuffing bypass |
 | **Idempotency Cache** | `core/infra/idempotencyStore.js` | 100% In-Memory | **UNSAFE** | Duplicate processing on retried requests routed to different nodes |
@@ -113,8 +113,7 @@ To make the backend multi-instance ready, safe for horizontal scaling, and resil
    - Replace in-memory `Map` structures in `rateLimit.js`, `authRisk.service.js`, `quotaService.js`, and `idempotencyStore.js` with an external distributed key-value store (e.g. Redis / Upstash Redis / Valkey).
    - Use atomic operations (`INCRBY`, `EXPIRE`, `SETNX`) for rate limiting and token quota tracking.
 
-2. **Atomic Nonce Reservation**:
-   - Shift `nonceStore.js` logic to rely strictly on atomic database constraints (`UNIQUE` index on `(namespace, user_id, nonce)`) or Redis `SET key value NX EX duration` to eliminate race conditions between memory checks and DB inserts.
+2. **Atomic Nonce Reservation** (**implemented 2026-10-11 — no shared store needed**): `nonceStore.js` inserts into `request_nonces` first and treats the DB `UNIQUE (nonce)` violation (`23505`) as a replay, so the atomicity no longer depends on the memory check.
 
 3. **Distributed Circuit Breaker**:
    - Store circuit state in Redis or broadcast circuit status changes via Pub/Sub so all backend instances immediately halt requests when an upstream provider fails.

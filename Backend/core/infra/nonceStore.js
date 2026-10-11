@@ -14,24 +14,21 @@ async function consumeNonce({ namespace, userId, nonce, expiresAt }) {
     return false;
   }
 
-  consumedNonces.set(key, expiresAt);
-
   try {
-    await adminSupabase.from("request_nonces").insert({
+    const { error } = await adminSupabase.from("request_nonces").insert({
       nonce,
       namespace,
       user_id: userId ?? null,
       expires_at: new Date(expiresAt).toISOString(),
     });
-  } catch (error) {
-    const duplicate =
-      typeof error?.message === "string" &&
-      error.message.toLowerCase().includes("duplicate");
-    if (duplicate) {
+    if (error && error.code === "23505") {
       return false;
     }
+  } catch {
+    // DB unreachable: fall back to memory-only protection for this instance.
   }
 
+  consumedNonces.set(key, expiresAt);
   return true;
 }
 

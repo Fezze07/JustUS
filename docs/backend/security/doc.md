@@ -73,13 +73,13 @@ The exact execution order of middleware in the application pipeline is determine
 - **Implementation Location**: [`core/infra/nonceStore.js`](file:///f:/JustUS/Backend/core/infra/nonceStore.js), [`middleware/requireSignedRequest.js`](file:///f:/JustUS/Backend/middleware/requireSignedRequest.js#L20), [`middleware/requireFreshNonce.js`](file:///f:/JustUS/Backend/middleware/requireFreshNonce.js#L22).
 - **Request Flow & Validation Order**:
   1. Form key: `${namespace}:${userId}:${nonce}`.
-  2. Check in-memory `Map` (`consumedNonces`). If key exists and `expiresAt > now`, reject.
-  3. Set key in-memory with `expiresAt`.
-  4. Insert record into PostgreSQL `request_nonces` table.
-  5. Catch DB duplicate key error. If duplicate, return `false` (reject).
-- **Storage & Expiration**: Dual-layer (In-memory `Map` with 10-minute sweep interval `_sweepExpiredNonces` + PostgreSQL `request_nonces` table).
+  2. Check in-memory `Map` (`consumedNonces`) as a fast path. If key exists and `expiresAt > now`, reject.
+  3. Insert record into PostgreSQL `request_nonces` table — the authoritative replay check.
+  4. Treat the DB unique-violation error (`23505`) as a replay and reject.
+  5. Only after the insert is accepted (or the database is unreachable) record the nonce in the in-memory map.
+- **Storage & Expiration**: Dual-layer (PostgreSQL `request_nonces` store of record + in-memory `Map` cache with 10-minute sweep interval `_sweepExpiredNonces`).
 - **Failure Behavior**: Throws `SEC_BLOCK_001` ("Replay request detected" / "Duplicate request nonce").
-- **Multi-Instance Behavior**: **Synchronized via PostgreSQL primary key constraint** on `request_nonces.nonce`. If Instance A inserts the nonce, Instance B's insert will fail on database duplicate key constraint, maintaining multi-instance safety despite in-memory map isolation.
+- **Multi-Instance Behavior**: **Synchronized via the PostgreSQL `UNIQUE (nonce)` constraint** (`request_nonces_nonce_key`) on `request_nonces`. The database insert is the authoritative check, so a nonce already reserved by any instance — including a cold node whose in-memory map is empty — is rejected; the in-memory map is only a cache of nonces this process has already accepted.
 
 ---
 
@@ -209,7 +209,7 @@ The exact execution order of middleware in the application pipeline is determine
 | **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node** (accepted — single instance). Limits scale linearly with worker instance count; strikes/bans are bypassed across nodes under horizontal scaling. | **HIGH** |
 | **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies. | **HIGH** |
 | **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node** (accepted — single instance). Retried requests on different instances bypass the cache and re-execute; within one instance a retried key returns the first response and runs once. | **HIGH** |
-| **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. DB primary key constraint prevents cross-node replays. | **LOW (SAFE)** |
+| **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. The DB `UNIQUE (nonce)` insert is the authoritative replay check; the memory map is only a cache. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
 | **HMAC Verification** | Request Payload + DB Session Secret | **Multi-Instance Safe**. Stateless computation per request. | **LOW (SAFE)** |
 | **Cloudflare Turnstile** | External API | **Multi-Instance Safe**. Verified natively by Supabase Auth at sign-in/sign-up; no per-instance state. | **LOW (SAFE)** |
