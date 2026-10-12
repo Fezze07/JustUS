@@ -8,14 +8,12 @@ abstract class PartnershipModels {}
 
 /// Represents the full partnership view returned by v_active_partnership.
 /// The view returns: partnership_id, status, anniversary_date,
-/// partner_id, partner_display_name, partner_profile_pic_url,
-/// pending_sent (jsonb array), pending_received (jsonb array).
+/// partner_id, partner_display_name, partner_profile_pic_url.
 class PartnershipResponse {
   final bool success;
   final int? partnershipId;
   final String status; // 'accepted' | 'pending' | 'none'
   final User? partner;
-  final PendingRequests? pendingRequests;
   final String? message;
   final String? error;
   final DateTime? anniversaryDate;
@@ -27,7 +25,6 @@ class PartnershipResponse {
     this.partnershipId,
     this.status = 'none',
     this.partner,
-    this.pendingRequests,
     this.message,
     this.error,
     this.anniversaryDate,
@@ -48,36 +45,11 @@ class PartnershipResponse {
       );
     }
 
-    // Parse pending arrays from jsonb
-    List<User> received = [];
-    List<User> sent = [];
-    User mapPendingUser(dynamic e) {
-      final m = e as Map<String, dynamic>;
-
-      return User(
-        id: (m['user_id'] as num).toInt(),
-        displayName: m['display_name'] as String?,
-        email: m['email'] as String?,
-      );
-    }
-
-    if (json['pending_received'] != null) {
-      received = (json['pending_received'] as List<dynamic>)
-          .map(mapPendingUser)
-          .toList();
-    }
-    if (json['pending_sent'] != null) {
-      sent = (json['pending_sent'] as List<dynamic>)
-          .map(mapPendingUser)
-          .toList();
-    }
-
     return PartnershipResponse(
       success: (json['success'] as bool?) ?? true,
       partnershipId: (json['partnership_id'] as num?)?.toInt(),
       status: (json['status'] as String?) ?? 'none',
       partner: partner,
-      pendingRequests: PendingRequests(received: received, sent: sent),
       message: json['message'] as String?,
       error: json['error'] as String?,
       anniversaryDate: AppDateUtils.tryParse(json['anniversary_date'] as String?),
@@ -91,7 +63,6 @@ class PartnershipResponse {
     int? partnershipId,
     String? status,
     User? partner,
-    PendingRequests? pendingRequests,
     String? message,
     String? error,
     DateTime? anniversaryDate,
@@ -101,24 +72,9 @@ class PartnershipResponse {
       partnershipId: partnershipId ?? this.partnershipId,
       status: status ?? this.status,
       partner: partner ?? this.partner,
-      pendingRequests: pendingRequests ?? this.pendingRequests,
       message: message ?? this.message,
       error: error ?? this.error,
       anniversaryDate: anniversaryDate ?? this.anniversaryDate,
-    );
-  }
-}
-
-class PendingRequests {
-  final List<User> received;
-  final List<User> sent;
-
-  PendingRequests({this.received = const [], this.sent = const []});
-
-  PendingRequests copyWith({List<User>? received, List<User>? sent}) {
-    return PendingRequests(
-      received: received ?? this.received,
-      sent: sent ?? this.sent,
     );
   }
 }

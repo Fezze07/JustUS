@@ -15,9 +15,6 @@ class PartnerState extends BaseState {
   PartnershipResponse? get partnershipInfo => _partnershipInfo;
 
   User? get partner => _partnershipInfo?.partner;
-  List<User> get receivedRequests =>
-      _partnershipInfo?.pendingRequests?.received ?? [];
-  List<User> get sentRequests => _partnershipInfo?.pendingRequests?.sent ?? [];
 
   Future<void> fetchPartnership() async {
     await runSafe(() async {
@@ -56,45 +53,6 @@ class PartnerState extends BaseState {
       await handleResult(result, onSuccess: (_) async {
         await fetchPartnership();
         setMessage('Richiesta inviata a $email');
-      });
-    });
-  }
-
-  /// Accepts a pending partnership by its ID (maps to accept_partnership RPC).
-  Future<void> acceptPartner(int partnershipId) async {
-    await runSafe(() async {
-      final result = await _repo.acceptPartnerRequest(partnershipId);
-
-      await handleResult(result, onSuccess: (_) async {
-        setMessage('Richiesta accettata');
-        await fetchPartnership();
-        // Update local partner cache
-        if (_partnershipInfo?.partner != null) {
-          await StorageService.savePartner(
-            _partnershipInfo!.partner!.id,
-            _partnershipInfo!.partner!.username,
-          );
-        }
-      });
-    });
-  }
-
-  /// Rejects a pending partnership by its ID (deletes the row).
-  Future<void> rejectPartner(int partnershipId) async {
-    await runSafe(() async {
-      final result = await _repo.rejectPartnerRequest(partnershipId);
-
-      await handleResult(result, onSuccess: (_) {
-        // Remove from pending list optimistically
-        if (_partnershipInfo != null) {
-          _partnershipInfo = _partnershipInfo!.copyWith(
-            pendingRequests: _partnershipInfo!.pendingRequests?.copyWith(
-              received:
-                  receivedRequests.where((u) => u.id != partnershipId).toList(),
-            ),
-          );
-        }
-        setMessage('Richiesta rifiutata');
       });
     });
   }

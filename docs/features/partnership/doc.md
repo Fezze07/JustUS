@@ -243,19 +243,7 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
 
 During the reverse-engineering analysis, the following technical findings and bugs were identified:
 
-### 1. DEFECT: Optimistic Rejection Filter ID Mismatch in `PartnerState`
-
-* **WHAT**: `PartnerState.rejectPartner(int partnershipId)` fails to correctly remove the rejected request from `receivedRequests` in local state.
-* **WHERE**: [partner_state.dart:128-131](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart#L128-L131)
-  ```dart
-  received: receivedRequests.where((u) => u.id != partnershipId).toList(),
-  ```
-* **WHY**: `receivedRequests` contains `User` instances mapped via `PartnershipResponse.fromJson`. `u.id` represents the **partner's user ID** (`m['user_id']`), whereas `partnershipId` is the **primary key of the `partnerships` table**. Comparing `u.id != partnershipId` compares two distinct identifier domains, causing the filter to fail to match or mistakenly remove the wrong entry.
-* **WHEN**: Happens every time a user declines an incoming invitation from `PartnerState`.
-* **IMPACT**: UI fails to update optimistically after rejecting a request, requiring a manual swipe-to-refresh to clear the item.
-* **CONFIDENCE**: **HIGH**
-
-### 2. INCONSISTENCY: Declared Email Invitation vs. RPC-Only Backend
+### 1. INCONSISTENCY: Declared Email Invitation vs. RPC-Only Backend
 
 * **WHAT**: The feature is labeled "Invite Partner via Email", but no emails are sent.
 * **WHERE**: [auth.controller.js:164-182](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L164-L182) and [partnership_repository.dart:53-59](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L53-L59)
@@ -264,7 +252,7 @@ During the reverse-engineering analysis, the following technical findings and bu
 * **IMPACT**: Users inviting unregistered or offline partners expect an email to be sent, but nothing is delivered externally.
 * **CONFIDENCE**: **HIGH**
 
-### 3. DEFECT: Asymmetrical Database Operation for Request Rejection
+### 2. DEFECT: Asymmetrical Database Operation for Request Rejection
 
 * **WHAT**: Request acceptance uses a stored procedure (`accept_partnership` RPC), while request rejection performs direct table modification (`sbClient.from('partnerships').delete()`).
 * **WHERE**: [partnership_repository.dart:97 & 111](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L97)
