@@ -31,15 +31,15 @@ Feature action (Supabase mutation succeeds)
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
                                 └─ resolveNotificationTarget → get_accepted_partner(senderId)  service:378-403
-                                      └─ sendNotificationToUser(receiverId, type, key, params)  service:241-354
+                                      └─ sendNotificationToUser(receiverId, type, key, params)  service:241-355
                                             ├─ fetchUserDevices → isDeliverableDevice filter   service:200-211,40-46
-                                            ├─ group tokens by device.locale ('en' default)    service:257-265
-                                            ├─ per-locale batch ≤ 500 tokens                   service:275
+                                            ├─ group tokens by device.locale ('en' default)    service:258-266
+                                            ├─ per-locale batch ≤ 500 tokens                   service:276
                                             │     └─ sendMulticastNotification(buildFcmMessage)  fcm-key.js
                                             │           - localizes title/body (LOCALIZATIONS) service:152-198
                                             │           - android: priority high, apns: priority 10
-                                            │           - retry up to 3x (500ms * attempt)      service:282-298
-                                            └─ deleteInvalidTokens(post-delivery)              service:213-226,317
+                                            │           - retry up to 3x (500ms * attempt)      service:283-299
+                                            └─ deleteInvalidTokens(userId, post-delivery)      service:213-227,318
                                                   └─ logs_notifications + notification.delivery_summary
 Receiver device (FCM delivery):
   ├─ Foreground (Android/iOS): onMessage → showRemoteMessage
@@ -237,13 +237,13 @@ notifySchema = z.object({
    - Resolves the receiver through RPC `get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`).
    - `type === 'partner'` → receiver is the active partner; otherwise `receiverId` must be supplied and must equal the partner id.
 
-2. **`sendNotificationToUser(...)`** (`:241-354`)
+2. **`sendNotificationToUser(...)`** (`:241-355`)
    - `fetchUserDevices(userId)` (`:200-211`): selects `device_token, device_type, locale` where the row has a non-null token, then filters via `isDeliverableDevice` (drops empty/`UNKNOWN_DEVICE_TOKEN`/`windows`/`macos`/`linux`).
-   - Tokens grouped by `device.locale || 'en'` (`:257-265`) — per-locale messages.
-   - Delivery in batches of `FCM_BATCH_SIZE = 500` (`:275`).
-   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-token codes abort immediately (`:282-298`).
+   - Tokens grouped by `device.locale || 'en'` (`:258-266`) — per-locale messages.
+   - Delivery in batches of `FCM_BATCH_SIZE = 500` (`:276`).
+   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-token codes abort immediately (`:283-299`).
    - `configured` flag from the FCM response; if Firebase admin is not initialized the loop aborts with status `skipped_firebase_not_configured`.
-   - Post-send: `deleteInvalidTokens(...)` removes rows whose token returned an invalid-FCM error (`:317`, `:332`).
+   - Post-send: `deleteInvalidTokens(userId, ...)` removes the caller's rows whose token returned an invalid-FCM error (`:318`, `:333`).
 
 3. **`buildFcmMessage(...)`** (`:152-198`)
    - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (fallback locale `'en'`).
@@ -258,7 +258,7 @@ notifySchema = z.object({
 ### Invalid token cleanup
 
 - `INVALID_FCM_TOKEN_CODES = { messaging/invalid-registration-token, messaging/registration-token-not-registered, messaging/invalid-recipient }` (`:13-17`).
-- Cleanup is a **global** delete on `device_token` (row-level), which under the UNIQUE constraint can delete a *different user's* reassigned row (F-PN8).
+- Cleanup is scoped by `user_id` **and** `device_token`: the tokens come from that caller's `fetchUserDevices`, and `device_token` is `UNIQUE`, so an unscoped delete could drop the row another account has since re-registered on the same device.
 
 ---
 
@@ -464,14 +464,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **IMPACT**: The user sees a `JustUS` notification with an empty body. No data exposure.
 - **CONFIDENCE**: HIGH.
 
-### F-PN8: Invalid-token cleanup deletes globally, ignoring `user_id` (LOW)
-
-- **WHAT**: `deleteInvalidTokens` runs `user_devices.delete().in('device_token', tokens)` (`notification.service.js:213-226`). Because `device_token` is UNIQUE, a token invalidated for user A but re-registered by user B before the cleanup runs deletes **user B's** row too.
-- **WHERE**: `notification.service.js:213-226`; constraint `user_devices_device_token_key`.
-- **WHEN**: An FCM invalidation and a device transfer overlapping a notification send.
-- **IMPACT**: User B's registration disappears; their push stops until the next app start/token refresh re-registers it. Self-healing.
-- **CONFIDENCE**: LOW (occurrence), HIGH (cleanup mechanism is global).
-
 ### F-PN9: iOS badge is hardcoded to 1 and never cleared (LOW)
 
 - **WHAT**: `buildFcmMessage` sets `aps.badge: 1` (`notification.service.js:187`) — *set*, not increment, per notification. No `clearBadge`/`setBadge(0)` exists on app foreground.
@@ -510,7 +502,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Server-side localization (server map, it/en) | IMPLEMENTED |
 | FCM multicast with 500-token batching | IMPLEMENTED |
 | FCM retry (3 attempts, backoff) | IMPLEMENTED |
-| Invalid-token cleanup | IMPLEMENTED (global delete — F-PN8) |
+| Invalid-token cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `device_token`) |
 | `notification` field for OS system-tray rendering | IMPLEMENTED |
 | Client-side ARB localization (8 keys) | IMPLEMENTED (unknown-key gap — F-PN7; emoji param unused for `moodUpdated`) |
 | Foreground local-notification rendering | IMPLEMENTED (iOS double-presentation risk — F-PN1) |
@@ -536,7 +528,9 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 
 `Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`. `POST /auth/device-token-revoke-all` is asserted to delete every row but the one whose token is in the body (`eq user_id`, `neq device_token`), with the same failure and validation cases; `POST /auth/device-token` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
-The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, token cleanup, locale grouping, invalid-token deletion, or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
+The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
+
+`Backend/test/notification.service.test.js` covers `deleteInvalidTokens` against an in-memory `user_devices` table: a token invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy token list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail.
 
 ### Flutter
 

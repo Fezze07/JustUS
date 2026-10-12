@@ -210,7 +210,7 @@ async function fetchUserDevices(userId) {
   return rows.filter(isDeliverableDevice);
 }
 
-async function deleteInvalidTokens(tokens) {
+async function deleteInvalidTokens(userId, tokens) {
   const uniqueTokens = [...new Set(tokens.filter(Boolean))];
   if (uniqueTokens.length === 0) return 0;
 
@@ -218,6 +218,7 @@ async function deleteInvalidTokens(tokens) {
     await adminSupabase
       .from("user_devices")
       .delete()
+      .eq("user_id", userId)
       .in("device_token", uniqueTokens),
     "DB_WRITE_001"
   );
@@ -329,7 +330,7 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     }
   }
 
-  const invalidTokensRemoved = await deleteInvalidTokens(invalidTokens);
+  const invalidTokensRemoved = await deleteInvalidTokens(userId, invalidTokens);
   const status = configured
     ? (failed > 0 ? "partial" : "sent")
     : "skipped_firebase_not_configured";
