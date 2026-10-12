@@ -139,7 +139,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 - `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> device-token registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
 - `AuthState.register()` performs only signup; it **does not** set login data even when Supabase auto-confirms (so no session bootstrap happens on register).
 - `PartnerState` re-fetches partnership on realtime events.
-- `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and an `isLoading` guard that **silently skips** the whole load (including the cache path) if a load is already in progress.
+- `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and coalesces concurrent loads: a caller that arrives while another load is in flight awaits that same load (cache read + network fetch run once), and a forced caller chains a fresh load after it — no caller is left with empty state.
 
 ---
 
@@ -456,16 +456,6 @@ Three components register as `WidgetsBindingObserver`:
 **What**: Feature states (and their repositories -> `ApiService` instances -> `http.Client` instances) are created at app startup regardless of whether the user ever visits those tabs. The "lazy" architecture only defers widget construction and `loadData()` calls; the state objects and all their dependencies (networking, storage) exist from the start.
 
 **Impact**: Unnecessary memory consumption at startup. Each `ApiService` creates its own `LoggingHttpClient(http.Client())`, so there are ~10 `http.Client` instances alive at all times (one per default-constructed `ApiService` in feature repos). For a couples app this is acceptable but architecturally wasteful.
-
-**Confidence**: HIGH.
-
-### F9: `ProfileState.loadProfile()` silently skips when already loading
-
-**Evidence**: `profile_state.dart:37` - `if (isLoading) return;` is the first line of `loadProfile()`, before the cache-read path.
-
-**What**: If `loadProfile()` is called while a previous `loadProfile()` call is in progress (e.g. `HomepageScreen._loadData()` and `ProfileScreen.initState()` both call it on startup), the second call silently returns without reading from cache or network. This means the homepage or profile screen may see stale/empty state until the first load completes.
-
-**Impact**: The homepage profile section may show no avatar/name during the first few hundred milliseconds after startup if both screens load in rapid succession.
 
 **Confidence**: HIGH.
 

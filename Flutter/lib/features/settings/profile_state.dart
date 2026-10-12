@@ -40,11 +40,24 @@ class ProfileState extends BaseState {
   String? get versionedProfilePicUrl =>
       ApiService.versionedMediaUrl(_userProfile?.profilePicUrl, _profilePicVersion);
 
-  Future<void> loadProfile({bool force = false}) async {
-    // 1. Prevent concurrent loads
-    if (isLoading) return;
+  Future<void>? _inFlightLoad;
 
-    // 2. Throttling: if not forced and fetched recently, skip server call
+  Future<void> loadProfile({bool force = false}) {
+    final inFlight = _inFlightLoad;
+    if (inFlight != null) {
+      // Concurrent callers share the in-flight load so none is skipped; a
+      // forced caller chains a refresh after it, so pull-to-refresh never
+      // gets swallowed by a concurrent cold-start load.
+      return force ? inFlight.then((_) => loadProfile(force: true)) : inFlight;
+    }
+
+    final future = _loadProfile(force);
+    _inFlightLoad = future.whenComplete(() => _inFlightLoad = null);
+    return _inFlightLoad!;
+  }
+
+  Future<void> _loadProfile(bool force) async {
+    // Throttling: if not forced and fetched recently, skip server call
     final now = DateTime.now();
     final shouldSkipServer = !force &&
         _lastFetch != null &&

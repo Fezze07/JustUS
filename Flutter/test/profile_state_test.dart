@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +54,18 @@ class FakePartnerRepository extends PartnershipRepository {
   }
 }
 
+class GatedUserRepository extends FakeUserRepository {
+  final Completer<void> gate = Completer<void>();
+  int fetchCalls = 0;
+
+  @override
+  Future<ResultWrapper<User>> fetchProfile() async {
+    fetchCalls += 1;
+    await gate.future;
+    return super.fetchProfile();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -63,6 +76,33 @@ void main() {
   setUp(() {
     StorageService.resetForTest();
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test('two concurrent loadProfile calls share one load and both end populated',
+      () async {
+    final repo = GatedUserRepository();
+    final state = ProfileState(
+      userRepo: repo,
+      partnershipRepo: FakePartnerRepository(),
+    );
+
+    final first = state.loadProfile();
+    final second = state.loadProfile();
+    var secondDoneEarly = false;
+    unawaited(second.then((_) => secondDoneEarly = true));
+
+    // The second caller must not return against empty state: it stays pending
+    // on the same load until the first one finishes.
+    await Future<void>.delayed(Duration.zero);
+    repo.gate.complete();
+
+    expect(secondDoneEarly, isFalse);
+
+    await first;
+    await second;
+
+    expect(repo.fetchCalls, 1);
+    expect(state.userProfile?.username, 'Alex');
   });
 
   test('updateDisplayName persists server-side and updates local caches',

@@ -158,7 +158,7 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
   - `HomepageScreen.initState` post-frame fires `_loadData()` once (homepage_screen.dart:50-56); it never reloads on switch-back (stale data - covered in Findings).
   - `ProfileScreen` runs its own post-frame `loadProfile()` (profile_screen.dart:31-34), no switch-back reload.
 - **State is NOT lazy**: all 11 feature states are created eagerly in `MultiProvider` at startup (main.dart:96-111), each instantiating repositories and `http.Client`s. Lazy tab wiring only defers data fetching.
-- Profile is duplicated: `Tab 6` keeps a resident `ProfileScreen` inside `MainShell`, while the home menu pushes a **separate** `ProfileScreen` route on the root stack (homepage_screen.dart:167-170). Both share the same `ProfileState` singleton (data consistent), but they are independent `State` objects (independent post-frame `loadProfile` calls; `ProfileState.loadProfile` has an `isLoading` guard at profile_state.dart:37 that silently skips the second call).
+- Profile lives in exactly one place: `ProfileScreen` is the resident `Tab 6` inside `MainShell` (main_shell.dart:122); the home menu reaches it via `MainShell.of(context)?.switchToTab(6)` (homepage_screen.dart:160), not a second route. Both `HomepageScreen` and `ProfileScreen` call `ProfileState.loadProfile()` on startup; `ProfileState` coalesces concurrent loads (one cache read + fetch shared, every caller awaits the same result), so the double call leaves both screens with a populated state.
 
 ---
 
