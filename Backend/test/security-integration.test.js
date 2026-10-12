@@ -345,7 +345,7 @@ describe("Security Integration Tests", () => {
         .send({ id: 1 });
 
       expect(response.status).toBe(401);
-      expect(response.body.error.message).toContain("Invalid request signature");
+      expect(response.body.error.code).toBe("SEC-AUTH-002");
     });
 
     test("FAIL: Replay of an identical signed request is rejected", async () => {
@@ -378,7 +378,7 @@ describe("Security Integration Tests", () => {
       const replay = await send();
 
       expect(replay.status).toBe(429);
-      expect(replay.body.error.message).toContain("Replay request detected");
+      expect(replay.body.error.code).toBe("SEC-BLOCK-001");
     });
 
     test(

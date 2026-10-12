@@ -26,8 +26,8 @@ The complete lifecycle of an error from occurrence to logging and user presentat
                        │
                        ▼
 [ Transport / Serialization Layer ]
-  (Backend errorHandler.js ──► JSON: { success: false, request_id, error: { code, message, details, stack } })
-  (DEBUG: exposes details & stack | PROD: sanitizes message & strips stack)
+  (Backend errorHandler.js ──► JSON: { success: false, request_id, error: { code, message, details?, stack? } })
+  (ENABLE_ERROR_DETAILS=true: raw message + details + stack | otherwise: generic message only)
                        │
                        ▼
 [ Client Parsing & UI Routing ]
@@ -85,7 +85,7 @@ All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/
 | Table Name | Trigger / Log Function | Logged Data Fields | Sensitive Data Handling |
 |---|---|---|---|
 | `logs_api_access` | `logAccess(record)` | `request_id`, `method`, `path`, `status_code`, `user_id`, `ip_address`, `duration_ms` | No payload logged. |
-| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `error_code`, `error_message`, `severity`, `user_id`, `endpoint`, `payload`, `stack`, `ip_address` | Body sanitized via `sanitizePayload()`. Stack stripped in production. |
+| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `error_code`, `error_message`, `severity`, `user_id`, `endpoint`, `payload`, `stack`, `ip_address` | Payload and stack are written only when `ENABLE_ERROR_DETAILS === "true"`; the body is then sanitized via `sanitizePayload()`. |
 | `logs_auth_failures` | `logAuthFailure(record)` | `request_id`, `path`, `email`, `ip_address`, `reason`, `error_code` | Email included, credentials/passwords stripped by `sanitizePayload()`. |
 | `logs_security_events` | `logSecurity(record)` | `request_id`, `type`, `path`, `user_id`, `ip_address`, `severity` | Logs security events (e.g. rate limit violations, IP range shifts). |
 | `logs_notifications` | `logNotification(record)` | `user_id`, `type`, `status` | Delivery audit trail. |
@@ -102,11 +102,6 @@ All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/
 ### 2. BUG: UI Thread Crash Risk on Overlay Snackbar Placement
 - **Finding**: In [`error_handler.dart:158-167`](file:///f:/JustUS/Flutter/lib/core/error_handling/error_handler.dart#L158-L167), `_showSnackBar()` checks `SchedulerBinding.instance.schedulerPhase` to defer execution if triggered during build/layout. However, `handleGlobal` calls `WidgetsBinding.instance.addPostFrameCallback`, but if an exception occurs inside a build method, `handle` called directly from UI widgets can attempt to manipulate `Overlay` state if `context` is stale.
 - **Confidence**: **MEDIUM**
-
-### 3. INCONSISTENCY: Development Debug Leak via `details` Parameter
-- **Finding**: In `errorHandler.js:70-74`, in non-production environments (`NODE_ENV !== "production"`), `errorBody.details` and `errorBody.stack` are attached directly to the JSON HTTP response.
-- **Impact**: Staging or test environments exposing debug mode can leak internal SQL queries, file paths, and database schema structures to clients.
-- **Confidence**: **HIGH**
 
 ---
 

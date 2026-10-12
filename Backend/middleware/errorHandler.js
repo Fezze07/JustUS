@@ -4,14 +4,14 @@
 // Response format (always):
 //   { success: false, error: { code, message } }
 //
-// In DEBUG also adds:
+// With ENABLE_ERROR_DETAILS=true also adds:
 //   error.details — extra context
 //   error.stack   — stack trace
 // =============================================================================
 
 const { AppError, logAppError, sanitizePayload } = require("../all_imports");
 
-const IS_PROD = process.env.NODE_ENV === "production";
+const ENABLE_ERROR_DETAILS = process.env.ENABLE_ERROR_DETAILS === "true";
 
 async function errorHandler(err, req, res, _next) {
   let appError;
@@ -45,15 +45,15 @@ async function recordErrorLog(appError, req) {
     message: appError.message,
     user_id: req.user?.profileId ?? null,
     endpoint: `${req.method} ${req.originalUrl}`,
-    payload: IS_PROD ? undefined : sanitizePayload(req.body),
-    stack: appError.stack,
+    payload: ENABLE_ERROR_DETAILS ? sanitizePayload(req.body) : undefined,
+    stack: ENABLE_ERROR_DETAILS ? appError.stack : undefined,
     severity: appError.severity,
     ip_address: req.ip ?? null,
   });
 }
 
 /**
- * Costruisce il corpo della risposta di errore in base all'ambiente (prod/dev).
+ * Costruisce il corpo della risposta di errore in base a ENABLE_ERROR_DETAILS.
  * @param {AppError} appError - L'errore formattato.
  * @param {string} requestId - L'ID della richiesta per correlazione.
  * @returns {object} Il corpo della risposta JSON.
@@ -64,11 +64,10 @@ function buildErrorResponse(appError, requestId) {
 
   const errorBody = {
     code: appError.code,
-    message: IS_PROD ? genericMessage : appError.message,
+    message: ENABLE_ERROR_DETAILS ? appError.message : genericMessage,
   };
 
-  // In debug mode expose extra detail
-  if (!IS_PROD) {
+  if (ENABLE_ERROR_DETAILS) {
     if (appError.details) errorBody.details = appError.details;
     if (appError.stack) errorBody.stack = appError.stack;
   }
