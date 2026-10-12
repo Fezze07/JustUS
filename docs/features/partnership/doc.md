@@ -150,7 +150,7 @@ The codebase contains references to an "email invitation flow", but reverse engi
 |---|---|---|---|
 | **Flutter Frontend** | `PartnershipRepository.inviteUser()` | "Send invitation via email and code" | Sends HTTP POST to `/api/v1/auth/invite-partner` |
 | **Backend API** | `POST /api/v1/auth/invite-partner` | "Invite Partner API endpoint" | Validates input, resolves user in DB, and invokes RPC `request_partnership` |
-| **Backend Mailer** | SMTP / SendGrid / Resend / Nodemailer | External email delivery to recipient | **NOT IMPLEMENTED**. No mailer service, SMTP configuration, or email templates exist for invitations in `Backend/` |
+| **Email Delivery** | Supabase Auth SMTP (Resend) | Auth emails only | **NOT USED FOR PARTNER INVITES**. Auth emails (confirm sign-up, invite user, reset password) are sent via Supabase SMTP; the custom `invite-partner` endpoint does not dispatch an email. Code sharing is manual/out-of-band. |
 | **Supabase** | `request_partnership` RPC | Database request creation | Inserts row into `public.partnerships` with `status = 'pending'` |
 
 > [!IMPORTANT]
@@ -243,13 +243,13 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
 
 During the reverse-engineering analysis, the following technical findings and bugs were identified:
 
-### 1. INCONSISTENCY: Declared Email Invitation vs. RPC-Only Backend
+### 1. NOTE: No Email is Dispatched for Custom Partner Invites
 
-* **WHAT**: The feature is labeled "Invite Partner via Email", but no emails are sent.
-* **WHERE**: [auth.controller.js:164-182](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L164-L182) and [partnership_repository.dart:53-59](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L53-L59)
-* **WHY**: The backend controller invokes `adminSupabase.rpc('request_partnership')` directly. No email transport service (e.g. Nodemailer, Resend) is integrated.
-* **WHEN**: Happens whenever a user expects an email notification to be delivered to an offline target partner.
-* **IMPACT**: Users inviting unregistered or offline partners expect an email to be sent, but nothing is delivered externally.
+* **WHAT**: The "Invite Partner" flow (email + 6-char code) creates a pending `partnerships` row via `request_partnership` RPC; it does **not** send an email.
+* **WHERE**: [auth.controller.js:205-223](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L205-L223) and [partnership_repository.dart:53-59](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L53-L59)
+* **WHY**: This is the intended behavior in this codebase. Supabase Auth SMTP (Resend) is used for Auth emails (confirm sign-up, invite user via Supabase Auth, reset password), but the custom `invite-partner` endpoint is not wired to send an email. Partners must share the 6-char `partnershipCode` out-of-band.
+* **WHEN**: Anytime a user sends a partner invite through the in-app dialog.
+* **IMPACT**: No automatic email goes to the recipient; both parties need the code manually.
 * **CONFIDENCE**: **HIGH**
 
 ### 2. DEFECT: Asymmetrical Database Operation for Request Rejection

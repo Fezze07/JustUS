@@ -8,9 +8,10 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 
 **Actual Email Dispatch from Backend/Node.js is COMPLETELY ABSENT / DECLARED BUT UNUSED.**
 
-* No SMTP client, mailer SDK (Nodemailer, Resend, SendGrid, Mailgun), or email service module exists in the Node.js backend (`Backend/`).
-* Partner invitations (`POST /api/v1/auth/invite`) store rows in Postgres via Supabase RPC (`request_partnership`), but **do not dispatch any email notification**.
-* Email verification relies entirely on Supabase's native built-in Auth SMTP service (or local Supabase Inbucket in development).
+* The project uses **Supabase Auth SMTP** (configured with Resend in the online Supabase project) for Auth emails (confirm sign-up, invite user, reset password, password changed, etc.). The custom SMTP sender is `team@mail.justus.serverfede.eu` via `smtp.resend.com:465`.
+* No additional mailer SDK (Nodemailer, Resend SDK, SendGrid, Mailgun) is installed or used by the Node.js backend (`Backend/`).
+* Partner invitations (`POST /api/v1/auth/invite`) store rows in Postgres via Supabase RPC (`request_partnership`) and do **not** dispatch any email notification. The code-sharing flow is manual (partners must share the 6-char `partnershipCode`). There is no Supabase Auth "invite" email triggered by the custom `invite-partner` endpoint in this codebase.
+* Email verification for Supabase Auth is handled by Supabase's configured SMTP (or local Supabase Inbucket in development).
 
 ---
 
@@ -64,15 +65,15 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 
 | Component / Flow | File Path | Direct Callers | Mailer Implementation | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Partner Invitation Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite` | Inserts DB record via Supabase RPC; no email sent | **PARTIALLY IMPLEMENTED** |
-| **Email Signup & Verification** | `Flutter/lib/features/auth/auth_state.dart` | `RegisterScreen` | Offloaded to Supabase Auth managed SMTP | **IMPLEMENTED (Supabase)** |
+| **Partner Invitation Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite` | Inserts DB record via Supabase RPC; no email dispatched | **IMPLEMENTED (no email)** |
+| **Email Signup & Verification** | `Flutter/lib/features/auth/auth_state.dart` | `RegisterScreen` | Offloaded to Supabase Auth SMTP (Resend) | **IMPLEMENTED (Supabase)** |
 | **Web Callback HTML Templates** | `Backend/templates/callbackPage.js` | `Backend/routes/authCallbacks.js` | Serves HTML page for browser redirects | **IMPLEMENTED (Static HTML)** |
-| **Backend Mailer Service / SDK** | N/A | None | No Nodemailer / Resend / SendGrid / SMTP integration | **COMPLETELY ABSENT** |
+| **Backend Mailer Service / SDK** | N/A | None | No Nodemailer/Resend/SendGrid SDK in Node backend (emails go via Supabase SMTP for Auth events) | **NOT USED (Supabase SMTP)** |
 
 ---
 
 ## Architectural Findings & Recommendations
 
-1. **Absence of Backend Mail Transport**:
-   - The backend contains no Nodemailer or email provider SDK. All partner invitations require users to already have an active account or share their `partnershipCode` manually or via in-app notification.
+1. **No Email Sent for Partnership Invites**:
+   - Supabase Auth SMTP (Resend) handles Auth transactional emails (confirm sign-up, invite user, reset password, password changed, etc.). The custom `POST /api/v1/auth/invite` (partner invite) does not trigger an email; it only creates a pending `partnerships` row via `request_partnership` RPC. Users must share the 6-char `partnershipCode` manually or out-of-band. No mailer SDK is present in the Node backend.
    - If transactional invitation emails are desired for unregistered recipients, a mailer service (e.g. Resend / Nodemailer) must be integrated into `invitePartnerController`.
