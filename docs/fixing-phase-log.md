@@ -20,6 +20,8 @@
 | 6 | Design system, navigation, theming | 6.1–6.8 | All fixed. Tokenized theme, DS adoption, single routing strategy, notification taps, theme persistence, light theme |
 | 7 | Dead code & docs hygiene | 7.1–7.9 | All fixed. 7.7 closed as *already clean* (stale item). README rebuilt against the code |
 | 8 | Testing gaps | 8.1–8.7, 8.9, 8.10 | 9 fixed. Still open — 8.8 CI wiring, carried in `todo.md`. Auth-refresh retry, runnable SQL assertions for RLS and retention, `BaseState` helpers, the realtime pipeline, optimistic rollback, the force-update flow, and two suite-hardening sweeps |
+| 9 | Findings that were never planned | 9.1–9.9 | All fixed. Failed-login reporting plus route idempotency, token and session revocation on logout and password change, server-side password policy, a distinct-email risk cap, a docs reconciliation sweep, and the `user_devices` retention and session-linked prune |
+| 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.11 | 9 fixed. Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes. Still open — 10.12–10.21 carried in `todo.md` |
 
 ---
 
@@ -94,6 +96,24 @@
 | 8.7 | `cleanup_old_logs(p_days)` boundary unasserted | Fixed (parameterized and default-90 sweeps) | 2026-09-30 |
 | 8.9 | Test-suite hardening sweep (Flutter + Backend) | Fixed (non-vacuous scans, shared mocks, tracked `scripts/`) | 2026-09-30 |
 | 8.10 | Backend suite could pass for the wrong reasons | Fixed (`resetRateLimitState()`, tracked `.env.test`) | 2026-10-01 |
+| 9.1 | Failed logins are never reported — strikes inert | Fixed (best-effort report from `login()`, idempotent route) | 2026-10-04 |
+| 9.2 | Device tokens are never revoked on logout | Fixed (hard row delete via `device-token-revoke`) | 2026-10-04 |
+| 9.3 | Password change leaves other sessions valid | Fixed (`signOut(scope: others)`) | 2026-10-04 |
+| 9.4 | Password complexity enforced only on the client | Fixed (GoTrue policy aligned in `config.toml`) | 2026-10-09 |
+| 9.5 | Risk-check endpoints are unsigned | Fixed (design kept; distinct-email IP cap added) | 2026-10-09 |
+| 9.6 | Documentation reconciliation sweep | Fixed (stale status rows and findings corrected) | 2026-10-09 |
+| 9.7 | Stale `user_devices` rows survive a failed revoke | Fixed (30-day retention sweep) | 2026-10-09 |
+| 9.8 | Push rows of password-revoked sessions survive | Fixed (`device-token-revoke-all` on password change) | 2026-10-10 |
+| 9.9 | Failed-logout `user_devices` rows linger 30 days | Fixed (session-linked prune RPC) | 2026-10-10 |
+| 10.1 | Logout destroys the device fingerprint | Fixed (preserved in `clearAll()`) | 2026-10-10 |
+| 10.2 | Media file cache is not cleared on logout | Fixed (`emptyAppMediaCaches()` in logout) | 2026-10-10 |
+| 10.3 | Rate limiting and strike bans live in process memory | Fixed (single-instance constraint documented) | 2026-10-11 |
+| 10.4 | Login strikes never accumulate across instances | Fixed (per-instance constraint documented) | 2026-10-11 |
+| 10.5 | Idempotency cache is per-process | Fixed (per-instance guarantee documented) | 2026-10-11 |
+| 10.8 | Nonce store can accept a nonce on two instances | Fixed (atomic DB reservation; superseded by 11.9) | 2026-10-11 |
+| 10.9 | `logAppError` splits error codes on the wrong separator | Fixed (`split("-")`) | 2026-10-11 |
+| 10.10 | Non-production responses expose `details` and `stack` | Fixed (explicit `ENABLE_ERROR_DETAILS` flag) | 2026-10-12 |
+| 10.11 | Invalid-token cleanup deletes rows globally | Fixed (`user_id`-scoped delete) | 2026-10-12 |
 
 ---
 
@@ -113,6 +133,15 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 10. **A force update is mandatory whatever the local build.** `mandatory = forceUpdate || localBuild < minBuild`, so `forceUpdate` alone blocks dismissal even above `minBuild`. Non-dismissibility needs **both** `barrierDismissible: false` and `PopScope(canPop: false)`: a barrier tap pops through `Navigator.maybePop`, which `PopScope` also blocks, so either flag alone lets the other regress unnoticed. → `docs/features/miss-you/doc.md` § Force Update Dialog Behavior.
 11. **Change detection is cursor-based, not payload-diff-based.** No client-side field comparison exists; the tested contract is that an unchanged server timestamp costs zero fetches and zero checkpoint writes. A "payload with no changed field produces no refetch" guarantee does not exist and must not be reintroduced. → `docs/app/storage-and-caching/doc.md` § Tests.
 12. **Source-scan tests must fail loudly, never vacuously.** A scan that resolves no files, or accepts a fallback constant when a lookup misses, reports success over nothing; the scan-based tests share `test_helpers/source_scan.dart`, which resolves `lib/` at runtime, throws on an empty file list and strips comments. → `docs/app/architecture/doc.md` § Tests.
+13. **A logged-out device token is deleted, not marked inactive.** `user_devices` has no revocation column and delivery reads every row for the user, so removing the row *is* the deactivation; the audit FKs to `user_devices(id)` are `ON DELETE SET NULL`, so the history survives. → `docs/features/authentication/account-lifecycle/doc.md` § Token Revocation.
+14. **Only the current session survives a password change — `signOut(scope: others)`, never `global`.** `global` would also sign out the device that changed the password, and `others` fires no `signedOut` event, so the revoke cannot re-enter the logout teardown. → `docs/features/authentication/account-lifecycle/doc.md` § Other-Session Revocation.
+15. **A password change also revokes every other device's push registration immediately.** The 30-day age sweep is a backstop only: the change exists to cut off a possibly-stolen device, so FCM must stop within the request, not 30 days later. → `docs/app/notifications/doc.md` § Backend other-device revocation.
+16. **`user_devices.session_id` deliberately carries no foreign key.** An `auth.sessions` row is gone before the sweep runs, and an `ON DELETE SET NULL` FK would null the very pointer the prune reads; the session-linked prune runs as a `service_role` RPC instead. → `docs/features/authentication/account-lifecycle/doc.md` § Notification Cleanup.
+17. **Password complexity is enforced by the native GoTrue config, not an Auth hook.** Same guarantee with no extra code to drift; the tracked `supabase/config.toml` records the intended policy and `config diff` is the guard, not the deployment mechanism. → `docs/features/authentication/login-registration/doc.md` § Password Validation.
+18. **The device fingerprint is a device attribute and survives logout and wipe.** It is not user data; the backend strike key is `sha256(email)+sha256(deviceFingerprint)+ip`, so minting a new UUID per logout silently reset the lockout schedule. → `docs/app/storage-and-caching/doc.md` § Logout Behavior.
+19. **The logout media clear calls `emptyAppMediaCaches()` directly; the `DriveState.clearMediaCache()` wrapper was deleted.** Routing through it would have added an auth→drive coupling for no gain, since nothing called it. → `docs/app/storage-and-caching/doc.md` § Logout Behavior.
+20. **No shared store (Redis/KeyDB): the backend is single-instance by design.** Rate-limit buckets, login strikes and idempotency keys are per process and cleared by a restart; the accepted exposure is documented per mechanism rather than fixed, and nonce replay is closed separately by the database `UNIQUE` constraint. → `docs/backend/security/doc.md` § Multi-Instance Vulnerability Analysis Matrix.
+21. **Error diagnostics are gated on an explicit `ENABLE_ERROR_DETAILS` flag, not `NODE_ENV`.** The gate covers the message as well as `details`/`stack`, because a copied `err.message` carried the same disclosure class in any non-production container. → `docs/backend/error-handling/doc.md` § End-to-End Error Flow Map.
 
 ---
 
@@ -153,5 +182,14 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `Backend/test/authorization.test.js` | 8.10 |
 | `Backend/test/setupEnv.js` | 8.10 |
 | `Backend/test/support/mockSupabase.js` | 8.10 |
+| `Flutter/test/login_failure_report_test.dart` | 9.1 |
+| `Flutter/test/logout_device_token_revoke_test.dart` | 9.2 |
+| `Flutter/test/password_change_session_revoke_test.dart` | 9.3 |
+| `supabase/test/prune_user_devices_dead_sessions.test.sql` | 9.9 |
+| `Flutter/test/device_fingerprint_persistence_test.dart` | 10.1 |
+| `Flutter/test/logout_media_cache_clear_test.dart` | 10.2 |
+| `Backend/test/logger.test.js` | 10.9 |
+| `Backend/test/errorHandler.test.js` | 10.10 |
+| `Backend/test/notification.service.test.js` | 10.11 |
 
 ---

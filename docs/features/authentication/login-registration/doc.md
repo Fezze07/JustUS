@@ -326,7 +326,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 ### 1. SECURITY RISK: Unsigned risk-check endpoints (residual, by design)
 - **Finding**: `POST /login-risk-check` and `POST /login-attempt` are intentionally unsigned — the single-use Turnstile token is consumed by Supabase Auth and cannot also be verified on the Node backend, so no `signed()` layer applies. Instead the routes rely on `loginRiskSchema` (email-shape + device-fingerprint validation), the composite rate limiter (20/min per IP, 10/min per device) and the 5-distinct-emails/min per-IP cap (see § Request Validation & Abuse Controls).
-- **Residual**: the endpoints accept unauthenticated input, so the protections are only as strong as the IP/device rate limits, which are in-memory and per-process. A distributed source (many IPs, or requests spread across backend instances) can still consume the request budget and add `loginAttempts` map entries, and it can observe the strike state of the exact `(email, deviceFingerprint, ip)` triple it presents — never another user's, because that triple is part of the counter key. These per-process semantics are tracked as a cross-cutting concern in Phase 10 (10.3–10.8).
+- **Residual**: the endpoints accept unauthenticated input, so the protections are only as strong as the IP/device rate limits, which are in-memory and per-process. A distributed source (many IPs, or requests spread across backend instances) can still consume the request budget and add `loginAttempts` map entries, and it can observe the strike state of the exact `(email, deviceFingerprint, ip)` triple it presents — never another user's, because that triple is part of the counter key. These per-process semantics are an accepted single-instance constraint, documented in `docs/backend/security/doc.md` (archived as 10.3–10.8).
 
 ---
 
@@ -339,7 +339,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 ## Known Issues
 
-- **In-Memory Risk State is Per-Instance**: Node backend risk state (`loginAttempts`) is held in process memory, so the strike counter is **per backend instance**. Failures, strike levels and the 10/30-minute lockouts are neither shared across instances nor persisted: a credential-stuffing source spread over several nodes divides its attempts below the threshold, and a restart or deploy clears every active lockout counter and strike level. The backend is deployed as a **single instance**, so this is an accepted constraint (Phase 10.4) rather than a defect, and within that instance the lockout fires on the documented schedule (5 failures → 10 min, 8 → 30 min).
+- **In-Memory Risk State is Per-Instance**: Node backend risk state (`loginAttempts`) is held in process memory, so the strike counter is **per backend instance**. Failures, strike levels and the 10/30-minute lockouts are neither shared across instances nor persisted: a credential-stuffing source spread over several nodes divides its attempts below the threshold, and a restart or deploy clears every active lockout counter and strike level. The backend is deployed as a **single instance**, so this is an accepted constraint rather than a defect, and within that instance the lockout fires on the documented schedule (5 failures → 10 min, 8 → 30 min).
 
 ---
 
