@@ -232,6 +232,20 @@ describe("auth routes", () => {
     );
   });
 
+  test("rejects the shared placeholder device token", async () => {
+    const app = createApp();
+
+    const response = await request(app)
+      .post("/api/v1/auth/device-token")
+      .send({ deviceToken: "UNKNOWN_DEVICE_TOKEN" });
+
+    // The placeholder is 20 chars, so it clears min(16); only the explicit
+    // sentinel refinement rejects it. Accepting it would collide on the
+    // globally-unique device_token column across unrelated accounts.
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("API-VALIDATION-001");
+  });
+
   test("revokes only the caller's own device token row", async () => {
     const userDevicesQuery = createQueryBuilder();
 

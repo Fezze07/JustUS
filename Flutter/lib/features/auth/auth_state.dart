@@ -166,21 +166,10 @@ class AuthState extends BaseState
       await _syncBackendSession();
 
       // Register (or refresh) the FCM device token on every app start
-      if (isLoggedIn && DeviceTokenService.supportsFcm) {
-        final fcmToken = await DeviceTokenService.getDeviceToken();
-        if (fcmToken != 'UNKNOWN_DEVICE_TOKEN') {
-          try {
-            final result = await _authRepo.updateDeviceToken(
-              fcmToken,
-              locale: ui.PlatformDispatcher.instance.locale.languageCode,
-            );
-            AnsiLogger.auth('updateDeviceToken (init): $result',
-                tag: 'AuthState');
-          } catch (e) {
-            AnsiLogger.error('updateDeviceToken (init) ERROR: $e',
-                tag: 'AuthState');
-          }
-        }
+      final tokenResult = await _registerDeviceToken();
+      if (tokenResult != null) {
+        AnsiLogger.auth('updateDeviceToken (init): $tokenResult',
+            tag: 'AuthState');
       }
     }
 
@@ -248,25 +237,43 @@ class AuthState extends BaseState
           (locale ?? ui.PlatformDispatcher.instance.locale).languageCode;
       if (currentLocale == _lastSyncedLocale) return;
 
-      if (!DeviceTokenService.supportsFcm) return;
-      final token = await DeviceTokenService.getDeviceToken();
-      if (token.isEmpty || token == 'UNKNOWN_DEVICE_TOKEN') return;
-
-      final result = await _authRepo.updateDeviceToken(
-        token,
-        locale: currentLocale,
-      );
+      final result = await _registerDeviceToken(locale: currentLocale);
       if (result is Success<void>) {
         _lastSyncedLocale = currentLocale;
         AnsiLogger.notification('Locale synced: $currentLocale',
             tag: 'AuthState');
-      } else {
+      } else if (result != null) {
         AnsiLogger.error('Locale sync failed: $result', tag: 'AuthState');
       }
     } catch (e) {
       AnsiLogger.error('Locale sync error: $e', tag: 'AuthState');
     } finally {
       _isSyncingLocale = false;
+    }
+  }
+
+  /// Registers (or refreshes) this device's FCM token through the backend.
+  ///
+  /// The guard lives here so no call site can drift: on a platform without FCM
+  /// support, or when `getDeviceToken()` yields the `UNKNOWN_DEVICE_TOKEN`
+  /// placeholder, it returns `null` and sends no request. That placeholder is a
+  /// single shared string and `user_devices.device_token` is globally UNIQUE, so
+  /// registering it would re-point one row between unrelated accounts as they
+  /// log in and out (F-PN5).
+  Future<ResultWrapper<void>?> _registerDeviceToken({String? locale}) async {
+    if (!isLoggedIn || !DeviceTokenService.supportsFcm) return null;
+
+    final token = await DeviceTokenService.getDeviceToken();
+    if (token.isEmpty || token == 'UNKNOWN_DEVICE_TOKEN') return null;
+
+    try {
+      return await _authRepo.updateDeviceToken(
+        token,
+        locale: locale ?? ui.PlatformDispatcher.instance.locale.languageCode,
+      );
+    } catch (e) {
+      AnsiLogger.error('updateDeviceToken error: $e', tag: 'AuthState');
+      return null;
     }
   }
 
@@ -324,17 +331,9 @@ class AuthState extends BaseState
 
       // Step 4: Sync session and register the device token through the backend
       await _syncBackendSession();
-      final fcmToken = await DeviceTokenService.getDeviceToken();
-      AnsiLogger.auth('FCM token (login): $fcmToken', tag: 'AuthState');
-      try {
-        final tokenResult = await _authRepo.updateDeviceToken(
-          fcmToken,
-          locale: ui.PlatformDispatcher.instance.locale.languageCode,
-        );
+      final tokenResult = await _registerDeviceToken();
+      if (tokenResult != null) {
         AnsiLogger.auth('updateDeviceToken (login): $tokenResult',
-            tag: 'AuthState');
-      } catch (e) {
-        AnsiLogger.error('updateDeviceToken (login) ERROR: $e',
             tag: 'AuthState');
       }
 

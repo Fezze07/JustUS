@@ -1,7 +1,16 @@
 const { z } = require("zod");
 
+// The client's "no token" placeholder is a single shared string, and
+// user_devices.device_token is globally UNIQUE, so accepting it would re-point
+// one row between unrelated accounts. Reject it at the trust boundary.
 const updateDeviceTokenSchema = z.object({
-  deviceToken: z.string().min(16).max(512),
+  deviceToken: z
+    .string()
+    .min(16)
+    .max(512)
+    .refine((t) => t !== "UNKNOWN_DEVICE_TOKEN", {
+      message: "Placeholder device token is not registrable",
+    }),
   deviceType: z.string().max(50).optional(),
   locale: z.string().max(10).optional(),
 });

@@ -58,13 +58,13 @@ Receiver device (FCM delivery):
 | Android | `FirebaseMessaging.getToken()` | `android` | ✅ `flutter_local_notifications` on channel `justus_channel` | ✅ OS system tray (`default_notification_channel_id=justus_channel`) | **Yes** |
 | iOS | `FirebaseMessaging.getToken()` | `ios` | ✅ `flutter_local_notifications` (Darwin) — double-presentation risk (F-PN1) | ✅ OS system tray | **Yes** (minor issues) |
 | Web | `FirebaseMessaging.getToken()` | `web` | ❌ early return on `kIsWeb` (`notification_service.dart:146`) | ❌ no service worker | **No** (F-PN2) |
-| Windows | persistent UUID fingerprint | `windows` | Plugin configured, never triggered by FCM | No FCM; token filtered server-side | **No** |
-| macOS | `UNKNOWN_DEVICE_TOKEN` (10 chars) | `macos` | Plugin configured, never triggered by FCM | No FCM; token filtered server-side | **No** |
-| Linux | `UNKNOWN_DEVICE_TOKEN` | `linux` | Plugin configured, never triggered by FCM | No FCM; token filtered server-side | **No** |
+| Windows | persistent UUID fingerprint | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
+| macOS | `UNKNOWN_DEVICE_TOKEN` placeholder | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
+| Linux | `UNKNOWN_DEVICE_TOKEN` placeholder | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
 
 - `Firebase.initializeApp` runs only on Android/iOS/web (`main.dart:54-67`). On Linux `DefaultFirebaseOptions.currentPlatform` throws `UnsupportedError` (`firebase_options.dart:32-35`).
-- `supportsFcm` is `defaultTargetPlatform == android || ios || kIsWeb` (`device_token_service.dart:6-9`).
-- The backend treats a token as deliverable only when `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:40-46`). Desktop devices are therefore registered but never delivered to.
+- `supportsFcm` is `defaultTargetPlatform == android || ios || kIsWeb` (`device_token_service.dart:11-14`).
+- The backend treats a token as deliverable only when `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:40-46`). Desktop devices are never registered at all: `_registerDeviceToken()` skips them client-side (`auth_state.dart:263-280`), and the backend rejects the `UNKNOWN_DEVICE_TOKEN` placeholder (`auth.schemas.js:4-13`).
 
 **Desktop note**: Windows/macOS/Linux never receive remote push notifications by design. `flutter_local_notifications` Windows/Linux/Darwin settings exist but no code path ever calls `showNotification` on those platforms.
 
@@ -113,8 +113,8 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 | Platform | Token value | Length | Validation (schema: 16–512) |
 |---|---|---|---|
 | Android/iOS/Web | FCM token | ~152+ chars | ✅ |
-| Windows | `getOrCreateDeviceFingerprint()` UUID | 36 | ✅ (but filtered server-side) |
-| macOS/Linux | `'UNKNOWN_DEVICE_TOKEN'` | 10 | ❌ fails `z.string().min(16)` → HTTP 400 |
+| Windows | `getOrCreateDeviceFingerprint()` UUID | 36 | ✅ but never registered (guard skips desktop) |
+| macOS/Linux | `'UNKNOWN_DEVICE_TOKEN'` | 20 | ✅ clears `min(16)`, but never sent (guard) and rejected by the sentinel refinement |
 
 `onTokenRefresh` stream is empty on non-FCM platforms; `getDeviceFingerprint()` powers session binding and login-risk checks separately.
 
@@ -122,11 +122,11 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 
 | Trigger | Location | Guard | Notes |
 |---|---|---|---|
-| App startup with a session | `auth_state.dart:157-173` | `isLoggedIn && supportsFcm` | Skips desktop entirely |
-| Successful login | `auth_state.dart:315-329` | **none** | F-PN5 (inconsistent gating) |
+| App startup with a session | `auth_state.dart:168-172` | `_registerDeviceToken()` | Skips desktop entirely |
+| Successful login | `auth_state.dart:332-337` | `_registerDeviceToken()` | Same guard as startup; skips desktop |
 | FCM token rotation | `auth_state.dart:200-207` | `token.isNotEmpty && isLoggedIn` | Re-registers new token |
-| App resume / locale change | `auth_state.dart:215-261` | `supportsFcm && token != UNKNOWN_DEVICE_TOKEN` | Debounced 500 ms; updates `locale` |
-| **Logout** | `auth_state.dart:753-768` (`_revokeDeviceToken()`) | `isLoggedIn && token != UNKNOWN_DEVICE_TOKEN` | Deletes the row; see below |
+| App resume / locale change | `auth_state.dart:232-247` | `_registerDeviceToken(locale:)` | Debounced 500 ms; updates `locale` |
+| **Logout** | `auth_state.dart:762-777` (`_revokeDeviceToken()`) | `isLoggedIn && token != UNKNOWN_DEVICE_TOKEN` | Deletes the row; see below |
 
 ### Backend upsert — `POST /api/v1/auth/device-token`
 
@@ -439,15 +439,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **IMPACT**: Currently zero (the stream has no consumers anyway — F-N5 navigation). Relevant if tap-driven navigation is ever added.
 - **CONFIDENCE**: LOW — depends on plugin intent-detection internals; not device-verified.
 
-### F-PN5: `login()` registers the token without the `supportsFcm` guard (INFO)
-
-- **WHAT**: `AuthState.login()` (`auth_state.dart:315-329`) calls `updateDeviceToken(fcmToken)` unconditionally, while `AuthState.init()` gates on `DeviceTokenService.supportsFcm` (`auth_state.dart:158`). On Windows a UUID fingerprint passes validation and is stored as `windows` (filtered server-side); on macOS/Linux `'UNKNOWN_DEVICE_TOKEN'` (10 chars) fails the 16-char schema minimum → HTTP 400, swallowed by try/catch.
-- **WHERE**: `auth_state.dart:158-173` vs `:315-329`; `auth.schemas.js:4`.
-- **WHY**: The login path predates the guard added later to `init()`.
-- **WHEN**: Desktop logins.
-- **IMPACT**: One logged 400 per session on macOS/Linux; a harmless extra row on Windows. Inconsistent gating only.
-- **CONFIDENCE**: HIGH.
-
 ### F-PN6: Default-locale asymmetry between server and client (INFO)
 
 - **WHAT**: The server falls back to `'en'` for unknown/empty `device.locale` (`notification.service.js:145`); the client falls back to `it` for unknown `app_language_code` (`language_helper.dart:27`).
@@ -489,7 +480,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | FCM token acquisition (Android/iOS) | IMPLEMENTED |
 | FCM token acquisition (web) | PARTIALLY IMPLEMENTED (token retrieval depends on missing SW; rendering absent — F-PN2) |
 | Token registration at startup (`init`) | IMPLEMENTED (gated on `supportsFcm`) |
-| Token registration at login | IMPLEMENTED (ungated — F-PN5) |
+| Token registration at login | IMPLEMENTED (same `_registerDeviceToken()` guard; `auth.schemas.js` also rejects the placeholder) |
 | Token refresh re-registration | IMPLEMENTED |
 | Locale sync on resume / language change | IMPLEMENTED |
 | Token revocation at logout (`POST /auth/device-token-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
@@ -526,7 +517,7 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`. `POST /auth/device-token-revoke-all` is asserted to delete every row but the one whose token is in the body (`eq user_id`, `neq device_token`), with the same failure and validation cases; `POST /auth/device-token` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
+`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`. `POST /auth/device-token-revoke-all` is asserted to delete every row but the one whose token is in the body (`eq user_id`, `neq device_token`), with the same failure and validation cases; `POST /auth/device-token` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the shared `UNKNOWN_DEVICE_TOKEN` placeholder with `400 API-VALIDATION-001` even though it clears `min(16)`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 
@@ -534,7 +525,7 @@ The `sendNotificationController` is fully mocked — no test covers the real dis
 
 ### Flutter
 
-`Flutter/test/logout_device_token_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no token exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback.
+`Flutter/test/logout_device_token_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no token exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_device_token_guard_test.dart` pins the registration guard: a successful login registers the token when FCM is supported and makes no `updateDeviceToken` call on a platform where it is not.
 
 No tests reference `NotificationService`, `onNotificationTap`, `showRemoteMessage`, `_localizeNotification`, or `_notificationId` (grep of `test/`).
 
