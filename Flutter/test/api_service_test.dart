@@ -460,6 +460,61 @@ void main() {
         verifyNever(() => mockClient.post(any(),
             headers: any(named: 'headers'), body: any(named: 'body')));
       });
+      test('a rejected signature re-binds and retries once with the new secret',
+          () async {
+        await StorageService.saveRequestBindingSecret('stale-secret-111');
+
+        var recoveryRuns = 0;
+        ApiService.onMissingBindingSecret = () async {
+          recoveryRuns++;
+          ApiService.setCachedRequestBindingSecret('renewed-secret-222');
+          await StorageService.saveRequestBindingSecret('renewed-secret-222');
+        };
+
+        var refreshAttempts = 0;
+        ApiService.tokenRefreshHandler = (_) async {
+          refreshAttempts++;
+          return true;
+        };
+
+        final signatures = <String?>[];
+        when(() => mockClient.post(any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'))).thenAnswer((invocation) async {
+          final headers =
+              invocation.namedArguments[#headers] as Map<String, String>;
+          signatures.add(headers['X-Request-Signature']);
+
+          if (signatures.length == 1) {
+            return http.Response(
+              jsonEncode({
+                'success': false,
+                'error': {
+                  'code': ErrorCodes.secAuth002,
+                  'message': 'Invalid request signature',
+                },
+              }),
+              401,
+            );
+          }
+
+          return http.Response(
+              jsonEncode({'success': true, 'token': 'device-tok'}), 200);
+        });
+
+        final result = await apiService.updateDeviceToken(
+          UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+        );
+
+        expect(recoveryRuns, 1);
+        // The 401 is a signature rejection, not an expired token: the token
+        // refresh path must not run at all.
+        expect(refreshAttempts, 0);
+        expect(signatures, hasLength(2));
+        expect(signatures[1], isNot(signatures[0]),
+            reason: 'the retry must be signed with the recovered secret');
+        expect(result, isA<Success<UpdateTokenResponse>>());
+      });
     });
   });
 

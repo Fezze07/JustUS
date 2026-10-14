@@ -215,10 +215,10 @@ Trigger UI state refreshes:
 
 ### Automatic Redirection to PartnerScreen
 
-App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:22-55](file:///f:/JustUS/Flutter/lib/features/auth/screens/splash_screen.dart#L22-L55)):
+App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:22-41](file:///f:/JustUS/Flutter/lib/features/auth/screens/splash_screen.dart#L22-L41)):
 
-1. App launches and calls `AuthState.init()`.
-2. Checks `AuthState.isLoggedIn`:
+1. App launches and calls `AuthState.init()` (capped at 8 s; a timeout or initialization error is logged only and does not change the destination).
+2. `AuthNavigationUtils.determinePostAuthDestination` checks `AuthState.isLoggedIn`:
    - `false` -> Navigate to `LoginScreen`.
    - `true` -> Execute `PartnerState.fetchPartnership()`.
 3. Checks `PartnerState.partner`:

@@ -59,7 +59,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 2. **Node.js Express Backend API (`/api/v1`)**:
    - Used for operations requiring elevated privileges, third-party API orchestration, HMAC signing, heavy rate limiting, or atomic domain wipes.
-   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`, `/api/v1/auth/device-token-revoke-all`), Session binding (`/api/v1/auth/session-sync`), Account data wipe (`/api/v1/users/wipe`).
+   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`, `/api/v1/auth/device-token-revoke-all`), Session binding (`/api/v1/auth/session-bind`), Account data wipe (`/api/v1/users/wipe`).
 
 ---
 
@@ -112,9 +112,9 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Database Behavior**: Deletes every `user_devices` row of the caller except the one whose `device_token` matches the body — `user_id = me AND device_token != mine` — so the password change that triggers it stops pushes to all other devices at once while the caller's own registration survives. Durable: a deleted device cannot re-register, because the registration route is `authenticated()` and its Supabase session was already revoked. A DB failure surfaces as `500 DB-WRITE-001`.
 - **Flutter Consumer**: `AuthRepository.revokeOtherDeviceTokens()` → `ApiService.revokeOtherDeviceTokens()`, called by `AuthState._revokeOtherDeviceTokens()` right after `_revokeOtherSessions()` on both password writes. Best-effort (5 s cap, `401` does not re-enter the teardown, unresolvable local token skips the call); the 30-day retention sweep is the backstop.
 
-#### `POST /api/v1/auth/session-sync`
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-sync")` $\rightarrow$ `validated({ body: sessionSyncSchema })`
-- **Behavior**: Generates `binding_secret` UUID, hashes `device_fingerprint`, upserts `auth_sessions`, returns `{ bindingSecret }`.
+#### `POST /api/v1/auth/session-bind`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-bind")` $\rightarrow$ `validated({ body: sessionBindSchema })`
+- **Behavior**: generates a fresh `binding_secret`, hashes `device_fingerprint`, upserts `session_bindings` (revoking any stale session of the same user + device first), returns `{ success, anomalies, bindingSecret }`. The secret is rotated on **every** call; the client stores it only if the response arrives, so a lost response leaves the client signing with the previous secret until `ApiService` re-binds on the resulting `SEC-AUTH-002`.
 
 ---
 

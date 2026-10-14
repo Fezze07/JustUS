@@ -310,6 +310,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
   - Invalidated when `session_bindings` record is deleted (via cascade when Supabase `auth.sessions` is deleted/revoked).
 - **Client-side Recovery & Fail-Closed**:
   - If the secret is missing when a `requireSignature: true` authenticated call is prepared, `ApiService._buildHeaders` invokes `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`) to re-run `/auth/session-bind` before signing. Recovery is deduplicated (one in-flight attempt) with a 30s cooldown after a failed attempt.
+  - If the secret is present but **stale** (the rotation happened but its response was lost: an 8 s splash timeout or the 10 s `ApiService` timeout fired first), the request is rejected with `SEC-AUTH-002`. Because `authenticateToken` runs before `requireSignedRequest`, that code proves the JWT is still valid, so `ApiService._safeCall` does not treat it as an expired token: it re-runs the same recovery and retries the call **once** with the new secret. The retry happens only when the recovered secret actually differs from the one that was rejected, so a genuinely offline device falls through to the normal 401 handling instead of looping.
   - If the secret still cannot be obtained, the signed call **fails closed** with `AppError(code: 'LOCAL-BINDING-001')`. `_safeCall` returns it as a `GenericError(details: AppError)`, so `ErrorHandler` shows the localized, retry-able message instead of a generic `NetworkError`.
   - Unsigned routes (e.g. `/auth/session-bind` itself, `/auth/invite`, `/notify`, `/users/wipe`) still send `X-Request-Timestamp` + `X-Request-Nonce` (required by `freshNonce` routes) but intentionally carry no signature.
 
@@ -335,7 +336,7 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 | `AUTH_FAIL_004` | 401 | Token role claims !== `'authenticated'` | Aborts request |
 | `AUTH_FAIL_005` | 401 | User profile not found in `public.users` table | Aborts request |
 | `AUTH_FAIL_006` | 401 | Device Fingerprint or User-Agent binding mismatch | Forces re-login |
-| `SEC_AUTH_002` | 401 | Missing, expired, or invalid HMAC request signature | Rejects signed request |
+| `SEC_AUTH_002` | 401 | Missing, expired, or invalid HMAC request signature (including a secret the backend rotated while the client still held the old one) | Rejects signed request; the client re-binds the session and retries once |
 | `SEC_BLOCK_001` | 400/403 | Replay attack detected (request nonce already consumed) | Rejects request |
 
 ---
@@ -400,5 +401,5 @@ None currently identified.
 | Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Soft IP Range Monitoring | **IMPLEMENTED** | Logs `ip_range_changed` event |
-| Session Synchronization (`/session-sync`) | **IMPLEMENTED** | `auth_sessions` table upsert |
+| Session Synchronization (`/session-bind`) | **IMPLEMENTED** | `session_bindings` table upsert |
 | HMAC Request Signing & Binding Secret | **IMPLEMENTED** | `requireSignedRequest` middleware |

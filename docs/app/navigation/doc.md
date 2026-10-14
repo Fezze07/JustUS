@@ -23,7 +23,7 @@ Everything else (`LocalizationScreen`, `ChangePasswordScreen`, `ProfileScreen` p
 | `routes:` map (named) | `/login`, `/register`, `/homepage`, `/partner`, `/localization`, `/change-password` | `main.dart:136-143` |
 | `pushNamed` | `/localization` (profile_screen.dart:270), `/change-password` (profile_screen.dart:327), `/login` (error_handler.dart:262) | |
 | `push` + `MaterialPageRoute` | Login->Register; HomepageMenu->ProfileScreen; Drive->DriveItemScreen; Favorites->DriveItemScreen | login_screen.dart:33, homepage_screen.dart:167, drive_screen.dart:290, favorites_screen.dart:100 |
-| `pushReplacement` + `MaterialPageRoute` | Splash->{MainShell,PartnerScreen,Login}; Login->{MainShell,PartnerScreen}; PartnerScreen->MainShell (2 sites) | splash_screen.dart:37-53, login_screen.dart:108, partner_screen.dart:113,358 |
+| `pushReplacement` + `MaterialPageRoute` | Splash->{MainShell,PartnerScreen,Login}; Login->{MainShell,PartnerScreen}; PartnerScreen->MainShell (2 sites) | splash_screen.dart:37-40, login_screen.dart:108, partner_screen.dart:113,358 |
 | `pushAndRemoveUntil((r)=>false)` | Register->PartnerScreen; Logout->LoginScreen; Reauth->LoginScreen | register_screen.dart:107, logout_utils.dart:43, error_handler.dart:262 |
 | `pop` | Back buttons, dialogs, register->login footer | register_screen.dart:34, profile_screen.dart:134, etc. |
 | Static `GlobalKey<MainShellState>` | Cross-tab jumps from content screens | main_shell.dart:5, homepage_screen.dart:193/369/471/530 |
@@ -46,28 +46,23 @@ No `onGenerateInitialRoutes`, no deep-link startup handling, and no `FirebaseMes
 
 ## SplashScreen
 
-`splash_screen.dart:17-55`:
+`splash_screen.dart:15-41`:
 
 ```
 initState -> unawaited(_checkAuth())
 _checkAuth:
-  await authState.init()
+  try { await authState.init().timeout(8s) } catch { log only }
   if !mounted return
-  if authState.isLoggedIn:
-    await partnerState.fetchPartnership()
-    if !mounted return
-    if partnerState.partner != null:
-      pushReplacement MainShell(MainShell.shellKey)     // line 37-40
-    else:
-      pushReplacement PartnerScreen()                    // line 43-46
-  else:
-    pushReplacement LoginScreen()                        // line 50-53
+  destination = await AuthNavigationUtils.determinePostAuthDestination(context)
+  if !mounted return
+  pushReplacement destination
 ```
 
 Observations:
 
-- The splash **blocks navigation until `AuthState.init()` completes** (secure-storage reads + optional session-sync + optional device-token registration).
-- `_checkAuth()` is wrapped in a `try/catch` block; if an error occurs during initialization, it logs the exception via `AnsiLogger` and navigates safely to `LoginScreen` (falling back from stuck spinner states).
+- The splash **blocks navigation until `AuthState.init()` completes** (secure-storage reads + optional session-bind + optional device-token registration), capped at 8 s.
+- `_checkAuth()` wraps only `init()` in a `try/catch`: an initialization error (slow session-bind, lost connection) is **logged and then routed by the same post-auth decision as the happy path**. The catch does **not** force `LoginScreen`; the session state decides. A user whose local session is still valid keeps it (the runtime symptom of the old forced-login was a slow `/auth/session-bind` timing out at 8 s while the JWT was still good).
+- The 8 s cap does not cancel the in-flight `init()`: the abandoned future still completes, and a later `session-bind` response is still stored.
 - `fetchPartnership()` failures are handled by `runSafe` -> `ErrorHandler` (snackbar/dialog), **and `partner` stays null** -> the splash **navigates to `PartnerScreen` even when a partnership actually exists**. This is a navigation decision based on failed data. `PartnerScreen` self-heals: it shows the existing-partner card (its own `ProfileState` load) whose tap goes to `MainShell`.
 - Uses inline `MaterialPageRoute`, ignoring the declared `/homepage` and `/partner` named routes.
 
@@ -85,7 +80,7 @@ The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is reimpl
 
 | Site | Condition | Destination | Evidence |
 |---|---|---|---|
-| SplashScreen._checkAuth | isLoggedIn && partner!=null / isLoggedIn && partner==null / !isLoggedIn | MainShell / PartnerScreen / LoginScreen | splash_screen.dart:28-53 |
+| SplashScreen._checkAuth | isLoggedIn && partner!=null / isLoggedIn && partner==null / !isLoggedIn | MainShell / PartnerScreen / LoginScreen | splash_screen.dart:30-40 |
 | LoginScreen onPressed | login() success && hasPartner | MainShell / PartnerScreen | login_screen.dart:105-115 |
 | RegisterScreen onPressed | register() success | confirm-email dialog -> pop,pop -> Login (email verification mandatory) | register_screen.dart:96-130 |
 | PartnerScreen accept invitation | acceptInvitation success | MainShell | partner_screen.dart:358-363 |
@@ -135,7 +130,7 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 
 `main_shell.dart`:
 
-- `static final GlobalKey<MainShellState> shellKey` (line 5). Constructed at 3 sites with the **same** key: the `/homepage` named route (main.dart:139), splash pushReplacement (splash_screen.dart:39), login pushReplacement (login_screen.dart:112).
+- `static final GlobalKey<MainShellState> shellKey` (line 5). Constructed at 3 sites with the **same** key: the `/homepage` named route (main.dart:139), splash pushReplacement (splash_screen.dart:37), login pushReplacement (login_screen.dart:112).
 - `_currentIndex` (0-6) + `TabIndexNotifier` + `Set<int> _builtPages = {0}`.
 - `switchToTab(int index)` (line 18): marks built, notifies notifier, setState. Used by content screens via `MainShell.shellKey.currentState?.switchToTab`.
 - Build: `Stack[ Padding(bottom:110) > IndexedStack(index:_currentIndex, children: List.generate(7,...)), Positioned HomeBottomNav ]`.
@@ -277,7 +272,7 @@ Two mechanisms:
 
 **Duplicated.** The destination-decision logic ("logged-in-with-partner -> MainShell") exists in four widgets plus helpers:
 
-- splash_screen.dart:28-54 (decision + navigate),
+- splash_screen.dart:30-40 (decision + navigate),
 - login_screen.dart:105-115 (decision + navigate) - reads `AuthState.hasPartner` instead of re-fetching,
 - register_screen.dart:105-111 (decision + navigate),
 - partner_screen.dart:113-118 and 358-363 (navigate only, no decision).

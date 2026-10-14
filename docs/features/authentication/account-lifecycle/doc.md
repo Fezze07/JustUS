@@ -225,7 +225,7 @@ If the revoke never lands (offline logout, session already expired, app killed m
 
 1. **Unauthenticated → Authenticated**:
    - Triggered by `AuthState.login()` or `register()`.
-   - Populates `StorageService`, initializes `_accessToken`, syncs backend session via `/auth/session-sync`, registers device token, and fetches active partnership status.
+   - Populates `StorageService`, initializes `_accessToken`, syncs backend session via `/auth/session-bind`, registers device token, and fetches active partnership status.
 2. **Authenticated → Refreshing → Authenticated**:
    - Triggered when `ApiService._safeCall` receives HTTP 401.
    - Delegates to the Supabase SDK (`auth.refreshSession()`), the single refresh path; if the SDK already refreshed the live session (different token than the failed request), the redundant call is skipped.

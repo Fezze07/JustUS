@@ -202,6 +202,19 @@ class ApiService {
     return headers;
   }
 
+  static bool _isRejectedSignature(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) return false;
+      final error = decoded['error'];
+
+      return error is Map<String, dynamic> &&
+          error['code'] == ErrorCodes.secAuth002;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<String?> _recoverBindingSecret() {
     final inFlight = _bindingSecretRecovery;
     if (inFlight != null) return inFlight;
@@ -270,6 +283,22 @@ class ApiService {
 
         return Success(fromJson(body));
       } else if (response.statusCode == 401 && !isRetry) {
+        // A rejected signature means the backend rotated the binding secret
+        // while this client kept the old one (a lost session-bind response), not
+        // an expired token: re-bind and retry once with the new secret.
+        if (_isRejectedSignature(response.body)) {
+          final staleSecret = _cachedRequestBindingSecret;
+          final renewedSecret = await _recoverBindingSecret();
+          if (renewedSecret != null && renewedSecret != staleSecret) {
+            return await _safeCall(call, fromJson,
+                isRetry: true,
+                usesAuth: usesAuth,
+                notifySessionExpired: notifySessionExpired,
+                timeout: timeout,
+                label: label);
+          }
+        }
+
         // Token expired - refresh through the single Supabase SDK path
         final refreshResult = await _tryRefreshToken(requestAccessToken);
         if (refreshResult) {

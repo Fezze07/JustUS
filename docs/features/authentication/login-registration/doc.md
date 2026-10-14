@@ -126,7 +126,7 @@ Flutter UI (LoginScreen)
    │        │
    │        └── Saves accessToken, refreshToken, username, userId to StorageService
    │
-   ├── 8. Backend Session Sync (Backend POST /api/v1/auth/session-sync)
+   ├── 8. Backend Session Sync (Backend POST /api/v1/auth/session-bind)
    │        │
    │        ├── Generates bindingSecret & tracks auth_sessions
    │        └── Clears failed login counters on backend (clearFailedLogins)
@@ -180,8 +180,8 @@ Flutter UI (LoginScreen)
 
 7. **Backend Session Synchronization**
    - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L497-L521) & [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L108-L131)
-   - Sends `POST /api/v1/auth/session-sync` with `deviceFingerprint` and `deviceLabel`.
-   - Backend `trackSession()` creates or updates an `auth_sessions` table entry and returns a `bindingSecret`.
+   - Sends `POST /api/v1/auth/session-bind` with `deviceFingerprint`.
+   - Backend `trackSession()` creates or updates a `session_bindings` table entry (rotating the `binding_secret`) and returns it.
    - Backend calls `clearFailedLogins()` to delete any recorded failed attempt counters for this email/device/IP key.
    - Flutter stores `bindingSecret` in `StorageService` for signing subsequent API requests.
 
@@ -228,7 +228,7 @@ Password requirements and their enforcement locations were empirically verified 
 
 2. **Backend Node.js API**
    - Files: [auth.schemas.js](file:///f:/JustUS/Backend/features/auth/auth.schemas.js) & [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js)
-   - The Node backend does **not** process user password inputs during registration or login. Zod schemas (`loginRiskSchema`, `loginAttemptSchema`, `sessionSyncSchema`) do not include password fields.
+   - The Node backend does **not** process user password inputs during registration or login. Zod schemas (`loginRiskSchema`, `loginAttemptSchema`, `sessionBindSchema`) do not include password fields.
 
 3. **Supabase Auth**
    - Handles password storage and hash generation (bcrypt). GoTrue natively evaluates password strength: the linked project is configured with `minimum_password_length = 8` and `password_requirements = "lower_upper_letters_digits_symbols"`, so a registration or password change missing an uppercase letter, a lowercase letter, a digit or a symbol is rejected server-side with a `WeakPasswordError`. This is the authoritative check — a request that bypasses Flutter still hits it.
@@ -285,7 +285,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 
 - Pre-login check (`POST /api/v1/auth/login-risk-check`): Evaluates risk **before** credential verification. If `blocked` is true, throws `AppError(SEC_BLOCK_002)` with HTTP 429 status code.
 - Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails. Increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
-- Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. The idempotency cache is in-memory and **per instance** (single-instance deployment; see `docs/backend/security/doc.md` §9). A successful login clears the counter through `clearFailedLogins()` in the session-sync handler.
+- Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. The idempotency cache is in-memory and **per instance** (single-instance deployment; see `docs/backend/security/doc.md` §9). A successful login clears the counter through `clearFailedLogins()` in the session-bind handler.
 
 ### Request Validation & Abuse Controls
 
@@ -333,7 +333,8 @@ During the reverse-engineering analysis, the following structural bugs, security
 ## Edge Cases
 
 1. **Network Disconnection During Session Sync**: If Supabase Auth succeeds but the subsequent call to `_syncBackendSession()` fails due to network loss, `AuthState` retains the Supabase session locally and `bindingSecret` is not retrieved. The next signed backend request triggers `ApiService` recovery (re-invoking `_syncBackendSession` via `onMissingBindingSecret`, deduplicated in-flight with a 30s cooldown); if connectivity has returned it signs normally, otherwise it fails closed with `AppError(LOCAL-BINDING-001)` and the user can retry. It is never sent unsigned.
-2. **Database Trigger Latency/Failure**: If Supabase Auth creates an `auth.users` row but the PostgreSQL `handle_new_auth_user()` trigger fails or experiences delay, `fetchProfileByAuthId` returns null, triggering `AppError(DB_NOT_FOUND_001)` and halting login despite valid Supabase credentials.
+2. **Session Sync Response Lost After the Backend Rotated the Secret**: `/auth/session-bind` always writes a fresh `bindingSecret`, so a client that times out (8 s splash cap, 10 s `ApiService` cap) keeps the previous one. The next signed request is rejected `SEC-AUTH-002`; `ApiService._safeCall` identifies the rejection as a stale binding (not an expired token), re-binds and retries once. Self-healing: a cold restart is no longer required.
+3. **Database Trigger Latency/Failure**: If Supabase Auth creates an `auth.users` row but the PostgreSQL `handle_new_auth_user()` trigger fails or experiences delay, `fetchProfileByAuthId` returns null, triggering `AppError(DB_NOT_FOUND_001)` and halting login despite valid Supabase credentials.
 
 ---
 
@@ -354,7 +355,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 - [validators.dart](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart): Client input validation regex methods `validateEmail()`, `validatePassword()`, `validateRequired()`.
 
 ### Backend Node.js
-- [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js): Express routes for `/login-risk-check`, `/login-attempt`, `/session-sync`, `/device-token`.
+- [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js): Express routes for `/login-risk-check`, `/login-attempt`, `/session-bind`, `/device-token`.
 - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): Route handlers `checkLoginRiskController`, `registerFailedLoginController`, `syncSessionController`.
 - [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js): In-memory risk engine `checkLoginRisk()`, `recordFailedLogin()`, `clearFailedLogins()`.
 

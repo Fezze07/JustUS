@@ -36,6 +36,7 @@ class ErrorCodes {
   // SEC
   static const String secBlock001 = 'SEC-BLOCK-001'; // Rate limit / blocco
   static const String secBlock002 = 'SEC-BLOCK-002'; // Login bloccato
+  static const String secAuth002 = 'SEC-AUTH-002'; // Firma richiesta non valida
   static const String secPermission001 =
       'SEC-PERMISSION-001'; // Origine non consentita
 

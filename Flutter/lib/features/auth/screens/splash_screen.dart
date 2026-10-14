@@ -23,26 +23,21 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       final authState = context.read<AuthState>();
       await authState.init().timeout(const Duration(seconds: 8));
-
-      if (!mounted) return;
-
-      final destination =
-          await AuthNavigationUtils.determinePostAuthDestination(context);
-
-      if (!mounted) return;
-
-      unawaited(Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => destination),
-      ));
     } catch (e, st) {
       AnsiLogger.error('Error during _checkAuth: $e\n$st', tag: 'SplashScreen');
-      if (!mounted) return;
-      unawaited(Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      ));
     }
+
+    if (!mounted) return;
+
+    final destination =
+        await AuthNavigationUtils.determinePostAuthDestination(context);
+
+    if (!mounted) return;
+
+    unawaited(Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+    ));
   }
 
   @override

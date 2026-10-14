@@ -80,12 +80,8 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 - `initState()` -> `unawaited(_checkAuth())`.
 - `_checkAuth()`:
-  1. `await authState.init()` - full session bootstrap (see Session Initialization).
-  2. If `authState.isLoggedIn` -> `await partnerState.fetchPartnership()`.
-  3. Routing (all `Navigator.pushReplacement` with inline `MaterialPageRoute`, NOT the named routes):
-     - logged in + partner present -> `MainShell(key: MainShell.shellKey)`.
-     - logged in + no partner -> `PartnerScreen`.
-     - not logged in -> `LoginScreen`.
+  1. `await authState.init().timeout(8s)` - full session bootstrap (see Session Initialization).
+  2. Destination is resolved by `AuthNavigationUtils.determinePostAuthDestination` (logged in + partner present -> `MainShell(key: MainShell.shellKey)`; logged in + no partner -> `PartnerScreen`; not logged in -> `LoginScreen`; all `Navigator.pushReplacement` with inline `MaterialPageRoute`, NOT the named routes).
 
 `LoginScreen` (`lib/features/auth/screens/login_screen.dart`) performs its own session bootstrap after a successful `AuthState.login(...)` and navigates to `MainShell`/`PartnerScreen` accordingly (same decision: `AuthState.hasPartner`).
 
@@ -93,13 +89,14 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 ### What blocks navigation
 
-- `AuthState.init()` and `PartnerState.fetchPartnership()` are awaited by the splash; navigation cannot happen until both complete.
-- Inside `init()`, several **backend network calls are awaited**: session sync (`/auth/session-sync` -> binding secret) and FCM device-token registration. Their failures are **caught and only logged** - they do not block navigation. If session-sync fails, no binding secret is saved; the next signed request (device-token, media) triggers `ApiService` to re-run the session sync (`onMissingBindingSecret` -> `AuthState._syncBackendSession`) before giving up. If recovery still fails, the request fails closed with a typed `AppError` (`LOCAL-BINDING-001`) surfaced through `ErrorHandler` - it is never sent unsigned.
+- `AuthState.init()` and `PartnerState.fetchPartnership()` are awaited by the splash; navigation cannot happen until both complete (the `init()` await is capped at 8 s).
+- Inside `init()`, several **backend network calls are awaited**: session bind (`/auth/session-bind` -> binding secret) and FCM device-token registration. Their failures are **caught and only logged** - they do not block navigation. If the session bind fails, no binding secret is saved; the next signed request (device-token, media) triggers `ApiService` to re-run it (`onMissingBindingSecret` -> `AuthState._syncBackendSession`) before giving up. If recovery still fails, the request fails closed with a typed `AppError` (`LOCAL-BINDING-001`) surfaced through `ErrorHandler` - it is never sent unsigned.
+- A session bind that *did* reach the backend but whose response was lost (the 8 s splash cap or the 10 s `ApiService` cap fired first) leaves the client holding the **previous** secret while the backend has already rotated it. The next signed call is rejected with `SEC-AUTH-002`; `ApiService._safeCall` treats that as a stale binding (not an expired token), re-runs the session bind and retries the call **once** with the new secret. A stale-secret state therefore self-heals instead of failing until the next cold start.
 - `PartnerState.fetchPartnership()` uses `runSafe()` (`showLoading: true`); a network failure is routed through `ErrorHandler` (snackbar/dialog) and leaves `partner == null`, so the splash navigates to `PartnerScreen` even when a partnership actually exists in the DB.
 
 ### Failure behavior
 
-- `_checkAuth()` wraps `init()` and destination resolution in a `try/catch` block. If an unhandled exception occurs, it logs the failure via `AnsiLogger` and navigates to `LoginScreen` as a safe fallback.
+- `_checkAuth()` wraps only `init()` in a `try/catch` block. An exception (including the 8 s timeout) is logged via `AnsiLogger` and navigation then follows the **same** post-auth decision as the happy path: it does not force `LoginScreen`. Only a session state with no access token routes there, so a transient network failure no longer logs a still-valid user out. The timed-out `init()` future keeps running and still stores a late binding secret.
 - `handleGlobal` defers UI to a post-frame callback specifically because it is invoked from build/error phases (see Error Handling).
 
 ### Can initialization run more than once?
@@ -183,6 +180,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - Wraps `http.Client` in `LoggingHttpClient` (logs REST/RPC/Auth/Storage requests).
 - **Headers**: `Authorization: Bearer <supabase access token>` (from `Supabase.instance.client.auth.currentSession`), `X-Device-Fingerprint` (cached static within the process after first read), `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
 - **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the secret is unavailable for a `requireSignature: true` authenticated call, it first attempts recovery by invoking `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`, deduplicated in-flight + 30s cooldown); if recovery fails it throws a typed `AppError(code: 'LOCAL-BINDING-001')`, which `_safeCall` returns as `GenericError(details: AppError)` so `ErrorHandler` shows a retry-able message. Unsigned endpoints still carry a fresh timestamp + nonce (required by `freshNonce` routes) but never a signature when the secret is absent.
+- **Stale-secret recovery** (`_isRejectedSignature`): a 401 whose body code is `SEC-AUTH-002` means the backend rotated the secret while the client kept the old one (the backend verifies the JWT *before* the signature, so the token is known good). `_safeCall` then re-runs the same recovery and retries once when the secret actually changed, instead of spending a token refresh on an unexpired token.
 - **Response handling** (`_safeCall`): default timeout 10s; 2xx -> decode via `compute()` isolate; 401 -> records the token used for the request, then `_tryRefreshToken(staleToken)` calls the Supabase SDK's `auth.refreshSession()` (the single refresh path; gotrue dedupes concurrent refreshes by refresh token). If the live session already holds a different token the refresh is skipped; otherwise the SDK session is refreshed and the `tokenRefreshed` listener syncs `AuthState`, then the original request is retried once. Refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`; the synthetic `"401"` code is in `ErrorCodes.requiresReauth`, so `ErrorHandler` opens the reauth dialog and redirects to `/login` (todo# 1.3). Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`. A call issued *from* the teardown passes `notifySessionExpired: false` so a 401 cannot re-enter `logout()` — currently only `revokeDeviceToken`.
 - **Static mutable state**: `ApiService.onSessionExpired`, `ApiService.onMissingBindingSecret`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret`, `_bindingSecretRecovery`, `_lastBindingSecretSyncAttempt`.
 - `resolveProtectedMediaUrl(url)` rewrites raw R2 object keys into `GET /api/v1/media/file?filename=...` URLs (used by avatar widgets).
@@ -362,7 +360,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 4. Supabase session check:
    - No session + local access token -> `logout()` (clears cache).
    - Session present + username missing -> `fetchProfileByAuthId` + `setLoginData`.
-5. `_syncBackendSession()`: POST `/auth/session-sync` with device fingerprint + device label; stores binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request missing the secret re-runs it on demand.
+5. `_syncBackendSession()`: POST `/auth/session-bind` with the device fingerprint; stores the returned binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request whose secret is missing - or was rejected as stale (`SEC-AUTH-002`) - re-runs it on demand.
 6. If logged in + FCM: `updateDeviceToken(token, locale)` (backed by `AuthRepository.updateDeviceToken`, which is signed). Failures logged only.
 7. Subscribes to `auth.onAuthStateChange` (`tokenRefreshed` -> persist tokens) and `DeviceTokenService.onTokenRefresh` (re-register device token).
 8. Registers `this` as `WidgetsBindingObserver` -> resumed -> debounced locale sync; `didChangeLocales` -> locale sync.
@@ -441,13 +439,13 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F5: Shared `GlobalKey<MainShellState>` used across three independent code paths
 
-**Evidence**: `MainShell.shellKey` is a `static final GlobalKey` at main_shell.dart:5. It is used in: (a) the `/homepage` named route (main.dart), (b) `SplashScreen._checkAuth` (splash_screen.dart:39), (c) `LoginScreen` (login_screen.dart:112). In all three cases: `MainShell(key: MainShell.shellKey, ...)`.
+**Evidence**: `MainShell.shellKey` is a `static final GlobalKey` at main_shell.dart:5. It is used in: (a) the `/homepage` named route (main.dart), (b) `SplashScreen._checkAuth` (splash_screen.dart:37), (c) `LoginScreen` (login_screen.dart:112). In all three cases: `MainShell(key: MainShell.shellKey, ...)`.
 
 **What**: `GlobalKey` requires that only one instance with that key is mounted in the widget tree at any time. If the `/homepage` named route were ever pushed while another `MainShell` was already mounted (e.g. via named-route-based navigation), a "Multiple widgets used the same GlobalKey" error would occur. Currently, `SplashScreen` and `LoginScreen` use `pushReplacement` (removing the previous route), so the risk is low.
 
 **Impact**: Low risk under current navigation patterns. However, mixing named routes and direct MaterialPageRoute pushes to the same widget with a GlobalKey is fragile.
 
-**Confidence**: HIGH (the global key is verified at main_shell.dart:5, splash_screen.dart:39, login_screen.dart:112, main.dart routes map).
+**Confidence**: HIGH (the global key is verified at main_shell.dart:5, splash_screen.dart:37, login_screen.dart:112, main.dart routes map).
 
 ### F6: Eager provider creation defeats lazy tab architecture
 
@@ -497,7 +495,7 @@ Flutter test files live in `Flutter/test/` and use `mocktail`:
 
 | Test file | Coverage area |
 |---|---|
-| `api_service_test.dart` | API error handling: SocketException -> NetworkError, timeout -> NetworkError, generic exception handling, HTTP status code handling (4 groups) |
+| `api_service_test.dart` | API error handling: SocketException -> NetworkError, timeout -> NetworkError, generic exception handling, HTTP status code handling; token refresh + retry and the binding-secret paths (cached secret, pre-flight recovery, fail-closed `LOCAL-BINDING-001`, 30s recovery throttle, `SEC-AUTH-002` stale-secret re-bind + single retry) |
 | `game_state_test.dart` | Game state behavior |
 | `logging_restrictions_test.dart` | Logging restrictions |
 | `mood_screen_test.dart` | Mood screen rendering |
