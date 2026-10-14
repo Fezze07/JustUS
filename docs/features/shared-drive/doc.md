@@ -273,7 +273,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
   1. `DriveState.initialLoad()` invokes `loadWithChangeDetection()`.
   2. Checks `_hasDriveChanges()` with the single-round-trip probe: `serverDate > checkpoint` → reset the checkpoint and re-sync; otherwise `itemCount != _driveItems.length` → reset the checkpoint and re-sync (deletion, F-SC7). A failed probe is treated as "cache still valid" so an unreachable server does not trigger a refetch on every visit.
   3. If changes exist, `syncDriveItems()` reuses the memoized probe for its row count and executes `fetchDriveItemsIncremental()`:
-     - Queries `v_drive_dashboard` filtering `updated_at > lastSyncTimestamp`.
+     - Queries `v_drive_dashboard` filtering `updated_at >= lastSyncTimestamp`.
      - Merges new/updated records into `_driveItems` (overwriting existing items with matching IDs).
      - Sorts list by `createdAt DESC`.
      - Updates `_favoriteItems`.

@@ -32,7 +32,7 @@ class DriveRepository extends BaseRepository {
       if (lastSyncTimestamp != null &&
           lastSyncTimestamp.isNotEmpty &&
           lastSyncTimestamp != CacheService.kCheckpointEmpty) {
-        query = query.gt('updated_at', lastSyncTimestamp);
+        query = query.gte('updated_at', lastSyncTimestamp);
       }
 
       final data = await query.order('created_at', ascending: false).toList();

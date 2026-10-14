@@ -154,7 +154,7 @@ class DriveState extends BaseState with CheckpointMixin {
   }
 
   // ---------------------------------------------------------------------------
-  // Incremental sync: only fetch records with updated_at > last_sync_timestamp
+  // Incremental sync: only fetch records with updated_at >= last_sync_timestamp
   // ---------------------------------------------------------------------------
   Future<void> syncDriveItems({int? epoch}) async {
     if (_isSyncing) return; // Debounce multiple simultaneous sync calls

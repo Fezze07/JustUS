@@ -403,9 +403,9 @@ A full refresh whose checkpoint `max(timestamp)` is *ahead* of the events the ch
 
 `_hasMoodChanges` writes `kCheckpointEmpty` when changes exist, *before* the fetch. `hasChanges` then returns `true` on the next cycle until a real fetch writes a real timestamp — i.e. it **forces** retries after failed fetches (good) but also forces one redundant cycle after every successful one (harmless).
 
-### R-5: `chk_drive_items` strict `>` boundary
+### R-5: `chk_drive_items` cannot see deletions
 
-`fetchDriveItemsIncremental` uses `gt('updated_at', checkpoint)`; rows whose `updated_at` equals the checkpoint (multi-row same-transaction commits, or microsecond collisions) are skipped. Deletions are invisible to incremental fetches entirely — recovered by the count-mismatch full replace in `syncDriveItems`, by Realtime DELETE events, or by polling `_refreshAll`.
+`fetchDriveItemsIncremental` returns only rows that still exist, so a server-side deletion never appears in an incremental fetch and does not advance the cursor. Recovered outside the cursor: the `drive_change_probe` row-count mismatch triggers a full replace in `syncDriveItems`, and Realtime DELETE events or polling `_refreshAll` refresh the list.
 
 ---
 

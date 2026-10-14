@@ -148,7 +148,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - Realtime handlers perform surgical state surgery on `_currentQuestion` and `_history` (handleQuestionInsert 424-432, handleQuestionDelete 434-446, handleQuestionUpdate 448-469, handleAnswerInsert 471-521, handleAnswerUpdate 523-556) plus storage sync — a large hand-rolled diff/reconcile layer on top of the checkpoint system.
 
 ### DriveState (CheckpointMixin)
-- Incremental sync: `syncDriveItems` (drive_state.dart:70-104) uses `fetchDriveItemsIncremental` (server-side `updated_at > last_sync`), merges by id replace (lines 79-83), updates checkpoint from max `updatedAt` (lines 87-91); guarded by `_isSyncing` in both `syncDriveItems` (line 71) and `refreshFromRealtime` (line 107).
+- Incremental sync: `syncDriveItems` (drive_state.dart:70-104) uses `fetchDriveItemsIncremental` (server-side `updated_at >= last_sync`), merges by id replace (lines 79-83), updates checkpoint from max `updatedAt` (lines 87-91); guarded by `_isSyncing` in both `syncDriveItems` (line 71) and `refreshFromRealtime` (line 107).
 - `_singleItem` (drive_state.dart:16) is a *copy* of an item from `_driveItems` used as the detail-view model; it is manually re-synced in `refreshFromRealtime` (lines 117-121), `addReaction` (lines 239-243), `toggleFavorite` (lines 263, 273). Duplicated reference state with manual mirroring — divergence if one of the mirror paths is skipped (F-SM10).
 - Optimistic mutation + rollback: `deleteItem` keeps a backup list and restores on error (lines 201-220); `toggleFavorite` restores the item and re-saves on failure (lines 266-276); `addFileItemR2`/`addReaction` apply only server-side onSuccess. Inconsistent strategies between write paths.
 
