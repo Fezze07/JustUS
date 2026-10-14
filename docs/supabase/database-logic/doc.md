@@ -73,13 +73,13 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
-* **Purpose:** Admin testing and cleanup procedure. Permanently deletes all partnership-related content and user data for both partners in a relationship.
+* **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17).
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`. Granted strictly to `postgres`, `service_role`.
 * **Inputs:** `p_user_id` (`integer`).
 * **Outputs:** `void`.
 * **Tables Touched:** `partnerships` (READ), `drive_items` (DELETE), `bucket_items` (DELETE), `game_questions` (DELETE), `game_answers` (DELETE), `missyou` (DELETE), `favorites` (DELETE), `drive_item_reactions` (DELETE), `moods` (DELETE), `user_profiles` (UPDATE), `logs_notifications` (DELETE).
-* **Caller:** Backend Integration Tests / Admin Tools via `service_role`.
+* **Caller:** Backend `POST /api/v1/users/wipe` (`wipeUserDataController`) via `service_role`; reached from the debug-build profile screen only.
 * **Side Effects:** Massive destructive purge of user & partner files, games, bucket list items, reactions, moods, notifications, and profile details (picture reset to NULL).
 
 ---
