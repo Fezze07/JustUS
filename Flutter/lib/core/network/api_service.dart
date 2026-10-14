@@ -509,6 +509,19 @@ class ApiService {
         body: body, label: 'Request Partnership');
   }
 
+  /// Asks the backend to create the Auth account of a partner who has no JustUs
+  /// account yet and to trigger the Supabase "Invite user" email. Account-only:
+  /// the pairing request still travels through [requestPartnership].
+  Future<ResultWrapper<Map<String, dynamic>>> inviteUnregisteredPartner(
+      Map<String, dynamic> body) async {
+    return _post(
+      ApiRoutes.authInviteUser,
+      body: body,
+      requireSignature: true,
+      label: 'Invite Unregistered Partner',
+    );
+  }
+
   Future<ResultWrapper<Map<String, dynamic>>> checkLoginRisk(
       Map<String, dynamic> body) async {
     return _post(ApiRoutes.authLoginRiskCheck,

@@ -499,6 +499,20 @@ class AppLocalizationsIt extends AppLocalizations {
   String get partner_inviteSuccess => 'Invito inviato con successo!';
 
   @override
+  String get partner_inviteEmailPrompt =>
+      'Il tuo partner non ha Just Us? Invitalo ora!';
+
+  @override
+  String get partner_inviteEmailTitle => 'Invita il tuo partner';
+
+  @override
+  String get partner_inviteEmailDescription =>
+      'Inserisci l\'email del tuo partner: gli invieremo un invito per creare un account Just Us.';
+
+  @override
+  String get partner_inviteEmailSuccess => 'Invito inviato!';
+
+  @override
   String get partner_wantsToConnect => 'Vuole connettersi';
 
   @override
@@ -873,6 +887,10 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get error_apiValidation001 => 'I dati inseriti non sono validi.';
+
+  @override
+  String get error_apiValidation002 =>
+      'Questa email ha già un account Just Us. Chiedi al tuo partner il codice di 6 caratteri.';
 
   @override
   String get error_apiNotFound001 => 'Servizio non disponibile.';

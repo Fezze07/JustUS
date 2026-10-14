@@ -116,6 +116,13 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-bind")` $\rightarrow$ `validated({ body: sessionBindSchema })`
 - **Behavior**: generates a fresh `binding_secret`, hashes `device_fingerprint`, upserts `session_bindings` (revoking any stale session of the same user + device first), returns `{ success, anomalies, bindingSecret }`. The secret is rotated on **every** call; the client stores it only if the response arrives, so a lost response leaves the client signing with the previous secret until `ApiService` re-binds on the resulting `SEC-AUTH-002`.
 
+#### `POST /api/v1/auth/invite-user`
+- **Controller**: `inviteUserController` ([`auth.routes.js`](file:///f:/JustUS/Backend/features/auth/auth.routes.js), [`auth.controller.js`](file:///f:/JustUS/Backend/features/auth/auth.controller.js))
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(inviteUserRateLimit)` $\rightarrow$ `signed("auth-invite-user")` $\rightarrow$ `validated({ body: inviteUserSchema })`
+- **Request Body**: `{ email, redirectTo? }` (`redirectTo` is the client's platform redirect, e.g. `justus://auth/callback` on Android/iOS; GoTrue validates it against the project redirect allow-list).
+- **Behavior**: Calls `adminSupabase.auth.admin.inviteUserByEmail()`; GoTrue creates the invitee's Auth account and sends the hosted "Invite user" email. Account-only — no `partnerships` row. Rate-limited to 5/user and 10/IP per window because each call sends an email. An address that already has a confirmed account returns `409 API-VALIDATION-002` (GoTrue `email_exists` / `user_already_exists`); an invited-but-unconfirmed address is re-invited; any other GoTrue failure returns `500 API-FAIL-001`.
+- **Flutter Consumer**: `PartnershipRepository.inviteUnregisteredPartner()` → `ApiService.inviteUnregisteredPartner()`, called by `AuthState.inviteUnregisteredPartner()` from `PartnerInviteEmailDialog`.
+
 ---
 
 ### 3. Push Notification Endpoints

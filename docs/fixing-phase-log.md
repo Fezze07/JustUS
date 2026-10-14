@@ -142,6 +142,7 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 19. **The logout media clear calls `emptyAppMediaCaches()` directly; the `DriveState.clearMediaCache()` wrapper was deleted.** Routing through it would have added an auth→drive coupling for no gain, since nothing called it. → `docs/app/storage-and-caching/doc.md` § Logout Behavior.
 20. **No shared store (Redis/KeyDB): the backend is single-instance by design.** Rate-limit buckets, login strikes and idempotency keys are per process and cleared by a restart; the accepted exposure is documented per mechanism rather than fixed, and nonce replay is closed separately by the database `UNIQUE` constraint. → `docs/backend/security/doc.md` § Multi-Instance Vulnerability Analysis Matrix.
 21. **Error diagnostics are gated on an explicit `ENABLE_ERROR_DETAILS` flag, not `NODE_ENV`.** The gate covers the message as well as `details`/`stack`, because a copied `err.message` carried the same disclosure class in any non-production container. → `docs/backend/error-handling/doc.md` § End-to-End Error Flow Map.
+22. **Partner emails exist only for accounts that do not exist yet.** A pairing request (`POST /auth/invite`, email + 6-char code) never sends an email — the recipient must already have an account, so the request is delivered in-app plus push. The one partnership-related email is the Supabase Auth **"Invite user"** template, sent by `POST /auth/invite-user` (`admin.auth.admin.inviteUserByEmail`, signed + rate-limited 5/user, 10/IP), which is **account-only**: it writes no `partnerships` row, so pairing still needs the invitee's code afterwards. An address that already has an account gets `409 API-VALIDATION-002` (GoTrue `email_exists`/`user_already_exists`); an invited-but-unconfirmed address is re-invited. → `docs/features/partnership/doc.md` § Email Policy, `docs/audits/email.md`.
 
 ---
 
@@ -191,5 +192,6 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `Backend/test/logger.test.js` | 10.9 |
 | `Backend/test/errorHandler.test.js` | 10.10 |
 | `Backend/test/notification.service.test.js` | 10.11 |
+| `Flutter/test/partner_invite_email_test.dart` | 15.1 |
 
 ---

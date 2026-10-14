@@ -48,8 +48,9 @@ fi
 # -----------------------------------------------------------------------------
 run() {
   if [ "$IS_WSL" = "1" ] && command -v cmd.exe >/dev/null 2>&1; then
-    # `//c` avoids MSYS path mangling of the /c switch.
-    cmd.exe //c "$@"
+    # WSL interop passes `/c` through unchanged; `//c` would start an interactive
+    # cmd.exe that ignores the command and exits 0, silently skipping every check.
+    cmd.exe /c "$@"
   else
     "$@"
   fi

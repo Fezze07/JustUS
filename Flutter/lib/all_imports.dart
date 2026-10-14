@@ -83,6 +83,7 @@ export 'package:justus/features/mood/screens/mood_screen.dart';
 export 'package:justus/features/mood/mood_state.dart';
 export 'package:justus/core/notifications/notification_service.dart';
 export 'package:justus/features/partnership/widgets/partner_invite_dialog.dart';
+export 'package:justus/features/partnership/widgets/partner_invite_email_dialog.dart';
 export 'package:justus/features/partnership/screens/partner_screen.dart';
 export 'package:justus/features/partnership/partner_state.dart';
 export 'package:justus/features/partnership/partnership_models.dart';

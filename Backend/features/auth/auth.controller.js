@@ -222,6 +222,35 @@ const invitePartnerController = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+// Account-only invite: creates the Auth account of a partner who has no JustUs
+// account yet and lets GoTrue send the "Invite user" email. No partnership row
+// is written here; once the invitee registers, the pairing still travels
+// through invitePartnerController with email + 6-char code.
+const inviteUserController = asyncHandler(async (req, res) => {
+  const { email, redirectTo } = req.body;
+
+  const { error } = await adminSupabase.auth.admin.inviteUserByEmail(
+    email.trim(),
+    redirectTo ? { redirectTo } : undefined
+  );
+
+  if (error) {
+    // GoTrue refuses an address that already has a confirmed account; an
+    // invited-but-unconfirmed address is re-invited instead of refused.
+    if (error.code === "email_exists" || error.code === "user_already_exists") {
+      throw new AppError({ errorKey: "API_VALIDATION_002" });
+    }
+
+    throw new AppError({
+      errorKey: "API_FAIL_001",
+      message: `Invite email dispatch failed: ${error.message}`,
+      cause: error,
+    });
+  }
+
+  res.json({ success: true });
+});
+
 module.exports = {
   updateDeviceToken,
   revokeDeviceToken,
@@ -230,4 +259,5 @@ module.exports = {
   registerFailedLoginController,
   bindSessionController,
   invitePartnerController,
+  inviteUserController,
 };

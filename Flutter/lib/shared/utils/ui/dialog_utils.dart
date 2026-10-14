@@ -16,4 +16,8 @@ class DialogUtils {
   static void showPartnerInvite(BuildContext context) {
     unawaited(PartnerInviteDialog.show(context));
   }
+
+  static void showPartnerInviteEmail(BuildContext context) {
+    unawaited(PartnerInviteEmailDialog.show(context));
+  }
 }

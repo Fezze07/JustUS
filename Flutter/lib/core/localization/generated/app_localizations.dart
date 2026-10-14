@@ -1034,6 +1034,30 @@ abstract class AppLocalizations {
   /// **'Invito inviato con successo!'**
   String get partner_inviteSuccess;
 
+  /// No description provided for @partner_inviteEmailPrompt.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo partner non ha Just Us? Invitalo ora!'**
+  String get partner_inviteEmailPrompt;
+
+  /// No description provided for @partner_inviteEmailTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Invita il tuo partner'**
+  String get partner_inviteEmailTitle;
+
+  /// No description provided for @partner_inviteEmailDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Inserisci l\'email del tuo partner: gli invieremo un invito per creare un account Just Us.'**
+  String get partner_inviteEmailDescription;
+
+  /// No description provided for @partner_inviteEmailSuccess.
+  ///
+  /// In it, this message translates to:
+  /// **'Invito inviato!'**
+  String get partner_inviteEmailSuccess;
+
   /// No description provided for @partner_wantsToConnect.
   ///
   /// In it, this message translates to:
@@ -1759,6 +1783,12 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'I dati inseriti non sono validi.'**
   String get error_apiValidation001;
+
+  /// No description provided for @error_apiValidation002.
+  ///
+  /// In it, this message translates to:
+  /// **'Questa email ha già un account Just Us. Chiedi al tuo partner il codice di 6 caratteri.'**
+  String get error_apiValidation002;
 
   /// No description provided for @error_apiNotFound001.
   ///

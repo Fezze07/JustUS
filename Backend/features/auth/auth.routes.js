@@ -8,6 +8,7 @@ const {
   registerFailedLoginController,
   bindSessionController,
   invitePartnerController,
+  inviteUserController,
   createCompositeRateLimit,
   withIdempotency,
   ipKey,
@@ -23,6 +24,7 @@ const {
   loginAttemptSchema,
   sessionBindSchema,
   inviteSchema,
+  inviteUserSchema,
 } = require("./auth.schemas");
 
 const {
@@ -41,6 +43,15 @@ const authRateLimit = createIpUserRateLimit({
   message: "Too many device token updates",
   ipMax: 20,
   userMax: 10,
+});
+
+// Invites dispatch a real email, so the per-user cap is tight: one account
+// cannot use the route to spray the "Invite user" template at many addresses.
+const inviteUserRateLimit = createIpUserRateLimit({
+  name: "auth.invite-user",
+  message: "Too many partner invitation emails",
+  ipMax: 10,
+  userMax: 5,
 });
 
 const loginRiskRateLimit = createCompositeRateLimit({
@@ -126,6 +137,17 @@ router.post(
     validated({ body: inviteSchema })
   ),
   invitePartnerController
+);
+
+router.post(
+  "/invite-user",
+  ...chain(
+    authenticated(),
+    limited(inviteUserRateLimit),
+    signed("auth-invite-user"),
+    validated({ body: inviteUserSchema })
+  ),
+  inviteUserController
 );
 
 module.exports = router;

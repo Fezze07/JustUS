@@ -100,14 +100,16 @@ The utilities covered include:
 
 ### 6. DialogUtils
 
-* **Responsibility**: Helper class to present standardized modal dialogs (`ErrorDialog` and `PartnerInviteDialog`).
+* **Responsibility**: Helper class to present standardized modal dialogs (`ErrorDialog`, `PartnerInviteDialog` and `PartnerInviteEmailDialog`).
 * **API**:
   - `static void showError(BuildContext context, String message, {String? details, String? errorCode})`
   - `static void showPartnerInvite(BuildContext context)`
-* **Dependencies**: `flutter/material.dart`, `ErrorDialog`, `PartnerInviteDialog`.
+  - `static void showPartnerInviteEmail(BuildContext context)`
+* **Dependencies**: `flutter/material.dart`, `ErrorDialog`, `PartnerInviteDialog`, `PartnerInviteEmailDialog`.
 * **Callers**:
   - `showError` called by `ErrorHandler._showErrorDialog` ([`error_handler.dart:240`](file:///f:/JustUS/Flutter/lib/core/error_handling/error_handler.dart#L240)).
   - `showPartnerInvite` called by `PartnerScreen` ([`partner_screen.dart:129`](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart#L129)).
+  - `showPartnerInviteEmail` called by `PartnerScreen` (the "Il tuo partner non ha Just Us? Invitalo ora!" entry point).
 * **Expected Usage**: Invoke dialog popups cleanly without having to instantiate `showDialog` boilerplate in screens.
 * **Error Behavior**: Uses `unawaited(showDialog(...))` to non-block execution flow.
 * **Lifecycle Assumptions**: Assumes `BuildContext` remains valid during dialog presentation call.

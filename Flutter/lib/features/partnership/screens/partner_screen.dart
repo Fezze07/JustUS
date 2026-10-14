@@ -92,6 +92,9 @@ class _PartnerScreenState extends State<PartnerScreen> {
                             _buildYourCodeCard(
                                 profileState.userProfile!.partnershipCode!),
 
+                          // Invite a partner who has no JustUs account yet
+                          if (partner == null) _buildInviteByEmailButton(),
+
                           const SizedBox(height: 16),
 
                           Center(
@@ -382,6 +385,30 @@ class _PartnerScreenState extends State<PartnerScreen> {
         ),
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildInviteByEmailButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Column(
+        children: [
+          Icon(Icons.person_add_alt_1_rounded,
+              color: context.palette.primary, size: 22),
+          TextButton(
+            onPressed: () => DialogUtils.showPartnerInviteEmail(context),
+            child: Text(
+              context.loc.partner_inviteEmailPrompt,
+              textAlign: TextAlign.center,
+              style: VpWidgets.googleFont(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: context.palette.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

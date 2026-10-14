@@ -106,6 +106,10 @@ class AuthState extends BaseState
     return ApiConfig.appUrl(ApiRoutes.authCallbackPath);
   }
 
+  /// Platform-appropriate post-confirmation redirect, also used as the landing
+  /// page of the Supabase "Invite user" email.
+  String get emailRedirectTo => _emailRedirectTo;
+
   Future<void> init() async {
     ApiService.onSessionExpired = () async {
       AnsiLogger.auth(
@@ -523,6 +527,23 @@ class AuthState extends BaseState
       if (res is Success) {
         await fetchSentInvitations();
       } else {
+        throw res;
+      }
+    });
+  }
+
+  /// Invites a partner who has no JustUs account yet: the backend creates the
+  /// Auth account and GoTrue sends the "Invite user" email. Account-only — the
+  /// pairing request itself still needs the partner's code (see
+  /// [invitePartner]).
+  Future<bool> inviteUnregisteredPartner(String email) async {
+    return runSafe(() async {
+      final res = await _partnershipRepo.inviteUnregisteredPartner(
+        email,
+        _emailRedirectTo,
+      );
+
+      if (res is! Success) {
         throw res;
       }
     });

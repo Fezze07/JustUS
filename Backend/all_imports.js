@@ -64,6 +64,8 @@ module.exports = {
   get initializeFirebaseAdmin() { return require('./config/fcm-key').initializeFirebaseAdmin; },
   get invitePartnerController() { return require('./features/auth/auth.controller').invitePartnerController; },
   get inviteSchema() { return require('./features/auth/auth.schemas').inviteSchema; },
+  get inviteUserController() { return require('./features/auth/auth.controller').inviteUserController; },
+  get inviteUserSchema() { return require('./features/auth/auth.schemas').inviteUserSchema; },
   get ipKey() { return require('./utils/auth/rateLimitKeys').ipKey; },
   get ipToSoftRange() { return require('./services/requestFingerprintService').ipToSoftRange; },
   get isConfigured() { return require('./features/media/r2.service').isConfigured; },

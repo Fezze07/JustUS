@@ -24,9 +24,10 @@ The partnership architecture spans three main layers:
                      ▼                               │ (table: partnerships)
 ┌───────────────────────────────────────┐            │
 │          NODE.JS / EXPRESS API        │            │
-│  POST /api/v1/auth/invite-partner     │            │
-│  (Validates input, checks self-invite,│            │
-│   invokes request_partnership RPC)    │            │
+│  POST /api/v1/auth/invite             │            │
+│  (validate; request_partnership RPC)  │            │
+│  POST /api/v1/auth/invite-user        │            │
+│  (Supabase Auth admin invite → SMTP)  │            │
 └────────────────────┬──────────────────┘            │
                      │ Service Role /                │
                      │ RPC Delegation                │
@@ -43,15 +44,17 @@ The partnership architecture spans three main layers:
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [partner_screen.dart](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart): UI rendering for personal partnership code, partner card, pending received requests, pending sent requests, and add partner action.
+   - [partner_screen.dart](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart): UI rendering for personal partnership code, partner card, pending received requests, pending sent requests, add partner action, and the "your partner doesn't have Just Us? Invite them now!" entry point.
    - [partner_state.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart): State manager for fetching partnership data, sending/accepting/rejecting requests, and performing optimistic state updates.
-   - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `get_pending_invitations` RPC, `accept_partnership` RPC, `partnerships` DELETE for rejection) and Node Express API (`_api.requestPartnership`).
+   - [partner_invite_dialog.dart](file:///f:/JustUS/Flutter/lib/features/partnership/widgets/partner_invite_dialog.dart): email + 6-char code pairing request. [partner_invite_email_dialog.dart](file:///f:/JustUS/Flutter/lib/features/partnership/widgets/partner_invite_email_dialog.dart): account-only invite (email address only).
+   - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `get_pending_invitations` RPC, `accept_partnership` RPC, `partnerships` DELETE for rejection) and Node Express API (`_api.inviteUser`, `_api.inviteUnregisteredPartner`).
+   - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): `AuthState.invitePartner(email, code)` (pairing request) and `AuthState.inviteUnregisteredPartner(email)` (account-only invite; forwards `emailRedirectTo`).
    - [partnership_models.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_models.dart): Data models `PartnershipResponse`, `PendingRequests`, and `PartnershipInvitation`.
    - [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart): `RefetchRealtimeHandler` (unified debounced-refetch strategy) subscribes to Postgres change events on `public.partnerships`, debounces 150 ms, invalidates `BaseRepository` cache, and updates `PartnerState` / `AuthState`. Wired by `RealtimeSyncService` (`lib/core/realtime/realtime_sync_service.dart`) with an `isRelevant` predicate + `refetch` closure.
 
 2. **Backend API (Node.js / Express)**:
-   - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L164-L182): Handles `invitePartnerController`. Resolves recipient email + partnership code via `resolveRequestedPartnerOrNull`, checks self-invitation, and calls `adminSupabase.rpc('request_partnership')`.
-   - [auth.schemas.js](file:///f:/JustUS/Backend/features/auth/auth.schemas.js#L23-L27): Zod schema `invitePartnerSchema` enforcing email format and 6-character partnership code length.
+   - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): `invitePartnerController` resolves recipient email + partnership code via `resolveRequestedPartnerOrNull`, checks self-invitation, and calls `adminSupabase.rpc('request_partnership')`. `inviteUserController` calls `adminSupabase.auth.admin.inviteUserByEmail(email, { redirectTo })`, remapping GoTrue's `email_exists` / `user_already_exists` to `409 API-VALIDATION-002`.
+   - [auth.schemas.js](file:///f:/JustUS/Backend/features/auth/auth.schemas.js): Zod schemas `inviteSchema` (email format + 6-character partnership code) and `inviteUserSchema` (`email` + optional `redirectTo` URL).
 
 3. **Database Layer (Supabase / PostgreSQL)**:
    - `public.partnerships`: Main database table storing pair relationships with columns `id`, `user_id_1`, `user_id_2`, `status`, `anniversary_date`, `created_at`, `updated_at`.
@@ -142,19 +145,29 @@ Each user profile automatically receives a unique **Partnership Code** upon regi
 
 ---
 
-## Email Invitation Flow: Declared Capability vs. Implemented Functionality
+## Email Policy: Account Invites by Email, Pairing Requests In-App
 
-The codebase contains references to an "email invitation flow", but reverse engineering reveals a clear discrepancy between declared capabilities and actual implementation:
+The partnership feature uses two distinct channels, by design:
 
-| Layer | Component | Declared Capability | Actual Implementation |
+| Layer | Component | Capability | Actual Implementation |
 |---|---|---|---|
-| **Flutter Frontend** | `PartnershipRepository.inviteUser()` | "Send invitation via email and code" | Sends HTTP POST to `/api/v1/auth/invite-partner` |
-| **Backend API** | `POST /api/v1/auth/invite-partner` | "Invite Partner API endpoint" | Validates input, resolves user in DB, and invokes RPC `request_partnership` |
-| **Email Delivery** | Supabase Auth SMTP (Resend) | Auth emails only | **NOT USED FOR PARTNER INVITES**. Auth emails (confirm sign-up, invite user, reset password) are sent via Supabase SMTP; the custom `invite-partner` endpoint does not dispatch an email. Code sharing is manual/out-of-band. |
+| **Flutter Frontend** | `PartnershipRepository.inviteUser()` / `PartnerInviteDialog` | Ask an existing account to connect | HTTP POST to `/api/v1/auth/invite` (email + 6-char code) |
+| **Flutter Frontend** | `PartnershipRepository.inviteUnregisteredPartner()` / `PartnerInviteEmailDialog` | Invite a partner who has no account yet | HTTP POST to `/api/v1/auth/invite-user` (email only), signed |
+| **Backend API** | `POST /api/v1/auth/invite` | Create the pending pairing request | Validates input, resolves user in DB, invokes RPC `request_partnership`; **no email** |
+| **Backend API** | `POST /api/v1/auth/invite-user` | Create the invitee's Auth account | `adminSupabase.auth.admin.inviteUserByEmail(email, { redirectTo })`; GoTrue sends the "Invite user" email through Supabase Auth SMTP (Resend) |
 | **Supabase** | `request_partnership` RPC | Database request creation | Inserts row into `public.partnerships` with `status = 'pending'` |
 
 > [!IMPORTANT]
-> **Finding**: The email invitation feature does **not** send external emails to target users. It is an in-app request mechanism that creates a pending record in `public.partnerships`. Target users only see the request when they log in to the application.
+> **Decision (2026-10-12)**: pairing requests never send an email. Every pairing request requires the recipient to already have a JustUs account (email + 6-char code), so the request itself is delivered in-app: the recipient sees it on `PartnerScreen` and is notified by push. The only partnership-related email is the Supabase Auth **"Invite user"** email, sent by `/api/v1/auth/invite-user` to someone who has no account yet. That invite is **account-only**: it does not create a `partnerships` row, so the pairing still happens through email + code once the invitee registers.
+
+### The "Invite user" email (`POST /api/v1/auth/invite-user`)
+
+- **Middleware chain**: `authenticated()` → `limited(inviteUserRateLimit)` (10/IP, 5/user per window) → `signed("auth-invite-user")` → `validated({ body: inviteUserSchema })`.
+- **Request body**: `{ email, redirectTo? }`. `redirectTo` is the client's platform redirect (`justus://auth/callback` on Android/iOS, the server callback URL on web/desktop — `AuthState.emailRedirectTo`); GoTrue validates it against the project's redirect allow-list, and omitting it falls back to the project Site URL.
+- **Success**: `200 { success: true }` after GoTrue accepted the invite.
+- **Already registered**: GoTrue answers `422 email_exists`, remapped to `409 API-VALIDATION-002`; the dialog asks the user to request the partner's 6-character code instead. An address that was invited but never confirmed is re-invited instead of refused.
+- **Any other GoTrue failure**: `500 API-FAIL-001`.
+- **Template**: the hosted Supabase project owns the "Invite user" template (custom Italian copy, `{{ .Email }}` / `{{ .ConfirmationURL }}`); the local `supabase/config.toml` entry stays commented because the hosted dashboard is authoritative (see `docs/audits/email.md`).
 
 ---
 
@@ -163,7 +176,7 @@ The codebase contains references to an "email invitation flow", but reverse engi
 ### 1. Sending a Request
 - **User Action**: User opens `PartnerInviteDialog`, enters the partner's email and 6-character code, and taps "Send".
 - **Validation**: Client validates inputs are non-empty (`partner_fillAllFields`). Backend validates schema (`email`, `partnershipCode.length(6)`).
-- **Execution**: Calls `POST /api/v1/auth/invite-partner` -> Backend checks `resolveRequestedPartnerOrNull` -> Checks self-invitation -> Calls `adminSupabase.rpc('request_partnership')`.
+- **Execution**: Calls `POST /api/v1/auth/invite` -> Backend checks `resolveRequestedPartnerOrNull` -> Checks self-invitation -> Calls `adminSupabase.rpc('request_partnership')`.
 - **UI Update**: Flutter receives success response, calls `fetchPartnership()`, and shows SnackBar ("Richiesta inviata a $email").
 
 ### 2. Receiving & Viewing Requests
@@ -184,6 +197,13 @@ The codebase contains references to an "email invitation flow", but reverse engi
 - **User Action**: User taps "Decline" or "Cancel Request".
 - **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Deletes row from `public.partnerships` where `id = invitationId` and `status = 'pending'`.
 - **UI Update**: Pending invitation is removed from local list.
+
+### 5. Inviting a Partner Who Has No Account
+- **Entry Point**: `PartnerScreen` shows "Il tuo partner non ha Just Us? Invitalo ora!" (`partner_inviteEmailPrompt`) whenever the caller has no partner.
+- **User Action**: Opens `PartnerInviteEmailDialog`, enters the partner's email, taps "Send".
+- **Execution**: `AuthState.inviteUnregisteredPartner(email)` -> `PartnershipRepository.inviteUnregisteredPartner(email, AuthState.emailRedirectTo)` -> `POST /api/v1/auth/invite-user` -> `adminSupabase.auth.admin.inviteUserByEmail()`.
+- **Side Effects**: GoTrue creates the invitee's Auth account (`handle_new_auth_user` provisions `public.users` / `user_profiles`) and sends the hosted "Invite user" email; no `partnerships` row is written.
+- **Error**: an address that already has an account returns `409 API-VALIDATION-002` and the dialog points the user at the 6-character code flow.
 
 ---
 
@@ -235,7 +255,8 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
 2. **RPC Function Restrictions**:
    - `accept_partnership`: Configured with `SECURITY INVOKER`, checking that the caller is a valid member of the target partnership row before applying the `accepted` status update.
 3. **Backend Middleware Enforcement**:
-   - Endpoint `POST /api/v1/auth/invite-partner` requires `authenticated()` middleware, verifying valid JWT authentication before processing request logic.
+   - Endpoint `POST /api/v1/auth/invite` requires `authenticated()` middleware, verifying valid JWT authentication before processing request logic.
+   - Endpoint `POST /api/v1/auth/invite-user` requires `authenticated()`, `limited(inviteUserRateLimit)` and `signed("auth-invite-user")`; the signature stops a stolen JWT from being used to spray the "Invite user" email.
 
 ---
 
@@ -243,13 +264,13 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
 
 During the reverse-engineering analysis, the following technical findings and bugs were identified:
 
-### 1. NOTE: No Email is Dispatched for Custom Partner Invites
+### 1. NOTE: Pairing Requests Deliberately Send No Email
 
 * **WHAT**: The "Invite Partner" flow (email + 6-char code) creates a pending `partnerships` row via `request_partnership` RPC; it does **not** send an email.
-* **WHERE**: [auth.controller.js:205-223](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L205-L223) and [partnership_repository.dart:53-59](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L53-L59)
-* **WHY**: This is the intended behavior in this codebase. Supabase Auth SMTP (Resend) is used for Auth emails (confirm sign-up, invite user via Supabase Auth, reset password), but the custom `invite-partner` endpoint is not wired to send an email. Partners must share the 6-char `partnershipCode` out-of-band.
-* **WHEN**: Anytime a user sends a partner invite through the in-app dialog.
-* **IMPACT**: No automatic email goes to the recipient; both parties need the code manually.
+* **WHERE**: `invitePartnerController` ([auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js)) and `PartnershipRepository.inviteUser` ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
+* **WHY**: By design — a pairing request requires the recipient to already have a JustUs account, so the request is delivered in-app (PartnerScreen + push notification) instead of by email. Email is reserved for the account-only invite (`/api/v1/auth/invite-user`), which is the only way to reach someone without an account. See § Email Policy.
+* **WHEN**: Anytime a user sends a pairing request through the in-app dialog.
+* **IMPACT**: The recipient learns about the request from the app or a push notification; the 6-char code is still shared out-of-band.
 * **CONFIDENCE**: **HIGH**
 
 ### 2. DEFECT: Asymmetrical Database Operation for Request Rejection
@@ -289,6 +310,6 @@ During the reverse-engineering analysis, the following technical findings and bu
 | View Pending Sent & Received Requests | **IMPLEMENTED** | `get_pending_invitations` RPC |
 | Accept Request Flow | **IMPLEMENTED** | `accept_partnership` RPC + notification |
 | Reject Request Flow | **PARTIALLY IMPLEMENTED** | DB deletion works, but optimistic UI filter has ID mismatch bug |
-| External Email Delivery | **NOT IMPLEMENTED** | Labeled as email invite, but only performs DB request insertion |
+| Invite Partner With No Account | **IMPLEMENTED** | `POST /auth/invite-user` → `admin.inviteUserByEmail()`; hosted "Invite user" email; account-only, no `partnerships` row |
 | Realtime State Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `partnerships` table |
 | Automatic Redirection on Login | **IMPLEMENTED** | `SplashScreen` routes based on `partnerState.partner` |

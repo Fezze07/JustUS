@@ -37,6 +37,14 @@ const inviteSchema = z.object({
   partnershipCode: z.string().length(6, "Il codice deve essere di 6 caratteri"),
 });
 
+// Account-only invite: the email address of a partner who has no JustUs
+// account yet. `redirectTo` is forwarded to GoTrue, which validates it against
+// the project's redirect allow-list.
+const inviteUserSchema = z.object({
+  email: z.string().email(),
+  redirectTo: z.string().url().max(2048).optional(),
+});
+
 module.exports = {
   updateDeviceTokenSchema,
   revokeDeviceTokenSchema,
@@ -44,4 +52,5 @@ module.exports = {
   loginAttemptSchema,
   sessionBindSchema,
   inviteSchema,
+  inviteUserSchema,
 };

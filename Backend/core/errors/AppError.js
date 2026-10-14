@@ -23,6 +23,7 @@ const ERROR_CODES = {
 
   // API
   API_VALIDATION_001: { code: "API-VALIDATION-001", status: 400, message: "Request validation failed" },
+  API_VALIDATION_002: { code: "API-VALIDATION-002", status: 409, message: "Email already registered" },
   API_NOT_FOUND_001: { code: "API-NOT_FOUND-001", status: 404, message: "Endpoint not found" },
   API_TIMEOUT_001: { code: "API-TIMEOUT-001", status: 504, message: "Request timed out" },
   API_FAIL_001: { code: "API-FAIL-001", status: 500, message: "Unexpected API error" },
