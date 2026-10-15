@@ -118,10 +118,10 @@ Server notification templates support `it` and `en` across key events:
    - **Status:** **ALIGNED**. All notification event keys sent by Flutter (`requestAccepted`, `missyou`, `moodUpdated`, etc.) match the keys defined in `notification.service.js`.
 
 2. **Hardcoded User-Facing Strings Audit:**
-   - **Frontend UI:** **95% LOCALIZED**. Screens use `context.loc.*`.
+   - **Frontend UI:** **100% LOCALIZED**. Screens use `context.loc.*`.
    - **Exceptions/Findings:**
-     - Database exception messages (e.g. `'Utente non autenticato o ID non valido'`, `'Hai gia una partnership o una richiesta attiva'`) returned from Supabase RPC functions are hardcoded in Italian.
-     - Fallback error messages in `ErrorHandler` contain hardcoded English strings.
+     - *(Fixed 2026-10-14, todo.md 10.18)* Database exception messages returned from Supabase RPC functions were hardcoded in Italian. Every raise now carries a stable app error code (`RAISE EXCEPTION 'API-VALIDATION-00x: <developer text>'`); the backend preserves the code ([dbUtils.js](file:///f:/JustUS/Backend/utils/db/dbUtils.js) `wrapRpc`) and the client resolves it to `error_apiValidation00x` in the ARB files. The Postgres text is a developer-facing note: production UI shows only the localized string.
+     - Fallback error messages in `ErrorHandler` contain hardcoded English strings. They are developer-facing only: production UI renders `ErrorCodes.userMessage(code, context.loc)`, so an end user never reads them.
 
 ---
 

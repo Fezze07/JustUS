@@ -208,7 +208,7 @@ const invitePartnerController = asyncHandler(async (req, res) => {
 
   const recipient = await resolveRequestedPartnerOrNull(email, partnershipCode);
   if (recipient && Number(recipient.id) === Number(user.profileId)) {
-    throw new AppError({ errorKey: "API_VALIDATION_001", message: "Non puoi invitare te stesso" });
+    throw new AppError({ errorKey: "API_VALIDATION_006", message: "Cannot invite yourself" });
   }
 
   const data = wrapRpc(

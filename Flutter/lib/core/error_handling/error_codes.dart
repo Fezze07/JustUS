@@ -30,6 +30,11 @@ class ErrorCodes {
   // API
   static const String apiValidation001 = 'API-VALIDATION-001';
   static const String apiValidation002 = 'API-VALIDATION-002';
+  static const String apiValidation003 = 'API-VALIDATION-003';
+  static const String apiValidation004 = 'API-VALIDATION-004';
+  static const String apiValidation005 = 'API-VALIDATION-005';
+  static const String apiValidation006 = 'API-VALIDATION-006';
+  static const String apiValidation007 = 'API-VALIDATION-007';
   static const String apiNotFound001 = 'API-NOT_FOUND-001';
   static const String apiTimeout001 = 'API-TIMEOUT-001';
   static const String apiFail001 = 'API-FAIL-001';
@@ -64,6 +69,26 @@ class ErrorCodes {
   static const String localUnknown = 'LOCAL-UNKNOWN'; // Errore sconosciuto
 
   // ---------------------------------------------------------------------------
+  // Codici sollevati dalle funzioni RPC del database.
+  // Le funzioni fanno `RAISE EXCEPTION '<CODE>: <testo>';` così il codice
+  // viaggia nel messaggio Postgres e il testo resta una nota per lo sviluppatore.
+  // ---------------------------------------------------------------------------
+  static const List<String> serverCodes = [
+    apiValidation003,
+    apiValidation004,
+    apiValidation005,
+    apiValidation006,
+    apiValidation007,
+  ];
+
+  /// Estrae il codice da un messaggio di eccezione del database
+  /// (`'API-VALIDATION-006: Cannot invite yourself'`), o `null` se assente.
+  static String? resolveServerCode(String? message) {
+    final prefix = message?.split(':').first.trim();
+    return prefix != null && serverCodes.contains(prefix) ? prefix : null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Mappatura codice → messaggio utente localizzato.
   // ---------------------------------------------------------------------------
   static String userMessage(String code, AppLocalizations loc) {
@@ -96,6 +121,16 @@ class ErrorCodes {
         return loc.error_apiValidation001;
       case apiValidation002:
         return loc.error_apiValidation002;
+      case apiValidation003:
+        return loc.error_apiValidation003;
+      case apiValidation004:
+        return loc.error_apiValidation004;
+      case apiValidation005:
+        return loc.error_apiValidation005;
+      case apiValidation006:
+        return loc.error_apiValidation006;
+      case apiValidation007:
+        return loc.error_apiValidation007;
       case apiNotFound001:
         return loc.error_apiNotFound001;
       case apiTimeout001:

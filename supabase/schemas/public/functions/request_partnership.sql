@@ -20,11 +20,11 @@ BEGIN
   END IF;
 
   IF v_current_user_id IS NULL THEN
-    RAISE EXCEPTION 'Utente non autenticato o ID non valido';
+    RAISE EXCEPTION 'API-VALIDATION-003: User not authenticated or invalid ID';
   END IF;
 
   IF EXISTS (SELECT 1 FROM public.partnerships WHERE (user_id_1 = v_current_user_id OR user_id_2 = v_current_user_id) AND status IN ('pending', 'accepted')) THEN
-    RAISE EXCEPTION 'Hai gia una partnership o una richiesta attiva';
+    RAISE EXCEPTION 'API-VALIDATION-004: Partnership request already exists';
   END IF;
 
   SELECT u.id INTO v_partner_id 
@@ -33,11 +33,11 @@ BEGIN
   WHERE u.email = partner_email AND up.partnership_code = upper(partner_code);
 
   IF v_partner_id IS NULL THEN
-    RAISE EXCEPTION 'Email o Codice Partner non validi';
+    RAISE EXCEPTION 'API-VALIDATION-005: Invalid partner email or code';
   END IF;
 
   IF v_partner_id = v_current_user_id THEN
-    RAISE EXCEPTION 'Non puoi invitare te stesso';
+    RAISE EXCEPTION 'API-VALIDATION-006: Cannot invite yourself';
   END IF;
 
   INSERT INTO public.partnerships (user_id_1, user_id_2, status)

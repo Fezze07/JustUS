@@ -24,6 +24,11 @@ const ERROR_CODES = {
   // API
   API_VALIDATION_001: { code: "API-VALIDATION-001", status: 400, message: "Request validation failed" },
   API_VALIDATION_002: { code: "API-VALIDATION-002", status: 409, message: "Email already registered" },
+  API_VALIDATION_003: { code: "API-VALIDATION-003", status: 400, message: "User not authenticated or invalid ID" },
+  API_VALIDATION_004: { code: "API-VALIDATION-004", status: 400, message: "Partnership request already exists" },
+  API_VALIDATION_005: { code: "API-VALIDATION-005", status: 400, message: "Invalid partner email or code" },
+  API_VALIDATION_006: { code: "API-VALIDATION-006", status: 400, message: "Cannot invite yourself" },
+  API_VALIDATION_007: { code: "API-VALIDATION-007", status: 400, message: "No active partnership found" },
   API_NOT_FOUND_001: { code: "API-NOT_FOUND-001", status: 404, message: "Endpoint not found" },
   API_TIMEOUT_001: { code: "API-TIMEOUT-001", status: 504, message: "Request timed out" },
   API_FAIL_001: { code: "API-FAIL-001", status: 500, message: "Unexpected API error" },

@@ -9,10 +9,29 @@
 //   const row = assertDbSuccess({ data, error });          // throws on error
 //
 //   const { data, error } = await adminSupabase.rpc('...')
-//   const result = wrapRpc({ data, error });               // throws API_VALIDATION_001
+//   const result = wrapRpc({ data, error });               // throws AppError; the
+//      // code comes from the RAISE (see rpcErrorKey), else API_VALIDATION_001.
 // =============================================================================
 
-const { AppError } = require("../../all_imports");
+const { AppError, ERROR_CODES } = require("../../all_imports");
+
+/** Reverse catalog: an app error code resolves to its key. */
+const CODE_TO_KEY = Object.fromEntries(
+  Object.entries(ERROR_CODES).map(([key, def]) => [def.code, key])
+);
+
+/**
+ * Reads the code out of a database raise.
+ *
+ * The RPC functions raise `'<CODE>: <developer text>'` so the code travels on
+ * the Postgres message and the prose stays a developer-facing note. Returns
+ * null when the message carries no code from the catalog, so callers keep the
+ * generic fallback.
+ */
+function rpcErrorKey(message) {
+  const code = String(message ?? "").split(":")[0].trim();
+  return CODE_TO_KEY[code] ?? null;
+}
 
 /**
  * Asserts that a Supabase query succeeded and returns the data.
@@ -36,9 +55,10 @@ function assertDbSuccess({ data, error }, errorKey = "DB_READ_001", message) {
 }
 
 /**
- * Wraps a Supabase RPC call result, throwing API_VALIDATION_001 if the RPC
- * returned an error. This matches the pattern used for proxy-style RPCs where
- * the error message comes from the database function itself.
+ * Wraps a Supabase RPC call result, throwing an AppError if the RPC returned
+ * an error. A raise carrying an app error code (see [rpcErrorKey]) keeps that
+ * code so the client can localize it; anything else falls back to
+ * API_VALIDATION_001 with the raw database message.
  *
  * @param {{ data: any, error: any }} result - Destructured Supabase RPC response.
  * @returns {any} The data from the RPC response.
@@ -46,9 +66,23 @@ function assertDbSuccess({ data, error }, errorKey = "DB_READ_001", message) {
  */
 function wrapRpc({ data, error }) {
   if (error) {
+    const raw = String(error?.message ?? "");
+    const errorKey = rpcErrorKey(raw);
+
+    if (errorKey) {
+      // Strip the code prefix: the message stays the developer-facing note.
+      const sep = raw.indexOf(":");
+      const message = (sep === -1 ? "" : raw.slice(sep + 1)).trim();
+      throw new AppError({
+        errorKey,
+        message: message || undefined,
+        cause: error,
+      });
+    }
+
     throw new AppError({
       errorKey: "API_VALIDATION_001",
-      message: error.message,
+      message: raw,
       cause: error,
     });
   }

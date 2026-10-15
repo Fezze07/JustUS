@@ -101,9 +101,9 @@ The partnership subsystem defines three logical states per user:
 
 1. **Request Initiation**:
    - **Who can initiate**: Any authenticated user who does not already have an active or pending partnership.
-   - **Self-Invitation Prevention**: Enforced at the backend controller level ([auth.controller.js:169](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L169)) throwing `API_VALIDATION_001` ("Non puoi invitare te stesso").
-   - **Duplicate Requests**: Prevented by checking existing active/pending records in `request_partnership` RPC.
-   - **Recipient Matching**: Initiator must provide **both** the exact target email (case-insensitive) and exact 6-character `partnership_code`.
+   - **Self-Invitation Prevention**: A user who names their own email + code is rejected by the backend controller ([auth.controller.js:210](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L210)) with `API-VALIDATION-006`; the same code is raised by the `request_partnership` RPC guard for any direct caller. The client localizes it via `ErrorCodes.userMessage`.
+   - **Duplicate Requests**: Prevented by checking existing active/pending records in `request_partnership` RPC (raises `API-VALIDATION-004`).
+   - **Recipient Matching**: Initiator must provide **both** the exact target email (case-insensitive) and exact 6-character `partnership_code`; a mismatch raises `API-VALIDATION-005`.
 
 2. **Rejection Handling**:
    - When a user rejects an incoming request or cancels a sent request, Flutter executes a direct SQL `DELETE` on `public.partnerships` where `id = partnershipId` and `status = 'pending'` ([partnership_repository.dart:110](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L110)).

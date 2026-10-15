@@ -11,7 +11,7 @@ BEGIN
   LIMIT 1;
 
   IF v_partnership_id IS NULL THEN
-    RAISE EXCEPTION 'No active partnership found';
+    RAISE EXCEPTION 'API-VALIDATION-007: No active partnership found';
   END IF;
 
   INSERT INTO public.missyou (partnership_id) VALUES (v_partnership_id);

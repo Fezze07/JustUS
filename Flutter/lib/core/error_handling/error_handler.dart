@@ -35,7 +35,7 @@ class ErrorHandler {
     StackTrace? stackTrace,
     bool showUI = true,
   }) {
-    final appError = _toAppError(error);
+    final appError = toAppError(error);
     _log(appError, stackTrace);
 
     if (showUI) {
@@ -48,7 +48,7 @@ class ErrorHandler {
 
   /// Gestisce errori globali (zona / FlutterError) — senza BuildContext.
   static void handleGlobal(Object error, StackTrace stackTrace) {
-    final appError = _toAppError(error);
+    final appError = toAppError(error);
     _log(appError, stackTrace);
 
     // Prova a mostrare UI se c'è un contesto disponibile.
@@ -66,7 +66,10 @@ class ErrorHandler {
   // Conversione → AppError
   // ---------------------------------------------------------------------------
 
-  static AppError _toAppError(Object error) {
+  /// Converte qualsiasi errore/risposta API in un [AppError] con codice
+  /// strutturato. Pubblico perché i repository lo usano per conservare il
+  /// codice quando avvolgono l'eccezione in un [GenericError].
+  static AppError toAppError(Object error) {
     if (error is AppError) return error;
 
     if (error is GenericError) {
@@ -91,6 +94,13 @@ class ErrorHandler {
 
     // Errori Supabase Postgres / DB
     if (error is PostgrestException) {
+      final serverCode = ErrorCodes.resolveServerCode(error.message);
+      if (serverCode != null) {
+        return AppError(
+            code: serverCode,
+            message: error.message,
+            severity: ErrorSeverity.medium);
+      }
       if (error.code == '404' || error.message.contains('not found')) {
         return AppError(code: ErrorCodes.dbNotFound001, message: error.message);
       }

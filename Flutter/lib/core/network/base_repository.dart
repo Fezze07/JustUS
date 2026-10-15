@@ -111,7 +111,13 @@ abstract class BaseRepository {
     try {
       return Success(await fn());
     } catch (e) {
-      return GenericError(message: e.toString());
+      // Un PostgrestException porta un codice strutturato (es. il codice
+      // API-VALIDATION-00x sollevato da una RPC): lo conserviamo in `details`
+      // come AppError, così ErrorHandler non ripiega sul messaggio tecnico.
+      return GenericError(
+        message: e.toString(),
+        details: e is PostgrestException ? ErrorHandler.toAppError(e) : null,
+      );
     }
   }
 

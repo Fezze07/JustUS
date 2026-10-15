@@ -1790,6 +1790,36 @@ abstract class AppLocalizations {
   /// **'Questa email ha già un account Just Us. Chiedi al tuo partner il codice di 6 caratteri.'**
   String get error_apiValidation002;
 
+  /// No description provided for @error_apiValidation003.
+  ///
+  /// In it, this message translates to:
+  /// **'Utente non autenticato o ID non valido.'**
+  String get error_apiValidation003;
+
+  /// No description provided for @error_apiValidation004.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai già una partnership o una richiesta attiva.'**
+  String get error_apiValidation004;
+
+  /// No description provided for @error_apiValidation005.
+  ///
+  /// In it, this message translates to:
+  /// **'Email o codice partner non validi.'**
+  String get error_apiValidation005;
+
+  /// No description provided for @error_apiValidation006.
+  ///
+  /// In it, this message translates to:
+  /// **'Non puoi invitare te stesso.'**
+  String get error_apiValidation006;
+
+  /// No description provided for @error_apiValidation007.
+  ///
+  /// In it, this message translates to:
+  /// **'Non hai una partnership attiva.'**
+  String get error_apiValidation007;
+
   /// No description provided for @error_apiNotFound001.
   ///
   /// In it, this message translates to:

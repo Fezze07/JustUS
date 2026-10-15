@@ -883,6 +883,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'This email already has a Just Us account. Ask your partner for their 6-character code.';
 
   @override
+  String get error_apiValidation003 => 'User not authenticated or invalid ID.';
+
+  @override
+  String get error_apiValidation004 =>
+      'A partnership or request already exists.';
+
+  @override
+  String get error_apiValidation005 => 'Invalid partner email or code.';
+
+  @override
+  String get error_apiValidation006 => 'You cannot invite yourself.';
+
+  @override
+  String get error_apiValidation007 => 'No active partnership found.';
+
+  @override
   String get error_apiNotFound001 => 'Service unavailable.';
 
   @override

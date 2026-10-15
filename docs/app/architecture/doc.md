@@ -377,6 +377,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 - `ErrorHandler._showSnackBar` uses an `OverlayEntry` via the root navigator overlay (NOT `ScaffoldMessenger`). It is aware of scheduler phases and defers insertion to the next frame when called during build. A `Future.delayed(4s)` removes it in release; in debug it persists until dismissed.
 - `ErrorDialog` (reusable widget in `shared/design_system/error_dialog.dart`) shows error code only in debug mode (`kDebugMode`). The reauth dialog navigates to `/login` via `pushNamedAndRemoveUntil`, clearing the navigation stack.
 - `AppError` (`lib/core/error_handling/app_error.dart`) supports factories: `.network()`, `.timeout()`, `.fromException()`, `.fromJson()` (from backend envelope). `ErrorCodes` maps codes to localized user messages and classifies severity/reauth requirements.
+- RPC failures keep their code end-to-end. A database raise is `'<CODE>: <developer text>'`; the backend turns the code into an `AppError` (`wrapRpc`) and the client resolves it in `ErrorHandler.toAppError` — `ErrorCodes.resolveServerCode` reads the prefix off `PostgrestException.message` for calls the client makes directly (e.g. `send_missyou`), and `BaseRepository.tryCall` stores that `AppError` in `GenericError.details` so the code survives the wrapper. Only the code reaches the UI; the developer text stays in logs and the debug dialog.
 
 ### Logging
 

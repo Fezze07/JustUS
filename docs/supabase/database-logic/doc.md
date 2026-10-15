@@ -49,10 +49,11 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Tables Touched:** `public.partnerships` (READ, INSERT), `public.users` (READ), `public.user_profiles` (READ).
 * **Execution Conditions & Validation Rules:**
   1. Identifies caller ID via `override_sender_id` or `public.current_user_id()`.
-  2. Raises EXCEPTION if user is not authenticated (`'Utente non autenticato o ID non valido'`).
-  3. Checks if user is already in a `'pending'` or `'accepted'` partnership. Raises EXCEPTION if true (`'Hai gia una partnership o una richiesta attiva'`).
-  4. Looks up recipient matching BOTH `email = partner_email` and `partnership_code = UPPER(partner_code)`. Raises EXCEPTION if not found (`'Email o Codice Partner non validi'`).
-  5. Prevents self-invitation (`v_partner_id = v_current_user_id`). Raises EXCEPTION (`'Non puoi invitare te stesso'`).
+  2. Raises EXCEPTION if user is not authenticated (`API-VALIDATION-003`).
+  3. Checks if user is already in a `'pending'` or `'accepted'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`).
+  4. Looks up recipient matching BOTH `email = partner_email` and `partnership_code = UPPER(partner_code)`. Raises EXCEPTION if not found (`API-VALIDATION-005`).
+  5. Prevents self-invitation (`v_partner_id = v_current_user_id`). Raises EXCEPTION (`API-VALIDATION-006`).
+* **Error Contract:** Every raise is `RAISE EXCEPTION '<CODE>: <developer text>';`. `wrapRpc` ([dbUtils.js](file:///f:/JustUS/Backend/utils/db/dbUtils.js)) reads the code prefix and turns it into an `AppError` with that code, so the client localizes it through `ErrorCodes.userMessage` (see [localization/doc.md](file:///f:/JustUS/docs/app/localization/doc.md)). The text after the prefix is a developer-facing note only; it never reaches the UI.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
 * **Side Effects:** Inserts a row in `public.partnerships` with `status = 'pending'`.
 
@@ -118,7 +119,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Inputs:** None.
 * **Outputs:** `void`.
 * **Tables Touched:** `partnerships` (READ), `missyou` (INSERT).
-* **Execution Condition:** Requires active partnership (`status = 'accepted'`). Raises EXCEPTION (`'No active partnership found'`) if missing.
+* **Execution Condition:** Requires active partnership (`status = 'accepted'`). Raises EXCEPTION (`API-VALIDATION-007`) if missing. Called directly from the client, so the code is resolved by `ErrorCodes.resolveServerCode` ([error_codes.dart](file:///f:/JustUS/Flutter/lib/core/error_handling/error_codes.dart)).
 * **Caller:** Flutter Frontend ([missyou_repository.dart](file:///f:/JustUS/Flutter/lib/features/home/missyou_repository.dart)).
 
 ---

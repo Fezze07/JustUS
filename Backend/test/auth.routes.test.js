@@ -476,6 +476,25 @@ describe("auth routes", () => {
     });
   });
 
+  test("surfaces the RPC error code raised by request_partnership", async () => {
+    adminSupabase.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "API-VALIDATION-005: Invalid partner email or code" },
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/invite")
+      .send({
+        email: "partner@example.com",
+        partnershipCode: "ABC123",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("API-VALIDATION-005");
+    expect(response.body.error.message).toBe("Invalid partner email or code");
+  });
+
   test("dispatches the Supabase invite email for a new partner address", async () => {
     adminSupabase.auth.admin.inviteUserByEmail.mockResolvedValue({
       data: { user: { id: "invited-user-1" } },
