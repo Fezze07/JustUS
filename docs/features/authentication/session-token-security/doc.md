@@ -202,7 +202,14 @@ The live session and the Realtime JWT are untouched; the secure-storage mirror k
       return await _safeCall(call, fromJson, isRetry: true, timeout: timeout, label: label);
     }
     await onSessionExpired?.call();
-    return const GenericError(code: 401, message: 'Session expired. Please login again.');
+    return const GenericError(
+      code: 401,
+      message: 'Session expired. Please login again.',
+      details: AppError(
+        code: ErrorCodes.authFail001,
+        message: 'Session expired. Please login again.',
+      ),
+    );
   }
   ```
 
@@ -219,8 +226,8 @@ When retrying an HTTP `POST` or `GET` request:
 
 ### Session Expiry Presentation (todo# 1.3)
 
-- The synthetic `GenericError(code: 401)` is converted by `ErrorHandler._toAppError` into `AppError(code: "401")` (error_handler.dart:76-79).
-- `"401"` is included in `ErrorCodes.requiresReauth` via the `httpUnauthorized` constant, and its user message reuses `error_authFail001` ("Session expired. Please login again.").
+- The synthetic `GenericError(code: 401)` carries `AppError(authFail001)` in `details`; `ErrorHandler.toAppError` returns that detail, so the error resolves to `AppError(code: "AUTH-FAIL-001")` rather than the raw `"401"` (error_handler.dart:72-84).
+- Both `"401"` (`httpUnauthorized`) and `AUTH-FAIL-001` are in `ErrorCodes.requiresReauth`, so either path opens the same dialog; the user message is `error_authFail001` ("Session expired. Please login again.").
 - Consequently the failure opens the non-dismissible reauth dialog (error_handler.dart:145-146), whose action calls `pushNamedAndRemoveUntil('/login')` (error_handler.dart:249-273) — the user is redirected to `LoginScreen` rather than left on a stale screen with cleared state.
 
 ---

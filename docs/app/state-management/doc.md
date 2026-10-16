@@ -4,12 +4,13 @@
 
 JustUS uses the `provider` package on top of plain `ChangeNotifier` classes. There is no custom state-management library, no `ValueNotifier`-based domains, and no Redux/BLoC. All feature state lives in one app-lifetime managed object per feature, created once at the widget root (`main.dart:96-112`) and handed to widgets exclusively through `Provider.of`/`Consumer`/`Selector`. State synchronization with the server is done by each feature state itself (cache-first + checkpoint-driven refresh), plus a global `RealtimeSyncService` that pushes changes into the states.
 
-The four building blocks are:
+The five building blocks are:
 
-1. `BaseState` (`Flutter/lib/shared/utils/state/base_state.dart`, 99 lines) — abstract `ChangeNotifier` with frame-coalesced `notifyListeners`, `setLoading`/`setMessage`, `runSafe`, `handleResult`, and `loadWithChangeDetection`.
+1. `BaseState` (`Flutter/lib/shared/utils/state/base_state.dart`, 141 lines) — abstract `ChangeNotifier` with frame-coalesced `notifyListeners`, `setLoading`/`setMessage`, `runSafe`, `handleResult`, and `loadWithChangeDetection`.
 2. Feature states — nine classes extending `BaseState` (some with `CheckpointMixin`).
 3. `ResultWrapper<T>` (`Flutter/lib/core/network/result_wrapper.dart`, 25 lines) — sealed Success / GenericError / NetworkError.
 4. `CheckpointMixin` (`Flutter/lib/core/local_storage/checkpoint_mixin.dart`, 57 lines) — writes max-timestamp checkpoints into `CacheService` (SharedPreferences).
+5. `StateMessageListener<T extends BaseState, W extends StatefulWidget>` (same file, base_state.dart:101-141) — screen mixin that renders `BaseState.message` through `ErrorHandler.showSnackBar` and clears it; mixed into the seven screens that own a message-bearing state.
 
 State definition sites:
 
@@ -31,7 +32,7 @@ State definition sites:
 
 `BaseState` (base_state.dart:10) adds to `ChangeNotifier`:
 - `isLoading` getter backed by `_isLoading` (base_state.dart:15).
-- `message` getter backed by `_message` (base_state.dart:16); consumed by screens/`ErrorHandler` UI.
+- `message` getter backed by `_message` (base_state.dart:16); per-screen consumption is centralized in the `StateMessageListener` mixin (below), which renders it and then clears it.
 - `notifyListeners()` override (base_state.dart:22-29) — frame coalescing.
 - `setLoading` / `setMessage` / `clearMessage` (base_state.dart:31-44) — mutators that also notify.
 - `loadWithChangeDetection` (base_state.dart:46-59) — cache → change-check → optional fire-and-forget fetch.
@@ -67,6 +68,25 @@ Edge cases / risks:
 - `(b)` resets `_pendingNotify` before delivering. If a listener synchronously calls a method that calls `notifyListeners()` again during the delivery, a new callback is scheduled for a later frame — no recursion, but a chain of one-frame-per-batch notifications can span multiple frames.
 - **Idle-frame dependency**: the callback only runs when a frame is actually drawn. If `notifyListeners()` is invoked while the app is idle (e.g. a background/realtime sync completing with no animation or input scheduled), `addPostFrameCallback` registers for the *next* frame, but nothing necessarily schedules one — the notification can be delayed until the next unrelated frame (input, animation, timer) occurs. In practice the always-running homepage pulse animation (`homepage_screen.dart:36-44`) and cursor/animation sources schedule frames continuously, but on a static screen with no animations the delivery timing is not guaranteed. Confidence: HIGH that delivery is deferred; MEDIUM that a real stall occurs (frame sources above usually mask it).
 - Because `notifyListeners` returns before listeners are called, any code that reads observable state immediately after notification still sees the mutated values (mutations happen before notify) — ordering is fine.
+
+## StateMessageListener
+
+`StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (base_state.dart:101-141) is the single path that turns a state's `message` into user-visible feedback. A screen that owns a message-bearing state mixes it in and supplies the provider read:
+
+```dart
+class _MoodScreenState extends State<MoodScreen>
+    with TabScreenMixin, StateMessageListener<MoodState, MoodScreen> {
+  @override
+  MoodState get messageSource => context.read<MoodState>();
+```
+
+- `initState` registers a post-frame callback that resolves `messageSource` **once**, caches it in `_messageSource`, then `addListener`s the handler. `dispose` removes the listener from that cached reference.
+- The handler reads `state.message`; if it is non-null/non-empty and the widget is still `mounted`, it calls `ErrorHandler.showSnackBar(context, msg)` and then `state.clearMessage()`. The message is cleared after display, so a value set once is shown once.
+- Caching the state is required, not cosmetic: `context.read` inside `dispose()` throws "Looking up a deactivated widget's ancestor is unsafe". The mixin is the successor to the earlier per-screen listener that read the provider in both `initState` and `dispose` (as `GameScreen` did before it).
+- Screens using it: `GameScreen`, `MoodScreen`, `DriveScreen`, `BucketListScreen`, `ProfileScreen`, `HomepageScreen`, `PartnerScreen`.
+- Contract: **a state owns its user-facing message; the screen only renders it.** Screens no longer raise the same snackbar themselves for a state-emitted message — `home_missYouSent` and `profile_saved` are set by the state (`HomepageState.sendMissYou`, `ProfileState.updateDisplayName`/`uploadProfilePhoto`/`updateAnniversaryDate`) and shown by the listener. Screen-owned feedback stays direct only where the value is not carried by a surviving state message: the wipe confirmation snackbar is raised in `ProfileScreen` because `ProfileState.wipeAppData` sets `profile_dataWiped` but the follow-up `loadProfile(force: true)` nulls `_message` (`runSafe` clears it on entry) before the listener can fire.
+- Because `runSafe` nulls `_message` on entry, a status set *before* the call is dropped before it can be read; the in-progress statuses that must be visible (`profile_photoUploading`, `drive_uploadInProgress`) are therefore set as the first statement *inside* the `runSafe` action, after the clear.
+- `ErrorHandler.showSnackBar` removes the previous overlay before inserting (`_currentOverlay`), so a mixin listener and a direct screen snackbar can never stack visually.
 
 ## loadWithChangeDetection
 
@@ -232,6 +252,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - Init is a screen-driven operation (TabScreenMixin or homepage `_loadData`), never application-global; auth init is the sole exception (splash).
 - Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe clears both in-memory and media caches too (profile_screen.dart:134-150), and additionally reloads the profile.
 - BaseState notification is deferred one frame; code must never rely on synchronous listener invocation.
+- A state message is user-facing text owned by the state; the owning screen renders it once through `StateMessageListener` and clears it. A screen must not also raise the same snackbar for a state-emitted message.
 - `ThemeProvider` and `LanguageProvider` both survive navigation and process restart (SharedPreferences, restored before `runApp`); both are also preserved by `StorageService.clearAll()` on logout/wipe.
 
 ## Implementation status
@@ -239,6 +260,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 | Concern | Status |
 |---|---|
 | BaseState hooking into ChangeNotifier | IMPLEMENTED (base_state.dart:10-29) |
+| State message → snackbar surfacing | IMPLEMENTED (`StateMessageListener` mixin, 7 screens; the state owns the message, the screen renders and clears it) |
 | Frame coalescing | IMPLEMENTED (partial — per-instance only) |
 | loadWithChangeDetection | IMPLEMENTED (base_state.dart:46-59) |
 | Change-check via checkpoint vs server max-timestamp | IMPLEMENTED (base_repository.dart:79-108, checkpoint_mixin.dart) |

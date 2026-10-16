@@ -6,10 +6,7 @@ class MoodRepository extends BaseRepository {
   MoodRepository({super.sbClient});
 
   Future<ResultWrapper<MoodEntry>> updateMood(String emojiChar) async {
-    final uid = await getUserId();
-    if (uid == null) return const GenericError(message: 'User not logged in');
-
-    return tryCall(() async {
+    return withUser((uid) async {
       await sbClient.rpc('set_mood', params: {'p_emoji_char': emojiChar});
 
       unawaited(notifyPartnerOnce(

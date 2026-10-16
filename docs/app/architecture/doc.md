@@ -30,7 +30,7 @@ Entry: `Flutter/lib/main.dart`.
 2. `FlutterError.onError` is overridden -> `FlutterError.presentError` + `ErrorHandler.handleGlobal`.
 3. `await dotenv.load()` - loads `.env` (required for Supabase URL/anon key and Turnstile **site** key). **Hard prerequisite, blocking, throws if absent.**
 4. `await StorageService.init()` - initializes the `SharedPreferences` singleton.
-5. `await SupabaseService.initialize()` - reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` from dotenv, throws `Exception('Supabase configuration missing in .env file')` if empty, then `Supabase.initialize(url, publishableKey, httpClient: LoggingHttpClient)`.
+5. `await SupabaseService.initialize()` - reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` from dotenv, throws `AppError(LOCAL-CONFIG-001)` if empty, then `Supabase.initialize(url, publishableKey, httpClient: LoggingHttpClient)`.
 6. On Android/iOS/Web: `await Firebase.initializeApp` (wrapped in try/catch, failure only logged), registers `FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler)`, grabs `FirebaseAnalytics.instance`.
 7. `final notificationService = NotificationService(); await notificationService.init();` - local notifications, permissions, foreground handler (see Notifications Initialization).
 8. `final languageProvider = LanguageProvider(); await languageProvider.loadSavedLocale();` - reads persisted locale before first frame.
@@ -130,6 +130,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 - `runSafe(action, {showLoading})`: sets loading, clears message, awaits, on error -> `ErrorHandler.handle(e)`, returns bool success. **The universal error boundary for user actions.**
 - `handleResult<T>(result, {onSuccess, notifyOnSuccess})`: pattern-matches `Success/GenericError/NetworkError`; non-success paths go through `ErrorHandler` and call `notifyListeners()`.
 - `loadWithChangeDetection({loadFromCache, hasChanges, fetchFromNetwork})`: cache -> checkpoint diff -> fire-and-forget network refresh (`unawaited`, not awaited - UI renders cache immediately).
+- `StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (same file): screen mixin that renders the owning state's `message` through `ErrorHandler.showSnackBar` and then clears it. The state is resolved once after the first frame and cached, because `context.read` inside `dispose()` throws on a deactivated element. Mixed into the Game/Mood/Drive/Bucket/Profile/Homepage/Partner screens.
 
 ### State-scoped observations
 
@@ -377,7 +378,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 - `ErrorHandler._showSnackBar` uses an `OverlayEntry` via the root navigator overlay (NOT `ScaffoldMessenger`). It is aware of scheduler phases and defers insertion to the next frame when called during build. A `Future.delayed(4s)` removes it in release; in debug it persists until dismissed.
 - `ErrorDialog` (reusable widget in `shared/design_system/error_dialog.dart`) shows error code only in debug mode (`kDebugMode`). The reauth dialog navigates to `/login` via `pushNamedAndRemoveUntil`, clearing the navigation stack.
 - `AppError` (`lib/core/error_handling/app_error.dart`) supports factories: `.network()`, `.timeout()`, `.fromException()`, `.fromJson()` (from backend envelope). `ErrorCodes` maps codes to localized user messages and classifies severity/reauth requirements.
-- RPC failures keep their code end-to-end. A database raise is `'<CODE>: <developer text>'`; the backend turns the code into an `AppError` (`wrapRpc`) and the client resolves it in `ErrorHandler.toAppError` — `ErrorCodes.resolveServerCode` reads the prefix off `PostgrestException.message` for calls the client makes directly (e.g. `send_missyou`), and `BaseRepository.tryCall` stores that `AppError` in `GenericError.details` so the code survives the wrapper. Only the code reaches the UI; the developer text stays in logs and the debug dialog.
+- RPC failures keep their code end-to-end. A database raise is `'<CODE>: <developer text>'`; the backend turns the code into an `AppError` (`wrapRpc`) and the client resolves it in `ErrorHandler.toAppError` — `ErrorCodes.resolveServerCode` reads the prefix off `PostgrestException.message` for calls the client makes directly (e.g. `send_missyou`), and `BaseRepository.tryCall` stores that `AppError` in `GenericError.details` so the code survives the wrapper. An `AppError` thrown inside a repository action (a `MediaService` MIME/size guard, `'No active partnership'`, an R2 upload failure) is preserved the same way, so the client resolves the intended code instead of falling back to `LOCAL-UNKNOWN`; an `AppError` carried in `GenericError.details` wins in `toAppError`. `toAppError` also maps a `NetworkError` (and a bare `SocketException`/`HttpException`) to `AppError.network()`. Only the code reaches the UI; the developer text stays in logs and the debug dialog.
 
 ### Logging
 
@@ -522,6 +523,7 @@ A source-scan test must **fail loudly rather than pass vacuously**: if it resolv
 6. **`BaseState.notifyListeners()` coalesces to one per frame.** Invariant: `_pendingNotify` flag cleared in `addPostFrameCallback`.
 7. **`ErrorHandler._currentOverlay` is a single overlay** - only one error snackbar at a time (previous is removed).
 8. **`PartnershipRepository._activePartnershipFuture`** is a single cached future per user; invalidated by `clearPartnershipCache()`.
+9. **A state message is rendered once by the owning screen.** `StateMessageListener` reads `BaseState.message`, shows it, and calls `clearMessage`; a screen never duplicates a state-emitted status snackbar, and `runSafe` clears `_message` on entry so in-progress statuses are set inside its action.
 
 ---
 

@@ -114,7 +114,7 @@ class ProfileState extends BaseState {
         await StorageService.saveUserProfile(_userProfile!);
       }
       await StorageService.saveUsername(displayName);
-      setMessage('Nome aggiornato!');
+      setMessage(LanguageHelper.appLoc.profile_saved);
     });
   }
 
@@ -125,10 +125,10 @@ class ProfileState extends BaseState {
 
   Future<void> uploadProfilePhoto(String filePath) async {
     _isUploading = true;
-    setMessage('Caricamento foto profilo...');
     notifyListeners();
 
     await runSafe(() async {
+      setMessage(LanguageHelper.appLoc.profile_photoUploading);
       final result = await _userRepo.uploadProfilePicture(File(filePath));
 
       await handleResult(result, onSuccess: (value) async {
@@ -141,7 +141,7 @@ class ProfileState extends BaseState {
           await StorageService.saveProfilePicVersion(_profilePicVersion!);
           await evictAppMediaFile(previousPicUrl, version: previousVersion);
         }
-        setMessage('Foto profilo aggiornata!');
+        setMessage(LanguageHelper.appLoc.profile_saved);
       });
       _localProfileImagePath = null;
     }, showLoading: false);
@@ -156,7 +156,7 @@ class ProfileState extends BaseState {
 
       await handleResult(result, onSuccess: (_) {
         _anniversaryDate = date;
-        setMessage('Anniversario aggiornato!');
+        setMessage(LanguageHelper.appLoc.profile_saved);
       });
     });
   }
@@ -168,7 +168,7 @@ class ProfileState extends BaseState {
         await StorageService.clearAppCache();
         await CacheService.clearAll();
         await emptyAppMediaCaches();
-        setMessage('Data wiped successfully!');
+        setMessage(LanguageHelper.appLoc.profile_dataWiped);
       } else {
         throw result;
       }

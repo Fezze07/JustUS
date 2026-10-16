@@ -433,10 +433,15 @@ class AuthState extends BaseState
     return runSafe(() async {
       final result = await _authRepo.updatePasswordWithoutCurrent(newPassword);
       if (result is GenericError<void>) {
-        throw AppError(
-          code: result.code?.toString() ?? ErrorCodes.authFailCred,
-          message: result.message ?? 'Password update failed',
-        );
+        // Un dettaglio AppError (es. timeout locale) porta il proprio codice;
+        // altrimenti il codice HTTP / credenziali.
+        final detail = result.details;
+        throw detail is AppError
+            ? detail
+            : AppError(
+                code: result.code?.toString() ?? ErrorCodes.authFailCred,
+                message: result.message ?? 'Password update failed',
+              );
       } else if (result is NetworkError<void>) {
         throw AppError.network();
       }
@@ -495,10 +500,13 @@ class AuthState extends BaseState
       final result =
           await _authRepo.changePassword(currentPassword, newPassword);
       if (result is GenericError<void>) {
-        throw AppError(
-          code: result.code?.toString() ?? ErrorCodes.authFailCred,
-          message: result.message ?? 'Password change failed',
-        );
+        final detail = result.details;
+        throw detail is AppError
+            ? detail
+            : AppError(
+                code: result.code?.toString() ?? ErrorCodes.authFailCred,
+                message: result.message ?? 'Password change failed',
+              );
       } else if (result is NetworkError<void>) {
         throw AppError.network();
       }

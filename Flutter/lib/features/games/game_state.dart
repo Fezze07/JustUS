@@ -326,10 +326,7 @@ class GameState extends BaseState with CheckpointMixin {
       option = _currentQuestion!.userIdB;
     }
     if (option == null) {
-      final loc = await AppLocalizations.delegate.load(
-        Locale(await LanguageHelper.currentLocaleCode()),
-      );
-      setMessage(loc.game_invalidOption);
+      setMessage(LanguageHelper.appLoc.game_invalidOption);
       setLoading(false);
       notifyListeners();
 
@@ -340,11 +337,8 @@ class GameState extends BaseState with CheckpointMixin {
 
     await result.handleAsync(
       onSuccess: (value) async {
-        final loc = await AppLocalizations.delegate.load(
-          Locale(await LanguageHelper.currentLocaleCode()),
-        );
         final wasPending = !_currentQuestion!.partnerAnswered;
-        setMessage(loc.game_answerSent);
+        setMessage(LanguageHelper.appLoc.game_answerSent);
         _currentQuestion = _currentQuestion!.copyWith(
           status: 'waiting',
           hasAnswered: true,

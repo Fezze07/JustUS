@@ -30,7 +30,7 @@ Design tokens are centralized in `core/theme/`:
 | `shared/widgets/tab_screen.dart` | `TabScreen`/`TabScreenMixin` - tab activation infrastructure |
 | `features/home/widgets/home_bottom_nav.dart` | Floating 7-item bottom nav (shell component, uses tokens + `Semantics(label:)`, not part of the DS barrel) |
 
-Feedback and dialogs are single-sourced: `ErrorHandler.showSnackBar` is the only snackbar/toast path and `VPDialog` is the only `AlertDialog` constructor. `test/feedback_system_test.dart` enforces both invariants.
+Feedback and dialogs are single-sourced: `ErrorHandler.showSnackBar` is the only snackbar/toast path and `VPDialog` is the only `AlertDialog` constructor. `test/feedback_system_test.dart` enforces both invariants. State-owned status messages reach that same path through the `StateMessageListener` mixin (see `docs/app/state-management/doc.md`), so no screen builds its own toast.
 
 ---
 
@@ -332,7 +332,7 @@ and it is a candidate for a future `VPLoadingOverlay`.
 | Unified avatar component | IMPLEMENTED (`VPAvatar` + `VPUserAvatar`) |
 | Unified loading component | IMPLEMENTED (inline in `VPButton`) |
 | Unified dialog component | IMPLEMENTED (`VPDialog` is the only `AlertDialog` constructor; `ErrorDialog` builds on it) |
-| Unified snackbar/toast | IMPLEMENTED (`ErrorHandler.showSnackBar`, root-overlay; `UIUtils`/ScaffoldMessenger path deleted) |
+| Unified snackbar/toast | IMPLEMENTED (`ErrorHandler.showSnackBar`, root-overlay; `UIUtils`/ScaffoldMessenger path deleted; state-owned messages surfaced via `StateMessageListener`) |
 | Accessibility (Semantics/Tooltip) | IMPLEMENTED for DS components + home nav + drive controls (no golden/a11y regression tests) |
 | Localization inside DS | IMPLEMENTED (`AppLocalizations` for shared UI, emoji picker, media picker, home nav, drive actions) |
 | Light-mode support | IMPLEMENTED (`AppPalette.light` theme extension + adaptive components) |

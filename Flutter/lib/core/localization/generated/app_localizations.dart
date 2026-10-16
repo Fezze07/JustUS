@@ -908,6 +908,12 @@ abstract class AppLocalizations {
   /// **'Salvato!'**
   String get profile_saved;
 
+  /// No description provided for @profile_photoUploading.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento foto profilo...'**
+  String get profile_photoUploading;
+
   /// No description provided for @partner_title.
   ///
   /// In it, this message translates to:

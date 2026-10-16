@@ -142,6 +142,7 @@
   "profile_displayNameSubtitle": "How you appear to your partner",
   "profile_displayNameEmpty": "Name can't be empty",
   "profile_saved": "Saved!",
+  "profile_photoUploading": "Uploading profile photo...",
   "partner_title": "Who are you connecting\nwith today?",
   "partner_connected": "CONNECTED",
   "partner_newConnection": "New Connection",

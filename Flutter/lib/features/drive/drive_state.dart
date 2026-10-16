@@ -292,9 +292,10 @@ class DriveState extends BaseState with CheckpointMixin {
     required String mimeType,
   }) async {
     _isUploading = true;
-    setMessage('Caricamento in corso…');
+    notifyListeners();
 
     await runSafe(() async {
+      setMessage(LanguageHelper.appLoc.drive_uploadInProgress);
       final type = switch (true) {
         _ when mimeType.startsWith('image') => MediaType.image,
         _ when mimeType.startsWith('video') => MediaType.video,
@@ -308,13 +309,14 @@ class DriveState extends BaseState with CheckpointMixin {
         mimeType: mimeType,
       );
 
-      await result.handleAsync(
+      await handleResult(
+        result,
         onSuccess: (value) async {
           _driveItems = [value, ..._driveItems];
           _rebuildFavorites();
           await _persistDriveCache();
           _invalidateProbe();
-          setMessage('Upload completato ✓');
+          setMessage(LanguageHelper.appLoc.drive_uploadComplete);
         },
       );
     }, showLoading: false);
@@ -337,8 +339,8 @@ class DriveState extends BaseState with CheckpointMixin {
     await runSafe(() async {
       final result = await _repo.deleteDriveItem(id);
 
-      result.handle(onSuccess: (_) {
-        setMessage('Eliminato!');
+      await handleResult(result, onSuccess: (_) {
+        setMessage(LanguageHelper.appLoc.drive_deleted);
       });
 
       if (result.isError) {

@@ -304,7 +304,7 @@ class MoodState extends BaseState with CheckpointMixin {
           await StorageService.saveRecentEmojis(_recentEmojis);
           await StorageService.saveTimeline(_timeline);
           await _updateMoodsCheckpoint(epoch: epoch, token: token);
-          setMessage('Mood aggiornato!');
+          setMessage(LanguageHelper.appLoc.mood_updated);
         },
       );
 

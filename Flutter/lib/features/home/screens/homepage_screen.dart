@@ -19,7 +19,10 @@ class HomepageScreen extends TabScreen {
 }
 
 class _HomepageScreenState extends State<HomepageScreen>
-    with SingleTickerProviderStateMixin, TabScreenMixin<HomepageScreen> {
+    with
+        SingleTickerProviderStateMixin,
+        TabScreenMixin<HomepageScreen>,
+        StateMessageListener<HomepageState, HomepageScreen> {
   final _updateService = UpdateService();
   bool _updateChecked = false;
   late final AnimationController _pulseCtrl = AnimationController(
@@ -31,6 +34,9 @@ class _HomepageScreenState extends State<HomepageScreen>
       Tween<double>(begin: 1.0, end: 1.1).animate(
     CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
   );
+
+  @override
+  HomepageState get messageSource => context.read<HomepageState>();
 
   @override
   void initState() {
@@ -413,13 +419,7 @@ class _HomepageScreenState extends State<HomepageScreen>
                   child: GestureDetector(
                     onTap: isSending
                         ? null
-                        : () async {
-                            final success = await hpState.sendMissYou();
-                            if (success && context.mounted) {
-                              ErrorHandler.showSnackBar(
-                                  context, context.loc.home_missYouSent);
-                            }
-                          },
+                        : () => unawaited(hpState.sendMissYou()),
                     child: _MissYouButton(
                       count: totalMissYou,
                       pulseAnim: _pulseAnim,

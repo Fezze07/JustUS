@@ -378,7 +378,7 @@ async function sendNotificationToUsers({ userIds, type, title, body, data = {} }
 
 async function resolveNotificationTarget(type, body, senderId) {
   if (!senderId) {
-    throw new AppError({ errorKey: "AUTH_FAIL_001", message: "Profilo mittente non trovato" });
+    throw new AppError({ errorKey: "AUTH_FAIL_001", message: "Sender profile not found" });
   }
 
   const partnerId = await getPartnerId(senderId);
@@ -386,18 +386,18 @@ async function resolveNotificationTarget(type, body, senderId) {
 
   if (type === "partner") {
     if (!partnerId) {
-      throw new AppError({ errorKey: "API_VALIDATION_001", message: "Partner non trovato" });
+      throw new AppError({ errorKey: "API_VALIDATION_001", message: "Partner not found" });
     }
 
     return { receiverId: partnerId, notificationKey, params };
   }
 
   if (!receiverId) {
-    throw new AppError({ errorKey: "API_VALIDATION_001", message: "ID destinatario mancante" });
+    throw new AppError({ errorKey: "API_VALIDATION_001", message: "Missing receiver ID" });
   }
 
   if (partnerId && Number(receiverId) !== Number(partnerId)) {
-    throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Destinatario non autorizzato" });
+    throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Receiver not authorized" });
   }
 
   return { receiverId, notificationKey, params };
@@ -423,7 +423,7 @@ async function getReceiverDeviceToken(userId) {
   const devices = await fetchUserDevices(userId);
   const token = devices[0]?.device_token;
   if (!token) {
-    throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Destinatario non trovato o senza token valido" });
+    throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Receiver not found or has no valid token" });
   }
 
   return token;

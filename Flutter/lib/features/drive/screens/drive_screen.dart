@@ -20,7 +20,11 @@ class DriveScreen extends TabScreen {
   State<DriveScreen> createState() => _DriveScreenState();
 }
 
-class _DriveScreenState extends State<DriveScreen> with TabScreenMixin {
+class _DriveScreenState extends State<DriveScreen>
+    with TabScreenMixin, StateMessageListener<DriveState, DriveScreen> {
+  @override
+  DriveState get messageSource => context.read<DriveState>();
+
   @override
   Future<void> loadData({bool force = false}) async {
     if (force) {

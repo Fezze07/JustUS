@@ -68,7 +68,7 @@ void main() {
 
     await state.sendPartnerRequest('partner@example.com', 'ABC123');
 
-    expect(state.message, 'Richiesta inviata a partner@example.com');
+    expect(state.message, LanguageHelper.appLoc.partner_inviteSuccess);
     expect(repository.partnershipFetches, 1);
   });
 
@@ -84,7 +84,8 @@ void main() {
     await state.sendPartnerRequest('partner@example.com', 'WRONG1');
 
     // A rejected request must never surface the success copy...
-    expect(state.message, isNot('Richiesta inviata a partner@example.com'));
+    expect(state.message,
+        isNot(LanguageHelper.appLoc.partner_inviteSuccess));
     expect(state.message, isNull);
     // ...must not trigger the follow-up partnership refresh that a successful
     // send performs...

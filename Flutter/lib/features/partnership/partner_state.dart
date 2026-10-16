@@ -52,7 +52,7 @@ class PartnerState extends BaseState {
 
       await handleResult(result, onSuccess: (_) async {
         await fetchPartnership();
-        setMessage('Richiesta inviata a $email');
+        setMessage(LanguageHelper.appLoc.partner_inviteSuccess);
       });
     });
   }

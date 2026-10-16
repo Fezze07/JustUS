@@ -37,7 +37,12 @@ class BucketRepository extends BaseRepository {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
-      if (partnershipId == null) throw Exception('No active partnership');
+      if (partnershipId == null) {
+        throw const AppError(
+          code: ErrorCodes.apiValidation007,
+          message: 'No active partnership',
+        );
+      }
 
       await sbClient.from('bucket_items').insert({
         'text': text,

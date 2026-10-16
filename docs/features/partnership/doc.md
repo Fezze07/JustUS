@@ -177,7 +177,7 @@ The partnership feature uses two distinct channels, by design:
 - **User Action**: User opens `PartnerInviteDialog`, enters the partner's email and 6-character code, and taps "Send".
 - **Validation**: Client validates inputs are non-empty (`partner_fillAllFields`). Backend validates schema (`email`, `partnershipCode.length(6)`).
 - **Execution**: Calls `POST /api/v1/auth/invite` -> Backend checks `resolveRequestedPartnerOrNull` -> Checks self-invitation -> Calls `adminSupabase.rpc('request_partnership')`.
-- **UI Update**: Flutter receives success response, calls `fetchPartnership()`, and shows SnackBar ("Richiesta inviata a $email").
+- **UI Update**: Flutter receives the success response; `AuthState.invitePartner` refreshes the sent-invitations list (`fetchSentInvitations`), the dialog pops, and the dialog raises the confirmation `ErrorHandler.showSnackBar(context, context.loc.partner_inviteSuccess)`. (`PartnerState.sendPartnerRequest` sets the same message but has no caller.)
 
 ### 2. Receiving & Viewing Requests
 - **Data Source**: `PartnershipRepository.getPendingInvitations()` calls the `get_pending_invitations()` RPC, which returns only the caller's pending rows (`invitation_id`, `partner_id`, `partner_display_name`, `is_received`). No direct read of the counterpart's `users`/`user_profiles` row occurs.

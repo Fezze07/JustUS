@@ -1,3 +1,4 @@
+const { AppError } = require("../all_imports");
 const { loadEnv } = require("./loadEnv");
 
 loadEnv();
@@ -10,17 +11,22 @@ function parseNumber(value, fallback) {
 function requirePositiveNumber(value, name) {
   const parsed = Number.parseInt(value ?? "", 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(
-      `[env] Missing or invalid required environment variable: ${name}. ` +
-        "It must be a positive integer."
-    );
+    throw new AppError({
+      errorKey: "SYS_FAIL_001",
+      message:
+        `[env] Missing or invalid required environment variable: ${name}. ` +
+        "It must be a positive integer.",
+    });
   }
   return parsed;
 }
 
 function requireNonEmpty(value, name) {
   if (!value || !value.trim()) {
-    throw new Error(`[env] Missing required environment variable: ${name}.`);
+    throw new AppError({
+      errorKey: "SYS_FAIL_001",
+      message: `[env] Missing required environment variable: ${name}.`,
+    });
   }
   return value.trim();
 }
@@ -69,11 +75,12 @@ const env = {
 function requireEnv(keys, context) {
   const missing = keys.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    throw new Error(
-      `[env] Missing required environment variables for ${context}: ${missing.join(
+    throw new AppError({
+      errorKey: "SYS_FAIL_001",
+      message: `[env] Missing required environment variables for ${context}: ${missing.join(
         ", "
-      )}`
-    );
+      )}`,
+    });
   }
 }
 

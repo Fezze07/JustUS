@@ -114,7 +114,12 @@ class DriveRepository extends BaseRepository {
         mimeType: mimeType,
       );
 
-      if (result == null) throw Exception('Upload failed');
+      if (result == null) {
+        throw const AppError(
+          code: ErrorCodes.apiFail001,
+          message: 'Upload failed',
+        );
+      }
 
       unawaited(notifyPartnerOnce(
         notificationKey: 'driveItemAdded',

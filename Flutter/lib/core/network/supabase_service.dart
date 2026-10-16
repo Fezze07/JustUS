@@ -15,7 +15,10 @@ class SupabaseService {
     final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
     if (url.isEmpty || anonKey.isEmpty) {
-      throw Exception('Supabase configuration missing in .env file');
+      throw const AppError(
+        code: ErrorCodes.localConfigError,
+        message: 'Supabase configuration missing in .env file',
+      );
     }
 
     await Supabase.initialize(

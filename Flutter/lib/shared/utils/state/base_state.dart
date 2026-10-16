@@ -67,9 +67,11 @@ abstract class BaseState extends ChangeNotifier {
         if (onSuccess != null) await onSuccess(value);
         if (notifyOnSuccess) notifyListeners();
       case GenericError<T>():
+        _message = null;
         ErrorHandler.handle(result);
         notifyListeners();
       case NetworkError<T>():
+        _message = null;
         ErrorHandler.handle(AppError.network());
         notifyListeners();
     }
@@ -95,5 +97,47 @@ abstract class BaseState extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+}
+
+/// Shows a [BaseState.message] as a snackbar and clears it — the behaviour
+/// `GameScreen` applies to `GameState`, shared by every screen that owns a
+/// state with messages.
+///
+/// The state is resolved once, after the first frame, and cached: calling
+/// `context.read` from `dispose()` throws because the element is deactivated.
+///
+/// Usage: `with StateMessageListener<ProfileState, ProfileScreen>` and override
+/// [messageSource] with the provider read, e.g. `context.read<ProfileState>()`.
+mixin StateMessageListener<T extends BaseState, W extends StatefulWidget>
+    on State<W> {
+  T get messageSource;
+
+  T? _messageSource;
+
+  void _handleStateMessage() {
+    final state = _messageSource;
+    if (state == null) return;
+    final msg = state.message;
+    if (msg != null && msg.isNotEmpty && mounted) {
+      ErrorHandler.showSnackBar(context, msg);
+      state.clearMessage();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _messageSource = messageSource;
+      _messageSource!.addListener(_handleStateMessage);
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageSource?.removeListener(_handleStateMessage);
+    super.dispose();
   }
 }

@@ -73,10 +73,22 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<User>> fetchPartnerProfile() async {
     final result = await getPartnership();
     if (result is! Success<PartnershipResponse>) {
-      return const GenericError(message: 'Nessun partner');
+      return const GenericError(
+        details: AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'No partner',
+        ),
+      );
     }
     final partner = result.value.partner;
-    if (partner == null) return const GenericError(message: 'Nessun partner');
+    if (partner == null) {
+      return const GenericError(
+        details: AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'No partner',
+        ),
+      );
+    }
 
     return Success(partner);
   }
@@ -129,11 +141,21 @@ class PartnershipRepository extends BaseRepository {
     BaseRepository.clearPartnershipCache();
     final partnershipResult = await getPartnership();
     if (partnershipResult is! Success<PartnershipResponse>) {
-      return const GenericError(message: 'No active partnership');
+      return const GenericError(
+        details: AppError(
+          code: ErrorCodes.apiValidation007,
+          message: 'No active partnership',
+        ),
+      );
     }
     final partnershipId = partnershipResult.value.partnershipId;
     if (partnershipId == null) {
-      return const GenericError(message: 'Partnership ID not found');
+      return const GenericError(
+        details: AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'Partnership ID not found',
+        ),
+      );
     }
 
     return tryCall(() async {

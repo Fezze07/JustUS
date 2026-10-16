@@ -86,11 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             context,
                             context.loc.auth_passwordResetSent,
                           );
-                        } else {
-                          ErrorHandler.handle(
-                            state.error ?? 'Error resetting password',
-                            context: context,
-                          );
                         }
                       },
                 child: Text(
@@ -135,7 +130,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (success) {
                   if (!context.mounted) return;
                   final destination =
-                      await AuthNavigationUtils.determinePostAuthDestination(context);
+                      await AuthNavigationUtils.determinePostAuthDestination(
+                          context);
                   if (!context.mounted) return;
                   unawaited(Navigator.pushReplacement(
                     context,

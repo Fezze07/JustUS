@@ -103,7 +103,7 @@ class HomepageState extends BaseState {
             DateTime.now().toUtc().toIso8601String(),
             epoch: epoch,
           );
-          setMessage('Mi manchi inviato!');
+          setMessage(LanguageHelper.appLoc.home_missYouSent);
         },
       );
     } finally {

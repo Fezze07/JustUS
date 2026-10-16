@@ -19,7 +19,11 @@ class MoodScreen extends TabScreen {
   State<MoodScreen> createState() => _MoodScreenState();
 }
 
-class _MoodScreenState extends State<MoodScreen> with TabScreenMixin {
+class _MoodScreenState extends State<MoodScreen>
+    with TabScreenMixin, StateMessageListener<MoodState, MoodScreen> {
+  @override
+  MoodState get messageSource => context.read<MoodState>();
+
   @override
   Future<void> loadData({bool force = false}) async {
     if (force) {

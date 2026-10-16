@@ -433,6 +433,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get profile_saved => 'Salvato!';
 
   @override
+  String get profile_photoUploading => 'Caricamento foto profilo...';
+
+  @override
   String get partner_title => 'Con chi vuoi connetterti\noggi?';
 
   @override

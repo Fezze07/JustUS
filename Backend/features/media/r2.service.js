@@ -9,7 +9,7 @@ const {
   DeleteObjectsCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const { env } = require("../../all_imports");
+const { env, AppError } = require("../../all_imports");
 
 const allowedMimeTypes = {
   image: ["image/jpeg", "image/png", "image/webp", "image/gif"],
@@ -31,7 +31,7 @@ function isConfigured() {
 
 function getClient() {
   if (!isConfigured()) {
-    throw new Error("R2 is not configured");
+    throw new AppError({ errorKey: "SYS_FAIL_001", message: "R2 is not configured" });
   }
 
   if (!r2Client) {
@@ -64,12 +64,18 @@ function sanitizeFilename(filename) {
 
 function validateUpload({ type, mimeType, size }) {
   if (size > env.maxUploadBytes) {
-    throw new Error(`File too large. Max allowed: ${env.maxUploadBytes} bytes`);
+    throw new AppError({
+      errorKey: "API_VALIDATION_001",
+      message: `File too large. Max allowed: ${env.maxUploadBytes} bytes`,
+    });
   }
 
   const allowed = allowedMimeTypes[type] ?? [];
   if (allowed.length > 0 && !allowed.includes(mimeType)) {
-    throw new Error(`Unsupported MIME type: ${mimeType}`);
+    throw new AppError({
+      errorKey: "API_VALIDATION_001",
+      message: `Unsupported MIME type: ${mimeType}`,
+    });
   }
 }
 
@@ -181,9 +187,10 @@ async function deleteObjects(keys) {
     deleted += batch.length - (result.Errors?.length ?? 0);
 
     if (result.Errors?.length) {
-      throw new Error(
-        `Failed to delete R2 objects: ${JSON.stringify(result.Errors)}`
-      );
+      throw new AppError({
+        errorKey: "SYS_FAIL_001",
+        message: `Failed to delete R2 objects: ${JSON.stringify(result.Errors)}`,
+      });
     }
   }
 

@@ -36,6 +36,7 @@ The utilities covered include:
 * **Dependencies**: `flutter/widgets.dart`, `ChangeNotifier`, `ErrorHandler`, `ResultWrapper`, `AppError`.
 * **Callers**: Injected/extended by state classes across features: `AuthState`, `ProfileState`, `PartnerState`, `MoodState`, `HomepageState`, `GameState`, `DriveState`, `BucketState`.
 * **Expected Usage**: Feature providers extend `BaseState` to gain consistent loading flags and error wrapper handlers without duplicating state management boilerplate.
+* **Companion mixin — `StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>`** (same file): renders the owning state's `message` via `ErrorHandler.showSnackBar` and then clears it. It resolves the state once after the first frame and caches it, because a `context.read` from `dispose()` is unsafe; the screens that own a message-bearing state (Game/Mood/Drive/Bucket/Profile/Homepage/Partner) mix it in and override `messageSource`. See `docs/app/state-management/doc.md`.
 * **Error Behavior**: Catch-all handling inside `runSafe` forwards caught errors to `ErrorHandler.handle(e, stackTrace: st)`. `handleResult` forwards generic or network errors directly to `ErrorHandler`.
 * **Lifecycle Assumptions**: Expects `WidgetsBinding.instance` to be active when `notifyListeners()` is invoked. Post-frame callback ensures UI rebuilds do not trigger during active layout/build phase.
 
@@ -226,7 +227,7 @@ The utilities covered include:
 ### Utilities Violating Single Responsibility Principle (SRP) / Overly Broad
 
 1. **BaseState**:
-   - `BaseState` handles UI loading flags (`isLoading`), message storage (`message`), post-frame notification coalescing (`notifyListeners`), change-detection cache execution (`loadWithChangeDetection`), result mapping (`handleResult`), and safe action execution (`runSafe`).
+   - `BaseState` handles UI loading flags (`isLoading`), message storage (`message`), post-frame notification coalescing (`notifyListeners`), change-detection cache execution (`loadWithChangeDetection`), result mapping (`handleResult`), and safe action execution (`runSafe`). Message *display* is delegated to the `StateMessageListener` mixin rather than baked into the class.
    - *Finding*: `BaseState` mixes UI notification optimization with network cache strategy and result handling, making it a heavy base class for every state provider in the application.
 
 2. **ErrorHandler**:
@@ -244,7 +245,7 @@ The utilities covered include:
 
 | Utility | Location | Status | Key Finding / Issue |
 | :--- | :--- | :--- | :--- |
-| **BaseState** | `shared/utils/state/base_state.dart` | IMPLEMENTED | Combines notification throttling, result handling, and cache fetching logic into a single base class. |
+| **BaseState** | `shared/utils/state/base_state.dart` | IMPLEMENTED | Combines notification throttling, result handling, and cache fetching logic into a single base class; the companion `StateMessageListener` mixin renders `message` to a snackbar. |
 | **MediaPickerService** | `shared/utils/ui/media_picker_service.dart` | PARTIALLY IMPLEMENTED | Used only in `DriveScreen`. `ProfileScreen` bypasses it and instantiates `ImagePicker` inline. |
 | **LogoutUtils** | `shared/utils/auth/logout_utils.dart` | IMPLEMENTED | Clean utility used consistently across `ProfileScreen` and `PartnerScreen`. |
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |

@@ -69,7 +69,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
 1. **User Interaction (`HomepageScreen`)**
    - File: [homepage_screen.dart:422-432](file:///f:/JustUS/Flutter/lib/features/home/screens/homepage_screen.dart#L422-L432)
    - User taps the `_MissYouButton` pill in the mood section of `HomepageScreen`.
-   - `GestureDetector.onTap` executes `unawaited(hpState.sendMissYou())` and displays a confirmation SnackBar (`context.loc.home_missYouSent`).
+   - `GestureDetector.onTap` executes `unawaited(hpState.sendMissYou())`. On success `HomepageState` sets `message` to `context.loc.home_missYouSent`; the screen's `StateMessageListener` mixin renders it as a confirmation SnackBar and clears the message.
 
 2. **State Handling (`HomepageState`)**
    - File: [homepage_state.dart:70-88](file:///f:/JustUS/Flutter/lib/features/home/homepage_state.dart#L70-L88)

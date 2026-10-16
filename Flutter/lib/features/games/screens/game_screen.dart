@@ -18,30 +18,10 @@ class GameScreen extends TabScreen {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> with TabScreenMixin {
+class _GameScreenState extends State<GameScreen>
+    with TabScreenMixin, StateMessageListener<GameState, GameScreen> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final gameState = context.read<GameState>();
-      gameState.addListener(_handleGameStateMessage);
-    });
-  }
-
-  void _handleGameStateMessage() {
-    final gameState = context.read<GameState>();
-    final msg = gameState.message;
-    if (msg != null && msg.isNotEmpty && mounted) {
-      ErrorHandler.showSnackBar(context, msg);
-      gameState.clearMessage();
-    }
-  }
-
-  @override
-  void dispose() {
-    context.read<GameState>().removeListener(_handleGameStateMessage);
-    super.dispose();
-  }
+  GameState get messageSource => context.read<GameState>();
 
   @override
   Future<void> loadData({bool force = false}) async {

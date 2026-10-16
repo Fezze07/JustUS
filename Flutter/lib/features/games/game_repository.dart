@@ -24,7 +24,10 @@ class GameRepository extends BaseRepository {
 
   Future<String> _resolveQuestionText(String? code, String locale) async {
     if (code == null) {
-      throw Exception('Question code is null');
+      throw const AppError(
+        code: ErrorCodes.dbNotFound001,
+        message: 'Question code is null',
+      );
     }
     final res = await _bankRepo.fetchQuestionText(
       questionCode: code,
@@ -32,7 +35,10 @@ class GameRepository extends BaseRepository {
     );
     final text = res.valueOrNull;
     if (text == null || text.isEmpty) {
-      throw Exception('Failed to resolve question text for code: $code');
+      throw AppError(
+        code: ErrorCodes.dbNotFound001,
+        message: 'Failed to resolve question text for code: $code',
+      );
     }
     return text;
   }
@@ -96,8 +102,10 @@ class GameRepository extends BaseRepository {
         if (bankItemRes is Success) {
           return null;
         }
-        throw Exception(
-            'Impossibile recuperare una nuova domanda dal catalogo');
+        throw const AppError(
+          code: ErrorCodes.apiFail001,
+          message: 'Unable to fetch a new question from the catalog',
+        );
       }
 
       // Determinazione casuale dell'ordine di User A e User B
@@ -140,7 +148,10 @@ class GameRepository extends BaseRepository {
     final partnershipId = partnershipData?['partnership_id'] as int?;
     final partnerId = partnershipData?['partner_id'] as int?;
     if (partnershipId == null || partnerId == null) {
-      throw Exception('No active partnership');
+      throw const AppError(
+        code: ErrorCodes.apiValidation007,
+        message: 'No active partnership',
+      );
     }
 
     final locale = await LanguageHelper.currentLocaleCode();
@@ -331,9 +342,8 @@ class GameRepository extends BaseRepository {
         );
         questionTextsMap.addAll(switch (res) {
           Success(value: final v) => v,
-          GenericError(:final message) =>
-            throw Exception('Bank fetch failed: $message'),
-          _ => throw Exception('Bank fetch failed: unforeseen error'),
+          GenericError() => throw ErrorHandler.toAppError(res),
+          NetworkError() => throw AppError.network(),
         });
       }
 

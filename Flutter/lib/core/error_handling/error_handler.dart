@@ -83,6 +83,10 @@ class ErrorHandler {
       );
     }
 
+    if (error is NetworkError) {
+      return AppError.network();
+    }
+
     // Errori Supabase Auth
     if (error is AuthException) {
       return AppError(

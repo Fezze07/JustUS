@@ -430,6 +430,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_saved => 'Saved!';
 
   @override
+  String get profile_photoUploading => 'Uploading profile photo...';
+
+  @override
   String get partner_title => 'Who are you connecting\nwith today?';
 
   @override

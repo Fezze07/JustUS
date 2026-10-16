@@ -112,11 +112,14 @@ abstract class BaseRepository {
       return Success(await fn());
     } catch (e) {
       // Un PostgrestException porta un codice strutturato (es. il codice
-      // API-VALIDATION-00x sollevato da una RPC): lo conserviamo in `details`
-      // come AppError, così ErrorHandler non ripiega sul messaggio tecnico.
+      // API-VALIDATION-00x sollevato da una RPC), un AppError porta il proprio:
+      // lo conserviamo in `details` come AppError, così ErrorHandler non
+      // ripiega sul messaggio tecnico.
       return GenericError(
         message: e.toString(),
-        details: e is PostgrestException ? ErrorHandler.toAppError(e) : null,
+        details: e is PostgrestException || e is AppError
+            ? ErrorHandler.toAppError(e)
+            : null,
       );
     }
   }
@@ -134,7 +137,14 @@ abstract class BaseRepository {
     Future<T> Function(int uid) action,
   ) async {
     final uid = await getUserId();
-    if (uid == null) return const GenericError(message: 'User not logged in');
+    if (uid == null) {
+      return const GenericError(
+        details: AppError(
+          code: ErrorCodes.authFail002,
+          message: 'User not logged in',
+        ),
+      );
+    }
 
     return tryCall(() => action(uid));
   }
@@ -145,7 +155,12 @@ abstract class BaseRepository {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
-      if (partnershipId == null) throw Exception('No active partnership');
+      if (partnershipId == null) {
+        throw const AppError(
+          code: ErrorCodes.apiValidation007,
+          message: 'No active partnership',
+        );
+      }
 
       return await action(partnershipId);
     });

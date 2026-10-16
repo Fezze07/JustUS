@@ -1,3 +1,5 @@
+const { AppError } = require("../../all_imports");
+
 /**
  * Decodifica i claims (payload) di un token JWT senza verificarne la firma.
  * @param {string} token - Il token JWT da decodificare.
@@ -31,9 +33,10 @@ function validateTokenLifetime(claims, maxLifetimeSec) {
   if (issuedAt && expiresAt) {
     const tokenLifetime = expiresAt - issuedAt;
     if (tokenLifetime > maxLifetimeSec) {
-      throw new Error(
-        `Token lifetime exceeds policy (token: ${tokenLifetime}s, max: ${maxLifetimeSec}s)`
-      );
+      throw new AppError({
+        errorKey: "AUTH_FAIL_001",
+        message: `Token lifetime exceeds policy (token: ${tokenLifetime}s, max: ${maxLifetimeSec}s)`,
+      });
     }
   }
 }

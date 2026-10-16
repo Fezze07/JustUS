@@ -16,7 +16,12 @@ class UserRepository extends BaseRepository {
           .eq('auth_id', authId)
           .maybeSingle();
 
-      if (profile == null) throw Exception('Profilo utente non trovato nel database');
+      if (profile == null) {
+        throw const AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'User profile not found',
+        );
+      }
 
       return User.fromJson(profile);
     });
@@ -29,7 +34,12 @@ class UserRepository extends BaseRepository {
           .select('id, email, auth_id, created_at, user_profiles(display_name, profile_pic_url, partnership_code)')
           .eq('id', uid)
           .maybeSingle();
-      if (data == null) throw Exception('Profilo non trovato');
+      if (data == null) {
+        throw const AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'Profile not found',
+        );
+      }
 
       return User.fromJson(data);
     });
@@ -47,7 +57,12 @@ class UserRepository extends BaseRepository {
   Future<ResultWrapper<String>> uploadProfilePicture(dart_io.File file) async {
     return withUser((uid) async {
       final r2Path = await _mediaService.uploadProfilePicture(file, uid);
-      if (r2Path == null) throw Exception('Upload to R2 failed');
+      if (r2Path == null) {
+        throw const AppError(
+          code: ErrorCodes.apiFail001,
+          message: 'Upload to R2 failed',
+        );
+      }
 
       return r2Path;
     });

@@ -39,12 +39,18 @@ class MediaService {
       final mime = mimeType ?? _inferMime(file.path, type);
       final allowed = _allowedMimes[type] ?? [];
       if (allowed.isNotEmpty && !allowed.contains(mime)) {
-        throw Exception('Invalid MIME type: $mime');
+        throw AppError(
+          code: ErrorCodes.apiValidation001,
+          message: 'Invalid MIME type: $mime',
+        );
       }
 
       // 2. Size guard BEFORE compression (fast-fail)
       if (!CompressionService.isWithinSizeLimit(file)) {
-        throw Exception('File exceeds 15 MB limit before compression');
+        throw const AppError(
+          code: ErrorCodes.apiValidation001,
+          message: 'File exceeds 15 MB limit before compression',
+        );
       }
 
       // 3. Compression
@@ -71,10 +77,7 @@ class MediaService {
       });
 
       if (presignResult is! Success<Map<String, dynamic>>) {
-        final message = presignResult is GenericError<Map<String, dynamic>>
-            ? presignResult.message
-            : 'Unable to create upload URL';
-        throw Exception(message);
+        throw ErrorHandler.toAppError(presignResult);
       }
 
       final uploadUrl = presignResult.value['uploadUrl'] as String;
@@ -89,8 +92,11 @@ class MediaService {
       );
 
       if (uploadResult.statusCode != 200) {
-        throw Exception(
-            'R2 upload failed [${uploadResult.statusCode}]: ${uploadResult.body}');
+        throw AppError(
+          code: ErrorCodes.apiFail001,
+          message:
+              'R2 upload failed [${uploadResult.statusCode}]: ${uploadResult.body}',
+        );
       }
 
       // 5b. Thumbnail generation + upload (image drive items, best-effort)
@@ -119,10 +125,7 @@ class MediaService {
       });
 
       if (completeResult is! Success<Map<String, dynamic>>) {
-        final message = completeResult is GenericError<Map<String, dynamic>>
-            ? completeResult.message
-            : 'Unable to register upload';
-        throw Exception(message);
+        throw ErrorHandler.toAppError(completeResult);
       }
 
       if (skipRegistration) {

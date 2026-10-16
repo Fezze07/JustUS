@@ -18,7 +18,11 @@ class PartnerScreen extends StatefulWidget {
   State<PartnerScreen> createState() => _PartnerScreenState();
 }
 
-class _PartnerScreenState extends State<PartnerScreen> {
+class _PartnerScreenState extends State<PartnerScreen>
+    with StateMessageListener<PartnerState, PartnerScreen> {
+  @override
+  PartnerState get messageSource => context.read<PartnerState>();
+
   @override
   void initState() {
     super.initState();

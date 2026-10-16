@@ -138,7 +138,7 @@ class BucketState extends BaseState
 
   Future<void> addItem(String text, String category) async {
     if (text.trim().isEmpty) {
-      setMessage('Inserisci del testo');
+      setMessage(LanguageHelper.appLoc.bucket_enterText);
 
       return;
     }

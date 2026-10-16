@@ -316,7 +316,13 @@ class ApiService {
         }
 
         return const GenericError(
-            code: 401, message: 'Session expired. Please login again.');
+          code: 401,
+          message: 'Session expired. Please login again.',
+          details: AppError(
+            code: ErrorCodes.authFail001,
+            message: 'Session expired. Please login again.',
+          ),
+        );
       } else {
         String? errorMessage;
         AppError? appError;
@@ -346,12 +352,14 @@ class ApiService {
 
       return GenericError(message: e.message, details: e);
     } on TimeoutException {
-      return const NetworkError(
-          message: 'Richiesta scaduta (timeout). Controlla la connessione.');
+      // GenericError con AppError in details: toAppError risolve il codice
+      // LOCAL-TIMEOUT-001 invece del generico codice rete di NetworkError.
+      return GenericError(
+          message: 'Request timed out', details: AppError.timeout());
     } on SocketException catch (e) {
       AnsiLogger.error('SocketException: $e', tag: 'ApiService');
 
-      return NetworkError(message: 'Errore di connessione: ${e.message}');
+      return NetworkError(message: 'Connection error: ${e.message}');
     } on HttpException catch (e) {
       AnsiLogger.error('HttpException: $e', tag: 'ApiService');
 

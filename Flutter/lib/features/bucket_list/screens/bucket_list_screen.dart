@@ -18,12 +18,15 @@ class BucketListScreen extends TabScreen {
 }
 
 class _BucketListScreenState extends State<BucketListScreen>
-    with TabScreenMixin {
+    with TabScreenMixin, StateMessageListener<BucketState, BucketListScreen> {
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = BucketCategory.all;
   final Map<int, bool> _pendingChanges = {};
   final Set<int> _pendingDeletes = {};
   BucketState get _bucketState => context.read<BucketState>();
+
+  @override
+  BucketState get messageSource => _bucketState;
 
   @override
   Future<void> loadData({bool force = false}) async {

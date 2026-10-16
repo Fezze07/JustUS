@@ -315,7 +315,7 @@ The `ip-email` rule counts how many *different* emails one IP presents per windo
 | Turnstile Cancel / Timeout | Flutter Client | `CaptchaService` | `LOCAL_UNKNOWN` | SnackBar ("Captcha failed") |
 | Risk Blocked (Brute-force) | Backend Node API | `checkLoginRiskController` | `SEC_BLOCK_002` | SnackBar ("Troppi tentativi di login. Riprova tra poco.") |
 | Invalid Credentials | Supabase Auth | `AuthException` (caught in `AuthState.login`) | `AUTH_FAIL_CRED` | Form error SnackBar (no dialog, no redirect) |
-| Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB_NOT_FOUND_001` | SnackBar ("Profilo utente non trovato nel database") |
+| Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB_NOT_FOUND_001` | SnackBar (`error_dbNotFound001`) |
 | Backend Sync Network Error | Node API / Http | `NetworkError` | N/A | Silent log / SnackBar |
 
 ---

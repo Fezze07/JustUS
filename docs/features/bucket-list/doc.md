@@ -102,7 +102,7 @@ VALUES ($text, false, $partnershipId [, $category])
 ```
 
 Flow:
-1. `BucketState.addItem` validates non-empty text (trims; if empty → error message, return).
+1. `BucketState.addItem` validates non-empty text (trims; if empty it sets `message` to `bucket_enterText`, rendered by the screen's `StateMessageListener`, and returns).
 2. Repository inserts row; `done = false` always.
 3. Fires `notifyPartnerOnce(notificationKey: 'bucketItemAdded', params: {partnerName})` — unawaited.
 4. No optimistic insert — Realtime INSERT event populates state.
@@ -120,7 +120,7 @@ UPDATE bucket_items SET done = $done
 WHERE id = $id AND partnership_id = $activePartnershipId
 ```
 
-- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `Exception('No active partnership')` if none is found.
+- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `AppError(API-VALIDATION-007)` if none is found.
 - Optimistic UI via `_pendingChanges` map; Realtime UPDATE clears it.
 - Idempotent at DB level. Rapid double-taps may show brief inconsistency.
 - No notification on toggle.
@@ -134,7 +134,7 @@ DELETE FROM bucket_items
 WHERE id = $id AND partnership_id = $activePartnershipId
 ```
 
-- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `Exception('No active partnership')` if none is found.
+- Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `AppError(API-VALIDATION-007)` if none is found.
 - Optimistic UI via `_pendingDeletes` set; item reappears if network fails.
 - No notification on delete.
 

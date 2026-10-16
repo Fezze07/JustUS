@@ -20,10 +20,14 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with StateMessageListener<ProfileState, ProfileScreen> {
   String _appVersion = '';
   bool _notificationsEnabled = true;
   bool _isCheckingUpdate = false;
+
+  @override
+  ProfileState get messageSource => context.read<ProfileState>();
 
   Future<void> _checkUpdate() async {
     if (_isCheckingUpdate) return;
@@ -111,10 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (!mounted || value == null || value == user.username) return;
 
-    final saved = await context.read<ProfileState>().updateDisplayName(value);
-    if (saved && mounted) {
-      ErrorHandler.showSnackBar(context, context.loc.profile_saved);
-    }
+    await context.read<ProfileState>().updateDisplayName(value);
   }
 
   Future<void> _showWipeConfirmation() async {

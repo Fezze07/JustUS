@@ -74,7 +74,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
           if (mounted) {
             setState(() {
               _hasError = true;
-              _errorMessage = error.toString();
+              _errorMessage = context.loc.drive_videoError;
             });
           }
         }
@@ -126,7 +126,7 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
         if (mounted) {
           setState(() {
             _hasError = true;
-            _errorMessage = e.toString();
+            _errorMessage = context.loc.drive_audioError;
           });
         }
       }

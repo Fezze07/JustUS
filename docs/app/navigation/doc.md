@@ -201,9 +201,9 @@ Actually used (grep of `pushNamed`):
 
 Two mechanisms:
 
-1. **Session expiry via `ApiService` (auth-driven, navigates):** on 401 after a failed refresh, `ApiService._safeCall` calls `ApiService.onSessionExpired?.call()` (api_service.dart:230). `AuthState.init` registers that callback as `() => logout()` (auth_state.dart:81-86). `logout()` clears storage/caches/state (auth_state.dart:535-550) but does **not** navigate itself. The resulting `GenericError(code: 401)` (api_service.dart:232-233) then propagates through `BaseState.handleResult`/`runSafe` -> `ErrorHandler.handle`:
-   - `_toAppError` -> `AppError(code: "401")` (error_handler.dart:76-79),
-   - `ErrorCodes.requiresReauth("401") == true` (`httpUnauthorized`, error_codes.dart),
+1. **Session expiry via `ApiService` (auth-driven, navigates):** on 401 after a failed refresh, `ApiService._safeCall` calls `ApiService.onSessionExpired?.call()` (api_service.dart:230). `AuthState.init` registers that callback as `() => logout()` (auth_state.dart:81-86). `logout()` clears storage/caches/state (auth_state.dart:535-550) but does **not** navigate itself. The resulting `GenericError(code: 401)` — carrying `AppError(authFail001)` in `details` (api_service.dart:232-233) — then propagates through `BaseState.handleResult`/`runSafe` -> `ErrorHandler.handle`:
+   - `toAppError` resolves the `details` `AppError(authFail001)` -> `AppError(code: "AUTH-FAIL-001")` (error_handler.dart:72-84),
+   - `ErrorCodes.requiresReauth("AUTH-FAIL-001") == true` (error_codes.dart),
    - -> **reauth dialog** (error_handler.dart:145-146) -> OK -> `pushNamedAndRemoveUntil('/login', (r)=>false)` (error_handler.dart:249-273).
 
    **Effect**: after a session expiry the user is logged out (state cleared) and shown a non-dismissible "Session expired" dialog whose action redirects to `LoginScreen`, clearing the stale `MainShell` stack. (todo# 1.3)
