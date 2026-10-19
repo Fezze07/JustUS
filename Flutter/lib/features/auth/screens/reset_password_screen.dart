@@ -120,9 +120,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!context.mounted) return;
 
                               if (success) {
-                                final message =
-                                    context.loc.auth_passwordUpdated;
-
                                 final destination =
                                     await AuthNavigationUtils.determinePostAuthDestination(context);
                                 if (!context.mounted) return;
@@ -131,8 +128,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   context,
                                   MaterialPageRoute(builder: (_) => destination),
                                 ));
-
-                                ErrorHandler.showSnackBar(context, message);
                               }
                             },
                           );

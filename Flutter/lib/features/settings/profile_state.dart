@@ -168,6 +168,10 @@ class ProfileState extends BaseState {
         await StorageService.clearAppCache();
         await CacheService.clearAll();
         await emptyAppMediaCaches();
+        clear();
+        await loadProfile(force: true);
+        // Set last: `loadProfile`→`runSafe` resets the message on entry, so the
+        // wipe confirmation must follow the reload to survive.
         setMessage(LanguageHelper.appLoc.profile_dataWiped);
       } else {
         throw result;

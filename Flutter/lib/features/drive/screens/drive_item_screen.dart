@@ -20,7 +20,11 @@ class DriveItemScreen extends StatefulWidget {
   State<DriveItemScreen> createState() => _DriveItemScreenState();
 }
 
-class _DriveItemScreenState extends State<DriveItemScreen> {
+class _DriveItemScreenState extends State<DriveItemScreen>
+    with StateMessageListener<DriveState, DriveItemScreen> {
+  @override
+  DriveState get messageSource => context.read<DriveState>();
+
   // Video handles
   VideoPlayerController? _videoController;
 
@@ -194,22 +198,29 @@ class _DriveItemScreenState extends State<DriveItemScreen> {
   void _confirmDelete() {
     unawaited(showDialog(
       context: context,
-      builder: (context) => VPDialog(
-        title: context.loc.drive_deleteTitle,
-        content: Text(context.loc.drive_deleteConfirm),
+      builder: (dialogContext) => VPDialog(
+        title: dialogContext.loc.drive_deleteTitle,
+        content: Text(dialogContext.loc.drive_deleteConfirm),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.loc.common_cancel),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.loc.common_cancel),
           ),
           FilledButton(
-            onPressed: () {
-              unawaited(
-                  this.context.read<DriveState>().deleteItem(widget.itemId));
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back
+            onPressed: () async {
+              final navigator = Navigator.of(dialogContext);
+              final deleted =
+                  await context.read<DriveState>().deleteItem(widget.itemId);
+              if (!mounted) return;
+              // Drain the confirmation before popping: `setMessage` delivers on
+              // the next frame, so the listener would be gone by then.
+              if (deleted) showPendingMessage();
+              // The barrier/back can dismiss the dialog while the delete is in
+              // flight; only pop the routes that are actually still up.
+              if (dialogContext.mounted) navigator.pop(); // Close dialog
+              if (deleted && mounted) navigator.pop(); // Leave the detail screen
             },
-            child: Text(context.loc.common_delete),
+            child: Text(dialogContext.loc.common_delete),
           ),
         ],
       ),

@@ -79,14 +79,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           return;
                         }
 
-                        final success = await state.resetPassword(email);
-                        if (!context.mounted) return;
-                        if (success) {
-                          ErrorHandler.showSnackBar(
-                            context,
-                            context.loc.auth_passwordResetSent,
-                          );
-                        }
+                        // Il messaggio di esito è mostrato dal listener globale
+                        // di AuthState (main.dart).
+                        await state.resetPassword(email);
                       },
                 child: Text(
                   context.loc.auth_forgotPassword,

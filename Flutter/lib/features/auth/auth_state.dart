@@ -56,9 +56,6 @@ class AuthState extends BaseState
         _deviceRevokeTimeout = deviceRevokeTimeout,
         _sessionRevokeTimeout = sessionRevokeTimeout;
 
-  String?
-      _error; // Kept for custom error logic if needed, but BaseState has _message
-
   String? _accessToken;
   String? _refreshToken;
   String? _username;
@@ -84,8 +81,6 @@ class AuthState extends BaseState
   String? get partnerDisplayName => _partnerDisplayName;
   List<PartnershipInvitation> get sentInvitations => _sentInvitations;
   List<PartnershipInvitation> get receivedInvitations => _receivedInvitations;
-
-  String? get error => _error;
 
   bool get isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty;
   bool get hasPartner => _partnerId != null;
@@ -426,6 +421,7 @@ class AuthState extends BaseState
         email: email,
         redirectTo: _emailRedirectTo,
       );
+      setMessage(LanguageHelper.appLoc.auth_passwordResetSent);
     });
   }
 
@@ -448,6 +444,7 @@ class AuthState extends BaseState
 
       await _revokeOtherSessions();
       await _revokeOtherDeviceTokens();
+      setMessage(LanguageHelper.appLoc.auth_passwordUpdated);
     });
   }
 
@@ -514,11 +511,14 @@ class AuthState extends BaseState
       await _revokeOtherSessions();
       await _revokeOtherDeviceTokens();
 
+      setMessage(LanguageHelper.appLoc.auth_passwordUpdated);
       return ChangePasswordResult.success;
     } catch (e, st) {
       if (e is AppError && e.code == ErrorCodes.authFailCurrent) {
-        // Solo log, senza UI generica: il messaggio lo decide la schermata.
+        // Solo log, senza UI generica: il messaggio specifico lo mostra il
+        // listener globale di AuthState.
         ErrorHandler.handle(e, stackTrace: st, showUI: false);
+        setMessage(LanguageHelper.appLoc.auth_currentPasswordIncorrect);
         return ChangePasswordResult.currentPasswordWrong;
       }
       ErrorHandler.handle(e, stackTrace: st);
@@ -534,6 +534,7 @@ class AuthState extends BaseState
 
       if (res is Success) {
         await fetchSentInvitations();
+        setMessage(LanguageHelper.appLoc.partner_inviteSuccess);
       } else {
         throw res;
       }
@@ -554,6 +555,7 @@ class AuthState extends BaseState
       if (res is! Success) {
         throw res;
       }
+      setMessage(LanguageHelper.appLoc.partner_inviteEmailSuccess);
     });
   }
 
@@ -594,7 +596,10 @@ class AuthState extends BaseState
 
   Future<bool> acceptInvitation(int invitationId) async {
     return runSafe(() async {
-      await _partnershipRepo.acceptPartnerRequest(invitationId);
+      final result = await _partnershipRepo.acceptPartnerRequest(invitationId);
+      if (result.isError) {
+        throw result;
+      }
       AnsiLogger.auth('RPC accept_partnership success', tag: 'AuthState');
       await fetchSentInvitations();
       await fetchReceivedInvitations();
@@ -612,14 +617,19 @@ class AuthState extends BaseState
         );
         AnsiLogger.auth('Partner set successfully', tag: 'AuthState');
       }
+      setMessage(LanguageHelper.appLoc.partner_requestAccepted);
     });
   }
 
   Future<bool> rejectInvitation(int invitationId) async {
     return runSafe(() async {
-      await _partnershipRepo.rejectPartnerRequest(invitationId);
+      final result = await _partnershipRepo.rejectPartnerRequest(invitationId);
+      if (result.isError) {
+        throw result;
+      }
       await fetchSentInvitations();
       await fetchReceivedInvitations();
+      setMessage(LanguageHelper.appLoc.partner_requestRejected);
     });
   }
 

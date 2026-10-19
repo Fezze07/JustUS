@@ -136,18 +136,21 @@ class BucketState extends BaseState
 
   // --- Mutations (fire-and-forget, Realtime is source of truth) ---
 
-  Future<void> addItem(String text, String category) async {
+  /// Returns `true` when the item was accepted. The add dialog stays open on
+  /// `false` (empty text, or a failed write) so the user sees the feedback.
+  Future<bool> addItem(String text, String category) async {
     if (text.trim().isEmpty) {
       setMessage(LanguageHelper.appLoc.bucket_enterText);
 
-      return;
+      return false;
     }
 
-    await runSafe(() async {
+    return runSafe(() async {
       final result = await _repository.addBucketItem(text, category);
       if (result.isError) {
-        await handleResult(result);
+        throw result;
       }
+      setMessage(LanguageHelper.appLoc.bucket_added);
     });
   }
 
@@ -156,16 +159,26 @@ class BucketState extends BaseState
       final result = await _repository.toggleBucketItem(id, done);
       if (result.isError) {
         await handleResult(result);
+        return;
+      }
+      if (done) {
+        setMessage(LanguageHelper.appLoc.bucket_markedDone);
+      } else {
+        setMessage(LanguageHelper.appLoc.bucket_markedUndone);
       }
     });
   }
 
-  Future<void> deleteItem(int id) async {
-    await runSafe(() async {
+  /// Returns `false` when the server rejects the delete. The row is never
+  /// removed from [items] (Realtime is the source of truth), so the screen can
+  /// drop its pending marker and bring the row back without a refresh.
+  Future<bool> deleteItem(int id) async {
+    return runSafe(() async {
       final result = await _repository.deleteBucketItem(id);
       if (result.isError) {
-        await handleResult(result);
+        throw result;
       }
+      setMessage(LanguageHelper.appLoc.bucket_deleted);
     });
   }
 

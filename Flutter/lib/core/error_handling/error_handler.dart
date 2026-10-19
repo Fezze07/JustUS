@@ -204,7 +204,10 @@ class ErrorHandler {
     _currentOverlay?.remove();
     _currentOverlay = null;
 
-    final overlay = Navigator.of(ctx, rootNavigator: true).overlay;
+    // A global listener in `MaterialApp.builder` lives ABOVE the Navigator, so
+    // `Navigator.of` from there would fail; fall back to the root navigator key.
+    final overlay = Navigator.maybeOf(ctx, rootNavigator: true)?.overlay ??
+        navigatorKey.currentState?.overlay;
     if (overlay == null) return;
 
     final surface = backgroundColor ??

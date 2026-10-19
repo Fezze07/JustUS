@@ -88,8 +88,6 @@ class _PartnerInviteEmailDialogState extends State<PartnerInviteEmailDialog> {
 
                 if (success) {
                   Navigator.pop(context);
-                  ErrorHandler.showSnackBar(
-                      context, context.loc.partner_inviteEmailSuccess);
                 }
               },
             );

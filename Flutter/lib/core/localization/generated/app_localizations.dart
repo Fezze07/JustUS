@@ -734,6 +734,12 @@ abstract class AppLocalizations {
   /// **'Mi manchi inviato!'**
   String get home_missYouSent;
 
+  /// No description provided for @home_missYouTooFast.
+  ///
+  /// In it, this message translates to:
+  /// **'Aspetta un attimo prima di inviare di nuovo'**
+  String get home_missYouTooFast;
+
   /// No description provided for @settings_notificationsTitle.
   ///
   /// In it, this message translates to:
@@ -962,12 +968,6 @@ abstract class AppLocalizations {
   /// **'Logout'**
   String get partner_logout;
 
-  /// No description provided for @partner_acceptError.
-  ///
-  /// In it, this message translates to:
-  /// **'Errore durante l\'accettazione dell\'invito'**
-  String get partner_acceptError;
-
   /// No description provided for @partner_personalCodeTitle.
   ///
   /// In it, this message translates to:
@@ -1063,6 +1063,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Invito inviato!'**
   String get partner_inviteEmailSuccess;
+
+  /// No description provided for @partner_requestAccepted.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiesta accettata!'**
+  String get partner_requestAccepted;
+
+  /// No description provided for @partner_requestRejected.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiesta rifiutata!'**
+  String get partner_requestRejected;
 
   /// No description provided for @partner_wantsToConnect.
   ///
@@ -1250,6 +1262,24 @@ abstract class AppLocalizations {
   /// **'Caricamento in corso…'**
   String get drive_uploadInProgress;
 
+  /// No description provided for @drive_reactionAdded.
+  ///
+  /// In it, this message translates to:
+  /// **'Reazione aggiunta!'**
+  String get drive_reactionAdded;
+
+  /// No description provided for @drive_favoriteAdded.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiunto ai preferiti!'**
+  String get drive_favoriteAdded;
+
+  /// No description provided for @drive_favoriteRemoved.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimosso dai preferiti!'**
+  String get drive_favoriteRemoved;
+
   /// No description provided for @drive_addFavoriteTooltip.
   ///
   /// In it, this message translates to:
@@ -1382,17 +1412,29 @@ abstract class AppLocalizations {
   /// **'Inserisci del testo'**
   String get bucket_enterText;
 
-  /// No description provided for @bucket_addError.
+  /// No description provided for @bucket_added.
   ///
   /// In it, this message translates to:
-  /// **'Errore durante l\'aggiunta'**
-  String get bucket_addError;
+  /// **'Obiettivo aggiunto!'**
+  String get bucket_added;
 
-  /// No description provided for @bucket_updateError.
+  /// No description provided for @bucket_markedDone.
   ///
   /// In it, this message translates to:
-  /// **'Errore aggiornamento item'**
-  String get bucket_updateError;
+  /// **'Segnato come fatto!'**
+  String get bucket_markedDone;
+
+  /// No description provided for @bucket_markedUndone.
+  ///
+  /// In it, this message translates to:
+  /// **'Segnato da fare!'**
+  String get bucket_markedUndone;
+
+  /// No description provided for @bucket_deleted.
+  ///
+  /// In it, this message translates to:
+  /// **'Obiettivo eliminato!'**
+  String get bucket_deleted;
 
   /// No description provided for @mood_boardTitle.
   ///

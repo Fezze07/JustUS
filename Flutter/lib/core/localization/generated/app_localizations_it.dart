@@ -343,6 +343,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_missYouSent => 'Mi manchi inviato!';
 
   @override
+  String get home_missYouTooFast =>
+      'Aspetta un attimo prima di inviare di nuovo';
+
+  @override
   String get settings_notificationsTitle => 'Notifiche';
 
   @override
@@ -460,10 +464,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get partner_logout => 'Logout';
 
   @override
-  String get partner_acceptError =>
-      'Errore durante l\'accettazione dell\'invito';
-
-  @override
   String get partner_personalCodeTitle => 'IL TUO CODICE PERSONALE';
 
   @override
@@ -514,6 +514,12 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get partner_inviteEmailSuccess => 'Invito inviato!';
+
+  @override
+  String get partner_requestAccepted => 'Richiesta accettata!';
+
+  @override
+  String get partner_requestRejected => 'Richiesta rifiutata!';
 
   @override
   String get partner_wantsToConnect => 'Vuole connettersi';
@@ -610,6 +616,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get drive_uploadInProgress => 'Caricamento in corso…';
 
   @override
+  String get drive_reactionAdded => 'Reazione aggiunta!';
+
+  @override
+  String get drive_favoriteAdded => 'Aggiunto ai preferiti!';
+
+  @override
+  String get drive_favoriteRemoved => 'Rimosso dai preferiti!';
+
+  @override
   String get drive_addFavoriteTooltip => 'Aggiungi ai preferiti';
 
   @override
@@ -677,10 +692,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_enterText => 'Inserisci del testo';
 
   @override
-  String get bucket_addError => 'Errore durante l\'aggiunta';
+  String get bucket_added => 'Obiettivo aggiunto!';
 
   @override
-  String get bucket_updateError => 'Errore aggiornamento item';
+  String get bucket_markedDone => 'Segnato come fatto!';
+
+  @override
+  String get bucket_markedUndone => 'Segnato da fare!';
+
+  @override
+  String get bucket_deleted => 'Obiettivo eliminato!';
 
   @override
   String get mood_boardTitle => 'Mood Board';

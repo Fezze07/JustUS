@@ -328,7 +328,7 @@ class DriveState extends BaseState with CheckpointMixin {
   // ---------------------------------------------------------------------------
   // Delete: optimistic + server confirm
   // ---------------------------------------------------------------------------
-  Future<void> deleteItem(int id) async {
+  Future<bool> deleteItem(int id) async {
     final currentList = List<DriveItem>.from(_driveItems);
     _driveItems = _driveItems.where((item) => item.id != id).toList();
     _rebuildFavorites();
@@ -336,19 +336,18 @@ class DriveState extends BaseState with CheckpointMixin {
     _invalidateProbe();
     notifyListeners();
 
-    await runSafe(() async {
+    return runSafe(() async {
       final result = await _repo.deleteDriveItem(id);
 
-      await handleResult(result, onSuccess: (_) {
-        setMessage(LanguageHelper.appLoc.drive_deleted);
-      });
-
-      if (result.isError) {
+      if (result is! Success) {
         _driveItems = currentList;
         _rebuildFavorites();
         await _persistDriveCache();
         _invalidateProbe();
+        throw result;
       }
+
+      setMessage(LanguageHelper.appLoc.drive_deleted);
     }, showLoading: false);
   }
 
@@ -375,6 +374,7 @@ class DriveState extends BaseState with CheckpointMixin {
               reactions: [..._singleItem!.reactions, emoji],
             );
           }
+          setMessage(LanguageHelper.appLoc.drive_reactionAdded);
         },
       );
     }, showLoading: false);
@@ -408,6 +408,12 @@ class DriveState extends BaseState with CheckpointMixin {
         _invalidateProbe();
         if (_singleItem?.id == itemId) _singleItem = item;
         throw result;
+      }
+
+      if (isCurrentlyFavorite) {
+        setMessage(LanguageHelper.appLoc.drive_favoriteRemoved);
+      } else {
+        setMessage(LanguageHelper.appLoc.drive_favoriteAdded);
       }
     }, showLoading: false);
   }

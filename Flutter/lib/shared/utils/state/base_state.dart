@@ -125,6 +125,13 @@ mixin StateMessageListener<T extends BaseState, W extends StatefulWidget>
     }
   }
 
+  /// Shows and clears the message currently held by [messageSource].
+  ///
+  /// `setMessage` delivers on the next frame, so a screen that pops right after
+  /// an action (e.g. after a delete) must call this before the pop — otherwise
+  /// the listener is disposed first and the message is lost.
+  void showPendingMessage() => _handleStateMessage();
+
   @override
   void initState() {
     super.initState();

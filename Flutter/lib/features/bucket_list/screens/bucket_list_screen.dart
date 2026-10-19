@@ -92,15 +92,16 @@ class _BucketListScreenState extends State<BucketListScreen>
               child: Text(context.loc.common_cancel),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 final text = _addController.text.trim();
-                if (text.isNotEmpty) {
-                  unawaited(context
-                      .read<BucketState>()
-                      .addItem(text, selectedAddCategory));
+                final added = await context
+                    .read<BucketState>()
+                    .addItem(text, selectedAddCategory);
+                if (!context.mounted) return;
+                if (added) {
                   _addController.clear();
+                  Navigator.pop(context);
                 }
-                Navigator.pop(context);
               },
               child: Text(context.loc.bucket_add),
             ),
@@ -244,6 +245,16 @@ class _BucketListScreenState extends State<BucketListScreen>
     );
   }
 
+  /// Awaits the dismiss-triggered delete. Success: the marker stays — Realtime
+  /// drops the row from the state, which is the source of truth. Failure: the
+  /// row never left [BucketState.items], so clearing the marker restores it at
+  /// once; the error itself is shown by BaseState/ErrorHandler alone.
+  Future<void> _confirmDelete(BucketState state, int id) async {
+    if (await state.deleteItem(id)) return;
+    if (!mounted) return;
+    setState(() => _pendingDeletes.remove(id));
+  }
+
   Widget _buildBucketItem(BucketItem item, BucketState state) {
     final isDone = item.done;
 
@@ -263,17 +274,19 @@ class _BucketListScreenState extends State<BucketListScreen>
         // Optimistic local removal — filters the item out on the very next
         // frame so the Dismissible is no longer in the tree when Flutter checks.
         setState(() => _pendingDeletes.add(item.id));
-        unawaited(state.deleteItem(item.id));
+        unawaited(_confirmDelete(state, item.id));
       },
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDone ? context.palette.divider : context.palette.surfaceGroup,
+          color:
+              isDone ? context.palette.divider : context.palette.surfaceGroup,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isDone
                 ? Colors.transparent
-                : BucketCategory.colorFor(context, item.category).withValues(alpha: 0.3),
+                : BucketCategory.colorFor(context, item.category)
+                    .withValues(alpha: 0.3),
           ),
           boxShadow: isDone
               ? []
@@ -312,7 +325,9 @@ class _BucketListScreenState extends State<BucketListScreen>
                   width: AppDims.checkbox,
                   height: AppDims.checkbox,
                   decoration: BoxDecoration(
-                    color: isDone ? context.palette.accentBlue : Colors.transparent,
+                    color: isDone
+                        ? context.palette.accentBlue
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(AppRadius.xs),
                     border: Border.all(
                       color: context.palette.accentBlue,
@@ -358,8 +373,9 @@ class _BucketListScreenState extends State<BucketListScreen>
                               .withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(
-                            color: BucketCategory.colorFor(context, item.category)
-                                .withValues(alpha: 0.5),
+                            color:
+                                BucketCategory.colorFor(context, item.category)
+                                    .withValues(alpha: 0.5),
                           ),
                         ),
                         child: Text(
@@ -367,7 +383,8 @@ class _BucketListScreenState extends State<BucketListScreen>
                               item.category, context.loc),
                           style: VpWidgets.googleFont(
                             fontSize: 10,
-                            color: BucketCategory.colorFor(context, item.category),
+                            color:
+                                BucketCategory.colorFor(context, item.category),
                             fontWeight: FontWeight.bold,
                           ),
                         ),

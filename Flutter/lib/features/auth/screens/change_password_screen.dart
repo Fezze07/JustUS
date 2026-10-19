@@ -141,24 +141,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
                               if (!context.mounted) return;
 
-                              switch (result) {
-                                case ChangePasswordResult.currentPasswordWrong:
-                                  ErrorHandler.showSnackBar(
-                                    context,
-                                    context.loc.auth_currentPasswordIncorrect,
-                                    isError: true,
-                                  );
-                                case ChangePasswordResult.failure:
-                                  // ErrorHandler ha già mostrato il feedback
-                                  // generico (rete, captcha, sessione, …).
-                                  break;
-                                case ChangePasswordResult.success:
-                                  final message =
-                                      context.loc.auth_passwordUpdated;
-
-                                  Navigator.pop(context);
-
-                                  ErrorHandler.showSnackBar(context, message);
+                              // I messaggi (successo o password attuale errata)
+                              // sono mostrati dal listener globale di AuthState.
+                              if (result == ChangePasswordResult.success) {
+                                Navigator.pop(context);
                               }
                             },
                           );

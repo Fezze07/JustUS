@@ -79,10 +79,11 @@ class HomepageState extends BaseState {
 
   Future<bool> sendMissYou() async {
     final now = DateTime.now();
-    if (isLoading ||
-        (_lastMissYouSentAt != null &&
-            now.difference(_lastMissYouSentAt!) <
-                const Duration(milliseconds: 1500))) {
+    if (isLoading) return false;
+    if (_lastMissYouSentAt != null &&
+        now.difference(_lastMissYouSentAt!) <
+            const Duration(milliseconds: 1500)) {
+      setMessage(LanguageHelper.appLoc.home_missYouTooFast);
       return false;
     }
 

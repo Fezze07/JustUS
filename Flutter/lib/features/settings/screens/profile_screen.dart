@@ -153,10 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         context.read<DriveState>().clear();
         context.read<MoodState>().clear();
         context.read<HomepageState>().clear();
-        context.read<ProfileState>().clear();
-
-        ErrorHandler.showSnackBar(context, context.loc.profile_dataWiped);
-        unawaited(context.read<ProfileState>().loadProfile(force: true));
+        // ProfileState owns its own reset and confirmation message (wipeAppData).
         unawaited(rt.refreshChannel());
       }
     }

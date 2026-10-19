@@ -376,10 +376,6 @@ class _PartnerScreenState extends State<PartnerScreen>
                           builder: (_) => const MainShell()),
                     ));
                   }
-                } else if (!success && mounted) {
-                  ErrorHandler.showSnackBar(
-                      context, context.loc.partner_acceptError,
-                      isError: true);
                 }
               },
               onReject: () =>

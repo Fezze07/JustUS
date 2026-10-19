@@ -92,8 +92,6 @@ class _PartnerInviteDialogState extends State<PartnerInviteDialog> {
 
                 if (success) {
                   Navigator.pop(context);
-                  ErrorHandler.showSnackBar(
-                      context, context.loc.partner_inviteSuccess);
                 }
               },
             );

@@ -342,6 +342,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get home_missYouSent => 'Miss you sent!';
 
   @override
+  String get home_missYouTooFast => 'Wait a moment before sending again';
+
+  @override
   String get settings_notificationsTitle => 'Notifications';
 
   @override
@@ -457,9 +460,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get partner_logout => 'Logout';
 
   @override
-  String get partner_acceptError => 'Error accepting the invitation';
-
-  @override
   String get partner_personalCodeTitle => 'YOUR PERSONAL CODE';
 
   @override
@@ -510,6 +510,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get partner_inviteEmailSuccess => 'Invitation sent!';
+
+  @override
+  String get partner_requestAccepted => 'Request accepted!';
+
+  @override
+  String get partner_requestRejected => 'Request declined!';
 
   @override
   String get partner_wantsToConnect => 'Wants to connect';
@@ -606,6 +612,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get drive_uploadInProgress => 'Upload in progress…';
 
   @override
+  String get drive_reactionAdded => 'Reaction added!';
+
+  @override
+  String get drive_favoriteAdded => 'Added to favorites!';
+
+  @override
+  String get drive_favoriteRemoved => 'Removed from favorites!';
+
+  @override
   String get drive_addFavoriteTooltip => 'Add to favorites';
 
   @override
@@ -672,10 +687,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bucket_enterText => 'Enter some text';
 
   @override
-  String get bucket_addError => 'Error while adding';
+  String get bucket_added => 'Goal added!';
 
   @override
-  String get bucket_updateError => 'Error updating item';
+  String get bucket_markedDone => 'Marked as done!';
+
+  @override
+  String get bucket_markedUndone => 'Marked as to do!';
+
+  @override
+  String get bucket_deleted => 'Goal deleted!';
 
   @override
   String get mood_boardTitle => 'Mood Board';

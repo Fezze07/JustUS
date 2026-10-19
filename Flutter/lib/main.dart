@@ -139,6 +139,9 @@ class JustUsApp extends StatelessWidget {
               localeResolutionCallback: LanguageHelper.localeResolutionCallback,
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
+              builder: (context, child) => AuthMessageHost(
+                child: child ?? const SizedBox.shrink(),
+              ),
               home: const SplashScreen(),
               onGenerateRoute: (settings) {
                 // If a deep link path comes in (e.g. /callback?code=...), return null so
@@ -155,6 +158,31 @@ class JustUsApp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Global listener for [AuthState] messages.
+///
+/// `AuthState` is shared by login/register/change-password/reset-password and
+/// the invite dialogs, so no single screen owns its feedback. Mounted above the
+/// Navigator, this host shows each message once via the root overlay, so the
+/// snackbar survives a `pop` or a `pushReplacement` that disposes the screen
+/// that triggered the action.
+class AuthMessageHost extends StatefulWidget {
+  final Widget child;
+
+  const AuthMessageHost({super.key, required this.child});
+
+  @override
+  State<AuthMessageHost> createState() => AuthMessageHostState();
+}
+
+class AuthMessageHostState extends State<AuthMessageHost>
+    with StateMessageListener<AuthState, AuthMessageHost> {
+  @override
+  AuthState get messageSource => context.read<AuthState>();
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _AppThemeData {
