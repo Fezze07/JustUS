@@ -44,16 +44,4 @@ class PartnerState extends BaseState {
       await StorageService.savePartnershipId(value.partnershipId!);
     }
   }
-
-  /// Sends a partnership request via email and code (maps to request_partnership RPC).
-  Future<void> sendPartnerRequest(String email, String partnershipCode) async {
-    await runSafe(() async {
-      final result = await _repo.sendPartnerRequest(email, partnershipCode);
-
-      await handleResult(result, onSuccess: (_) async {
-        await fetchPartnership();
-        setMessage(LanguageHelper.appLoc.partner_inviteSuccess);
-      });
-    });
-  }
 }
