@@ -4,7 +4,7 @@ const userActionSchema = z.object({
   action: z.enum([
     "logout",
     "delete_account",
-    "update_device_token",
+    "update_installation_id",
     "refresh_session",
     "init_sync",
   ]),

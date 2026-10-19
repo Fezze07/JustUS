@@ -76,15 +76,15 @@ class AuthRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<Map<String, dynamic>>> revokeDeviceToken(
-      String deviceToken) async {
-    return _api.revokeDeviceToken(deviceToken);
+  Future<ResultWrapper<Map<String, dynamic>>> revokeInstallationId(
+      String installationId) async {
+    return _api.revokeInstallationId(installationId);
   }
 
-  /// Drops every other push registration of the account, keeping [keepDeviceToken]'s.
-  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
-      String keepDeviceToken) async {
-    return _api.revokeOtherDeviceTokens(keepDeviceToken);
+  /// Drops every other push registration of the account, keeping [keepInstallationId]'s.
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherInstallations(
+      String keepInstallationId) async {
+    return _api.revokeOtherInstallations(keepInstallationId);
   }
 
   Future<void> signOut() async {
@@ -108,19 +108,20 @@ class AuthRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<void>> updateDeviceToken(
-    String deviceToken, {
+  Future<ResultWrapper<void>> updateInstallationId(
+    String installationId, {
     String? locale,
   }) async {
-    final result = await _api.updateDeviceToken(UpdateTokenRequest(
-      deviceToken: deviceToken,
+    final result =
+        await _api.updateInstallationId(UpdateInstallationRequest(
+      installationId: installationId,
       deviceType: defaultTargetPlatform.name,
       locale: locale,
     ));
-    if (result is GenericError<UpdateTokenResponse>) {
+    if (result is GenericError<UpdateInstallationResponse>) {
       return GenericError(message: result.message, code: result.code);
     }
-    if (result is NetworkError<UpdateTokenResponse>) {
+    if (result is NetworkError<UpdateInstallationResponse>) {
       return NetworkError(message: result.message);
     }
 

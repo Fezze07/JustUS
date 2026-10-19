@@ -10,10 +10,9 @@ const {
 } = require("../../all_imports");
 
 const FCM_BATCH_SIZE = 500;
-const INVALID_FCM_TOKEN_CODES = new Set([
-  "messaging/invalid-registration-token",
-  "messaging/registration-token-not-registered",
+const INVALID_FID_CODES = new Set([
   "messaging/invalid-recipient",
+  "messaging/installation-id-not-registered",
 ]);
 const FCM_DEVICE_TYPES = new Set(["android", "ios", "web"]);
 
@@ -38,8 +37,8 @@ async function safeLogNotification(record) {
 }
 
 function isDeliverableDevice(device) {
-  const token = device?.device_token;
-  if (!token || token === "UNKNOWN_DEVICE_TOKEN") return false;
+  const installationId = device?.installation_id;
+  if (!installationId) return false;
 
   const type = device.device_type?.toLowerCase();
   return !type || FCM_DEVICE_TYPES.has(type);
@@ -149,7 +148,7 @@ function localizeNotificationText(key, paramsInput = {}, locale = "en") {
   return localizedFn(params);
 }
 
-function buildFcmMessage({ tokens, type, title, body, data, locale = "en" }) {
+function buildFcmMessage({ fids, type, title, body, data, locale = "en" }) {
   const notificationKey = data?.notificationKey || title;
   const localized = localizeNotificationText(notificationKey, data?.params, locale);
 
@@ -163,7 +162,7 @@ function buildFcmMessage({ tokens, type, title, body, data, locale = "en" }) {
   });
 
   return {
-    tokens,
+    fids,
     notification: {
       title: localized.title,
       body: localized.body,
@@ -201,56 +200,56 @@ async function fetchUserDevices(userId) {
   const rows = assertDbSuccess(
     await adminSupabase
       .from("user_devices")
-      .select("id, device_token, device_type, locale")
+      .select("id, installation_id, device_type, locale")
       .eq("user_id", userId)
-      .not("device_token", "is", null),
+      .not("installation_id", "is", null),
     "DB_READ_001"
   );
 
   return rows.filter(isDeliverableDevice);
 }
 
-async function deleteInvalidTokens(userId, tokens) {
-  const uniqueTokens = [...new Set(tokens.filter(Boolean))];
-  if (uniqueTokens.length === 0) return 0;
+async function deleteInvalidInstallations(userId, fids) {
+  const uniqueFids = [...new Set(fids.filter(Boolean))];
+  if (uniqueFids.length === 0) return 0;
 
   assertDbSuccess(
     await adminSupabase
       .from("user_devices")
       .delete()
       .eq("user_id", userId)
-      .in("device_token", uniqueTokens),
+      .in("installation_id", uniqueFids),
     "DB_WRITE_001"
   );
 
-  return uniqueTokens.length;
+  return uniqueFids.length;
 }
 
-function collectInvalidTokens(batchTokens, responses = []) {
-  const invalidTokens = [];
+function collectInvalidFids(batchFids, responses = []) {
+  const invalidFids = [];
 
   responses.forEach((response, index) => {
     const code = response.error?.code;
-    if (INVALID_FCM_TOKEN_CODES.has(code)) {
-      invalidTokens.push(batchTokens[index]);
+    if (INVALID_FID_CODES.has(code)) {
+      invalidFids.push(batchFids[index]);
     }
   });
 
-  return invalidTokens;
+  return invalidFids;
 }
 
 async function sendNotificationToUser({ userId, type, title, body, data = {} }) {
   const devices = await fetchUserDevices(userId);
-  const tokens = [...new Set(devices.map((device) => device.device_token))];
+  const fids = [...new Set(devices.map((device) => device.installation_id))];
 
-  if (tokens.length === 0) {
-    console.warn(`[notify] No devices for userId=${userId} type=${type} — token not registered`);
+  if (fids.length === 0) {
+    console.warn(`[notify] No devices for userId=${userId} type=${type} — installation id not registered`);
     await safeLogNotification({ user_id: userId, type, status: "no_devices" });
     return {
       success: true,
       delivered: 0,
       failed: 0,
-      invalidTokensRemoved: 0,
+      invalidInstallationsRemoved: 0,
       deviceCount: 0,
     };
   }
@@ -262,18 +261,18 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     if (!devicesByLocale[locale]) {
       devicesByLocale[locale] = [];
     }
-    devicesByLocale[locale].push(device.device_token);
+    devicesByLocale[locale].push(device.installation_id);
   }
 
   let delivered = 0;
   let failed = 0;
-  const invalidTokens = [];
+  const invalidFids = [];
   let configured = true;
 
   localeLoop:
-  for (const [locale, localeTokens] of Object.entries(devicesByLocale)) {
-    const uniqueLocaleTokens = [...new Set(localeTokens)];
-    for (const batchTokens of chunk(uniqueLocaleTokens, FCM_BATCH_SIZE)) {
+  for (const [locale, localeFids] of Object.entries(devicesByLocale)) {
+    const uniqueLocaleFids = [...new Set(localeFids)];
+    for (const batchFids of chunk(uniqueLocaleFids, FCM_BATCH_SIZE)) {
       try {
         let attempts = 0;
         const maxAttempts = 3;
@@ -283,13 +282,13 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
         while (attempts < maxAttempts && !success) {
           try {
             attempts++;
-            console.log(`[notify] Sending FCM to ${batchTokens.length} token(s) for userId=${userId} type=${type} locale=${locale} (attempt ${attempts}) — tokens: ${batchTokens.map(t => t.slice(0, 12) + '…').join(', ')}`);
+            console.log(`[notify] Sending FCM to ${batchFids.length} installation id(s) for userId=${userId} type=${type} locale=${locale} (attempt ${attempts}) — fids: ${batchFids.map(f => f.slice(0, 12) + '…').join(', ')}`);
             response = await sendMulticastNotification(
-              buildFcmMessage({ tokens: batchTokens, type, title, body, data, locale })
+              buildFcmMessage({ fids: batchFids, type, title, body, data, locale })
             );
             success = true;
           } catch (error) {
-            const isTransient = !error.code || !INVALID_FCM_TOKEN_CODES.has(error.code);
+            const isTransient = !error.code || !INVALID_FID_CODES.has(error.code);
             if (isTransient && attempts < maxAttempts) {
               await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
               continue;
@@ -306,20 +305,20 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
         delivered += response.successCount ?? 0;
         failed += response.failureCount ?? 0;
 
-        // Log per-token errors for diagnosis
+        // Log per-installation errors for diagnosis
         if (response.responses) {
           response.responses.forEach((r, i) => {
             if (r.error) {
-              console.warn(`[notify] FCM token[${i}] (${batchTokens[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
+              console.warn(`[notify] FCM fid[${i}] (${batchFids[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
             }
           });
         }
 
-        invalidTokens.push(...collectInvalidTokens(batchTokens, response.responses));
+        invalidFids.push(...collectInvalidFids(batchFids, response.responses));
       } catch (error) {
-        failed += batchTokens.length;
-        if (error.code && INVALID_FCM_TOKEN_CODES.has(error.code)) {
-          invalidTokens.push(...batchTokens);
+        failed += batchFids.length;
+        if (error.code && INVALID_FID_CODES.has(error.code)) {
+          invalidFids.push(...batchFids);
         }
         await safeLogInfo("notification.fcm_batch_failed", {
           user_id: userId,
@@ -330,7 +329,7 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     }
   }
 
-  const invalidTokensRemoved = await deleteInvalidTokens(userId, invalidTokens);
+  const invalidInstallationsRemoved = await deleteInvalidInstallations(userId, invalidFids);
   const status = configured
     ? (failed > 0 ? "partial" : "sent")
     : "skipped_firebase_not_configured";
@@ -341,15 +340,15 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     type,
     delivered,
     failed,
-    invalid_tokens_removed: invalidTokensRemoved,
+    invalid_installations_removed: invalidInstallationsRemoved,
   });
 
   return {
-    success: delivered > 0 || (tokens.length === 0 && failed === 0),
+    success: delivered > 0 || (fids.length === 0 && failed === 0),
     delivered,
     failed,
-    invalidTokensRemoved,
-    deviceCount: tokens.length,
+    invalidInstallationsRemoved,
+    deviceCount: fids.length,
     configured,
   };
 }
@@ -366,7 +365,7 @@ async function sendNotificationToUsers({ userIds, type, title, body, data = {} }
   const results = settled.map(r =>
     r.status === "fulfilled"
       ? r.value
-      : { success: false, delivered: 0, failed: 0, invalidTokensRemoved: 0, deviceCount: 0 }
+      : { success: false, delivered: 0, failed: 0, invalidInstallationsRemoved: 0, deviceCount: 0 }
   );
 
   return {
@@ -419,23 +418,23 @@ async function dispatchNotification({ type, senderId, payload }) {
   });
 }
 
-async function getReceiverDeviceToken(userId) {
+async function getReceiverInstallationId(userId) {
   const devices = await fetchUserDevices(userId);
-  const token = devices[0]?.device_token;
-  if (!token) {
-    throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Receiver not found or has no valid token" });
+  const installationId = devices[0]?.installation_id;
+  if (!installationId) {
+    throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Receiver not found or has no valid installation id" });
   }
 
-  return token;
+  return installationId;
 }
 
 module.exports = {
   dispatchNotification,
   resolveNotificationTarget,
-  getReceiverDeviceToken,
+  getReceiverInstallationId,
   sendNotificationToUser,
   sendNotificationToUsers,
   fetchUserDevices,
-  deleteInvalidTokens,
+  deleteInvalidInstallations,
   normalizeDataPayload,
 };

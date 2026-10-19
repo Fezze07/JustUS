@@ -307,7 +307,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 
 ### HMAC Relationship
 
-- **Purpose**: High-risk routes (`/auth/device-token`, `/auth/device-token-revoke`, `/auth/device-token-revoke-all`, `/auth/invite-user`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
+- **Purpose**: High-risk routes (`/auth/installation-id`, `/auth/installation-id-revoke`, `/auth/installation-id-revoke-all`, `/auth/invite-user`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
 - **Secret Generation**: Created via `crypto.randomBytes(32).toString("hex")` in `generateBindingSecret()`.
 - **Secret Lifecycle**:
   - Generated on backend during `/auth/session-bind`.
@@ -374,7 +374,7 @@ None currently identified.
 - [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart): Core HTTP client, `_buildHeaders()`, `_safeCall()`, `_tryRefreshToken()`.
 - [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Secure storage wrapper for access token, refresh token, fingerprint, binding secret.
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): Global auth state, session initialization, lifecycle locale sync.
-- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`) and `revokeOtherDeviceTokens()` (`POST /auth/device-token-revoke-all`).
+- [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`) and `revokeOtherInstallations()` (`POST /auth/installation-id-revoke-all`).
 
 ### Backend Node.js
 - [authMiddleware.js](file:///f:/JustUS/Backend/middleware/authMiddleware.js): `authenticateToken()`, `verifyToken()`, profile resolution, session binding validation.
@@ -403,7 +403,7 @@ None currently identified.
 | Supabase JWT Authentication | **IMPLEMENTED** | Verified via `authSupabase.auth.getUser` |
 | Token Storage (`FlutterSecureStorage`) | **IMPLEMENTED** | Secure storage wrapper |
 | Token Refresh (SDK-mediated) | **IMPLEMENTED** | `Supabase.refreshSession()` owns refresh; the backend `/auth/refresh` proxy no longer exists. One path, one rotation |
-| Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` + `POST /auth/device-token-revoke-all` after `updateUser(password:)`; current session and its push registration kept, both revokes best-effort (5 s cap) |
+| Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` + `POST /api/v1/auth/installation-id-revoke-all` after `updateUser(password:)`; current session and its push registration kept, both revokes best-effort (5 s cap) |
 | Token Lifetime Policy Enforcement | **IMPLEMENTED** | Checked in `tokenUtils.js` |
 | Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
 | Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |

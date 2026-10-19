@@ -77,9 +77,9 @@ class _RecordingAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
-      String keepDeviceToken) async {
-    calls.add('revokeOtherDeviceTokens:$keepDeviceToken');
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherInstallations(
+      String keepInstallationId) async {
+    calls.add('revokeOtherInstallations:$keepInstallationId');
     final error = deviceRevokeError;
     if (error != null) return GenericError(message: '$error');
     await onDeviceRevoke?.call();
@@ -114,17 +114,17 @@ AuthState _stateWith(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const String kKeepToken = 'fcm-token-kept-by-the-caller-0123456789';
+  const String kKeepInstallationId = 'fid-kept-by-the-caller-0123456789';
 
   setUp(() {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
-    DeviceTokenService.tokenOverride = () async => kKeepToken;
+    InstallationIdService.installationIdOverride = () async => kKeepInstallationId;
   });
 
   tearDown(() {
-    DeviceTokenService.tokenOverride = null;
+    InstallationIdService.installationIdOverride = null;
   });
 
   test('a password change signs the other sessions out', () async {
@@ -144,7 +144,7 @@ void main() {
       'signInWithPassword',
       'changePassword',
       'revokeOtherSessions',
-      'revokeOtherDeviceTokens:$kKeepToken',
+      'revokeOtherInstallations:$kKeepInstallationId',
     ]);
     expect(state.isLoading, isFalse);
     // AuthState owns the confirmation now; the global listener shows it.
@@ -160,7 +160,7 @@ void main() {
     expect(repo.calls, [
       'updatePasswordWithoutCurrent',
       'revokeOtherSessions',
-      'revokeOtherDeviceTokens:$kKeepToken',
+      'revokeOtherInstallations:$kKeepInstallationId',
     ]);
     expect(state.message, LanguageHelper.appLoc.auth_passwordUpdated);
   });
@@ -180,7 +180,7 @@ void main() {
     expect(result, ChangePasswordResult.success);
     expect(repo.calls, contains('changePassword'));
     expect(repo.calls, contains('revokeOtherSessions'));
-    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+    expect(repo.calls, contains('revokeOtherInstallations:$kKeepInstallationId'));
     expect(state.isLoading, isFalse);
   });
 
@@ -201,7 +201,7 @@ void main() {
 
     expect(result, ChangePasswordResult.success);
     expect(repo.calls, contains('revokeOtherSessions'));
-    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+    expect(repo.calls, contains('revokeOtherInstallations:$kKeepInstallationId'));
   });
 
   test('a failing push-registration revoke never fails the change', () async {
@@ -216,7 +216,7 @@ void main() {
     );
 
     expect(result, ChangePasswordResult.success);
-    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+    expect(repo.calls, contains('revokeOtherInstallations:$kKeepInstallationId'));
   });
 
   test('a push-registration revoke that never answers does not block the change',
@@ -233,12 +233,12 @@ void main() {
         .timeout(const Duration(seconds: 10));
 
     expect(result, ChangePasswordResult.success);
-    expect(repo.calls, contains('revokeOtherDeviceTokens:$kKeepToken'));
+    expect(repo.calls, contains('revokeOtherInstallations:$kKeepInstallationId'));
   });
 
-  test('an unresolvable local token skips the revoke-all but not the sessions',
+  test('an unresolvable local installation id skips the revoke-all but not the sessions',
       () async {
-    DeviceTokenService.tokenOverride = () async => 'UNKNOWN_DEVICE_TOKEN';
+    InstallationIdService.installationIdOverride = () async => '';
     final repo = _RecordingAuthRepository();
     final state = _stateWith(repo);
 

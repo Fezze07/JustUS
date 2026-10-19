@@ -1,22 +1,17 @@
 const { z } = require("zod");
 
-// The client's "no token" placeholder is a single shared string, and
-// user_devices.device_token is globally UNIQUE, so accepting it would re-point
-// one row between unrelated accounts. Reject it at the trust boundary.
-const updateDeviceTokenSchema = z.object({
-  deviceToken: z
-    .string()
-    .min(16)
-    .max(512)
-    .refine((t) => t !== "UNKNOWN_DEVICE_TOKEN", {
-      message: "Placeholder device token is not registrable",
-    }),
+// `installationId` is the Firebase Installation ID (FID) used as the FCM
+// direct-send target. The minimum length rejects the empty string some
+// clients use when the platform has no FCM, which would otherwise create a
+// single shared row on the globally UNIQUE installation_id column.
+const updateInstallationSchema = z.object({
+  installationId: z.string().min(16).max(512),
   deviceType: z.string().max(50).optional(),
   locale: z.string().max(10).optional(),
 });
 
-const revokeDeviceTokenSchema = z.object({
-  deviceToken: z.string().min(16).max(512),
+const revokeInstallationSchema = z.object({
+  installationId: z.string().min(16).max(512),
 });
 
 const loginRiskSchema = z.object({
@@ -46,8 +41,8 @@ const inviteUserSchema = z.object({
 });
 
 module.exports = {
-  updateDeviceTokenSchema,
-  revokeDeviceTokenSchema,
+  updateInstallationSchema,
+  revokeInstallationSchema,
   loginRiskSchema,
   loginAttemptSchema,
   sessionBindSchema,

@@ -79,28 +79,29 @@ class User {
   }
 }
 
-class UpdateTokenRequest {
-  final String deviceToken;
+class UpdateInstallationRequest {
+  final String installationId;
   final String? deviceType;
   final String? locale;
 
-  UpdateTokenRequest({required this.deviceToken, this.deviceType, this.locale});
+  UpdateInstallationRequest(
+      {required this.installationId, this.deviceType, this.locale});
 
   Map<String, dynamic> toJson() => {
-        'deviceToken': deviceToken,
+        'installationId': installationId,
         if (deviceType != null) 'deviceType': deviceType,
         if (locale != null) 'locale': locale,
       };
 }
 
-class UpdateTokenResponse {
+class UpdateInstallationResponse {
   final bool success;
   final String? error;
 
-  UpdateTokenResponse({required this.success, this.error});
+  UpdateInstallationResponse({required this.success, this.error});
 
-  factory UpdateTokenResponse.fromJson(Map<String, dynamic> json) {
-    return UpdateTokenResponse(
+  factory UpdateInstallationResponse.fromJson(Map<String, dynamic> json) {
+    return UpdateInstallationResponse(
       success: (json['success'] as bool?) ?? false,
       error: json['error'] as String?,
     );

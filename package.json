@@ -26,6 +26,6 @@
   "homepage": "https://github.com/Fezze07/JustUS#readme",
   "devDependencies": {
     "husky": "^9.1.7",
-    "jscpd": "^4.0.9"
+    "jscpd": "^5.4.1"
   }
 }

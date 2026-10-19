@@ -47,9 +47,8 @@ class AppTheme {
   static ThemeData _build(AppPalette palette) {
     final brightness = palette.brightness;
     final colorScheme = _colorScheme(palette);
-    final textTheme = GoogleFonts.plusJakartaSansTextTheme(
-      ThemeData(brightness: brightness).textTheme,
-    ).apply(
+    final base = ThemeData(brightness: brightness);
+    final textTheme = _plusJakarta(base.textTheme).apply(
       bodyColor: palette.contentPrimary,
       displayColor: palette.contentPrimary,
     );
@@ -132,12 +131,14 @@ class AppTheme {
         showDragHandle: true,
         dragHandleColor: palette.track,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.sheet)),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(AppRadius.sheet)),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: palette.surfaceElevated,
-        contentTextStyle: GoogleFonts.plusJakartaSans(color: palette.contentPrimary),
+        contentTextStyle:
+            GoogleFonts.plusJakartaSans(color: palette.contentPrimary),
         actionTextColor: palette.primaryVariant,
         elevation: 0,
         behavior: SnackBarBehavior.floating,
@@ -151,7 +152,8 @@ class AppTheme {
         filled: true,
         fillColor: palette.surfaceSunken,
         hintStyle: GoogleFonts.plusJakartaSans(color: palette.contentHint),
-        labelStyle: GoogleFonts.plusJakartaSans(color: palette.contentSecondary),
+        labelStyle:
+            GoogleFonts.plusJakartaSans(color: palette.contentSecondary),
         prefixIconColor: palette.contentDisabled,
         suffixIconColor: palette.contentDisabled,
         border: OutlineInputBorder(
@@ -183,8 +185,7 @@ class AppTheme {
           foregroundColor: AppButtonStyle.foreground(palette),
           disabledBackgroundColor:
               AppButtonStyle.disabledBackground(palette.primary),
-          disabledForegroundColor:
-              AppButtonStyle.disabledForeground(palette),
+          disabledForegroundColor: AppButtonStyle.disabledForeground(palette),
           padding: AppButtonStyle.padding,
           minimumSize: AppButtonStyle.minimumSize,
           shape: AppButtonStyle.shape,
@@ -196,8 +197,7 @@ class AppTheme {
           foregroundColor: AppButtonStyle.foreground(palette),
           disabledBackgroundColor:
               AppButtonStyle.disabledBackground(palette.primary),
-          disabledForegroundColor:
-              AppButtonStyle.disabledForeground(palette),
+          disabledForegroundColor: AppButtonStyle.disabledForeground(palette),
           elevation: 0,
           padding: AppButtonStyle.padding,
           minimumSize: AppButtonStyle.minimumSize,
@@ -275,6 +275,29 @@ class AppTheme {
       ),
     );
   }
+
+  /// Plus Jakarta Sans on every slot of [base].
+  static TextTheme _plusJakarta(TextTheme base) => TextTheme(
+        displayLarge: GoogleFonts.plusJakartaSans(textStyle: base.displayLarge),
+        displayMedium:
+            GoogleFonts.plusJakartaSans(textStyle: base.displayMedium),
+        displaySmall: GoogleFonts.plusJakartaSans(textStyle: base.displaySmall),
+        headlineLarge:
+            GoogleFonts.plusJakartaSans(textStyle: base.headlineLarge),
+        headlineMedium:
+            GoogleFonts.plusJakartaSans(textStyle: base.headlineMedium),
+        headlineSmall:
+            GoogleFonts.plusJakartaSans(textStyle: base.headlineSmall),
+        titleLarge: GoogleFonts.plusJakartaSans(textStyle: base.titleLarge),
+        titleMedium: GoogleFonts.plusJakartaSans(textStyle: base.titleMedium),
+        titleSmall: GoogleFonts.plusJakartaSans(textStyle: base.titleSmall),
+        bodyLarge: GoogleFonts.plusJakartaSans(textStyle: base.bodyLarge),
+        bodyMedium: GoogleFonts.plusJakartaSans(textStyle: base.bodyMedium),
+        bodySmall: GoogleFonts.plusJakartaSans(textStyle: base.bodySmall),
+        labelLarge: GoogleFonts.plusJakartaSans(textStyle: base.labelLarge),
+        labelMedium: GoogleFonts.plusJakartaSans(textStyle: base.labelMedium),
+        labelSmall: GoogleFonts.plusJakartaSans(textStyle: base.labelSmall),
+      );
 
   /// M3 roles are overridden instead of relying on the generated tonal palette:
   /// the brand violet is fixed by design, and the surface container ramp has to

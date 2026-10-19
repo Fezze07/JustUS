@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const {
-  updateDeviceToken,
-  revokeDeviceToken,
-  revokeOtherDeviceTokens,
+  updateInstallationId,
+  revokeInstallationId,
+  revokeOtherInstallationIds,
   checkLoginRiskController,
   registerFailedLoginController,
   bindSessionController,
@@ -18,8 +18,8 @@ const {
 } = require("../../all_imports");
 
 const {
-  updateDeviceTokenSchema,
-  revokeDeviceTokenSchema,
+  updateInstallationSchema,
+  revokeInstallationSchema,
   loginRiskSchema,
   loginAttemptSchema,
   sessionBindSchema,
@@ -39,8 +39,8 @@ const {
 const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 
 const authRateLimit = createIpUserRateLimit({
-  name: "auth.device-token",
-  message: "Too many device token updates",
+  name: "auth.installation-id",
+  message: "Too many installation id updates",
   ipMax: 20,
   userMax: 10,
 });
@@ -67,36 +67,36 @@ const loginRiskRateLimit = createCompositeRateLimit({
 });
 
 router.post(
-  "/device-token",
+  "/installation-id",
   ...chain(
     authenticated(),
     limited(authRateLimit),
-    signed("auth-device-token"),
-    validated({ body: updateDeviceTokenSchema })
+    signed("auth-installation-id"),
+    validated({ body: updateInstallationSchema })
   ),
-  updateDeviceToken
+  updateInstallationId
 );
 
 router.post(
-  "/device-token-revoke",
+  "/installation-id-revoke",
   ...chain(
     authenticated(),
     limited(authRateLimit),
-    signed("auth-device-token-revoke"),
-    validated({ body: revokeDeviceTokenSchema })
+    signed("auth-installation-id-revoke"),
+    validated({ body: revokeInstallationSchema })
   ),
-  revokeDeviceToken
+  revokeInstallationId
 );
 
 router.post(
-  "/device-token-revoke-all",
+  "/installation-id-revoke-all",
   ...chain(
     authenticated(),
     limited(authRateLimit),
-    signed("auth-device-token-revoke-all"),
-    validated({ body: revokeDeviceTokenSchema })
+    signed("auth-installation-id-revoke-all"),
+    validated({ body: revokeInstallationSchema })
   ),
-  revokeOtherDeviceTokens
+  revokeOtherInstallationIds
 );
 
 router.post(

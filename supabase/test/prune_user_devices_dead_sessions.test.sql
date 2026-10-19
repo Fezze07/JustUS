@@ -40,20 +40,20 @@ BEGIN
     RAISE EXCEPTION 'fixture failed: the auth user was not provisioned';
   END IF;
 
-  INSERT INTO public.user_devices (user_id, device_token, session_id) VALUES
-    (v_user_id, 'fcm-token-live-session-0001', '00000000-0000-0000-0000-00000000a001'),
-    (v_user_id, 'fcm-token-expired-session-0002', '00000000-0000-0000-0000-00000000a002'),
-    (v_user_id, 'fcm-token-gone-session-0003', '00000000-0000-0000-0000-00000000dead'),
-    (v_user_id, 'fcm-token-null-session-0004', NULL);
+  INSERT INTO public.user_devices (user_id, installation_id, session_id) VALUES
+    (v_user_id, 'fid-live-session-0001', '00000000-0000-0000-0000-00000000a001'),
+    (v_user_id, 'fid-expired-session-0002', '00000000-0000-0000-0000-00000000a002'),
+    (v_user_id, 'fid-gone-session-0003', '00000000-0000-0000-0000-00000000dead'),
+    (v_user_id, 'fid-null-session-0004', NULL);
 
   -- Pre-flight: a fixture that failed to insert would leave every "must be
   -- gone" assertion satisfied for the wrong reason.
   SELECT count(*) INTO v_dev_count
-  FROM public.user_devices WHERE device_token IN (
-    'fcm-token-live-session-0001',
-    'fcm-token-expired-session-0002',
-    'fcm-token-gone-session-0003',
-    'fcm-token-null-session-0004'
+  FROM public.user_devices WHERE installation_id IN (
+    'fid-live-session-0001',
+    'fid-expired-session-0002',
+    'fid-gone-session-0003',
+    'fid-null-session-0004'
   );
   IF v_dev_count <> 4 THEN
     RAISE EXCEPTION 'fixture failed: expected 4 user_devices rows, found %', v_dev_count;
@@ -75,24 +75,24 @@ BEGIN
     RAISE EXCEPTION 'A failed: prune returned %, expected 2', v_pruned;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM public.user_devices WHERE device_token = 'fcm-token-live-session-0001') THEN
+  IF NOT EXISTS (SELECT 1 FROM public.user_devices WHERE installation_id = 'fid-live-session-0001') THEN
     RAISE EXCEPTION 'A failed: the live-session row was pruned';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.user_devices WHERE device_token = 'fcm-token-null-session-0004') THEN
+  IF NOT EXISTS (SELECT 1 FROM public.user_devices WHERE installation_id = 'fid-null-session-0004') THEN
     RAISE EXCEPTION 'A failed: the sessionless row was pruned';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.user_devices WHERE device_token = 'fcm-token-expired-session-0002') THEN
+  IF EXISTS (SELECT 1 FROM public.user_devices WHERE installation_id = 'fid-expired-session-0002') THEN
     RAISE EXCEPTION 'A failed: the expired-session row survived';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.user_devices WHERE device_token = 'fcm-token-gone-session-0003') THEN
+  IF EXISTS (SELECT 1 FROM public.user_devices WHERE installation_id = 'fid-gone-session-0003') THEN
     RAISE EXCEPTION 'A failed: the logged-out session row survived';
   END IF;
 
-  IF (SELECT count(*) FROM public.user_devices WHERE user_id = v_user_id AND device_token IN (
-    'fcm-token-live-session-0001',
-    'fcm-token-expired-session-0002',
-    'fcm-token-gone-session-0003',
-    'fcm-token-null-session-0004'
+  IF (SELECT count(*) FROM public.user_devices WHERE user_id = v_user_id AND installation_id IN (
+    'fid-live-session-0001',
+    'fid-expired-session-0002',
+    'fid-gone-session-0003',
+    'fid-null-session-0004'
   )) <> 2 THEN
     RAISE EXCEPTION 'A failed: unexpected number of rows survived the prune';
   END IF;

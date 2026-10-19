@@ -130,7 +130,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 #### `user_devices`
 - **SQL Source:** `supabase/schemas/public/tables/user_devices.sql`
-- **Columns:** `id` (`bigint`, PK), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `device_token` (`text` UNIQUE), `device_type`, `user_agent`, `last_ip`, `created_at`.
+- **Columns:** `id` (`bigint`, PK), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `installation_id` (`text` UNIQUE), `device_type`, `user_agent`, `last_ip`, `created_at`.
 - **RLS:** own rows only (`user_id = current_user_id()` on SELECT/INSERT/UPDATE/DELETE).
 
 #### `roles`, `permissions`, `roles_permissions`, `user_roles`

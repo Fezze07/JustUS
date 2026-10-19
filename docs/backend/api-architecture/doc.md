@@ -59,7 +59,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 2. **Node.js Express Backend API (`/api/v1`)**:
    - Used for operations requiring elevated privileges, third-party API orchestration, HMAC signing, heavy rate limiting, or atomic domain wipes.
-   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Device token registration and revocation (`/api/v1/auth/device-token`, `/api/v1/auth/device-token-revoke`, `/api/v1/auth/device-token-revoke-all`), Session binding (`/api/v1/auth/session-bind`), Account data wipe (`/api/v1/users/wipe`).
+   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Installation ID registration and revocation (`/api/v1/auth/installation-id`, `/api/v1/auth/installation-id-revoke`, `/api/v1/auth/installation-id-revoke-all`), Session binding (`/api/v1/auth/session-bind`), Account data wipe (`/api/v1/users/wipe`).
 
 ---
 
@@ -95,22 +95,22 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ### 2. Authentication & Device Endpoints
 
-#### `POST /api/v1/auth/device-token`
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token")` $\rightarrow$ `validated({ body: updateDeviceTokenSchema })`
-- **Database Behavior**: Upserts `user_devices` table with `device_token`, `user_id`, `locale`, `user_agent`, `last_ip`.
+#### `POST /api/v1/auth/installation-id`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-installation-id")` $\rightarrow$ `validated({ body: updateInstallationSchema })`
+- **Database Behavior**: Upserts `user_devices` table with `installation_id`, `user_id`, `locale`, `user_agent`, `last_ip`.
 
-#### `POST /api/v1/auth/device-token-revoke`
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token-revoke")` $\rightarrow$ `validated({ body: revokeDeviceTokenSchema })`
-- **Request Body**: `{ deviceToken }` (same 16–512 char constraint as the registration schema).
-- **Database Behavior**: Deletes the caller's own `user_devices` row — `device_token` **and** `user_id` must match, so a late logout can never remove a row another account has already re-registered on the same device. Idempotent (row already gone → `200`); a DB failure surfaces as `500 DB-WRITE-001` instead of a silent success.
-- **Flutter Consumer**: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as the first step of `logout()` while the JWT and binding secret still exist. Best-effort: bounded by a 5 s timeout, never blocks the local teardown, and a `401` does not re-enter the logout callback.
+#### `POST /api/v1/auth/installation-id-revoke`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-installation-id-revoke")` $\rightarrow$ `validated({ body: revokeInstallationSchema })`
+- **Request Body**: `{ installationId }` (same 16–512 char constraint as the registration schema).
+- **Database Behavior**: Deletes the caller's own `user_devices` row — `installation_id` **and** `user_id` must match, so a late logout can never remove a row another account has already re-registered on the same device. Idempotent (row already gone → `200`); a DB failure surfaces as `500 DB-WRITE-001` instead of a silent success.
+- **Flutter Consumer**: `AuthRepository.revokeInstallationId()` → `ApiService.revokeInstallationId()`, called by `AuthState._revokeInstallationId()` as the first step of `logout()` while the JWT and binding secret still exist. Best-effort: bounded by a 5 s timeout, never blocks the local teardown, and a `401` does not re-enter the logout callback.
 
-#### `POST /api/v1/auth/device-token-revoke-all`
-- **Controller**: `revokeOtherDeviceTokens` ([`auth.routes.js:79-89`](file:///f:/JustUS/Backend/features/auth/auth.routes.js#L79-L89), [`auth.controller.js:79-101`](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L79-L101))
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-device-token-revoke-all")` $\rightarrow$ `validated({ body: revokeDeviceTokenSchema })`
-- **Request Body**: `{ deviceToken }` (same 16–512 char constraint; here it is the token to **keep**).
-- **Database Behavior**: Deletes every `user_devices` row of the caller except the one whose `device_token` matches the body — `user_id = me AND device_token != mine` — so the password change that triggers it stops pushes to all other devices at once while the caller's own registration survives. Durable: a deleted device cannot re-register, because the registration route is `authenticated()` and its Supabase session was already revoked. A DB failure surfaces as `500 DB-WRITE-001`.
-- **Flutter Consumer**: `AuthRepository.revokeOtherDeviceTokens()` → `ApiService.revokeOtherDeviceTokens()`, called by `AuthState._revokeOtherDeviceTokens()` right after `_revokeOtherSessions()` on both password writes. Best-effort (5 s cap, `401` does not re-enter the teardown, unresolvable local token skips the call); the 30-day retention sweep is the backstop.
+#### `POST /api/v1/auth/installation-id-revoke-all`
+- **Controller**: `revokeOtherInstallationIds` ([`auth.routes.js`](file:///f:/JustUS/Backend/features/auth/auth.routes.js), [`auth.controller.js`](file:///f:/JustUS/Backend/features/auth/auth.controller.js))
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-installation-id-revoke-all")` $\rightarrow$ `validated({ body: revokeInstallationSchema })`
+- **Request Body**: `{ installationId }` (same 16–512 char constraint; here it is the installation id to **keep**).
+- **Database Behavior**: Deletes every `user_devices` row of the caller except the one whose `installation_id` matches the body — `user_id = me AND installation_id != mine` — so the password change that triggers it stops pushes to all other devices at once while the caller's own registration survives. Durable: a deleted device cannot re-register, because the registration route is `authenticated()` and its Supabase session was already revoked. A DB failure surfaces as `500 DB-WRITE-001`.
+- **Flutter Consumer**: `AuthRepository.revokeOtherInstallations()` → `ApiService.revokeOtherInstallations()`, called by `AuthState._revokeOtherInstallations()` right after `_revokeOtherSessions()` on both password writes. Best-effort (5 s cap, `401` does not re-enter the teardown, an empty local installation id skips the call); the 30-day retention sweep is the backstop.
 
 #### `POST /api/v1/auth/session-bind`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-bind")` $\rightarrow$ `validated({ body: sessionBindSchema })`
@@ -130,7 +130,7 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/notify/partner` / `POST /api/v1/notify/:type`
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `validated({ body: notifySchema })`
-- **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner FCM token from `user_devices` table and dispatches localized push notification.
+- **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
 
 ---
 

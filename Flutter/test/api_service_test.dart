@@ -147,7 +147,7 @@ void main() {
     // enough to pass: the stale token has to reach the handler and the retry
     // has to re-read the (new) session token.
     //
-    // These use `updateDeviceToken` (an *authenticated*, signed POST) rather
+    // These use `updateInstallationId` (an *authenticated*, signed POST) rather
     // than `getAppVersion`, because the latter is `skipAuth: true` and therefore
     // never carries an `Authorization` header at all.
     test('refresh success: 401 refreshes, then retries with the fresh token',
@@ -182,11 +182,11 @@ void main() {
         }
 
         return http.Response(
-            jsonEncode({'success': true, 'token': 'device-tok'}), 200);
+            jsonEncode({'success': true, 'fiden': 'device-tok'}), 200);
       });
 
-      final result = await apiService.updateDeviceToken(
-        UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+      final result = await apiService.updateInstallationId(
+        UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
       );
 
       expect(postCalls, 2, reason: 'exactly one retry, no refresh loop');
@@ -205,7 +205,7 @@ void main() {
       expect(nonces.last, isNot(nonces.first),
           reason: 'the retry must get a fresh nonce/signature pair');
 
-      expect(result, isA<Success<UpdateTokenResponse>>());
+      expect(result, isA<Success<UpdateInstallationResponse>>());
     });
 
     test('refresh failure: 401 expires the session and does NOT retry',
@@ -234,8 +234,8 @@ void main() {
         return http.Response(jsonEncode({'error': 'Unauthorized'}), 401);
       });
 
-      final result = await apiService.updateDeviceToken(
-        UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+      final result = await apiService.updateInstallationId(
+        UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
       );
 
       // No retry: a failed refresh must not turn into a 401 hammer loop.
@@ -244,8 +244,8 @@ void main() {
       expect(sessionExpiredCalls, 1,
           reason: 'the redirect-to-login callback fires exactly once');
 
-      expect(result, isA<GenericError<UpdateTokenResponse>>());
-      final err = result as GenericError<UpdateTokenResponse>;
+      expect(result, isA<GenericError<UpdateInstallationResponse>>());
+      final err = result as GenericError<UpdateInstallationResponse>;
       expect(err.code, 401);
       expect(err.message, contains('Session expired'));
     });
@@ -270,21 +270,21 @@ void main() {
         return http.Response(jsonEncode({'error': 'Unauthorized'}), 401);
       });
 
-      final result = await apiService.updateDeviceToken(
-        UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+      final result = await apiService.updateInstallationId(
+        UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
       );
 
       // `isRetry` must cap the flow at exactly two attempts.
       expect(postCalls, 2);
       // The retry-exhausted 401 is surfaced as a 401...
-      expect(result, isA<GenericError<UpdateTokenResponse>>());
-      expect((result as GenericError<UpdateTokenResponse>).code, 401);
+      expect(result, isA<GenericError<UpdateInstallationResponse>>());
+      expect((result as GenericError<UpdateInstallationResponse>).code, 401);
       // ...and must NOT also fire the redirect-to-login callback, which would
       // sign the user out for a transient server-side 401.
       expect(sessionExpiredCalls, 0);
     });
 
-    test('revokeDeviceToken: a 401 never re-enters the logout callback',
+    test('revokeInstallationId: a 401 never re-enters the logout callback',
         () async {
       await StorageService.saveRequestBindingSecret('binding-secret-xyz');
       ApiService.readAccessTokenForTest = () => 'stale-access-token';
@@ -301,7 +301,7 @@ void main() {
         return http.Response(jsonEncode({'error': 'Unauthorized'}), 401);
       });
 
-      final result = await apiService.revokeDeviceToken('fcm-token-1234567890');
+      final result = await apiService.revokeInstallationId('fid-1234567890');
 
       // `onSessionExpired` IS `AuthState.logout()`, and the revoke is issued
       // from inside logout: escalating here would re-enter the teardown.
@@ -339,15 +339,15 @@ void main() {
         );
       });
 
-      final result = await apiService.updateDeviceToken(
-        UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+      final result = await apiService.updateInstallationId(
+        UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
       );
 
       expect(postCalls, 1);
       expect(refreshAttempts, 0);
       expect(sessionExpiredCalls, 0);
-      expect(result, isA<GenericError<UpdateTokenResponse>>());
-      final err = result as GenericError<UpdateTokenResponse>;
+      expect(result, isA<GenericError<UpdateInstallationResponse>>());
+      final err = result as GenericError<UpdateInstallationResponse>;
       expect(err.code, 429);
       expect(err.message, 'Rate limited');
     });
@@ -360,13 +360,13 @@ void main() {
         when(() => mockClient.post(any(),
                 headers: any(named: 'headers'), body: any(named: 'body')))
             .thenAnswer((_) async => http.Response(
-                jsonEncode({'success': true, 'token': 'device-tok'}), 200));
+                jsonEncode({'success': true, 'fiden': 'device-tok'}), 200));
 
-        final result = await apiService.updateDeviceToken(
-          UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+        final result = await apiService.updateInstallationId(
+          UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
         );
 
-        expect(result, isA<Success<UpdateTokenResponse>>());
+        expect(result, isA<Success<UpdateInstallationResponse>>());
 
         final headers = verify(() => mockClient.post(any(),
             headers: captureAny(named: 'headers'),
@@ -395,11 +395,11 @@ void main() {
           signatures.add(headers['X-Request-Signature']);
 
           return http.Response(
-              jsonEncode({'success': true, 'token': 'device-tok'}), 200);
+              jsonEncode({'success': true, 'fiden': 'device-tok'}), 200);
         });
 
-        final result = await apiService.updateDeviceToken(
-          UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+        final result = await apiService.updateInstallationId(
+          UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
         );
 
         expect(recoveryCalls, 1);
@@ -409,12 +409,12 @@ void main() {
         expect(postCalls, 1);
         expect(signatures.single, isNotNull,
             reason: 'the recovered secret must sign the outgoing request');
-        expect(result, isA<Success<UpdateTokenResponse>>());
+        expect(result, isA<Success<UpdateInstallationResponse>>());
 
         // The recovered secret is now cached, so a second signed call must not
         // pay for another recovery round trip.
-        await apiService.updateDeviceToken(
-          UpdateTokenRequest(deviceToken: 'tok456', deviceType: 'android'),
+        await apiService.updateInstallationId(
+          UpdateInstallationRequest(installationId: 'fid456', deviceType: 'android'),
         );
         expect(postCalls, 2);
         expect(signatures.last, isNotNull);
@@ -426,8 +426,8 @@ void main() {
           () async {
         trackRecovery(() => null);
 
-        final result = await apiService.updateDeviceToken(
-          UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+        final result = await apiService.updateInstallationId(
+          UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
         );
 
         expect(recoveryCalls, 1);
@@ -437,8 +437,8 @@ void main() {
         verifyNever(
             () => mockClient.get(any(), headers: any(named: 'headers')));
 
-        expect(result, isA<GenericError<UpdateTokenResponse>>());
-        final err = result as GenericError<UpdateTokenResponse>;
+        expect(result, isA<GenericError<UpdateInstallationResponse>>());
+        final err = result as GenericError<UpdateInstallationResponse>;
         expect(err.details, isA<AppError>());
         expect((err.details as AppError).code,
             ErrorCodes.localBindingSecretMissing);
@@ -450,10 +450,10 @@ void main() {
         // Two signed calls in the same window: the 30s throttle must suppress
         // the second recovery round trip.
         for (var i = 0; i < 2; i++) {
-          final result = await apiService.updateDeviceToken(
-            UpdateTokenRequest(deviceToken: 'tok$i', deviceType: 'android'),
+          final result = await apiService.updateInstallationId(
+            UpdateInstallationRequest(installationId: 'fid$i', deviceType: 'android'),
           );
-          expect(result, isA<GenericError<UpdateTokenResponse>>());
+          expect(result, isA<GenericError<UpdateInstallationResponse>>());
         }
 
         expect(recoveryCalls, 1);
@@ -499,11 +499,11 @@ void main() {
           }
 
           return http.Response(
-              jsonEncode({'success': true, 'token': 'device-tok'}), 200);
+              jsonEncode({'success': true, 'fiden': 'device-tok'}), 200);
         });
 
-        final result = await apiService.updateDeviceToken(
-          UpdateTokenRequest(deviceToken: 'tok123', deviceType: 'android'),
+        final result = await apiService.updateInstallationId(
+          UpdateInstallationRequest(installationId: 'fid123', deviceType: 'android'),
         );
 
         expect(recoveryRuns, 1);
@@ -513,7 +513,7 @@ void main() {
         expect(signatures, hasLength(2));
         expect(signatures[1], isNot(signatures[0]),
             reason: 'the retry must be signed with the recovered secret');
-        expect(result, isA<Success<UpdateTokenResponse>>());
+        expect(result, isA<Success<UpdateInstallationResponse>>());
       });
     });
   });
@@ -532,8 +532,8 @@ void main() {
         'https://justus-dev.serverfede.eu/api/v1/auth/session-bind',
       );
       expect(
-        ApiConfig.apiUri(ApiRoutes.authDeviceToken).toString(),
-        'https://justus-dev.serverfede.eu/api/v1/auth/device-token',
+        ApiConfig.apiUri(ApiRoutes.authInstallationId).toString(),
+        'https://justus-dev.serverfede.eu/api/v1/auth/installation-id',
       );
       expect(
         ApiConfig.apiUri(ApiRoutes.appVersion).toString(),

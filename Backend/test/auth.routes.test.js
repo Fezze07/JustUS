@@ -207,7 +207,7 @@ describe("auth routes", () => {
     expect(blocked.body.error.code).toBe("SEC-BLOCK-002");
   });
 
-  test("registers the device token with the caller's session id", async () => {
+  test("registers the installation id with the caller's session id", async () => {
     const userDevicesQuery = createQueryBuilder();
 
     adminSupabase.from.mockImplementation((table) => {
@@ -219,9 +219,9 @@ describe("auth routes", () => {
 
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/device-token")
+      .post("/api/v1/auth/installation-id")
       .send({
-        deviceToken: "fcm-token-that-is-long-enough",
+        installationId: "fid-that-is-long-enough-0001",
         locale: "it",
       });
 
@@ -230,29 +230,28 @@ describe("auth routes", () => {
     expect(userDevicesQuery.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: 42,
-        device_token: "fcm-token-that-is-long-enough",
+        installation_id: "fid-that-is-long-enough-0001",
         session_id: "session-1",
         locale: "it",
       }),
-      { onConflict: "device_token" }
+      { onConflict: "installation_id" }
     );
   });
 
-  test("rejects the shared placeholder device token", async () => {
+  test("rejects an empty installation id", async () => {
     const app = createApp();
 
     const response = await request(app)
-      .post("/api/v1/auth/device-token")
-      .send({ deviceToken: "UNKNOWN_DEVICE_TOKEN" });
+      .post("/api/v1/auth/installation-id")
+      .send({ installationId: "" });
 
-    // The placeholder is 20 chars, so it clears min(16); only the explicit
-    // sentinel refinement rejects it. Accepting it would collide on the
-    // globally-unique device_token column across unrelated accounts.
+    // Clients without FCM send an empty string; min(16) rejects it so the
+    // globally-unique installation_id column never gets a shared row.
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("API-VALIDATION-001");
   });
 
-  test("revokes only the caller's own device token row", async () => {
+  test("revokes only the caller's own installation id row", async () => {
     const userDevicesQuery = createQueryBuilder();
 
     adminSupabase.from.mockImplementation((table) => {
@@ -264,22 +263,22 @@ describe("auth routes", () => {
 
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke")
-      .send({ deviceToken: "fcm-token-that-is-long-enough" });
+      .post("/api/v1/auth/installation-id-revoke")
+      .send({ installationId: "fid-that-is-long-enough-0001" });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(userDevicesQuery.delete).toHaveBeenCalledWith();
-    // Scoping by user_id matters: device_token is UNIQUE, so a stale client
+    // Scoping by user_id matters: installation_id is UNIQUE, so a stale client
     // could otherwise delete the row a second account just registered.
     expect(userDevicesQuery.eq).toHaveBeenCalledWith(
-      "device_token",
-      "fcm-token-that-is-long-enough",
+      "installation_id",
+      "fid-that-is-long-enough-0001",
     );
     expect(userDevicesQuery.eq).toHaveBeenCalledWith("user_id", 42);
   });
 
-  test("reports a failed device token revoke instead of swallowing it", async () => {
+  test("reports a failed installation id revoke instead of swallowing it", async () => {
     const failingBuilder = {
       delete: jest.fn(() => failingBuilder),
       eq: jest.fn(() => failingBuilder),
@@ -296,27 +295,27 @@ describe("auth routes", () => {
 
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke")
-      .send({ deviceToken: "fcm-token-that-is-long-enough" });
+      .post("/api/v1/auth/installation-id-revoke")
+      .send({ installationId: "fid-that-is-long-enough-0001" });
 
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe("DB-WRITE-001");
   });
 
-  test("rejects a malformed device token revoke payload", async () => {
+  test("rejects a malformed installation id revoke payload", async () => {
     const app = createApp();
 
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke")
-      .send({ deviceToken: "too-short" });
+      .post("/api/v1/auth/installation-id-revoke")
+      .send({ installationId: "too-short" });
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("API-VALIDATION-001");
   });
 
-  test("revoke-all keeps only the caller's own device token row", async () => {
+  test("revoke-all keeps only the caller's own installation id row", async () => {
     const userDevicesQuery = createQueryBuilder();
-    const keepToken = "fcm-token-kept-by-the-caller-0123456789";
+    const keepInstallationId = "fid-kept-by-the-caller-0001";
 
     adminSupabase.from.mockImplementation((table) => {
       if (table === "user_devices") {
@@ -327,8 +326,8 @@ describe("auth routes", () => {
 
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke-all")
-      .send({ deviceToken: keepToken });
+      .post("/api/v1/auth/installation-id-revoke-all")
+      .send({ installationId: keepInstallationId });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
@@ -336,7 +335,7 @@ describe("auth routes", () => {
     // Every other row dies with the revoked sessions, but the caller's own
     // registration must survive so its push delivery is not interrupted.
     expect(userDevicesQuery.eq).toHaveBeenCalledWith("user_id", 42);
-    expect(userDevicesQuery.neq).toHaveBeenCalledWith("device_token", keepToken);
+    expect(userDevicesQuery.neq).toHaveBeenCalledWith("installation_id", keepInstallationId);
   });
 
   test("reports a failed revoke-all instead of swallowing it", async () => {
@@ -357,8 +356,8 @@ describe("auth routes", () => {
 
     const app = createApp();
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke-all")
-      .send({ deviceToken: "fcm-token-that-is-long-enough" });
+      .post("/api/v1/auth/installation-id-revoke-all")
+      .send({ installationId: "fid-that-is-long-enough-0001" });
 
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe("DB-WRITE-001");
@@ -368,8 +367,8 @@ describe("auth routes", () => {
     const app = createApp();
 
     const response = await request(app)
-      .post("/api/v1/auth/device-token-revoke-all")
-      .send({ deviceToken: "too-short" });
+      .post("/api/v1/auth/installation-id-revoke-all")
+      .send({ installationId: "too-short" });
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("API-VALIDATION-001");

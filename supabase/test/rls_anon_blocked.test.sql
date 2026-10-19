@@ -85,8 +85,8 @@ INSERT INTO public.favorites (user_id, item_id) VALUES
 INSERT INTO public.drive_item_reactions (user_id, item_id) VALUES
   (9001, 9001);
 
-INSERT INTO public.user_devices (user_id, device_token, device_type) VALUES
-  (9001, 'anon-sweep-device-token', 'mobile');
+INSERT INTO public.user_devices (user_id, installation_id, device_type) VALUES
+  (9001, 'anon-sweep-installation-id', 'mobile');
 
 -- user_roles references roles, so it can only be seeded now that the roles
 -- catalog row exists.
@@ -179,7 +179,7 @@ BEGIN
       ('public.moods',                 NULL),
       ('public.favorites',             NULL),
       ('public.drive_item_reactions',  NULL),
-      ('public.user_devices',          'anon-sweep-device-token'),
+      ('public.user_devices',          'anon-sweep-installation-id'),
       ('public.user_roles',            NULL),
       ('public.logs_notifications',    'anon-sweep')
     ) AS t(tbl, marker)

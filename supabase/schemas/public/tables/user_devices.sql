@@ -5,11 +5,11 @@ CREATE TABLE "public"."user_devices" (
   "device_type"  text,
   "last_ip"      text,
   "created_at"   timestamp with time zone DEFAULT now(),
-  "device_token" text,
+  "installation_id" text,
   "updated_at"   timestamp with time zone DEFAULT now(),
   "locale"       text,
   "session_id"   uuid,
-  CONSTRAINT "user_devices_device_token_key" UNIQUE (device_token),
+  CONSTRAINT "user_devices_installation_id_key" UNIQUE (installation_id),
   CONSTRAINT "user_devices_pkey" PRIMARY KEY (id),
   CONSTRAINT "user_devices_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );

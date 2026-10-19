@@ -14,7 +14,7 @@ State management is `provider` + `ChangeNotifier`. All feature states extend `Ba
 The app uses two trust paths:
 
 1. **Flutter -> Supabase (direct)** for RLS-safe data operations (moods, missyou, bucket list, game answers, drive dashboard via views, partnership RPCs). Configured in `lib/core/network/supabase_service.dart`, called through `BaseRepository.sbClient`.
-2. **Flutter -> Node/Express backend (`/api/v1`)** for privileged operations that are abusable/billable: Cloudflare R2 media presign/complete/delete, FCM device-token registration, session binding sync, invite, login-risk check, refresh proxy, user wipe. Driven by `lib/core/network/api_service.dart` (HMAC-signed, nonce-protected, JWT-authenticated).
+2. **Flutter -> Node/Express backend (`/api/v1`)** for privileged operations that are abusable/billable: Cloudflare R2 media presign/complete/delete, FCM installation-id registration, session binding sync, invite, login-risk check, refresh proxy, user wipe. Driven by `lib/core/network/api_service.dart` (HMAC-signed, nonce-protected, JWT-authenticated).
 
 The Flutter app is NOT responsible for the database schema; it relies on hosted Supabase objects (`v_active_partnership`, `v_drive_dashboard`, RPCs `request_partnership`/`accept_partnership`/`send_missyou`/`set_mood`, etc.) that are documented in `.agents/skills/` but are not versioned in the repo.
 
@@ -90,7 +90,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 ### What blocks navigation
 
 - `AuthState.init()` and `PartnerState.fetchPartnership()` are awaited by the splash; navigation cannot happen until both complete (the `init()` await is capped at 8 s).
-- Inside `init()`, several **backend network calls are awaited**: session bind (`/auth/session-bind` -> binding secret) and FCM device-token registration. Their failures are **caught and only logged** - they do not block navigation. If the session bind fails, no binding secret is saved; the next signed request (device-token, media) triggers `ApiService` to re-run it (`onMissingBindingSecret` -> `AuthState._syncBackendSession`) before giving up. If recovery still fails, the request fails closed with a typed `AppError` (`LOCAL-BINDING-001`) surfaced through `ErrorHandler` - it is never sent unsigned.
+- Inside `init()`, several **backend network calls are awaited**: session bind (`/auth/session-bind` -> binding secret) and FCM installation-id registration. Their failures are **caught and only logged** - they do not block navigation. If the session bind fails, no binding secret is saved; the next signed request (installation-id, media) triggers `ApiService` to re-run it (`onMissingBindingSecret` -> `AuthState._syncBackendSession`) before giving up. If recovery still fails, the request fails closed with a typed `AppError` (`LOCAL-BINDING-001`) surfaced through `ErrorHandler` - it is never sent unsigned.
 - A session bind that *did* reach the backend but whose response was lost (the 8 s splash cap or the 10 s `ApiService` cap fired first) leaves the client holding the **previous** secret while the backend has already rotated it. The next signed call is rejected with `SEC-AUTH-002`; `ApiService._safeCall` treats that as a stale binding (not an expired token), re-runs the session bind and retries the call **once** with the new secret. A stale-secret state therefore self-heals instead of failing until the next cold start.
 - `PartnerState.fetchPartnership()` uses `runSafe()` (`showLoading: true`); a network failure is routed through `ErrorHandler` (snackbar/dialog) and leaves `partner == null`, so the splash navigates to `PartnerScreen` even when a partnership actually exists in the DB.
 
@@ -134,7 +134,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 ### State-scoped observations
 
-- `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> device-token registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
+- `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> installation-id registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
 - `AuthState.register()` performs only signup; it **does not** set login data even when Supabase auto-confirms (so no session bootstrap happens on register).
 - `PartnerState` re-fetches partnership on realtime events.
 - `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and coalesces concurrent loads: a caller that arrives while another load is in flight awaits that same load (cache read + network fetch run once), and a forced caller chains a fresh load after it — no caller is left with empty state.
@@ -156,7 +156,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 Every feature exposes `*Repository extends BaseRepository`:
 
-- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherDeviceTokens` (`POST /auth/device-token-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateDeviceToken` (backend, signed).
+- `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherInstallations` (`POST /auth/installation-id-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateInstallationId` (backend, signed).
 - `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `GameQuestionBankRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase tables/views/RPCs); `DriveRepository`, `UserRepository` and `VersionRepository` also make signed backend calls for media, notifications and version checks where needed.
 
@@ -168,7 +168,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - `RealtimeSyncService` - see Realtime Initialization.
 - `StorageService`, `CacheService` - see Storage & Caching.
 - `CaptchaService` - `getCaptchaToken()` runs the Cloudflare Turnstile widget in **Managed** mode inside a non-dismissible `AlertDialog` using `ErrorHandler.navigatorKey.currentContext` as the host context. Normal users pass automatically; an interactive challenge appears only for suspicious traffic. Throws `AppError(apiValidation001)` if `TURNSTILE_PUB_SITE_KEY` missing.
-- `DeviceTokenService` - `supportsFcm` = Android/iOS/Web; desktop fallback = persistent UUID fingerprint. `getDeviceToken()` returns `'UNKNOWN_DEVICE_TOKEN'` if unavailable.
+- `InstallationIdService` - `supportsFcm` = Android/iOS/Web; desktop fallback = persistent UUID fingerprint. `getInstallationId()` returns an empty string when unavailable, and callers skip registration.
 - `UpdateService` - version check + force-update dialog.
 - `MediaService`/`CompressionService`/`MediaCacheManager` - upload pipeline and R2 media caching (not part of bootstrap, used on demand).
 
@@ -182,7 +182,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - **Headers**: `Authorization: Bearer <supabase access token>` (from `Supabase.instance.client.auth.currentSession`), `X-Device-Fingerprint` (cached static within the process after first read), `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
 - **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the secret is unavailable for a `requireSignature: true` authenticated call, it first attempts recovery by invoking `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`, deduplicated in-flight + 30s cooldown); if recovery fails it throws a typed `AppError(code: 'LOCAL-BINDING-001')`, which `_safeCall` returns as `GenericError(details: AppError)` so `ErrorHandler` shows a retry-able message. Unsigned endpoints still carry a fresh timestamp + nonce (required by `freshNonce` routes) but never a signature when the secret is absent.
 - **Stale-secret recovery** (`_isRejectedSignature`): a 401 whose body code is `SEC-AUTH-002` means the backend rotated the secret while the client kept the old one (the backend verifies the JWT *before* the signature, so the token is known good). `_safeCall` then re-runs the same recovery and retries once when the secret actually changed, instead of spending a token refresh on an unexpired token.
-- **Response handling** (`_safeCall`): default timeout 10s; 2xx -> decode via `compute()` isolate; 401 -> records the token used for the request, then `_tryRefreshToken(staleToken)` calls the Supabase SDK's `auth.refreshSession()` (the single refresh path; gotrue dedupes concurrent refreshes by refresh token). If the live session already holds a different token the refresh is skipped; otherwise the SDK session is refreshed and the `tokenRefreshed` listener syncs `AuthState`, then the original request is retried once. Refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`; the synthetic `"401"` code is in `ErrorCodes.requiresReauth`, so `ErrorHandler` opens the reauth dialog and redirects to `/login` (todo# 1.3). Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`. A call issued *from* the teardown passes `notifySessionExpired: false` so a 401 cannot re-enter `logout()` — currently only `revokeDeviceToken`.
+- **Response handling** (`_safeCall`): default timeout 10s; 2xx -> decode via `compute()` isolate; 401 -> records the token used for the request, then `_tryRefreshToken(staleToken)` calls the Supabase SDK's `auth.refreshSession()` (the single refresh path; gotrue dedupes concurrent refreshes by refresh token). If the live session already holds a different token the refresh is skipped; otherwise the SDK session is refreshed and the `tokenRefreshed` listener syncs `AuthState`, then the original request is retried once. Refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`; the synthetic `"401"` code is in `ErrorCodes.requiresReauth`, so `ErrorHandler` opens the reauth dialog and redirects to `/login` (todo# 1.3). Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`. A call issued *from* the teardown passes `notifySessionExpired: false` so a 401 cannot re-enter `logout()` — currently only `revokeInstallationId`.
 - **Static mutable state**: `ApiService.onSessionExpired`, `ApiService.onMissingBindingSecret`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret`, `_bindingSecretRecovery`, `_lastBindingSecretSyncAttempt`.
 - `resolveProtectedMediaUrl(url)` rewrites raw R2 object keys into `GET /api/v1/media/file?filename=...` URLs (used by avatar widgets).
 - `authHeaders` static getter - used by `ProtectedNetworkImage` for authenticated image downloads.
@@ -338,7 +338,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
   - Static cached `appLoc` for non-widget code (e.g. background notifications); `setAppLocale`, `initFromSystemLocale`.
 - `LanguageProvider.loadSavedLocale()` runs **before `runApp`** - the correct locale is applied from the first frame. `setLocale` persists to `SharedPreferences`.
 - The `MaterialApp` is rebuilt via `Selector2<LanguageProvider, ThemeProvider, _AppThemeData>`; equality on `_AppThemeData` limits rebuilds to actual locale/theme changes.
-- Runtime locale changes also propagate to the backend device token at every app resume (`AuthState.didChangeAppLifecycleState` -> debounced `_syncDeviceLocale`, only when FCM is supported).
+- Runtime locale changes also propagate to the backend installation id at every app resume (`AuthState.didChangeAppLifecycleState` -> debounced `_syncDeviceLocale`, only when FCM is supported).
 
 ---
 
@@ -356,14 +356,14 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 `AuthState.init()` (`lib/features/auth/auth_state.dart`):
 
 1. Sets `ApiService.onSessionExpired` -> forced `logout()`. (Global mutable callback, overwritten on every call.)
-2. Cancels prior `_authSubscription`/`_tokenRefreshSubscription` (makes init re-runnable).
+2. Cancels prior `_authSubscription`/`_installationIdSubscription` (makes init re-runnable).
 3. **Parallel** secure-storage reads via `Future.wait`: access token, refresh token, username, user id, partner id, partner display name, partnership id.
 4. Supabase session check:
    - No session + local access token -> `logout()` (clears cache).
    - Session present + username missing -> `fetchProfileByAuthId` + `setLoginData`.
 5. `_syncBackendSession()`: POST `/auth/session-bind` with the device fingerprint; stores the returned binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request whose secret is missing - or was rejected as stale (`SEC-AUTH-002`) - re-runs it on demand.
-6. If logged in + FCM: `updateDeviceToken(token, locale)` (backed by `AuthRepository.updateDeviceToken`, which is signed). Failures logged only.
-7. Subscribes to `auth.onAuthStateChange` (`tokenRefreshed` -> persist tokens) and `DeviceTokenService.onTokenRefresh` (re-register device token).
+6. If logged in + FCM: `updateInstallationId(installationId, locale)` (backed by `AuthRepository.updateInstallationId`, which is signed). Failures logged only.
+7. Subscribes to `auth.onAuthStateChange` (`tokenRefreshed` -> persist tokens) and `InstallationIdService.onRegistered` (re-register installation id).
 8. Registers `this` as `WidgetsBindingObserver` -> resumed -> debounced locale sync; `didChangeLocales` -> locale sync.
 9. Calls `notifyListeners()`.
 
@@ -402,7 +402,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 Three components register as `WidgetsBindingObserver`:
 
 1. **AuthState** (`lib/features/auth/auth_state.dart`):
-   - `didChangeAppLifecycleState(resumed)` -> debounce 500ms -> `_syncDeviceLocale()` (updates the `locale` field in the backend device token if changed; FCM-supported platforms only).
+   - `didChangeAppLifecycleState(resumed)` -> debounce 500ms -> `_syncDeviceLocale()` (updates the `locale` field in the backend installation id if changed; FCM-supported platforms only).
    - `didChangeLocales(locales)` -> `_syncDeviceLocale(locales.first)` (immediate, no debounce).
    - Cleanup: `dispose()` removes observer and cancels locale-sync debounce timer.
 
@@ -463,7 +463,7 @@ Three components register as `WidgetsBindingObserver`:
 
 **Evidence**: `AuthState` maintains its own `_accessToken` (auth_state.dart:41) but `ApiService._getHeaders()` reads the token from `Supabase.instance.client.auth.currentSession?.accessToken` (api_service.dart:58). `AuthState.isLoggedIn` checks `_accessToken != null` (auth_state.dart:70).
 
-**What**: `AuthState.logout()` first revokes the device push token (network, best-effort), then calls `_authRepo.signOut()` (which clears the Supabase session), and only afterwards clears `_accessToken` and `StorageService`. But `ApiService._safeCall` reads from `Supabase.instance.client.auth.currentSession` directly - if the Supabase session is cleared asynchronously, a brief window exists where `ApiService` sees a stale session while `AuthState` thinks it is logged out.
+**What**: `AuthState.logout()` first revokes the installation id (network, best-effort), then calls `_authRepo.signOut()` (which clears the Supabase session), and only afterwards clears `_accessToken` and `StorageService`. But `ApiService._safeCall` reads from `Supabase.instance.client.auth.currentSession` directly - if the Supabase session is cleared asynchronously, a brief window exists where `ApiService` sees a stale session while `AuthState` thinks it is logged out.
 
 **Impact**: Edge case: after logout, a concurrent in-flight API request may still succeed with the old Supabase token before it is revoked.
 

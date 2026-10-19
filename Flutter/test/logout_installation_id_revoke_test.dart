@@ -10,12 +10,13 @@ import 'test_helpers/mock_secure_storage.dart';
 /// Regression tests for 9.2: logout must drop the push registration for this
 /// device, and it must do so without ever blocking or failing the teardown —
 /// an offline device still has to end up logged out.
-const String kTestFcmToken = 'fcm-token-used-by-the-logout-tests-0123456789';
+const String kTestInstallationId =
+    'fid-used-by-the-logout-tests-0123456789';
 
 class _RecordingAuthRepository extends AuthRepository {
   _RecordingAuthRepository({this.onRevoke});
 
-  final Future<void> Function(String deviceToken)? onRevoke;
+  final Future<void> Function(String installationId)? onRevoke;
   final List<String> calls = [];
 
   @override
@@ -24,12 +25,12 @@ class _RecordingAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<ResultWrapper<Map<String, dynamic>>> revokeDeviceToken(
-      String deviceToken) async {
-    calls.add('revoke:$deviceToken');
+  Future<ResultWrapper<Map<String, dynamic>>> revokeInstallationId(
+      String installationId) async {
+    calls.add('revoke:$installationId');
 
     final hook = onRevoke;
-    if (hook != null) await hook(deviceToken);
+    if (hook != null) await hook(installationId);
 
     return const Success(<String, dynamic>{'success': true});
   }
@@ -49,14 +50,14 @@ void main() {
     installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
-    DeviceTokenService.tokenOverride = () async => kTestFcmToken;
+    InstallationIdService.installationIdOverride = () async => kTestInstallationId;
   });
 
   tearDown(() {
-    DeviceTokenService.tokenOverride = null;
+    InstallationIdService.installationIdOverride = null;
   });
 
-  test('logout revokes the device token before signing out', () async {
+  test('logout revokes the installation id before signing out', () async {
     final repo = _RecordingAuthRepository();
     final auth = AuthState(authRepo: repo);
     await _login(auth);
@@ -68,7 +69,7 @@ void main() {
 
     // The revoke must run while the JWT and the binding secret still exist:
     // it is issued before `signOut()`, not after.
-    expect(repo.calls, ['revoke:$kTestFcmToken', 'signOut']);
+    expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
     expect(auth.isLoggedIn, isFalse);
     expect(await StorageService.getAccessToken(), isNull);
   });
@@ -82,7 +83,7 @@ void main() {
 
     await auth.logout();
 
-    expect(repo.calls, ['revoke:$kTestFcmToken', 'signOut']);
+    expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
     expect(auth.isLoggedIn, isFalse);
     expect(await StorageService.getUserId(), isNull);
   });
@@ -101,12 +102,12 @@ void main() {
     // is what fails the test.
     await auth.logout().timeout(const Duration(seconds: 10));
 
-    expect(repo.calls, ['revoke:$kTestFcmToken', 'signOut']);
+    expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
     expect(auth.isLoggedIn, isFalse);
   });
 
-  test('logout skips the revoke when no token could be resolved', () async {
-    DeviceTokenService.tokenOverride = () async => 'UNKNOWN_DEVICE_TOKEN';
+  test('logout skips the revoke when no installation id could be resolved', () async {
+    InstallationIdService.installationIdOverride = () async => '';
     final repo = _RecordingAuthRepository();
     final auth = AuthState(authRepo: repo);
     await _login(auth);

@@ -9,11 +9,11 @@ class ApiRoutes {
 
   static const String authCallbackPath = '/auth/callback';
   static const String inviteCallbackPath = '/auth/invite-callback';
-  static const String authDeviceToken = '$apiPrefix/auth/device-token';
-  static const String authDeviceTokenRevoke =
-      '$apiPrefix/auth/device-token-revoke';
-  static const String authDeviceTokenRevokeAll =
-      '$apiPrefix/auth/device-token-revoke-all';
+  static const String authInstallationId = '$apiPrefix/auth/installation-id';
+  static const String authInstallationIdRevoke =
+      '$apiPrefix/auth/installation-id-revoke';
+  static const String authInstallationIdRevokeAll =
+      '$apiPrefix/auth/installation-id-revoke-all';
   static const String authInvite = '$apiPrefix/auth/invite';
   static const String authInviteUser = '$apiPrefix/auth/invite-user';
   static const String authLoginRiskCheck = '$apiPrefix/auth/login-risk-check';

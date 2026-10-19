@@ -466,43 +466,43 @@ class ApiService {
   }
 
   // -------------------- Auth --------------------
-  Future<ResultWrapper<UpdateTokenResponse>> updateDeviceToken(
-      UpdateTokenRequest body) async {
+  Future<ResultWrapper<UpdateInstallationResponse>> updateInstallationId(
+      UpdateInstallationRequest body) async {
     return _post(
-      ApiRoutes.authDeviceToken,
+      ApiRoutes.authInstallationId,
       body: body.toJson(),
       requireSignature: true,
-      fromJson: UpdateTokenResponse.fromJson,
-      label: 'Update Device Token',
+      fromJson: UpdateInstallationResponse.fromJson,
+      label: 'Update Installation Id',
     );
   }
 
-  /// Drops the push registration for [deviceToken] so the backend stops
+  /// Drops the push registration for [installationId] so the backend stops
   /// targeting this device. Called from the logout path, therefore a 401 must
   /// not re-enter `onSessionExpired` (that callback *is* the logout).
-  Future<ResultWrapper<Map<String, dynamic>>> revokeDeviceToken(
-      String deviceToken) async {
+  Future<ResultWrapper<Map<String, dynamic>>> revokeInstallationId(
+      String installationId) async {
     return _post(
-      ApiRoutes.authDeviceTokenRevoke,
-      body: {'deviceToken': deviceToken},
+      ApiRoutes.authInstallationIdRevoke,
+      body: {'installationId': installationId},
       requireSignature: true,
       notifySessionExpired: false,
-      label: 'Revoke Device Token',
+      label: 'Revoke Installation Id',
     );
   }
 
   /// Deletes every `user_devices` row of this account except the caller's own,
   /// so the push registrations die with the sessions a password change revokes.
-  /// Best-effort like [revokeDeviceToken]: a failure must never affect the
+  /// Best-effort like [revokeInstallationId]: a failure must never affect the
   /// password change it follows, and a 401 must not re-enter the teardown.
-  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherDeviceTokens(
-      String keepDeviceToken) async {
+  Future<ResultWrapper<Map<String, dynamic>>> revokeOtherInstallations(
+      String keepInstallationId) async {
     return _post(
-      ApiRoutes.authDeviceTokenRevokeAll,
-      body: {'deviceToken': keepDeviceToken},
+      ApiRoutes.authInstallationIdRevokeAll,
+      body: {'installationId': keepInstallationId},
       requireSignature: true,
       notifySessionExpired: false,
-      label: 'Revoke Other Device Tokens',
+      label: 'Revoke Other Installations',
     );
   }
 

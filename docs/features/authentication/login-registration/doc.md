@@ -131,7 +131,7 @@ Flutter UI (LoginScreen)
    │        ├── Generates bindingSecret & tracks auth_sessions
    │        └── Clears failed login counters on backend (clearFailedLogins)
    │
-   ├── 9. FCM Device Token Registration (Backend POST /api/v1/auth/device-token)
+   ├── 9. FCM Installation ID Registration (Backend POST /api/v1/auth/installation-id)
    │
    ├── 10. Partnership Resolution (PartnershipRepository.getPartnership)
    │
@@ -186,7 +186,7 @@ Flutter UI (LoginScreen)
    - Flutter stores `bindingSecret` in `StorageService` for signing subsequent API requests.
 
 8. **FCM Device Token & Partnership Lookup**
-   - Registers FCM token via `POST /api/v1/auth/device-token`.
+   - Registers Firebase Installation ID (FID) via `POST /api/v1/auth/installation-id`.
    - Calls `_partnershipRepo.getPartnership()` querying view `v_active_partnership`.
 
 9. **Navigation Routing**
@@ -355,7 +355,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 - [validators.dart](file:///f:/JustUS/Flutter/lib/shared/utils/ui/validators.dart): Client input validation regex methods `validateEmail()`, `validatePassword()`, `validateRequired()`.
 
 ### Backend Node.js
-- [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js): Express routes for `/login-risk-check`, `/login-attempt`, `/session-bind`, `/device-token`.
+- [auth.routes.js](file:///f:/JustUS/Backend/features/auth/auth.routes.js): Express routes for `/login-risk-check`, `/login-attempt`, `/session-bind`, `/installation-id`.
 - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): Route handlers `checkLoginRiskController`, `registerFailedLoginController`, `syncSessionController`.
 - [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js): In-memory risk engine `checkLoginRisk()`, `recordFailedLogin()`, `clearFailedLogins()`.
 
@@ -378,6 +378,6 @@ During the reverse-engineering analysis, the following structural bugs, security
 | Login Risk Pre-Check | **IMPLEMENTED** | `checkLoginRiskController` & `/login-risk-check` |
 | Progressive Strike Engine | **IMPLEMENTED** | `AuthState._reportFailedLogin` → `POST /login-attempt` on every credential failure; counters are per-process (see Known Issues) |
 | Backend Session Sync & Binding | **IMPLEMENTED** | `syncSessionController` & `auth_sessions` |
-| FCM Device Token Registration | **IMPLEMENTED** | `updateDeviceToken` |
+| FCM Installation ID Registration | **IMPLEMENTED** | `updateInstallationId` |
 | Post-Login Navigation Routing | **IMPLEMENTED** | Routes to `MainShell` if partnered, else `PartnerScreen` |
 | Forgot Password Flow | **IMPLEMENTED** | `AuthState.resetPassword(email)` via `Supabase.client.auth.resetPasswordForEmail` |

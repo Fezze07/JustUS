@@ -14,8 +14,8 @@ const {
   wrapRpc,
 } = require("../../all_imports");
 
-const updateDeviceToken = asyncHandler(async (req, res) => {
-  const { deviceToken, locale } = req.body;
+const updateInstallationId = asyncHandler(async (req, res) => {
+  const { installationId, locale } = req.body;
   const userId = req.user.profileId;
   const clientUserAgent =
     req.get("x-client-user-agent") || req.get("user-agent") || null;
@@ -39,14 +39,14 @@ const updateDeviceToken = asyncHandler(async (req, res) => {
     await adminSupabase.from("user_devices").upsert(
       {
         user_id: userId,
-        device_token: deviceToken,
+        installation_id: installationId,
         user_agent: clientUserAgent,
         device_type: deviceType,
         last_ip: lastIp,
         session_id: req.auth?.claims?.session_id ?? null,
         ...(locale && { locale }),
       },
-      { onConflict: "device_token" }
+      { onConflict: "installation_id" }
     ),
     "DB_WRITE_001"
   );
@@ -54,22 +54,22 @@ const updateDeviceToken = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-const revokeDeviceToken = asyncHandler(async (req, res) => {
-  const { deviceToken } = req.body;
+const revokeInstallationId = asyncHandler(async (req, res) => {
+  const { installationId } = req.body;
   const userId = req.user.profileId;
 
-  // Scoped to the caller: `device_token` is UNIQUE, so an unscoped delete could
-  // remove a row another account has already re-registered on this device.
+  // Scoped to the caller: `installation_id` is UNIQUE, so an unscoped delete
+  // could remove a row another account has already re-registered on this device.
   const { error: deleteError } = await adminSupabase
     .from("user_devices")
     .delete()
-    .eq("device_token", deviceToken)
+    .eq("installation_id", installationId)
     .eq("user_id", userId);
 
   if (deleteError) {
     throw new AppError({
       errorKey: "DB_WRITE_001",
-      message: "Failed to revoke device token",
+      message: "Failed to revoke installation id",
       details: deleteError,
     });
   }
@@ -77,20 +77,20 @@ const revokeDeviceToken = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-const revokeOtherDeviceTokens = asyncHandler(async (req, res) => {
-  const { deviceToken } = req.body;
+const revokeOtherInstallationIds = asyncHandler(async (req, res) => {
+  const { installationId } = req.body;
   const userId = req.user.profileId;
 
   const { error: deleteError } = await adminSupabase
     .from("user_devices")
     .delete()
     .eq("user_id", userId)
-    .neq("device_token", deviceToken);
+    .neq("installation_id", installationId);
 
   if (deleteError) {
     throw new AppError({
       errorKey: "DB_WRITE_001",
-      message: "Failed to revoke other device tokens",
+      message: "Failed to revoke other installation ids",
       details: deleteError,
     });
   }
@@ -252,9 +252,9 @@ const inviteUserController = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  updateDeviceToken,
-  revokeDeviceToken,
-  revokeOtherDeviceTokens,
+  updateInstallationId,
+  revokeInstallationId,
+  revokeOtherInstallationIds,
   checkLoginRiskController,
   registerFailedLoginController,
   bindSessionController,

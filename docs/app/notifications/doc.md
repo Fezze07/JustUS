@@ -2,7 +2,7 @@
 
 ## Overview
 
-JustUS delivers partner-to-partner push notifications using **Firebase Cloud Messaging (FCM)** for delivery tokens plus the **Firebase Admin SDK** on the backend to multicast messages, with **flutter_local_notifications** for custom foreground rendering and stable notification IDs on Android/iOS.
+JustUS delivers partner-to-partner push notifications using **Firebase Cloud Messaging (FCM)** for delivery via Firebase Installation IDs (FIDs) plus the **Firebase Admin SDK** on the backend to multicast messages, with **flutter_local_notifications** for custom foreground rendering and stable notification IDs on Android/iOS.
 
 The system operates in three OS presentation modes:
 
@@ -33,13 +33,13 @@ Feature action (Supabase mutation succeeds)
                                 └─ resolveNotificationTarget → get_accepted_partner(senderId)  service:378-403
                                       └─ sendNotificationToUser(receiverId, type, key, params)  service:241-355
                                             ├─ fetchUserDevices → isDeliverableDevice filter   service:200-211,40-46
-                                            ├─ group tokens by device.locale ('en' default)    service:258-266
-                                            ├─ per-locale batch ≤ 500 tokens                   service:276
+                                            ├─ group fids by device.locale ('en' default)      service:258-266
+                                            ├─ per-locale batch ≤ 500 fids                     service:276
                                             │     └─ sendMulticastNotification(buildFcmMessage)  fcm-key.js
                                             │           - localizes title/body (LOCALIZATIONS) service:152-198
                                             │           - android: priority high, apns: priority 10
                                             │           - retry up to 3x (500ms * attempt)      service:283-299
-                                            └─ deleteInvalidTokens(userId, post-delivery)      service:213-227,318
+                                            └─ deleteInvalidInstallations(userId, post-delivery)  service:213-227,318
                                                   └─ logs_notifications + notification.delivery_summary
 Receiver device (FCM delivery):
   ├─ Foreground (Android/iOS): onMessage → showRemoteMessage
@@ -53,18 +53,18 @@ Receiver device (FCM delivery):
 
 ## Platform Support
 
-| Platform | FCM token source | `device_type` stored | Foreground rendering | Background/killed rendering | Push functional? |
+| Platform | FID source | `device_type` stored | Foreground rendering | Background/killed rendering | Push functional? |
 |---|---|---|---|---|---|
-| Android | `FirebaseMessaging.getToken()` | `android` | ✅ `flutter_local_notifications` on channel `justus_channel` | ✅ OS system tray (`default_notification_channel_id=justus_channel`) | **Yes** |
-| iOS | `FirebaseMessaging.getToken()` | `ios` | ✅ `flutter_local_notifications` (Darwin) — double-presentation risk (F-PN1) | ✅ OS system tray | **Yes** (minor issues) |
-| Web | `FirebaseMessaging.getToken()` | `web` | ❌ early return on `kIsWeb` (`notification_service.dart:146`) | ❌ no service worker | **No** (F-PN2) |
+| Android | `FirebaseMessaging.instance.register()` → `onRegistered` | `android` | ✅ `flutter_local_notifications` on channel `justus_channel` | ✅ OS system tray (`default_notification_channel_id=justus_channel`) | **Yes** |
+| iOS | `FirebaseMessaging.instance.register()` → `onRegistered` | `ios` | ✅ `flutter_local_notifications` (Darwin) — double-presentation risk (F-PN1) | ✅ OS system tray | **Yes** (minor issues) |
+| Web | `FirebaseMessaging.instance.register()` → `onRegistered` | `web` | ❌ early return on `kIsWeb` (`notification_service.dart:146`) | ❌ no service worker | **No** (F-PN2) |
 | Windows | persistent UUID fingerprint | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
-| macOS | `UNKNOWN_DEVICE_TOKEN` placeholder | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
-| Linux | `UNKNOWN_DEVICE_TOKEN` placeholder | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
+| macOS | `''` (empty string) | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
+| Linux | `''` (empty string) | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
 
 - `Firebase.initializeApp` runs only on Android/iOS/web (`main.dart:54-67`). On Linux `DefaultFirebaseOptions.currentPlatform` throws `UnsupportedError` (`firebase_options.dart:32-35`).
-- `supportsFcm` is `defaultTargetPlatform == android || ios || kIsWeb` (`device_token_service.dart:11-14`).
-- The backend treats a token as deliverable only when `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:40-46`). Desktop devices are never registered at all: `_registerDeviceToken()` skips them client-side (`auth_state.dart:263-280`), and the backend rejects the `UNKNOWN_DEVICE_TOKEN` placeholder (`auth.schemas.js:4-13`).
+- `supportsFcm` is `defaultTargetPlatform == android || ios || kIsWeb` (`installation_id_service.dart`).
+- The backend treats a device as deliverable only when it has an `installation_id` and `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:40-46`). Desktop devices are never registered at all: `_registerInstallationId()` skips them client-side (`auth_state.dart`), and the backend rejects the empty string returned by unsupported platforms via `min(16)` (`auth.schemas.js`).
 
 **Desktop note**: Windows/macOS/Linux never receive remote push notifications by design. `flutter_local_notifications` Windows/Linux/Darwin settings exist but no code path ever calls `showNotification` on those platforms.
 
@@ -106,86 +106,86 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 
 ---
 
-## Device Token Registration
+## Installation ID Registration
 
-### Token acquisition (`device_token_service.dart`)
+### Installation ID acquisition (`installation_id_service.dart`)
 
-| Platform | Token value | Length | Validation (schema: 16–512) |
+| Platform | Value | Length | Validation (schema: 16–512) |
 |---|---|---|---|
-| Android/iOS/Web | FCM token | ~152+ chars | ✅ |
+| Android/iOS/Web | Firebase Installation ID (FID) | ~variable | ✅ |
 | Windows | `getOrCreateDeviceFingerprint()` UUID | 36 | ✅ but never registered (guard skips desktop) |
-| macOS/Linux | `'UNKNOWN_DEVICE_TOKEN'` | 20 | ✅ clears `min(16)`, but never sent (guard) and rejected by the sentinel refinement |
+| macOS/Linux | `''` (empty string) | 0 | ❌ rejected by `min(16)`; never sent (client-side `isEmpty` guard) |
 
-`onTokenRefresh` stream is empty on non-FCM platforms; `getDeviceFingerprint()` powers session binding and login-risk checks separately.
+`onRegistered` stream is empty on non-FCM platforms; `getDeviceFingerprint()` powers session binding and login-risk checks separately.
 
 ### Registration triggers (Flutter)
 
 | Trigger | Location | Guard | Notes |
 |---|---|---|---|
-| App startup with a session | `auth_state.dart:168-172` | `_registerDeviceToken()` | Skips desktop entirely |
-| Successful login | `auth_state.dart:332-337` | `_registerDeviceToken()` | Same guard as startup; skips desktop |
-| FCM token rotation | `auth_state.dart:200-207` | `token.isNotEmpty && isLoggedIn` | Re-registers new token |
-| App resume / locale change | `auth_state.dart:232-247` | `_registerDeviceToken(locale:)` | Debounced 500 ms; updates `locale` |
-| **Logout** | `auth_state.dart:762-777` (`_revokeDeviceToken()`) | `isLoggedIn && token != UNKNOWN_DEVICE_TOKEN` | Deletes the row; see below |
+| App startup with a session | `auth_state.dart` | `_registerInstallationId()` | Skips desktop entirely |
+| Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
+| FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn` | Re-registers the new FID |
+| App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; updates `locale` |
+| **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Deletes the row; see below |
 
-### Backend upsert — `POST /api/v1/auth/device-token`
+### Backend upsert — `POST /api/v1/auth/installation-id`
 
-`updateDeviceToken` (`auth.controller.js:17-54`):
+`updateInstallationId` (`auth.controller.js`):
 
 ```js
 assertDbSuccess(await adminSupabase.from("user_devices").upsert(
-  { user_id, device_token, user_agent, device_type, last_ip, ...(locale && { locale }) },
-  { onConflict: "device_token" }
+  { user_id, installation_id, user_agent, device_type, last_ip, ...(locale && { locale }) },
+  { onConflict: "installation_id" }
 ));
 ```
 
-- `device_token` is `UNIQUE` — if a token is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
+- `installation_id` is `UNIQUE` — if an installation id is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
 - `device_type` is inferred from `x-client-user-agent`/`user-agent` when the body omits it.
-- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token")` → `validated({body})` (`auth.routes.js:53-62`). This is a **signed** endpoint (unlike notify).
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id")` → `validated({body})` (`auth.routes.js`). This is a **signed** endpoint (unlike notify).
 
 `authRateLimit`: `{ipMax: 20, userMax: 10, window: 60_000 ms}`.
 
-### Backend revocation — `POST /api/v1/auth/device-token-revoke`
+### Backend revocation — `POST /api/v1/auth/installation-id-revoke`
 
 Registration is undone on logout, so a device that is later handed to another account cannot keep receiving the previous account's pushes.
 
-`revokeDeviceToken` (`auth.controller.js:56-77`):
+`revokeInstallationId` (`auth.controller.js`):
 
 ```js
 await adminSupabase
   .from("user_devices")
   .delete()
-  .eq("device_token", deviceToken)
+  .eq("installation_id", installationId)
   .eq("user_id", userId);
 ```
 
-- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token-revoke")` → `validated({body: revokeDeviceTokenSchema })` (`auth.routes.js:64-73`), sharing `authRateLimit`.
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id-revoke")` → `validated({body: revokeInstallationSchema })` (`auth.routes.js`), sharing `authRateLimit`.
 - **Row delete, not a flag**: `user_devices` has no `is_active`/`revoked_at` column and `fetchUserDevices` reads every row for the user, so removing the row is the deactivation. The `logs_api_access` / `logs_api_errors` / `logs_security_events` FKs are `ON DELETE SET NULL`, so audit rows survive the delete.
-- **Scoped by `user_id`**: `device_token` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
+- **Scoped by `user_id`**: `installation_id` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
 - Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
-- Client side: `AuthRepository.revokeDeviceToken()` → `ApiService.revokeDeviceToken()`, called by `AuthState._revokeDeviceToken()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
+- Client side: `AuthRepository.revokeInstallationId()` → `ApiService.revokeInstallationId()`, called by `AuthState._revokeInstallationId()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
 - Unrevoked stale rows (e.g. offline logout, session expiration, or a password-change revoke-all that could not land) converge through the periodic retention job (`sweepStaleUserDevices` in `retentionJob.js`). Every registration records the session that created it (`user_devices.session_id`, from `req.auth.claims.session_id`), so the sweep first runs the `purge_user_devices_dead_sessions()` RPC to delete rows whose session is gone from `auth.sessions` or past its `not_after` — those cases die at the next sweep run instead of waiting out the window — then the age purge (`updated_at` older than `USER_DEVICE_RETENTION_DAYS = 30`) as the fallback for sessionless registrations and for app kills before `signOut()`.
-- The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same token via the upsert.
+- The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same FID via the upsert.
 
-### Backend other-device revocation — `POST /api/v1/auth/device-token-revoke-all`
+### Backend other-device revocation — `POST /api/v1/auth/installation-id-revoke-all`
 
 A password change kills every *other* session of the account ([account-lifecycle — Other-Session Revocation](../features/authentication/account-lifecycle/doc.md#other-session-revocation)), and the `user_devices` rows must die with them: otherwise a stolen or abandoned device keeps receiving the account's pushes until it 401s or ages out.
 
-`revokeOtherDeviceTokens` (`auth.controller.js:79-101`):
+`revokeOtherInstallationIds` (`auth.controller.js`):
 
 ```js
 await adminSupabase
   .from("user_devices")
   .delete()
   .eq("user_id", userId)
-  .neq("device_token", deviceToken);
+  .neq("installation_id", installationId);
 ```
 
-- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-device-token-revoke-all")` → `validated({body: revokeDeviceTokenSchema })` (`auth.routes.js:79-89`), sharing `authRateLimit`.
-- **Keeps the caller's own row**: the `device_token` in the body is the one to keep, so the device changing the password does not lose its pushes.
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id-revoke-all")` → `validated({body: revokeInstallationSchema })` (`auth.routes.js`), sharing `authRateLimit`.
+- **Keeps the caller's own row**: the `installation_id` in the body is the one to keep, so the device changing the password does not lose its pushes.
 - **The delete is durable**: the registration route is `authenticated()`, and the other devices' Supabase sessions were already revoked by `signOut(scope: others)`, so a deleted device cannot re-register — its requests answer `401`.
 - Idempotent and fail-safe: nothing to delete answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
-- Client side: `AuthRepository.revokeOtherDeviceTokens()` → `ApiService.revokeOtherDeviceTokens()`, called by `AuthState._revokeOtherDeviceTokens()` (`auth_state.dart:797-817`) immediately after `_revokeOtherSessions()` on both password writes (`changePassword`, `updatePasswordNew`). Best-effort like the logout revoke: 5 s cap, errors swallowed, `401` does not re-enter the teardown, and an unresolvable token skips the call — the retention sweep above is the backstop (session-linked prune at the next run, 30-day age purge as fallback).
+- Client side: `AuthRepository.revokeOtherInstallations()` → `ApiService.revokeOtherInstallations()`, called by `AuthState._revokeOtherInstallations()` (`auth_state.dart`) immediately after `_revokeOtherSessions()` on both password writes (`changePassword`, `updatePasswordNew`). Best-effort like the logout revoke: 5 s cap, errors swallowed, `401` does not re-enter the teardown, and an empty installation id skips the call — the retention sweep above is the backstop (session-linked prune at the next run, 30-day age purge as fallback).
 
 ---
 
@@ -205,7 +205,7 @@ router.post("/partner",
 
 A second route `POST /api/v1/notify/:type` exists for explicit-`receiverId` sends (same middleware, plus `paramsSchema`).
 
-Notably the notify route chain has **no `signed()` / `freshNonce()`** — unlike the device-token route (F-PN10).
+Notably the notify route chain has **no `signed()` / `freshNonce()`** — unlike the installation-id route (F-PN10).
 
 ### Validation (`notify.schemas.js`)
 
@@ -238,12 +238,12 @@ notifySchema = z.object({
    - `type === 'partner'` → receiver is the active partner; otherwise `receiverId` must be supplied and must equal the partner id.
 
 2. **`sendNotificationToUser(...)`** (`:241-355`)
-   - `fetchUserDevices(userId)` (`:200-211`): selects `device_token, device_type, locale` where the row has a non-null token, then filters via `isDeliverableDevice` (drops empty/`UNKNOWN_DEVICE_TOKEN`/`windows`/`macos`/`linux`).
-   - Tokens grouped by `device.locale || 'en'` (`:258-266`) — per-locale messages.
+   - `fetchUserDevices(userId)` (`:200-211`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
+   - FIDs grouped by `device.locale || 'en'` (`:258-266`) — per-locale messages.
    - Delivery in batches of `FCM_BATCH_SIZE = 500` (`:276`).
-   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-token codes abort immediately (`:283-299`).
+   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`:283-299`).
    - `configured` flag from the FCM response; if Firebase admin is not initialized the loop aborts with status `skipped_firebase_not_configured`.
-   - Post-send: `deleteInvalidTokens(userId, ...)` removes the caller's rows whose token returned an invalid-FCM error (`:318`, `:333`).
+   - Post-send: `deleteInvalidInstallations(userId, ...)` removes the caller's rows whose installation id returned an invalid-FCM error (`:318`, `:333`).
 
 3. **`buildFcmMessage(...)`** (`:152-198`)
    - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (fallback locale `'en'`).
@@ -255,10 +255,10 @@ notifySchema = z.object({
 
 4. **Logging**: `logNotification` → `logs_notifications` (statuses: `no_devices`, `sent`, `partial`, `skipped_firebase_not_configured`); `logInfo` → `notification.delivery_summary` with delivered/failed/invalid-removed counts.
 
-### Invalid token cleanup
+### Invalid installation id cleanup
 
-- `INVALID_FCM_TOKEN_CODES = { messaging/invalid-registration-token, messaging/registration-token-not-registered, messaging/invalid-recipient }` (`:13-17`).
-- Cleanup is scoped by `user_id` **and** `device_token`: the tokens come from that caller's `fetchUserDevices`, and `device_token` is `UNIQUE`, so an unscoped delete could drop the row another account has since re-registered on the same device.
+- `INVALID_FID_CODES = { messaging/invalid-recipient, messaging/installation-id-not-registered }` (`:13-17`).
+- Cleanup is scoped by `user_id` **and** `installation_id`: the FIDs come from that caller's `fetchUserDevices`, and `installation_id` is `UNIQUE`, so an unscoped delete could drop the row another account has since re-registered on the same device.
 
 ---
 
@@ -396,7 +396,7 @@ The server generates `notificationId` per dispatch (`Date.now()-random`), so nea
 
 ### Deduplication
 
-**No dedup exists.** Rapid identical actions (5× miss-you taps, 3× mood updates in a minute up to the rate limit) produce 5/3 distinct notifications. FCM multicast sends once per registered token; `sendNotificationToUser` dedups tokens only within a single send (`new Set`).
+**No dedup exists.** Rapid identical actions (5× miss-you taps, 3× mood updates in a minute up to the rate limit) produce 5/3 distinct notifications. FCM multicast sends once per registered installation id; `sendNotificationToUser` dedups FIDs only within a single send (`new Set`).
 
 ---
 
@@ -415,11 +415,11 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN2: Web push is non-functional (LOW)
 
-- **WHAT**: `supportsFcm` includes web and the FCM token is registered, but rendering is a no-op (`initLocalNotifications` and `showRemoteMessage` both early-return on `kIsWeb`) and **no service worker** (`firebase-messaging-sw.js`) exists in `web/`, which the web SDK needs to obtain a token.
-- **WHERE**: `device_token_service.dart:6-9`, `notification_service.dart:84,146`, `web/index.html` (no SW registration).
+- **WHAT**: `supportsFcm` includes web and the FID is registered, but rendering is a no-op (`initLocalNotifications` and `showRemoteMessage` both early-return on `kIsWeb`) and **no service worker** (`firebase-messaging-sw.js`) exists in `web/`, which the web SDK needs to obtain an installation id.
+- **WHERE**: `installation_id_service.dart`, `notification_service.dart:84,146`, `web/index.html` (no SW registration).
 - **WHY**: flutter_local_notifications does not support web; the service-worker file was never added.
-- **WHEN**: Any web launch that calls `getDeviceToken()`.
-- **IMPACT**: If a token is obtained it is stored with `device_type: 'web'` and delivers server-side sends to a client that cannot render them — wasted FCM quota and stale rows; token retrieval itself likely fails without the SW.
+- **WHEN**: Any web launch that calls `getInstallationId()`.
+- **IMPACT**: If an installation id is obtained it is stored with `device_type: 'web'` and delivers server-side sends to a client that cannot render them — wasted FCM quota and stale rows; installation id retrieval itself likely fails without the SW.
 - **CONFIDENCE**: HIGH.
 
 ### F-PN3: Background isolate handler is unreachable with the current payload (INFO)
@@ -465,7 +465,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN10: Notify endpoint carries no request signature (INFO)
 
-- **WHAT**: `POST /api/v1/notify/partner` is protected only by `authenticated()` + rate limit; there is no `signed()`/`freshNonce()` middleware, unlike the device-token route (`signed("auth-device-token")`). An authenticated user can send arbitrary `notificationKey` strings (1–80 chars) to their own partner up to the 12/min user cap.
+- **WHAT**: `POST /api/v1/notify/partner` is protected only by `authenticated()` + rate limit; there is no `signed()`/`freshNonce()` middleware, unlike the installation-id route (`signed("auth-installation-id")`). An authenticated user can send arbitrary `notificationKey` strings (1–80 chars) to their own partner up to the 12/min user cap.
 - **WHERE**: `notify.routes.js:33-40` vs `auth.routes.js:53-62`.
 - **WHY**: fire-and-forget design; the rate limit is the chosen abuse control.
 - **IMPACT**: A partner can be spammed with up to 12 notifications/min with arbitrary keys (unknown keys → empty-body `JustUS`, F-PN7). Costs FCM quota. No session/data risk.
@@ -477,23 +477,23 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 | Component | Status |
 |---|---|
-| FCM token acquisition (Android/iOS) | IMPLEMENTED |
-| FCM token acquisition (web) | PARTIALLY IMPLEMENTED (token retrieval depends on missing SW; rendering absent — F-PN2) |
-| Token registration at startup (`init`) | IMPLEMENTED (gated on `supportsFcm`) |
-| Token registration at login | IMPLEMENTED (same `_registerDeviceToken()` guard; `auth.schemas.js` also rejects the placeholder) |
-| Token refresh re-registration | IMPLEMENTED |
+| FID acquisition (Android/iOS) | IMPLEMENTED |
+| FID acquisition (web) | PARTIALLY IMPLEMENTED (FID retrieval depends on missing SW; rendering absent — F-PN2) |
+| FID registration at startup (`init`) | IMPLEMENTED (gated on `supportsFcm`) |
+| FID registration at login | IMPLEMENTED (same `_registerInstallationId()` guard; `auth.schemas.js` also rejects the empty string via `min(16)`) |
+| FID change re-registration | IMPLEMENTED (`onRegistered`) |
 | Locale sync on resume / language change | IMPLEMENTED |
-| Token revocation at logout (`POST /auth/device-token-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
-| Other-device token revocation on password write (`POST /auth/device-token-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
+| Installation id revocation at logout (`POST /auth/installation-id-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
+| Other-device installation id revocation on password write (`POST /auth/installation-id-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
 | Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`purge_user_devices_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
 | JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
 | Request signing on notify endpoint | NOT IMPLEMENTED (F-PN10) |
 | Partner resolution via `get_accepted_partner` RPC | IMPLEMENTED |
 | Server-side localization (server map, it/en) | IMPLEMENTED |
-| FCM multicast with 500-token batching | IMPLEMENTED |
+| FCM multicast with 500-FID batching | IMPLEMENTED |
 | FCM retry (3 attempts, backoff) | IMPLEMENTED |
-| Invalid-token cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `device_token`) |
+| Invalid installation id cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `installation_id`) |
 | `notification` field for OS system-tray rendering | IMPLEMENTED |
 | Client-side ARB localization (8 keys) | IMPLEMENTED (unknown-key gap — F-PN7; emoji param unused for `moodUpdated`) |
 | Foreground local-notification rendering | IMPLEMENTED (iOS double-presentation risk — F-PN1) |
@@ -517,19 +517,19 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the token lifecycle endpoints: the `POST /auth/device-token-revoke` delete is asserted to be scoped by both `device_token` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed token is rejected with `400 API-VALIDATION-001`. `POST /auth/device-token-revoke-all` is asserted to delete every row but the one whose token is in the body (`eq user_id`, `neq device_token`), with the same failure and validation cases; `POST /auth/device-token` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the shared `UNKNOWN_DEVICE_TOKEN` placeholder with `400 API-VALIDATION-001` even though it clears `min(16)`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
+`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 
-`Backend/test/notification.service.test.js` covers `deleteInvalidTokens` against an in-memory `user_devices` table: a token invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy token list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail.
+`Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it.
 
 ### Flutter
 
-`Flutter/test/logout_device_token_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no token exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_device_token_guard_test.dart` pins the registration guard: a successful login registers the token when FCM is supported and makes no `updateDeviceToken` call on a platform where it is not.
+`Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not.
 
 No tests reference `NotificationService`, `onNotificationTap`, `showRemoteMessage`, `_localizeNotification`, or `_notificationId` (grep of `test/`).
 
-**Not covered**: FCM token acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2).
+**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2).
 
 ---
 

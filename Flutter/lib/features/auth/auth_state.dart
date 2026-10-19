@@ -34,7 +34,7 @@ class AuthState extends BaseState
   final Duration _sessionRevokeTimeout;
 
   StreamSubscription<dynamic>? _authSubscription;
-  StreamSubscription<String>? _tokenRefreshSubscription;
+  StreamSubscription<String>? _installationIdSubscription;
   String? _lastSyncedLocale;
   bool _isSyncingLocale = false;
 
@@ -117,8 +117,8 @@ class AuthState extends BaseState
     // Make init idempotent (A3)
     await _authSubscription?.cancel();
     _authSubscription = null;
-    await _tokenRefreshSubscription?.cancel();
-    _tokenRefreshSubscription = null;
+    await _installationIdSubscription?.cancel();
+    _installationIdSubscription = null;
 
     // 1. Get local data parallelized
     final results = await Future.wait([
@@ -164,10 +164,10 @@ class AuthState extends BaseState
       }
       await _syncBackendSession();
 
-      // Register (or refresh) the FCM device token on every app start
-      final tokenResult = await _registerDeviceToken();
-      if (tokenResult != null) {
-        AnsiLogger.auth('updateDeviceToken (init): $tokenResult',
+      // Register (or refresh) this installation's FID on every app start
+      final installationResult = await _registerInstallationId();
+      if (installationResult != null) {
+        AnsiLogger.auth('updateInstallationId (init): $installationResult',
             tag: 'AuthState');
       }
     }
@@ -196,11 +196,11 @@ class AuthState extends BaseState
         }
       }
     });
-    _tokenRefreshSubscription =
-        DeviceTokenService.onTokenRefresh.listen((token) async {
-      if (token.isEmpty || !isLoggedIn) return;
-      await _authRepo.updateDeviceToken(
-        token,
+    _installationIdSubscription =
+        InstallationIdService.onRegistered.listen((installationId) async {
+      if (installationId.isEmpty || !isLoggedIn) return;
+      await _authRepo.updateInstallationId(
+        installationId,
         locale: ui.PlatformDispatcher.instance.locale.languageCode,
       );
     });
@@ -236,7 +236,7 @@ class AuthState extends BaseState
           (locale ?? ui.PlatformDispatcher.instance.locale).languageCode;
       if (currentLocale == _lastSyncedLocale) return;
 
-      final result = await _registerDeviceToken(locale: currentLocale);
+      final result = await _registerInstallationId(locale: currentLocale);
       if (result is Success<void>) {
         _lastSyncedLocale = currentLocale;
         AnsiLogger.notification('Locale synced: $currentLocale',
@@ -251,27 +251,26 @@ class AuthState extends BaseState
     }
   }
 
-  /// Registers (or refreshes) this device's FCM token through the backend.
+  /// Registers (or refreshes) this installation's FID through the backend.
   ///
-  /// The guard lives here so no call site can drift: on a platform without FCM
-  /// support, or when `getDeviceToken()` yields the `UNKNOWN_DEVICE_TOKEN`
-  /// placeholder, it returns `null` and sends no request. That placeholder is a
-  /// single shared string and `user_devices.device_token` is globally UNIQUE, so
-  /// registering it would re-point one row between unrelated accounts as they
-  /// log in and out (F-PN5).
-  Future<ResultWrapper<void>?> _registerDeviceToken({String? locale}) async {
-    if (!isLoggedIn || !DeviceTokenService.supportsFcm) return null;
+  /// The guard lives here so no call site can drift: on a platform without FCM,
+  /// or when `getInstallationId()` yields an empty string, it returns `null` and
+  /// sends no request. Registering the empty string would collide on the
+  /// globally-UNIQUE `user_devices.installation_id` column across unrelated
+  /// accounts as they log in and out (F-PN5).
+  Future<ResultWrapper<void>?> _registerInstallationId({String? locale}) async {
+    if (!isLoggedIn || !InstallationIdService.supportsFcm) return null;
 
-    final token = await DeviceTokenService.getDeviceToken();
-    if (token.isEmpty || token == 'UNKNOWN_DEVICE_TOKEN') return null;
+    final installationId = await InstallationIdService.getInstallationId();
+    if (installationId.isEmpty) return null;
 
     try {
-      return await _authRepo.updateDeviceToken(
-        token,
+      return await _authRepo.updateInstallationId(
+        installationId,
         locale: locale ?? ui.PlatformDispatcher.instance.locale.languageCode,
       );
     } catch (e) {
-      AnsiLogger.error('updateDeviceToken error: $e', tag: 'AuthState');
+      AnsiLogger.error('updateInstallationId error: $e', tag: 'AuthState');
       return null;
     }
   }
@@ -328,11 +327,11 @@ class AuthState extends BaseState
         user: user,
       );
 
-      // Step 4: Sync session and register the device token through the backend
+      // Step 4: Sync session and register the installation id through the backend
       await _syncBackendSession();
-      final tokenResult = await _registerDeviceToken();
-      if (tokenResult != null) {
-        AnsiLogger.auth('updateDeviceToken (login): $tokenResult',
+      final installationResult = await _registerInstallationId();
+      if (installationResult != null) {
+        AnsiLogger.auth('updateInstallationId (login): $installationResult',
             tag: 'AuthState');
       }
 
@@ -443,7 +442,7 @@ class AuthState extends BaseState
       }
 
       await _revokeOtherSessions();
-      await _revokeOtherDeviceTokens();
+      await _revokeOtherInstallations();
       setMessage(LanguageHelper.appLoc.auth_passwordUpdated);
     });
   }
@@ -509,7 +508,7 @@ class AuthState extends BaseState
       }
 
       await _revokeOtherSessions();
-      await _revokeOtherDeviceTokens();
+      await _revokeOtherInstallations();
 
       setMessage(LanguageHelper.appLoc.auth_passwordUpdated);
       return ChangePasswordResult.success;
@@ -698,7 +697,7 @@ class AuthState extends BaseState
 
   Future<void> _checkLoginRisk(String email) async {
     try {
-      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.checkLoginRisk(email, deviceFingerprint);
 
       if (result is GenericError<Map<String, dynamic>> && result.code == 429) {
@@ -721,7 +720,7 @@ class AuthState extends BaseState
   /// wrong-password error the user needs to see.
   Future<void> _reportFailedLogin(String email, String reason) async {
     try {
-      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.reportFailedLogin(
         email,
         deviceFingerprint,
@@ -742,7 +741,7 @@ class AuthState extends BaseState
     }
 
     try {
-      final deviceFingerprint = await DeviceTokenService.getDeviceFingerprint();
+      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.bindSession(deviceFingerprint);
 
       final value = result.valueOrNull;
@@ -770,12 +769,12 @@ class AuthState extends BaseState
     WidgetsBinding.instance.removeObserver(this);
     cancelPending();
     unawaited(_authSubscription?.cancel());
-    unawaited(_tokenRefreshSubscription?.cancel());
+    unawaited(_installationIdSubscription?.cancel());
     super.dispose();
   }
 
   Future<void> logout() async {
-    await _revokeDeviceToken();
+    await _revokeInstallationId();
     await _authRepo.signOut();
     await CacheService.clearAll();
     await StorageService.clearAll();
@@ -795,23 +794,23 @@ class AuthState extends BaseState
   }
 
   /// Strictly best-effort: it runs before `signOut()`, so the JWT, the binding
-  /// secret and the device fingerprint are all still available. Offline it must
-  /// not delay or fail the logout — the next login re-registers the same token
-  /// (upsert on `device_token`).
-  Future<void> _revokeDeviceToken() async {
+  /// secret and the installation id are all still available. Offline it must
+  /// not delay or fail the logout — the next login re-registers the same row
+  /// (upsert on `installation_id`).
+  Future<void> _revokeInstallationId() async {
     if (!isLoggedIn) return;
 
     try {
-      final deviceToken = await DeviceTokenService.getDeviceToken();
-      if (deviceToken.isEmpty || deviceToken == 'UNKNOWN_DEVICE_TOKEN') return;
+      final installationId = await InstallationIdService.getInstallationId();
+      if (installationId.isEmpty) return;
 
       final result = await _authRepo
-          .revokeDeviceToken(deviceToken)
+          .revokeInstallationId(installationId)
           .timeout(_deviceRevokeTimeout);
-      AnsiLogger.notification('Device token revoked: $result',
+      AnsiLogger.notification('Installation id revoked: $result',
           tag: 'AuthState');
     } catch (e) {
-      AnsiLogger.error('Device token revoke failed: $e', tag: 'AuthState');
+      AnsiLogger.error('Installation id revoke failed: $e', tag: 'AuthState');
     }
   }
 
@@ -832,26 +831,27 @@ class AuthState extends BaseState
   /// Keeps the caller's own row and deletes every other `user_devices` row, so
   /// the push registrations die with the sessions `_revokeOtherSessions` just
   /// killed. Strictly best-effort and bounded by [sessionRevokeTimeout]; an
-  /// unresolvable local token skips the call and leaves the 30-day retention
-  /// sweep (`sweepStaleUserDevices`) as the backstop.
-  Future<void> _revokeOtherDeviceTokens() async {
+  /// unresolvable local installation id skips the call and leaves the retention
+  /// sweep (`purge_user_devices_dead_sessions`) as the backstop.
+  Future<void> _revokeOtherInstallations() async {
     try {
-      final keepToken = await DeviceTokenService.getDeviceToken();
-      if (keepToken.isEmpty || keepToken == 'UNKNOWN_DEVICE_TOKEN') return;
+      final keepInstallationId =
+          await InstallationIdService.getInstallationId();
+      if (keepInstallationId.isEmpty) return;
 
       final result =
-          await _authRepo.revokeOtherDeviceTokens(keepToken).timeout(
+          await _authRepo.revokeOtherInstallations(keepInstallationId).timeout(
                 _sessionRevokeTimeout,
               );
       if (result is Success) {
-        AnsiLogger.auth('Other device tokens revoked after password change',
+        AnsiLogger.auth('Other installation ids revoked after password change',
             tag: 'AuthState');
       } else {
-        AnsiLogger.error('Other device token revoke failed: $result',
+        AnsiLogger.error('Other installation id revoke failed: $result',
             tag: 'AuthState');
       }
     } catch (e) {
-      AnsiLogger.error('Other device token revoke failed: $e',
+      AnsiLogger.error('Other installation id revoke failed: $e',
           tag: 'AuthState');
     }
   }

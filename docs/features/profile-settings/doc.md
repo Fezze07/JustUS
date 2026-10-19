@@ -189,7 +189,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Notifications / Events
 
-- Device token registration (`updateDeviceToken`) occurs at boot and login, passing the current device locale (`languageCode`).
+- Device token registration (`updateInstallationId`) occurs at boot and login, passing the current device locale (`languageCode`).
 - Changing device locale at runtime triggers `didChangeLocales` in `AuthState` to re-sync the locale with `user_devices`.
 
 ---

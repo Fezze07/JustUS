@@ -8,15 +8,15 @@ const sendNotificationController = asyncHandler(async (req, res) => {
   });
 
   // Verbose log for debugging background-notification issues
-  console.log(`[notify] Dispatch result: delivered=${result.delivered} failed=${result.failed} devices=${result.deviceCount} invalidRemoved=${result.invalidTokensRemoved} configured=${result.configured ?? true}`);
+  console.log(`[notify] Dispatch result: delivered=${result.delivered} failed=${result.failed} devices=${result.deviceCount} invalidRemoved=${result.invalidInstallationsRemoved} configured=${result.configured ?? true}`);
 
   if (result.deviceCount === 0) {
     const isPartner = (req.params.type || "partner") === "partner";
     throw new AppError({
       errorKey: "DB_NOT_FOUND_001",
       message: isPartner
-        ? "Partner not found or without a valid token"
-        : "Recipient not found or without a valid token",
+        ? "Partner not found or without a valid installation id"
+        : "Recipient not found or without a valid installation id",
     });
   }
 
