@@ -145,7 +145,7 @@ void main() {
     expect(await StorageService.getUsername(), isNull);
   });
 
-  test('wipeAppData clears checkpoints, feature caches and profile keys',
+  test('wipeAppData clears checkpoints and caches, then re-syncs the profile',
       () async {
     installMockPathProvider();
     SharedPreferences.setMockInitialValues({
@@ -165,7 +165,11 @@ void main() {
     expect(wiped, isTrue);
     expect(await CacheService.getCheckpoint(CacheService.kDriveItems), isNull);
     expect(await StorageService.getMood('me'), isNull);
-    expect(await StorageService.getUserProfile(), isNull);
+    // The wipe re-syncs the profile, so the key is repopulated from the server.
+    expect(await StorageService.getUserProfile(), isNotNull);
+    // The confirmation is set AFTER the reload, whose runSafe resets the
+    // message on entry — the ordering is the fix.
+    expect(state.message, LanguageHelper.appLoc.profile_dataWiped);
   });
 
   test('no stored version leaves the avatar URL unversioned', () async {

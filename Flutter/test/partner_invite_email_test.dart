@@ -52,6 +52,7 @@ void main() {
     expect(success, isTrue);
     expect(repository.invitedEmails, ['partner@example.com']);
     expect(repository.redirects, [state.emailRedirectTo]);
+    expect(state.message, LanguageHelper.appLoc.partner_inviteEmailSuccess);
   });
 
   test('inviteUnregisteredPartner reports failure when the request fails',

@@ -43,6 +43,20 @@ class _FakeDriveRepository extends DriveRepository {
       int driveItemId, bool isFavorite) async {
     return const Success<void>(null);
   }
+
+  @override
+  Future<ResultWrapper<void>> addReaction(int driveItemId, String emoji) async {
+    return const Success<void>(null);
+  }
+
+  ResultWrapper<void> deleteResult = const Success<void>(null);
+  final List<int> deletedIds = [];
+
+  @override
+  Future<ResultWrapper<void>> deleteDriveItem(int id) async {
+    deletedIds.add(id);
+    return deleteResult;
+  }
 }
 
 DriveItem _item(int id, String name, String updatedAt) {
@@ -156,6 +170,102 @@ void main() {
     await state.toggleFavorite(1);
     await state.initialLoad();
     expect(repo.probeCalls, 2);
+
+    state.clear();
+  });
+
+  test('a successful delete returns true and raises the confirmation message',
+      () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..fullSnapshot = [_item(1, 'a.png', '2026-01-01T00:00:00.000Z')]
+      ..incrementalResult = [];
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-01T00:00:00.000Z'),
+    ]);
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    final deleted = await state.deleteItem(1);
+
+    expect(deleted, isTrue);
+    expect(repo.deletedIds, [1]);
+    expect(state.driveItems, isEmpty);
+    expect(state.message, LanguageHelper.appLoc.drive_deleted);
+
+    state.clear();
+  });
+
+  test('a failed delete rolls the item back and returns false', () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..fullSnapshot = [_item(1, 'a.png', '2026-01-01T00:00:00.000Z')]
+      ..incrementalResult = []
+      ..deleteResult = const GenericError<void>(message: 'nope', code: 500);
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-01T00:00:00.000Z'),
+    ]);
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    final deleted = await state.deleteItem(1);
+
+    expect(deleted, isFalse);
+    expect(state.driveItems.map((i) => i.id), [1],
+        reason: 'the optimistic removal must be rolled back on failure');
+
+    state.clear();
+  });
+
+  test('adding a reaction confirms it and shows on the item', () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..fullSnapshot = [_item(1, 'a.png', '2026-01-01T00:00:00.000Z')]
+      ..incrementalResult = [];
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-01T00:00:00.000Z'),
+    ]);
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    await state.addReaction(1, '❤️');
+
+    expect(state.message, LanguageHelper.appLoc.drive_reactionAdded);
+    expect(state.driveItems.first.reactions, ['❤️']);
+
+    state.clear();
+  });
+
+  test('toggling favorite confirms added, then removed', () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..fullSnapshot = [_item(1, 'a.png', '2026-01-01T00:00:00.000Z')]
+      ..incrementalResult = [];
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-01T00:00:00.000Z'),
+    ]);
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    await state.toggleFavorite(1);
+    expect(state.message, LanguageHelper.appLoc.drive_favoriteAdded);
+    expect(state.favoriteItems.map((i) => i.id), [1]);
+
+    await state.toggleFavorite(1);
+    expect(state.message, LanguageHelper.appLoc.drive_favoriteRemoved);
+    expect(state.favoriteItems, isEmpty);
 
     state.clear();
   });

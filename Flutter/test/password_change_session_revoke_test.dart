@@ -147,6 +147,8 @@ void main() {
       'revokeOtherDeviceTokens:$kKeepToken',
     ]);
     expect(state.isLoading, isFalse);
+    // AuthState owns the confirmation now; the global listener shows it.
+    expect(state.message, LanguageHelper.appLoc.auth_passwordUpdated);
   });
 
   test('the recovery flow signs the other sessions out too', () async {
@@ -160,6 +162,7 @@ void main() {
       'revokeOtherSessions',
       'revokeOtherDeviceTokens:$kKeepToken',
     ]);
+    expect(state.message, LanguageHelper.appLoc.auth_passwordUpdated);
   });
 
   test('a failed revoke never turns a successful change into a failure',
@@ -265,6 +268,8 @@ void main() {
 
     expect(result, ChangePasswordResult.currentPasswordWrong);
     expect(repo.calls, ['signInWithPassword']);
+    expect(state.message, LanguageHelper.appLoc.auth_currentPasswordIncorrect,
+        reason: 'the wrong-password case must reach the user via the listener');
   });
 
   test('a rejected password write never reaches the revoke', () async {

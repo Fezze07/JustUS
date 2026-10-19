@@ -7,6 +7,14 @@ import 'package:justus/all_imports.dart';
 
 import 'test_helpers/mock_secure_storage.dart';
 
+/// A repository whose send always succeeds, so the debounce guard is the only
+/// thing that can refuse a second send.
+class _StubMissYouRepository extends MissYouRepository {
+  @override
+  Future<ResultWrapper<void>> sendMissYou() async =>
+      const Success<void>(null);
+}
+
 /// Repository whose first snapshot fetch is held open and then returns a STALE
 /// total (as if the snapshot was read before a concurrent `missyou` insert
 /// committed); every later call returns the authoritative post-insert total.
@@ -138,6 +146,24 @@ void main() {
       // returned the authoritative post-insert total.
       expect(repository.calls, 2);
       expect(state.totalMissYou, 1);
+
+      state.clear();
+    });
+  });
+
+  group('sendMissYou debounce feedback', () {
+    test('a second send inside the debounce window is refused with a message',
+        () async {
+      final state = HomepageState(repository: _StubMissYouRepository());
+
+      expect(await state.sendMissYou(), isTrue);
+      expect(state.message, LanguageHelper.appLoc.home_missYouSent);
+
+      final second = await state.sendMissYou();
+
+      expect(second, isFalse);
+      expect(state.message, LanguageHelper.appLoc.home_missYouTooFast,
+          reason: 'a tap blocked by the debounce must tell the user why');
 
       state.clear();
     });
