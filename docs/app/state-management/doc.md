@@ -10,7 +10,7 @@ The five building blocks are:
 2. Feature states — nine classes extending `BaseState` (some with `CheckpointMixin`).
 3. `ResultWrapper<T>` (`Flutter/lib/core/network/result_wrapper.dart`, 25 lines) — sealed Success / GenericError / NetworkError.
 4. `CheckpointMixin` (`Flutter/lib/core/local_storage/checkpoint_mixin.dart`, 57 lines) — writes max-timestamp checkpoints into `CacheService` (SharedPreferences).
-5. `StateMessageListener<T extends BaseState, W extends StatefulWidget>` (same file, base_state.dart:101-141) — screen mixin that renders `BaseState.message` through `ErrorHandler.showSnackBar` and clears it; mixed into the seven screens that own a message-bearing state.
+5. `StateMessageListener<T extends BaseState, W extends StatefulWidget>` (same file, base_state.dart:101-141) — screen mixin that renders `BaseState.message` through `ErrorHandler.showSnackBar` and clears it; mixed into the eight screens that own a message-bearing state, plus the global `AuthMessageHost` mounted in `MaterialApp.builder` for the shared `AuthState`.
 
 State definition sites:
 
@@ -83,10 +83,13 @@ class _MoodScreenState extends State<MoodScreen>
 - `initState` registers a post-frame callback that resolves `messageSource` **once**, caches it in `_messageSource`, then `addListener`s the handler. `dispose` removes the listener from that cached reference.
 - The handler reads `state.message`; if it is non-null/non-empty and the widget is still `mounted`, it calls `ErrorHandler.showSnackBar(context, msg)` and then `state.clearMessage()`. The message is cleared after display, so a value set once is shown once.
 - Caching the state is required, not cosmetic: `context.read` inside `dispose()` throws "Looking up a deactivated widget's ancestor is unsafe". The mixin is the successor to the earlier per-screen listener that read the provider in both `initState` and `dispose` (as `GameScreen` did before it).
-- Screens using it: `GameScreen`, `MoodScreen`, `DriveScreen`, `BucketListScreen`, `ProfileScreen`, `HomepageScreen`, `PartnerScreen`.
-- Contract: **a state owns its user-facing message; the screen only renders it.** Screens no longer raise the same snackbar themselves for a state-emitted message — `home_missYouSent` and `profile_saved` are set by the state (`HomepageState.sendMissYou`, `ProfileState.updateDisplayName`/`uploadProfilePhoto`/`updateAnniversaryDate`) and shown by the listener. Screen-owned feedback stays direct only where the value is not carried by a surviving state message: the wipe confirmation snackbar is raised in `ProfileScreen` because `ProfileState.wipeAppData` sets `profile_dataWiped` but the follow-up `loadProfile(force: true)` nulls `_message` (`runSafe` clears it on entry) before the listener can fire.
+- `showPendingMessage()` is the public escape hatch: it runs the same handler synchronously. A screen that pops right after an action (e.g. `DriveItemScreen` after a delete, which pops the confirm dialog and then itself) must call it *before* the pop — `setMessage` delivers on the next frame, so the listener would be unmounted first and the message lost.
+- Screens using it: `GameScreen`, `MoodScreen`, `DriveScreen`, `DriveItemScreen`, `BucketListScreen`, `ProfileScreen`, `HomepageScreen`, `PartnerScreen`.
+- Global host: `AuthMessageHost` (`main.dart`) mixes in `StateMessageListener<AuthState, AuthMessageHost>` and lives in `MaterialApp.builder`, i.e. **above** the `Navigator`. `AuthState` is shared by login/register/change-password/reset-password and the invite dialogs, so no single screen owns its feedback; one host at the root shows each `AuthState` message once, and the snackbar survives the `pop`/`pushReplacement` that disposes the screen which triggered the action.
+- Contract: **a state owns its user-facing message; the screen only renders it.** Screens no longer raise the same snackbar themselves for a state-emitted message — `home_missYouSent`, `profile_saved`, `profile_dataWiped`, `drive_deleted`, `bucket_enterText`, the `auth_*` and `partner_invite*` confirmations are all set by their state (`HomepageState.sendMissYou`, `ProfileState.updateDisplayName`/`uploadProfilePhoto`/`updateAnniversaryDate`/`wipeAppData`, `DriveState.deleteItem`, `BucketState.addItem`, `AuthState.*`) and shown by the listener. `wipeAppData` in particular now runs the whole flow (wipe → `clear()` → `loadProfile(force: true)`) and sets `profile_dataWiped` **after** the reload, because `runSafe` nulls `_message` on entry — the confirmation therefore survives to the listener instead of being clipped by a screen-side reload.
 - Because `runSafe` nulls `_message` on entry, a status set *before* the call is dropped before it can be read; the in-progress statuses that must be visible (`profile_photoUploading`, `drive_uploadInProgress`) are therefore set as the first statement *inside* the `runSafe` action, after the clear.
-- `ErrorHandler.showSnackBar` removes the previous overlay before inserting (`_currentOverlay`), so a mixin listener and a direct screen snackbar can never stack visually.
+- Screen-owned feedback stays direct only where the value is not state-carried: local form validation (`partner_fillAllFields`) is raised in the dialog, and screens that must delay a pop read the action's `bool` return (`BucketState.addItem`, `DriveState.deleteItem`) instead of a snackbar.
+- `ErrorHandler.showSnackBar` resolves the overlay from the calling context, falling back to `navigatorKey.currentState?.overlay` when the context has no `Navigator` of its own (the global `AuthMessageHost` sits above it), and removes the previous overlay before inserting (`_currentOverlay`), so two listeners can never stack visually.
 
 ## loadWithChangeDetection
 
@@ -250,7 +253,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - A state's in-memory data and StorageService copy are written together in every success path (exceptions: generated/derived slices like `_knownIds`, `_singleItem`).
 - Checkpoints are the single synchronization cursor per feature; `EMPTY` means "unknown, must re-fetch".
 - Init is a screen-driven operation (TabScreenMixin or homepage `_loadData`), never application-global; auth init is the sole exception (splash).
-- Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe clears both in-memory and media caches too (profile_screen.dart:134-150), and additionally reloads the profile.
+- Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe is state-owned: `ProfileState.wipeAppData` clears both in-memory and media caches, then re-syncs the profile (`loadProfile(force: true)`) and raises `profile_dataWiped` last; the screen only clears the other feature states and refreshes the realtime channel.
 - BaseState notification is deferred one frame; code must never rely on synchronous listener invocation.
 - A state message is user-facing text owned by the state; the owning screen renders it once through `StateMessageListener` and clears it. A screen must not also raise the same snackbar for a state-emitted message.
 - `ThemeProvider` and `LanguageProvider` both survive navigation and process restart (SharedPreferences, restored before `runApp`); both are also preserved by `StorageService.clearAll()` on logout/wipe.
@@ -260,7 +263,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 | Concern | Status |
 |---|---|
 | BaseState hooking into ChangeNotifier | IMPLEMENTED (base_state.dart:10-29) |
-| State message → snackbar surfacing | IMPLEMENTED (`StateMessageListener` mixin, 7 screens; the state owns the message, the screen renders and clears it) |
+| State message → snackbar surfacing | IMPLEMENTED (`StateMessageListener` mixin, 8 screens + the global `AuthMessageHost`; the state owns the message, the screen/root renders and clears it, `showPendingMessage()` drains it before a pop) |
 | Frame coalescing | IMPLEMENTED (partial — per-instance only) |
 | loadWithChangeDetection | IMPLEMENTED (base_state.dart:46-59) |
 | Change-check via checkpoint vs server max-timestamp | IMPLEMENTED (base_repository.dart:79-108, checkpoint_mixin.dart) |
@@ -272,7 +275,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 | State survival across navigation | IMPLEMENTED (root-provided) |
 | Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`; restored pre-`runApp`; preserved by `clearAll`) |
 | State survival across lifecycle | IMPLEMENTED (resume refresh-all; background unsubscribe) |
-| Feature state reset on logout + wipe | IMPLEMENTED (`onClearFeatureStates` in AuthState.logout, registered by RealtimeSyncScope; wipe path in profile_screen.dart) |
+| Feature state reset on logout + wipe | IMPLEMENTED (`onClearFeatureStates` in AuthState.logout, registered by RealtimeSyncScope; wipe owned by `ProfileState.wipeAppData`, screen only clears the sibling states) |
 | In-flight checkpoint write-back dropped on clear (epoch gate) | IMPLEMENTED (`CacheService.checkpointEpoch` bumped by `clearAll`/`purge`/`clearCheckpoints`; every checkpoint write gated on the epoch captured at fetch start) |
 | Automated tests for state layer | IMPLEMENTED (`test/base_state_test.dart` — frame coalescing, `runSafe`, `handleResult`, `loadWithChangeDetection`, plus the `BaseRepository.hasChanges` checkpoint comparison; `test/mood_state_test.dart` etc. cover the concrete states) |
 

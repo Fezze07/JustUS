@@ -102,7 +102,7 @@ VALUES ($text, false, $partnershipId [, $category])
 ```
 
 Flow:
-1. `BucketState.addItem` validates non-empty text (trims; if empty it sets `message` to `bucket_enterText`, rendered by the screen's `StateMessageListener`, and returns).
+1. `BucketState.addItem` validates non-empty text (trims; if empty it sets `message` to `bucket_enterText`, rendered by the screen's `StateMessageListener`, and returns `false`). The add dialog awaits the `bool`: it clears and pops only on `true`, so an empty or rejected add leaves the dialog open on the message.
 2. Repository inserts row; `done = false` always.
 3. Fires `notifyPartnerOnce(notificationKey: 'bucketItemAdded', params: {partnerName})` — unawaited.
 4. No optimistic insert — Realtime INSERT event populates state.

@@ -185,7 +185,7 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
         thumbnail (metadata.thumbnail) when present; failures logged, never block the
         response; orphaned objects are reclaimed by retentionJob sweepStaleOrphanObjects
         (24 h cutoff, which also references metadata.thumbnail keys)
-  → Success → DriveState sets `message` to `drive_deleted`, rendered by the screen's `StateMessageListener`; failure → local list restored (drive_state.dart:277-281)
+  → Success → DriveState sets `message` to `drive_deleted` and returns `true`, so `DriveItemScreen` drains it with `showPendingMessage()` and only then pops the confirm dialog and itself; failure → `false`, the local list is restored, and the screen stays open with the error toast (drive_state.dart:263-283)
 ```
 - Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
 - The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.

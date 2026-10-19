@@ -130,7 +130,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 - `runSafe(action, {showLoading})`: sets loading, clears message, awaits, on error -> `ErrorHandler.handle(e)`, returns bool success. **The universal error boundary for user actions.**
 - `handleResult<T>(result, {onSuccess, notifyOnSuccess})`: pattern-matches `Success/GenericError/NetworkError`; non-success paths go through `ErrorHandler` and call `notifyListeners()`.
 - `loadWithChangeDetection({loadFromCache, hasChanges, fetchFromNetwork})`: cache -> checkpoint diff -> fire-and-forget network refresh (`unawaited`, not awaited - UI renders cache immediately).
-- `StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (same file): screen mixin that renders the owning state's `message` through `ErrorHandler.showSnackBar` and then clears it. The state is resolved once after the first frame and cached, because `context.read` inside `dispose()` throws on a deactivated element. Mixed into the Game/Mood/Drive/Bucket/Profile/Homepage/Partner screens.
+- `StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (same file): screen mixin that renders the owning state's `message` through `ErrorHandler.showSnackBar` and then clears it (or `showPendingMessage()` for a synchronous drain before a `pop`). The state is resolved once after the first frame and cached, because `context.read` inside `dispose()` throws on a deactivated element. Mixed into the Game/Mood/Drive/DriveItem/Bucket/Profile/Homepage/Partner screens, plus the global `AuthMessageHost` in `main.dart` for `AuthState`.
 
 ### State-scoped observations
 

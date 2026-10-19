@@ -197,7 +197,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Error Handling
 
 - **Media Upload Failures**: Caught in `MediaService.uploadMedia()` with logging and exception rethrowing. `ProfileState` catches errors via `runSafe()`, clearing uploading status and presenting user feedback.
-- **Status Messages**: `ProfileState` owns the user-facing status text — `profile_photoUploading` while the photo upload runs, and `profile_saved` on a completed display-name, photo, or anniversary update — and `ProfileScreen` renders it through the `StateMessageListener` mixin (`clearMessage` after display). The wipe confirmation stays a direct screen snackbar: `wipeAppData` sets `profile_dataWiped`, but the post-wipe `loadProfile(force: true)` clears the state message before the listener can fire.
+- **Status Messages**: `ProfileState` owns the user-facing status text — `profile_photoUploading` while the photo upload runs, `profile_saved` on a completed display-name, photo, or anniversary update, and `profile_dataWiped` after a wipe — and `ProfileScreen` renders it through the `StateMessageListener` mixin (`clearMessage` after display). The wipe confirmation is state-owned too: `wipeAppData` runs the whole flow (wipe → `clear()` → `loadProfile(force: true)`) and sets `profile_dataWiped` last, so the reload no longer clips the message before the listener fires.
 - **Wipe Failures**: Handled via `ResultWrapper`. If backend returns non-success, an exception is thrown and an error SnackBar is displayed without clearing local state.
 
 ---

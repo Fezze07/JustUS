@@ -232,7 +232,7 @@ Two mechanisms:
 
 ## Navigation after account wipe
 
-- `ProfileScreen._showWipeConfirmation()` (debug-only, profile_screen.dart:64-110): confirm dialog -> `RealtimeSyncService.suppress()` -> `ProfileState.wipeAppData()` -> clears all feature states -> snackbar -> `loadProfile(force:true)` -> `rt.refreshChannel()`.
+- `ProfileScreen._showWipeConfirmation()` (debug-only, profile_screen.dart:64-110): confirm dialog -> `RealtimeSyncService.suppress()` -> `ProfileState.wipeAppData()` (which wipes, clears its own cache, reloads the profile, and sets `profile_dataWiped`) -> clears the sibling feature states -> `rt.refreshChannel()`. The confirmation snackbar is shown by the state's listener.
 - **No navigation**: the user stays on the current `ProfileScreen`/`MainShell`; the same session/partnership continues. (Wipe clears app data, not the account partnership.)
 
 ---

@@ -281,7 +281,7 @@ notifySchema = z.object({
 
 ### Per-type notes
 
-- **`requestAccepted`**: fired from `acceptPartnerRequest` (rpc), a UI-triggered accept. The request *creation* (`requestPartnership`/`invite`) and **rejection do not notify** — the architecture doc (F11) records the rejection asymmetry.
+- **`requestAccepted`**: fired from `acceptPartnerRequest` (rpc), a UI-triggered accept. The request *creation* (`invite`) and **rejection do not notify** — the architecture doc (F11) records the rejection asymmetry.
 - **`missyou`**: no throttling client-side; holding the miss-you button queues one `notifyPartnerOnce` per `sendMissYou` RPC success — the 12/min user rate limit is the only cap.
 - **`moodUpdated`**: `emojiChar` is passed in params but the ARB body `notif_moodUpdated_body({partnerName})` does not interpolate it, and the server template omits it too — the emoji payload is effectively unused in both localization passes.
 - **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`Una nuova domanda ti aspetta!` / `A new question awaits you!`). Fired on `fetchNewGameQuestion` only when the sender's client actually creates the `game_questions` row; a partner's client that discovers the row (Realtime insert or cold-start read) returns the existing question without notifying.

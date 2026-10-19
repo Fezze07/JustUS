@@ -25,7 +25,7 @@ Key architectural boundaries:
 The change-password flow is implemented end to end, client → Supabase Auth (no backend route is involved):
 
 1. `ChangePasswordScreen` validates required/format/confirmation locally, then calls `AuthState.changePassword(currentPassword:, newPassword:)` with a loading state on the `VPButton`.
-2. `AuthState.changePassword` ([auth_state.dart:449-520](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L449-L520)) re-authenticates the current password with `signInWithPassword` (fresh Turnstile token included) before changing anything. A wrong current password maps to `ErrorCodes.authFailCurrent` and surfaces the screen's own message instead of the generic reauth dialog.
+2. `AuthState.changePassword` ([auth_state.dart:449-520](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L449-L520)) re-authenticates the current password with `signInWithPassword` (fresh Turnstile token included) before changing anything. A wrong current password maps to `ErrorCodes.authFailCurrent` and sets `auth_currentPasswordIncorrect` on `AuthState` instead of opening the generic reauth dialog; the success case likewise sets `auth_passwordUpdated`. Both reach the user through the global `AuthMessageHost` listener, so the screen only pops on success.
 3. On success it calls `AuthRepository.changePassword` ([auth_repository.dart:96-104](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L96-L104)) → `sbClient.auth.updateUser(UserAttributes(password: …))`.
 4. The write is followed by the other-session revoke (see below).
 5. Failures are surfaced by `ErrorHandler`; success shows a localized snackbar and pops the screen.
