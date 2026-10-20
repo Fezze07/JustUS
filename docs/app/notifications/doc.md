@@ -12,7 +12,7 @@ The system operates in three OS presentation modes:
 
 **Two localization passes** exist:
 
-1. **Server-side** (`notification.service.js`): the per-device `locale` stored in `user_devices` selects localized title/body from a `LOCALIZATIONS[locale]` map.
+1. **Server-side** (`notification.utils.js`): the per-device `locale` stored in `user_devices` selects localized title/body from a `LOCALIZATIONS[locale]` map.
 2. **Client-side** (`notification_service.dart`): in foreground, the `notificationKey` is resolved against `LanguageHelper.appLoc` (ARB strings), so the notification text follows the in-app language preference.
 
 The client path wins in foreground; the server path matters only for the system-tray background/killed rendering (F-PN6).
@@ -30,16 +30,16 @@ Feature action (Supabase mutation succeeds)
               └─ POST /api/v1/notify/partner (JWT + rate limit 12/min)   notify.routes.js:33-39
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
-                                └─ resolveNotificationTarget → get_accepted_partner(senderId)  service:378-403
-                                      └─ sendNotificationToUser(receiverId, type, key, params)  service:241-355
-                                            ├─ fetchUserDevices → isDeliverableDevice filter   service:200-211,40-46
-                                            ├─ group fids by device.locale ('en' default)      service:258-266
-                                            ├─ per-locale batch ≤ 500 fids                     service:276
+                                └─ resolveNotificationTarget → get_accepted_partner(senderId)  service:129-154
+                                      └─ sendNotificationToUser(receiverId, type, key, params)  service:59-105
+                                            ├─ fetchUserDevices → isDeliverableDevice filter   service:30-41,22-28
+                                            ├─ group fids by device.locale ('en' default)      utils:190-200
+                                            ├─ per-locale batch ≤ 500 fids                     utils:248-268
                                             │     └─ sendMulticastNotification(buildFcmMessage)  fcm-key.js
-                                            │           - localizes title/body (LOCALIZATIONS) service:152-198
+                                            │           - localizes title/body (LOCALIZATIONS) utils:31-174
                                             │           - android: priority high, apns: priority 10
-                                            │           - retry up to 3x (500ms * attempt)      service:283-299
-                                            └─ deleteInvalidInstallations(userId, post-delivery)  service:213-227,318
+                                            │           - retry up to 3x (500ms * attempt)      utils:202-218
+                                            └─ deleteInvalidInstallations(userId, post-delivery)  service:43-57,92
                                                   └─ logs_notifications + notification.delivery_summary
 Receiver device (FCM delivery):
   ├─ Foreground (Android/iOS): onMessage → showRemoteMessage
@@ -64,7 +64,7 @@ Receiver device (FCM delivery):
 
 - `Firebase.initializeApp` runs only on Android/iOS/web (`main.dart:54-67`). On Linux `DefaultFirebaseOptions.currentPlatform` throws `UnsupportedError` (`firebase_options.dart:32-35`).
 - `supportsFcm` is `defaultTargetPlatform == android || ios || kIsWeb` (`installation_id_service.dart`).
-- The backend treats a device as deliverable only when it has an `installation_id` and `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:40-46`). Desktop devices are never registered at all: `_registerInstallationId()` skips them client-side (`auth_state.dart`), and the backend rejects the empty string returned by unsupported platforms via `min(16)` (`auth.schemas.js`).
+- The backend treats a device as deliverable only when it has an `installation_id` and `device.device_type` is `android`, `ios`, or `web` — or missing entirely (`isDeliverableDevice`, `notification.service.js:39-45`). Desktop devices are never registered at all: `_registerInstallationId()` skips them client-side (`auth_state.dart`), and the backend rejects the empty string returned by unsupported platforms via `min(16)` (`auth.schemas.js`).
 
 **Desktop note**: Windows/macOS/Linux never receive remote push notifications by design. `flutter_local_notifications` Windows/Linux/Darwin settings exist but no code path ever calls `showNotification` on those platforms.
 
@@ -231,22 +231,22 @@ notifySchema = z.object({
 
 ## Backend Dispatch
 
-`notification.service.js`:
+`notification.service.js` (orchestration) and `notification.utils.js` (message building + FCM delivery):
 
-1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:378-403`)
+1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:129-154`)
    - Resolves the receiver through RPC `get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`).
    - `type === 'partner'` → receiver is the active partner; otherwise `receiverId` must be supplied and must equal the partner id.
 
-2. **`sendNotificationToUser(...)`** (`:241-355`)
-   - `fetchUserDevices(userId)` (`:200-211`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
-   - FIDs grouped by `device.locale || 'en'` (`:258-266`) — per-locale messages.
-   - Delivery in batches of `FCM_BATCH_SIZE = 500` (`:276`).
-   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`:283-299`).
+2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
+   - `fetchUserDevices(userId)` (`:30-41`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
+   - FIDs grouped by `device.locale || 'en'` in `groupByLocale` (`notification.utils.js:190-200`) — per-locale messages.
+   - Delivery in batches of `FCM_BATCH_SIZE = 500` via `deliverToBatches` (`notification.utils.js:248-268`).
+   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`sendBatchWithRetry`, `notification.utils.js:202-218`).
    - `configured` flag from the FCM response; if Firebase admin is not initialized the loop aborts with status `skipped_firebase_not_configured`.
-   - Post-send: `deleteInvalidInstallations(userId, ...)` removes the caller's rows whose installation id returned an invalid-FCM error (`:318`, `:333`).
+   - Post-send: `deleteInvalidInstallations(userId, ...)` removes the caller's rows whose installation id returned an invalid-FCM error (`:43-57`).
 
-3. **`buildFcmMessage(...)`** (`:152-198`)
-   - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (fallback locale `'en'`).
+3. **`buildFcmMessage(...)`** (`notification.utils.js:128-174`)
+   - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (`notification.utils.js:31-126`, fallback locale `'en'`).
    - Output: FCM multicast message containing:
      - `notification: {title, body}` — used by the OS for background/killed rendering.
      - `data` — `{type, title, body, source: 'justus-backend', notificationId, notificationKey, params, senderId}`.
@@ -257,7 +257,7 @@ notifySchema = z.object({
 
 ### Invalid installation id cleanup
 
-- `INVALID_FID_CODES = { messaging/invalid-recipient, messaging/installation-id-not-registered }` (`:13-17`).
+- `INVALID_FID_CODES = { messaging/invalid-recipient, messaging/installation-id-not-registered }` (`notification.utils.js:4-7`).
 - Cleanup is scoped by `user_id` **and** `installation_id`: the FIDs come from that caller's `fetchUserDevices`, and `installation_id` is `UNIQUE`, so an unscoped delete could drop the row another account has since re-registered on the same device.
 
 ---
@@ -358,7 +358,7 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 
 ## Localization
 
-### Pass 1 — Server (`notification.service.js:56-198`)
+### Pass 1 — Server (`notification.utils.js:31-174`)
 
 `LOCALIZATIONS = { it: {...}, en: {...} }` with one entry per notification key plus a `default` entry. The per-device `user_devices.locale` (fallback `'en'` for null/unknown) selects the language; `params` are merged into the template (`p.partnerName`, `p.emojiChar`).
 
@@ -370,7 +370,7 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 
 | Path | Known key | Unknown key | Unknown locale |
 |---|---|---|---|
-| Server | localized string | `lang.default` → `'Hai una nuova notifica'` / `'You have a new notification'` | English (`LOCALIZATIONS[locale] ? locale : 'en'`, `:145`) |
+| Server | localized string | `lang.default` → `'Hai una nuova notifica'` / `'You have a new notification'` | English (`LOCALIZATIONS[locale] ? locale : 'en'`, `notification.utils.js:120`) |
 | Client | ARB string | `(title: 'JustUS', body: '')` — shown with empty body (F-PN7) | `it` |
 
 Consequence: a key deployed server-side but not yet in the client switch shows an empty-body `JustUS` notification in foreground (F-PN7), and the Norwegian/unknown-locale device gets English while the app UI falls back to Italian (F-PN6).
@@ -425,7 +425,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 ### F-PN3: Background isolate handler is unreachable with the current payload (INFO)
 
 - **WHAT**: `_firebaseMessagingBackgroundHandler` returns when `message.notification != null` (`main.dart:15-16`), and `buildFcmMessage` always includes a `notification` field — so the background handler never executes for production messages.
-- **WHERE**: `main.dart:13-34`; `notification.service.js:165-170`.
+- **WHERE**: `main.dart:13-34`; `notification.utils.js:143-146`.
 - **WHY**: The backend intentionally includes `notification` so the OS renders the system tray; the handler was written for data-only messages that are never produced.
 - **WHEN**: Every background/killed delivery.
 - **IMPACT**: None today — system-tray rendering works. The custom Dart background path (`showRemoteMessage(isBackground: true)`) is dead code.
@@ -441,8 +441,8 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN6: Default-locale asymmetry between server and client (INFO)
 
-- **WHAT**: The server falls back to `'en'` for unknown/empty `device.locale` (`notification.service.js:145`); the client falls back to `it` for unknown `app_language_code` (`language_helper.dart:27`).
-- **WHERE**: `notification.service.js:145`, `language_helper.dart:27`.
+- **WHAT**: The server falls back to `'en'` for unknown/empty `device.locale` (`notification.utils.js:120`); the client falls back to `it` for unknown `app_language_code` (`language_helper.dart:27`).
+- **WHERE**: `notification.utils.js:120`, `language_helper.dart:27`.
 - **WHEN**: Legacy rows with `locale = null`, or a locale not in `{it, en}`.
 - **IMPACT**: Background system-tray text in English while foreground/in-app strings are Italian (or vice-versa). Minor.
 - **CONFIDENCE**: HIGH.
@@ -457,8 +457,8 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN9: iOS badge is hardcoded to 1 and never cleared (LOW)
 
-- **WHAT**: `buildFcmMessage` sets `aps.badge: 1` (`notification.service.js:187`) — *set*, not increment, per notification. No `clearBadge`/`setBadge(0)` exists on app foreground.
-- **WHERE**: `notification.service.js:187`; dashboard/native code has no `UIApplication.applicationIconBadgeNumber = 0`.
+- **WHAT**: `buildFcmMessage` sets `aps.badge: 1` (`notification.utils.js:162`) — *set*, not increment, per notification. No `clearBadge`/`setBadge(0)` exists on app foreground.
+- **WHERE**: `notification.utils.js:162`; dashboard/native code has no `UIApplication.applicationIconBadgeNumber = 0`.
 - **WHEN**: Every notification on iOS.
 - **IMPACT**: App icon badge sticks at "1" after the first notification, never incrementing or clearing.
 - **CONFIDENCE**: HIGH.
@@ -517,11 +517,11 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
+`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 
-`Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it.
+`Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it; further send-path cases cover a transient multicast failure being retried once and then delivered, and a `configured: false` response aborting the remaining locale batches.
 
 ### Flutter
 
