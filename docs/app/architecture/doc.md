@@ -157,7 +157,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 Every feature exposes `*Repository extends BaseRepository`:
 
 - `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherInstallations` (`POST /auth/installation-id-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateInstallationId` (backend, signed).
-- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (direct `partnerships` delete), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
+- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (RPC `reject_partnership`), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `GameQuestionBankRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase tables/views/RPCs); `DriveRepository`, `UserRepository` and `VersionRepository` also make signed backend calls for media, notifications and version checks where needed.
 
 ### Services
@@ -471,9 +471,7 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F11: `PartnershipRepository.rejectPartnerRequest` deletes directly via Supabase
 
-**Evidence**: `partnership_repository.dart:134-142` - `rejectPartnerRequest` does `sbClient.from('partnerships').delete().eq('id', partnershipId).eq('status', 'pending')` directly, bypassing the backend.
-
-**What**: This means the delete goes through RLS (which should be fine - only the partnership members can delete their own pending row), but unlike `acceptPartnerRequest` (which calls an RPC), the rejection does not fire a notification to the other party. The backend `invite` endpoint and `request_partnership` RPC also do not notify on reject.
+**Resolved (2026-10-20)**: `rejectPartnerRequest` now calls RPC `reject_partnership` (server enforces membership + `status='pending'`), matching `accept_partnership` encapsulation. No notification is sent on reject by design (same as before).
 
 **Impact**: No notification is sent to the sender when their partnership request is rejected. This may or may not be intended behavior; it is a functional asymmetry.
 

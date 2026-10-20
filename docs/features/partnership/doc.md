@@ -195,7 +195,7 @@ The partnership feature uses two distinct channels, by design:
 
 ### 4. Rejecting a Request
 - **User Action**: User taps "Decline" or "Cancel Request".
-- **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Deletes row from `public.partnerships` where `id = invitationId` and `status = 'pending'`.
+- **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Calls RPC `reject_partnership(p_partnership_id = invite.id)`, deleting a pending row where the caller is a member.
 - **UI Update**: Pending invitation is removed from local list.
 
 ### 5. Inviting a Partner Who Has No Account
@@ -273,16 +273,9 @@ During the reverse-engineering analysis, the following technical findings and bu
 * **IMPACT**: The recipient learns about the request from the app or a push notification; the 6-char code is still shared out-of-band.
 * **CONFIDENCE**: **HIGH**
 
-### 2. DEFECT: Asymmetrical Database Operation for Request Rejection
-
-* **WHAT**: Request acceptance uses a stored procedure (`accept_partnership` RPC), while request rejection performs direct table modification (`sbClient.from('partnerships').delete()`).
-* **WHERE**: [partnership_repository.dart:97 & 111](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L97)
-* **WHY**: Inconsistency in database encapsulation patterns. Rejection relies on direct RLS DELETE policies on `public.partnerships`, whereas acceptance relies on RPC logic.
-* **WHEN**: Executing accept vs reject actions in `PartnershipRepository`.
-* **IMPACT**: Maintenance complexity and divergence in error handling / logging auditing paths.
-* **CONFIDENCE**: **MEDIUM**
-
 ---
+
+
 
 ## Edge Cases
 
@@ -309,7 +302,7 @@ During the reverse-engineering analysis, the following technical findings and bu
 | Send Request (Email + 6-Char Code) | **IMPLEMENTED** | `request_partnership` RPC |
 | View Pending Sent & Received Requests | **IMPLEMENTED** | `get_pending_invitations` RPC |
 | Accept Request Flow | **IMPLEMENTED** | `accept_partnership` RPC + notification |
-| Reject Request Flow | **PARTIALLY IMPLEMENTED** | DB deletion works, but optimistic UI filter has ID mismatch bug |
+| Reject Request Flow | **IMPLEMENTED** | `reject_partnership` RPC deletes pending row for caller only |
 | Invite Partner With No Account | **IMPLEMENTED** | `POST /auth/invite-user` → `admin.inviteUserByEmail()`; hosted "Invite user" email; account-only, no `partnerships` row |
 | Realtime State Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `partnerships` table |
 | Automatic Redirection on Login | **IMPLEMENTED** | `SplashScreen` routes based on `partnerState.partner` |

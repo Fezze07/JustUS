@@ -119,11 +119,9 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<void>> rejectPartnerRequest(int partnershipId) async {
     BaseRepository.clearPartnershipCache();
     return tryCall(() async {
-      await sbClient
-          .from('partnerships')
-          .delete()
-          .eq('id', partnershipId)
-          .eq('status', 'pending');
+      await sbClient.rpc('reject_partnership', params: {
+        'p_partnership_id': partnershipId,
+      });
     });
   }
 
