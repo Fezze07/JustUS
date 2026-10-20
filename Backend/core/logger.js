@@ -80,75 +80,97 @@ async function persistLog(table, record) {
 // ---------------------------------------------------------------------------
 
 /**
- * Log an API access event → api_access_logs
- * @param {object} record
- * @param {string}  record.request_id
- * @param {string}  record.method
- * @param {string}  record.path
- * @param {number}  record.status_code
- * @param {string}  [record.user_id]
- * @param {string}  [record.ip_address]
- * @param {number}  [record.duration_ms]
+ * Log an API access event → logs_api_access
  */
 async function logAccess(record) {
   write("info", "api.access", record);
   if (LOG_TO_DB) {
-    await persistLog("logs_api_access", record);
+    const dbRecord = {
+      request_id: record.request_id || null,
+      method: record.method || null,
+      path: record.path || null,
+      status_code: record.status_code ?? null,
+      duration_ms: record.duration_ms ?? null,
+    };
+    await persistLog("logs_api_access", dbRecord);
   }
 }
 
 /**
- * Log an API error event → api_error_logs
- * @param {object} record
- * @param {string}  record.request_id
- * @param {string}  record.path
- * @param {string}  record.method
- * @param {string}  [record.user_id]
- * @param {string}  [record.ip_address]
- * @param {string}  record.error_code      — e.g. "AUTH-FAIL-001"
- * @param {string}  record.error_message
- * @param {string}  record.severity        — LOW | MEDIUM | HIGH | CRITICAL
- * @param {object}  [record.error]         — serialized error object
- * @param {object}  [record.payload]       — sanitized request body
+ * Log an API error event → logs_api_errors
  */
 async function logError(record) {
   write("error", "api.error", record);
   if (LOG_TO_DB) {
-    await persistLog("logs_api_errors", record);
+    const errorPayload = record.payload ? sanitizePayload(record.payload) : null;
+    const errorJson = {
+      error_code: record.error_code,
+      error_message: record.error_message,
+      user_id: record.user_id || null,
+      ip_address: record.ip_address || null,
+      severity: record.severity || null,
+      error: record.error || null,
+      stack: record.stack || null,
+      endpoint: record.endpoint || record.path || null,
+    };
+    const dbRecord = {
+      request_id: record.request_id || null,
+      path: record.path || record.endpoint || null,
+      method: record.method || null,
+      error_json: errorJson,
+    };
+    await persistLog("logs_api_errors", dbRecord);
   }
 }
 
 /**
  * Log a security event → logs_security_events
- * @param {object} record
- * @param {string}  record.request_id
- * @param {string}  record.type
- * @param {string}  record.path
- * @param {string}  [record.user_id]
- * @param {string}  [record.ip_address]
- * @param {string}  [record.severity]
  */
 async function logSecurity(record) {
   write("warn", "security.event", record);
   if (LOG_TO_DB) {
-    await persistLog("logs_security_events", record);
+    const errorJson = {
+      error_code: record.error_code,
+      error_message: record.error_message,
+      user_id: record.user_id || null,
+      ip_address: record.ip_address || null,
+      severity: record.severity || null,
+      type: record.type || record.error_code || null,
+      payload: record.payload ? sanitizePayload(record.payload) : null,
+      stack: record.stack || null,
+      endpoint: record.endpoint || record.path || null,
+      retry_after_seconds: record.retry_after_seconds ?? null,
+      strike_level: record.strike_level ?? null,
+    };
+    const dbRecord = {
+      request_id: record.request_id || null,
+      type: record.type || record.error_code || "security.event",
+      path: record.path || record.endpoint || null,
+      error_json: errorJson,
+    };
+    await persistLog("logs_security_events", dbRecord);
   }
 }
 
 /**
  * Log an authentication failure → logs_auth_failures
- * @param {object} record
- * @param {string}  record.request_id
- * @param {string}  record.path
- * @param {string}  [record.email]
- * @param {string}  [record.ip_address]
- * @param {string}  [record.reason]
- * @param {string}  [record.error_code]
  */
 async function logAuthFailure(record) {
   write("warn", "auth.failure", record);
   if (LOG_TO_DB) {
-    await persistLog("logs_auth_failures", record);
+    const dbRecord = {
+      request_id: record.request_id || null,
+      error_code: record.error_code || "AUTH-FAIL-001",
+      error_message: record.error_message || record.reason || null,
+      path: record.path || record.endpoint || null,
+      user_id: record.user_id || null,
+      ip_address: record.ip_address || null,
+      reason: record.reason || null,
+      severity: record.severity || "HIGH",
+      payload: record.payload ? sanitizePayload(record.payload) : (record.email ? { email: record.email } : null),
+      stack: record.stack || null,
+    };
+    await persistLog("logs_auth_failures", dbRecord);
   }
 }
 
@@ -228,10 +250,18 @@ function buildBaseLogRecord(opts) {
 async function routeLogByArea(area, base, rawPayload) {
   switch (area) {
     case "AUTH":
-      await logAuthFailure({ ...base, email: rawPayload?.email ?? rawPayload?.identifier });
+      await logAuthFailure({
+        ...base,
+        email: rawPayload?.email ?? rawPayload?.identifier,
+        payload: rawPayload,
+      });
       break;
     case "SEC":
-      await logSecurity({ ...base, type: base.error_code });
+      await logSecurity({
+        ...base,
+        type: base.error_code,
+        payload: rawPayload,
+      });
       break;
     default:
       await logError(base);

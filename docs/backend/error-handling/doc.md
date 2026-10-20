@@ -85,10 +85,10 @@ All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/
 
 | Table Name | Trigger / Log Function | Logged Data Fields | Sensitive Data Handling |
 |---|---|---|---|
-| `logs_api_access` | `logAccess(record)` | `request_id`, `method`, `path`, `status_code`, `user_id`, `ip_address`, `duration_ms` | No payload logged. |
-| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `error_code`, `error_message`, `severity`, `user_id`, `endpoint`, `payload`, `stack`, `ip_address` | Payload and stack are written only when `ENABLE_ERROR_DETAILS === "true"`; the body is then sanitized via `sanitizePayload()`. |
-| `logs_auth_failures` | `logAuthFailure(record)` | `request_id`, `path`, `email`, `ip_address`, `reason`, `error_code` | Email included, credentials/passwords stripped by `sanitizePayload()`. |
-| `logs_security_events` | `logSecurity(record)` | `request_id`, `type`, `path`, `user_id`, `ip_address`, `severity` | Logs security events (e.g. rate limit violations, IP range shifts). |
+| `logs_api_access` | `logAccess(record)` | `request_id`, `method`, `path`, `status_code`, `duration_ms` | No payload logged. |
+| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `path`, `method`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `error`, `stack`, `endpoint`, payload where present) | Payload is sanitized via `sanitizePayload()` before embedding in `error_json`. Stack included only in non-production. |
+| `logs_auth_failures` | `logAuthFailure(record)` | `request_id`, `error_code`, `error_message`, `path`, `user_id`, `ip_address`, `reason`, `severity`, `payload`, `stack` | Payload sanitized via `sanitizePayload()`; email placed in payload when passed. |
+| `logs_security_events` | `logSecurity(record)` | `request_id`, `type`, `path`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `type`, `payload`, `stack`, `endpoint`, `retry_after_seconds`, `strike_level`) | Payload sanitized via `sanitizePayload()`. |
 | `logs_notifications` | `logNotification(record)` | `user_id`, `type`, `status` | Delivery audit trail. |
 
 ---

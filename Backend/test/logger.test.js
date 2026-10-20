@@ -38,6 +38,7 @@ describe("logAppError area routing", () => {
 
     expect(inserts).toHaveLength(1);
     expect(inserts[0].table).toBe("logs_auth_failures");
+    expect(inserts[0].record.error_code).toBe("AUTH-FAIL-001");
   });
 
   test("routes SEC-BLOCK-001 to logs_security_events", async () => {
@@ -45,6 +46,8 @@ describe("logAppError area routing", () => {
 
     expect(inserts).toHaveLength(1);
     expect(inserts[0].table).toBe("logs_security_events");
+    expect(inserts[0].record.type).toBe("SEC-BLOCK-001");
+    expect(inserts[0].record.error_json?.error_code).toBe("SEC-BLOCK-001");
   });
 
   test.each(Object.entries(AppError.CODES))(
@@ -54,7 +57,14 @@ describe("logAppError area routing", () => {
 
       expect(inserts).toHaveLength(1);
       expect(inserts[0].table).toBe(expectedTable(key));
-      expect(inserts[0].record.error_code).toBe(def.code);
+      if (key.split("_")[0] === "AUTH") {
+        expect(inserts[0].record.error_code).toBe(def.code);
+      } else if (key.split("_")[0] === "SEC") {
+        expect(inserts[0].record.type).toBe(def.code);
+        expect(inserts[0].record.error_json?.error_code).toBe(def.code);
+      } else {
+        expect(inserts[0].record.error_json?.error_code).toBe(def.code);
+      }
     }
   );
 });
