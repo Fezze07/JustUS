@@ -49,7 +49,13 @@ abstract class BaseState extends ChangeNotifier {
     required Future<void> Function() fetchFromNetwork,
   }) async {
     await loadFromCache();
-    final changed = await hasChanges();
+    bool changed = true;
+    try {
+      changed = await hasChanges();
+    } catch (e, st) {
+      ErrorHandler.handle(e, stackTrace: st);
+      changed = true;
+    }
 
     if (changed) {
       unawaited(fetchFromNetwork().catchError((Object e, StackTrace st) {

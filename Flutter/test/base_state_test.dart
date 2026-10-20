@@ -184,6 +184,51 @@ void main() {
     });
   });
 
+  group('BaseState.loadWithChangeDetection', () {
+    test('a throwing hasChanges does not reject and triggers a refetch',
+        () async {
+      final state = _TestState();
+      var cacheCalls = 0;
+      var hasChangesCalls = 0;
+      var fetchCalls = 0;
+
+      await _captured(() async {
+        await state.loadWithChangeDetection(
+          loadFromCache: () async => cacheCalls++,
+          hasChanges: () async {
+            hasChangesCalls++;
+            throw StateError('hasChanges boom');
+          },
+          fetchFromNetwork: () async {
+            fetchCalls++;
+          },
+        );
+      });
+
+      expect(cacheCalls, 1);
+      expect(hasChangesCalls, 1);
+      expect(fetchCalls, 1,
+          reason: 'on hasChanges failure treat as changed and refetch');
+      expect(_printed.join('\n'), contains('hasChanges boom'));
+      expect(_uncaught, isEmpty,
+          reason: 'the future must not reject');
+    });
+
+    test('a throwing hasChanges forwards error via ErrorHandler', () async {
+      final state = _TestState();
+
+      await _captured(() async {
+        await state.loadWithChangeDetection(
+          loadFromCache: () async {},
+          hasChanges: () async => throw Exception('probe failure'),
+          fetchFromNetwork: () async {},
+        );
+      });
+
+      expect(_printed.join('\n'), contains('probe failure'));
+    });
+  });
+
   group('BaseState.runSafe', () {
     test('returns true and clears loading after the action', () async {
       final state = _TestState();
