@@ -44,7 +44,7 @@ jest.mock("../config/db", () => {
 
   const queryBuilder = {
     delete: jest.fn().mockReturnThis(),
-    select: jest.fn((cols) => queryBuilder),
+    select: jest.fn(() => queryBuilder),
     not: jest.fn((col, op, val) => {
       queryBuilder._currentNot = { col, op, val };
       return queryBuilder;

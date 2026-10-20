@@ -238,6 +238,40 @@ describe("auth routes", () => {
     );
   });
 
+  test("sniffs the device type from the user-agent, but an explicit deviceType wins", async () => {
+    const userDevicesQuery = createQueryBuilder();
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "user_devices") {
+        return userDevicesQuery;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const app = createApp();
+
+    // iPhone UAs also contain "Mac OS X" — ios must win over macos.
+    await request(app)
+      .post("/api/v1/auth/installation-id")
+      .set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")
+      .send({ installationId: "fid-that-is-long-enough-0002" });
+
+    expect(userDevicesQuery.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ device_type: "ios" }),
+      { onConflict: "installation_id" }
+    );
+
+    await request(app)
+      .post("/api/v1/auth/installation-id")
+      .set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")
+      .send({ installationId: "fid-that-is-long-enough-0003", deviceType: "web" });
+
+    expect(userDevicesQuery.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ device_type: "web" }),
+      { onConflict: "installation_id" }
+    );
+  });
+
   test("rejects an empty installation id", async () => {
     const app = createApp();
 

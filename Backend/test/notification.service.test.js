@@ -158,4 +158,64 @@ describe("sendNotificationToUser targets installation ids", () => {
     expect(result.invalidInstallationsRemoved).toBe(0);
     expect(mockDb.rows).toHaveLength(1);
   });
+
+  test("retries a transient FCM failure before giving up", async () => {
+    mockDb.rows = [
+      {
+        id: 1,
+        user_id: 1,
+        installation_id: "fid-retry-0001",
+        device_type: "android",
+        locale: "en",
+      },
+    ];
+    mockSendMulticast
+      .mockRejectedValueOnce(new Error("transient boom"))
+      .mockResolvedValueOnce({
+        configured: true,
+        successCount: 1,
+        failureCount: 0,
+        responses: [{ success: true }],
+      });
+
+    const result = await sendNotificationToUser({
+      userId: 1,
+      type: "partner",
+      title: "Hi",
+    });
+
+    expect(mockSendMulticast).toHaveBeenCalledTimes(2);
+    expect(result.delivered).toBe(1);
+    expect(result.success).toBe(true);
+  });
+
+  test("stops sending further batches once FCM reports it is not configured", async () => {
+    mockDb.rows = [
+      {
+        id: 1,
+        user_id: 1,
+        installation_id: "fid-en-0001",
+        device_type: "android",
+        locale: "en",
+      },
+      {
+        id: 2,
+        user_id: 1,
+        installation_id: "fid-it-0001",
+        device_type: "android",
+        locale: "it",
+      },
+    ];
+    mockSendMulticast.mockResolvedValueOnce({ configured: false });
+
+    const result = await sendNotificationToUser({
+      userId: 1,
+      type: "partner",
+      title: "Hi",
+    });
+
+    expect(mockSendMulticast).toHaveBeenCalledTimes(1);
+    expect(result.configured).toBe(false);
+    expect(result.delivered).toBe(0);
+  });
 });

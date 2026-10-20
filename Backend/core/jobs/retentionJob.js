@@ -20,6 +20,7 @@ const {
 } = require("@aws-sdk/client-s3");
 const {
   adminSupabase,
+  assertDbSuccess,
   env,
   listObjects,
   deleteObjects,
@@ -170,27 +171,29 @@ async function sweepStalMultipartUploads() {
 async function fetchReferencedKeys() {
   const referenced = new Set();
 
-  const drive = await adminSupabase
-    .from("drive_items")
-    .select("filename, metadata")
-    .not("filename", "is", null);
+  const driveRows = assertDbSuccess(
+    await adminSupabase
+      .from("drive_items")
+      .select("filename, metadata")
+      .not("filename", "is", null),
+    "DB_READ_001"
+  );
 
-  if (drive.error) throw drive.error;
-
-  for (const row of drive.data || []) {
+  for (const row of driveRows) {
     if (row.filename) referenced.add(row.filename);
-    const thumb = row.metadata?.thumbnail ?? row.metadata?.["thumbnail"];
+    const thumb = row.metadata?.thumbnail;
     if (typeof thumb === "string" && thumb) referenced.add(thumb);
   }
 
-  const profile = await adminSupabase
-    .from("user_profiles")
-    .select("profile_pic_url")
-    .not("profile_pic_url", "is", null);
+  const profileRows = assertDbSuccess(
+    await adminSupabase
+      .from("user_profiles")
+      .select("profile_pic_url")
+      .not("profile_pic_url", "is", null),
+    "DB_READ_001"
+  );
 
-  if (profile.error) throw profile.error;
-
-  for (const row of profile.data || []) {
+  for (const row of profileRows) {
     if (row.profile_pic_url) referenced.add(row.profile_pic_url);
   }
 

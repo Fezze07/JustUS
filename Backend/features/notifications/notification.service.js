@@ -1,34 +1,17 @@
 const {
-  sendMulticastNotification,
   getPartnerId,
   adminSupabase,
   AppError,
   assertDbSuccess,
-  logInfo,
   logNotification,
-  serializeError,
 } = require("../../all_imports");
+const {
+  normalizeDataPayload,
+  safeLogInfo,
+  deliverToBatches,
+} = require("./notification.utils");
 
-const FCM_BATCH_SIZE = 500;
-const INVALID_FID_CODES = new Set([
-  "messaging/invalid-recipient",
-  "messaging/installation-id-not-registered",
-]);
 const FCM_DEVICE_TYPES = new Set(["android", "ios", "web"]);
-
-function normalizeDataPayload(data = {}) {
-  return Object.entries(data).reduce((acc, [key, value]) => {
-    if (value === undefined || value === null) return acc;
-    acc[key] = typeof value === "string" ? value : JSON.stringify(value);
-    return acc;
-  }, {});
-}
-
-async function safeLogInfo(event, payload) {
-  if (typeof logInfo === "function") {
-    await logInfo(event, payload);
-  }
-}
 
 async function safeLogNotification(record) {
   if (typeof logNotification === "function") {
@@ -42,158 +25,6 @@ function isDeliverableDevice(device) {
 
   const type = device.device_type?.toLowerCase();
   return !type || FCM_DEVICE_TYPES.has(type);
-}
-
-function chunk(values, size) {
-  const chunks = [];
-  for (let i = 0; i < values.length; i += size) {
-    chunks.push(values.slice(i, i + size));
-  }
-  return chunks;
-}
-
-const LOCALIZATIONS = {
-  it: {
-    requestAccepted: (p) => ({
-      title: "Richiesta Accettata",
-      body: `${p.partnerName || "Il tuo partner"} ha accettato la tua richiesta`,
-    }),
-    missyou: (p) => ({
-      title: "Mi manchi",
-      body: `${p.partnerName || "Il tuo partner"} sente la tua mancanza`,
-    }),
-    moodUpdated: (p) => ({
-      title: "Nuovo Umore",
-      body: `${p.partnerName || "Il tuo partner"} ha aggiornato il suo umore`,
-    }),
-    answerSubmitted: (p) => ({
-      title: "Nuova Risposta",
-      body: `${p.partnerName || "Il tuo partner"} ha risposto alla domanda`,
-    }),
-    newQuestion: () => ({
-      title: "Nuova Domanda di Coppia",
-      body: "Una nuova domanda ti aspetta!",
-    }),
-    driveItemAdded: (p) => ({
-      title: "Nuovo Ricordo Aggiunto",
-      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un ricordo`,
-    }),
-    reactionAdded: (p) => ({
-      title: "Nuova Reazione a un Ricordo",
-      body: `${p.partnerName || "Il tuo partner"} ha reagito con ${p.emojiChar || "❤️"}`,
-    }),
-    bucketItemAdded: (p) => ({
-      title: "Nuovo Desiderio nella Lista",
-      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un desiderio`,
-    }),
-    default: () => ({
-      title: "JustUS",
-      body: "Hai una nuova notifica",
-    }),
-  },
-  en: {
-    requestAccepted: (p) => ({
-      title: "Request Accepted",
-      body: `${p.partnerName || "Your partner"} accepted your request`,
-    }),
-    missyou: (p) => ({
-      title: "Miss You",
-      body: `${p.partnerName || "Your partner"} misses you`,
-    }),
-    moodUpdated: (p) => ({
-      title: "New Mood",
-      body: `${p.partnerName || "Your partner"} updated their mood`,
-    }),
-    answerSubmitted: (p) => ({
-      title: "New Answer",
-      body: `${p.partnerName || "Your partner"} answered the question`,
-    }),
-    newQuestion: () => ({
-      title: "New Couple Question",
-      body: "A new question awaits you!",
-    }),
-    driveItemAdded: (p) => ({
-      title: "New Memory Added",
-      body: `${p.partnerName || "Your partner"} added a memory`,
-    }),
-    reactionAdded: (p) => ({
-      title: "New Reaction to a Memory",
-      body: `${p.partnerName || "Your partner"} reacted with ${p.emojiChar || "❤️"}`,
-    }),
-    bucketItemAdded: (p) => ({
-      title: "New Wish in the Bucket List",
-      body: `${p.partnerName || "Your partner"} added a wish`,
-    }),
-    default: () => ({
-      title: "JustUS",
-      body: "You have a new notification",
-    }),
-  },
-};
-
-function localizeNotificationText(key, paramsInput = {}, locale = "en") {
-  let params = paramsInput;
-  if (typeof params === "string") {
-    try {
-      params = JSON.parse(params);
-    } catch (_) {
-      params = {};
-    }
-  }
-
-  const langCode = LOCALIZATIONS[locale] ? locale : "en";
-  const lang = LOCALIZATIONS[langCode];
-
-  const localizedFn = lang[key] || lang.default;
-  return localizedFn(params);
-}
-
-function buildFcmMessage({ fids, type, title, body, data, locale = "en" }) {
-  const notificationKey = data?.notificationKey || title;
-  const localized = localizeNotificationText(notificationKey, data?.params, locale);
-
-  const payload = normalizeDataPayload({
-    ...data,
-    type,
-    title: localized.title,
-    body: localized.body,
-    source: "justus-backend",
-    notificationId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-  });
-
-  return {
-    fids,
-    notification: {
-      title: localized.title,
-      body: localized.body,
-    },
-    data: payload,
-    android: {
-      priority: "high",
-    },
-    apns: {
-      headers: {
-        "apns-priority": "10",
-      },
-      payload: {
-        aps: {
-          alert: {
-            title: localized.title,
-            body: localized.body,
-          },
-          sound: "default",
-          badge: 1,
-        },
-      },
-    },
-    webpush: {
-      notification: {
-        title: localized.title,
-        body: localized.body,
-      },
-      data: payload,
-    },
-  };
 }
 
 async function fetchUserDevices(userId) {
@@ -225,20 +56,7 @@ async function deleteInvalidInstallations(userId, fids) {
   return uniqueFids.length;
 }
 
-function collectInvalidFids(batchFids, responses = []) {
-  const invalidFids = [];
-
-  responses.forEach((response, index) => {
-    const code = response.error?.code;
-    if (INVALID_FID_CODES.has(code)) {
-      invalidFids.push(batchFids[index]);
-    }
-  });
-
-  return invalidFids;
-}
-
-async function sendNotificationToUser({ userId, type, title, body, data = {} }) {
+async function sendNotificationToUser({ userId, type, title, data = {} }) {
   const devices = await fetchUserDevices(userId);
   const fids = [...new Set(devices.map((device) => device.installation_id))];
 
@@ -254,80 +72,13 @@ async function sendNotificationToUser({ userId, type, title, body, data = {} }) 
     };
   }
 
-  // Group devices by locale (S1)
-  const devicesByLocale = {};
-  for (const device of devices) {
-    const locale = device.locale || "en";
-    if (!devicesByLocale[locale]) {
-      devicesByLocale[locale] = [];
-    }
-    devicesByLocale[locale].push(device.installation_id);
-  }
-
-  let delivered = 0;
-  let failed = 0;
-  const invalidFids = [];
-  let configured = true;
-
-  localeLoop:
-  for (const [locale, localeFids] of Object.entries(devicesByLocale)) {
-    const uniqueLocaleFids = [...new Set(localeFids)];
-    for (const batchFids of chunk(uniqueLocaleFids, FCM_BATCH_SIZE)) {
-      try {
-        let attempts = 0;
-        const maxAttempts = 3;
-        let success = false;
-        let response;
-
-        while (attempts < maxAttempts && !success) {
-          try {
-            attempts++;
-            console.log(`[notify] Sending FCM to ${batchFids.length} installation id(s) for userId=${userId} type=${type} locale=${locale} (attempt ${attempts}) — fids: ${batchFids.map(f => f.slice(0, 12) + '…').join(', ')}`);
-            response = await sendMulticastNotification(
-              buildFcmMessage({ fids: batchFids, type, title, body, data, locale })
-            );
-            success = true;
-          } catch (error) {
-            const isTransient = !error.code || !INVALID_FID_CODES.has(error.code);
-            if (isTransient && attempts < maxAttempts) {
-              await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
-              continue;
-            }
-            throw error;
-          }
-        }
-
-        configured = response.configured !== false;
-        if (!configured) {
-          console.warn(`[notify] FCM is not configured — aborting further sends for userId=${userId}`);
-          break localeLoop;
-        }
-        delivered += response.successCount ?? 0;
-        failed += response.failureCount ?? 0;
-
-        // Log per-installation errors for diagnosis
-        if (response.responses) {
-          response.responses.forEach((r, i) => {
-            if (r.error) {
-              console.warn(`[notify] FCM fid[${i}] (${batchFids[i]?.slice(0, 12)}…) error: ${r.error.code} — ${r.error.message}`);
-            }
-          });
-        }
-
-        invalidFids.push(...collectInvalidFids(batchFids, response.responses));
-      } catch (error) {
-        failed += batchFids.length;
-        if (error.code && INVALID_FID_CODES.has(error.code)) {
-          invalidFids.push(...batchFids);
-        }
-        await safeLogInfo("notification.fcm_batch_failed", {
-          user_id: userId,
-          type,
-          error: typeof serializeError === "function" ? serializeError(error) : error?.message,
-        });
-      }
-    }
-  }
+  const { delivered, failed, invalidFids, configured } = await deliverToBatches({
+    userId,
+    type,
+    title,
+    data,
+    devices,
+  });
 
   const invalidInstallationsRemoved = await deleteInvalidInstallations(userId, invalidFids);
   const status = configured

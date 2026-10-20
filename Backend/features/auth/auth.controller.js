@@ -14,25 +14,25 @@ const {
   wrapRpc,
 } = require("../../all_imports");
 
+// Sniffs the device type from the client user-agent when the body sent none.
+// ios must win over macos: iPhone UAs also carry "Mac OS X".
+function detectDeviceType(deviceType, clientUserAgent) {
+  if (deviceType || !clientUserAgent) return deviceType;
+  const ua = clientUserAgent.toLowerCase();
+  const hit = (needles) => needles.some((needle) => ua.includes(needle));
+  if (hit(["android"])) return "android";
+  if (hit(["ios", "iphone", "ipad"])) return "ios";
+  if (hit(["macintosh", "mac os", "macos", "darwin"])) return "macos";
+  if (hit(["web", "browser"])) return "web";
+  return deviceType;
+}
+
 const updateInstallationId = asyncHandler(async (req, res) => {
   const { installationId, locale } = req.body;
   const userId = req.user.profileId;
   const clientUserAgent =
     req.get("x-client-user-agent") || req.get("user-agent") || null;
-
-  let deviceType = req.body.deviceType;
-  if (!deviceType && clientUserAgent) {
-    const ua = clientUserAgent.toLowerCase();
-    if (ua.includes("android")) {
-      deviceType = "android";
-    } else if (ua.includes("ios") || ua.includes("iphone") || ua.includes("ipad")) {
-      deviceType = "ios";
-    } else if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("macos") || ua.includes("darwin")) {
-      deviceType = "macos";
-    } else if (ua.includes("web") || ua.includes("browser")) {
-      deviceType = "web";
-    }
-  }
+  const deviceType = detectDeviceType(req.body.deviceType, clientUserAgent);
   const lastIp = req.ip;
 
   assertDbSuccess(
