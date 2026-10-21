@@ -182,6 +182,7 @@ async function logRateLimitEvent(req, retryAfterSeconds, penalty) {
     path: req.originalUrl,
     user_id: req.user?.profileId ?? null,
     ip_address: req.ip,
+    device_id: req.deviceId ?? null,
     retry_after_seconds: retryAfterSeconds,
     strike_level: penalty?.strikes ?? 0,
   });

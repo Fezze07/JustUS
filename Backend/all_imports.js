@@ -102,6 +102,7 @@ module.exports = {
   get resetAuthRiskState() { return require('./features/auth/authRisk.service').resetAuthRiskState; },
   get resetRateLimitState() { return require('./middleware/rateLimit').resetRateLimitState; },
   get resolveCapabilities() { return require('./features/auth/authorization.service').resolveCapabilities; },
+  get resolveDeviceId() { return require('./core/logger').resolveDeviceId; },
   get resolveEnvFile() { return require('./config/loadEnv').resolveEnvFile; },
   get resolveNotificationTarget() { return require('./features/notifications/notification.service').resolveNotificationTarget; },
   get revokeInstallationId() { return require('./features/auth/auth.controller').revokeInstallationId; },

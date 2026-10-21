@@ -7,6 +7,7 @@ const {
   buildClientContext,
   hmacSha256,
   resolveCapabilities,
+  resolveDeviceId,
   normalizeRole,
   decodeTokenClaims,
   validateTokenLifetime,
@@ -53,6 +54,7 @@ async function authenticateToken(req, res, next) {
 
     req.auth = { token, claims: verified.claims, clientContext };
     req.user = buildUserObject(verified.user, profile);
+    req.deviceId = await resolveDeviceId(verified.claims.session_id);
     applyResponseWatermark(res, req);
     req.sessionBinding = buildSessionBinding(sessionBinding);
 

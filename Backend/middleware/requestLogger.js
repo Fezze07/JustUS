@@ -13,6 +13,7 @@ function requestLogger() {
         ip_address: req.ip,
         duration_ms: Date.now() - req.startedAt,
         user_agent: req.get("user-agent") ?? null,
+        device_id: req.deviceId ?? null,
       });
     });
 

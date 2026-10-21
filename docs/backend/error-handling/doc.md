@@ -81,15 +81,21 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 
 ## Backend Logging Infrastructure & Supabase Tables
 
-All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/logger.js) and dispatched based on `SUPABASE_LOG_TO_DB === "true"`.
+All structured logs are handled by [`logger.js`](file:///f:/JustUS/Backend/core/logger.js) and dispatched based on `SUPABASE_LOG_TO_DB === "true"`. Every function projects the record onto **exactly** the columns of its target table (`supabase/schemas/public/tables/logs_*.sql`); `id` and `created_at` are filled by the database.
 
 | Table Name | Trigger / Log Function | Logged Data Fields | Sensitive Data Handling |
 |---|---|---|---|
-| `logs_api_access` | `logAccess(record)` | `request_id`, `method`, `path`, `status_code`, `duration_ms` | No payload logged. |
-| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `path`, `method`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `error`, `stack`, `endpoint`, payload where present) | Payload is sanitized via `sanitizePayload()` before embedding in `error_json`. Stack included only in non-production. |
+| `logs_api_access` | `logAccess(record)` | `request_id`, `method`, `path`, `status_code`, `duration_ms`, `device_id` | No payload logged. |
+| `logs_api_errors` | `logError(record)` / `logAppError` | `request_id`, `path`, `method`, `device_id`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `error`, `stack`, `endpoint`, `payload` where present) | Payload is sanitized via `sanitizePayload()` before embedding in `error_json`. Stack included only in non-production. |
 | `logs_auth_failures` | `logAuthFailure(record)` | `request_id`, `error_code`, `error_message`, `path`, `user_id`, `ip_address`, `reason`, `severity`, `payload`, `stack` | Payload sanitized via `sanitizePayload()`; email placed in payload when passed. |
-| `logs_security_events` | `logSecurity(record)` | `request_id`, `type`, `path`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `type`, `payload`, `stack`, `endpoint`, `retry_after_seconds`, `strike_level`) | Payload sanitized via `sanitizePayload()`. |
-| `logs_notifications` | `logNotification(record)` | `user_id`, `type`, `status` | Delivery audit trail. |
+| `logs_security_events` | `logSecurity(record)` | `request_id`, `type`, `path`, `device_id`, `error_json` (contains `error_code`, `error_message`, `user_id`, `ip_address`, `severity`, `type`, `payload`, `stack`, `endpoint`, `retry_after_seconds`, `strike_level`) | Payload sanitized via `sanitizePayload()`. |
+| `logs_notifications` | `logNotification(record)` | `user_id`, `type`, `status` | Delivery audit trail. `type` is capped at the column's `varchar(50)` limit. |
+
+Notes on the columns that constrain the record shape:
+
+- `request_id` is a `uuid` column in `logs_api_access`, `logs_api_errors` and `logs_security_events`. `requestContext` only accepts a client `X-Request-Id` that is a valid uuid and generates one otherwise, so a bogus header can never make Postgres reject the whole row; the logger additionally nulls a non-uuid value. `logs_auth_failures.request_id` is `text` and keeps the raw value.
+- `device_id` is the FK to `user_devices(id)`. The auth middleware resolves the device row of the request's auth session (`resolveDeviceId`, keyed on `user_devices.session_id`) and every log of that request carries it. Rows logged before a session exists (login anomalies, rate limits on anonymous calls) keep `device_id` null, and the FK is `ON DELETE SET NULL`, so a later device deletion nulls the pointer instead of dropping the audit row.
+- `path` holds the request path only (`req.originalUrl`); the HTTP method is written to the `method` column.
 
 ---
 

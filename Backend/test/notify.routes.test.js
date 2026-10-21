@@ -7,6 +7,7 @@ jest.mock("../core/logger", () => ({
   logAuthFailure: jest.fn().mockResolvedValue(undefined),
   sanitizePayload: jest.fn((payload) => payload),
   serializeError: jest.fn((error) => error?.message ?? String(error)),
+  resolveDeviceId: jest.fn().mockResolvedValue(null),
 }));
 
 // The notify rate limiter is keyed by BOTH `req.user.profileId` and `req.ip`, and
