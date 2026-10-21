@@ -15,13 +15,13 @@ abstract class BaseState extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get message => _message;
 
-  /// Coalesces multiple notifyListeners() calls within the same frame into a
-  /// single notification at the end of the frame. Prevents rebuild storms when
-  /// multiple providers fire in rapid succession during startup.
+  /// Coalesces this state's notifications into one delivery at the end of the
+  /// next frame, and requests that frame so an idle UI still receives it.
   @override
   void notifyListeners() {
     if (_pendingNotify) return;
     _pendingNotify = true;
+    WidgetsBinding.instance.scheduleFrame();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pendingNotify = false;
       if (hasListeners) super.notifyListeners();

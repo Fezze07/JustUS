@@ -126,7 +126,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 ### BaseState (`lib/shared/utils/state/base_state.dart`)
 
-- `notifyListeners()` is **coalesced per frame**: only one real notification at the end of the frame (`addPostFrameCallback`), preventing rebuild storms during multi-provider startup.
+- `notifyListeners()` is **coalesced per frame**: only one real notification at the end of the frame (`addPostFrameCallback`), and the state schedules that frame itself (`scheduleFrame`) so a change raised while the UI is idle is still delivered. The coalescing is per state — it does not merge notifications across providers.
 - `runSafe(action, {showLoading})`: sets loading, clears message, awaits, on error -> `ErrorHandler.handle(e)`, returns bool success. **The universal error boundary for user actions.**
 - `handleResult<T>(result, {onSuccess, notifyOnSuccess})`: pattern-matches `Success/GenericError/NetworkError`; non-success paths go through `ErrorHandler` and call `notifyListeners()`.
 - `loadWithChangeDetection({loadFromCache, hasChanges, fetchFromNetwork})`: cache -> checkpoint diff -> fire-and-forget network refresh (`unawaited`, not awaited - UI renders cache immediately).

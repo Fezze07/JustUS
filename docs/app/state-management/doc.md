@@ -6,11 +6,11 @@ JustUS uses the `provider` package on top of plain `ChangeNotifier` classes. The
 
 The five building blocks are:
 
-1. `BaseState` (`Flutter/lib/shared/utils/state/base_state.dart`, 141 lines) — abstract `ChangeNotifier` with frame-coalesced `notifyListeners`, `setLoading`/`setMessage`, `runSafe`, `handleResult`, and `loadWithChangeDetection`.
+1. `BaseState` (`Flutter/lib/shared/utils/state/base_state.dart`, 156 lines) — abstract `ChangeNotifier` with frame-coalesced `notifyListeners`, `setLoading`/`setMessage`, `runSafe`, `handleResult`, and `loadWithChangeDetection`.
 2. Feature states — nine classes extending `BaseState` (some with `CheckpointMixin`).
 3. `ResultWrapper<T>` (`Flutter/lib/core/network/result_wrapper.dart`, 25 lines) — sealed Success / GenericError / NetworkError.
 4. `CheckpointMixin` (`Flutter/lib/core/local_storage/checkpoint_mixin.dart`, 57 lines) — writes max-timestamp checkpoints into `CacheService` (SharedPreferences).
-5. `StateMessageListener<T extends BaseState, W extends StatefulWidget>` (same file, base_state.dart:101-141) — screen mixin that renders `BaseState.message` through `ErrorHandler.showSnackBar` and clears it; mixed into the eight screens that own a message-bearing state, plus the global `AuthMessageHost` mounted in `MaterialApp.builder` for the shared `AuthState`.
+5. `StateMessageListener<T extends BaseState, W extends StatefulWidget>` (same file, base_state.dart:118-156) — screen mixin that renders `BaseState.message` through `ErrorHandler.showSnackBar` and clears it; mixed into the eight screens that own a message-bearing state, plus the global `AuthMessageHost` mounted in `MaterialApp.builder` for the shared `AuthState`.
 
 State definition sites:
 
@@ -33,20 +33,21 @@ State definition sites:
 `BaseState` (base_state.dart:10) adds to `ChangeNotifier`:
 - `isLoading` getter backed by `_isLoading` (base_state.dart:15).
 - `message` getter backed by `_message` (base_state.dart:16); per-screen consumption is centralized in the `StateMessageListener` mixin (below), which renders it and then clears it.
-- `notifyListeners()` override (base_state.dart:22-29) — frame coalescing.
+- `notifyListeners()` override (base_state.dart:20-29) — frame coalescing: one delivery at the end of the next frame, and the state schedules that frame itself.
 - `setLoading` / `setMessage` / `clearMessage` (base_state.dart:31-44) — mutators that also notify.
-- `loadWithChangeDetection` (base_state.dart:46-59) — cache → change-check → optional fire-and-forget fetch.
-- `handleResult<T>` (base_state.dart:62-76) — switch over `ResultWrapper`; Success runs optional `onSuccess`, GenericError/NetworkError route to `ErrorHandler` and notify.
-- `runSafe` (base_state.dart:79-98) — loading-state + error envelope for async actions; returns `Future<bool>`.
+- `loadWithChangeDetection` (base_state.dart:46-65) — cache → change-check → optional fire-and-forget fetch.
+- `handleResult<T>` (base_state.dart:67-84) — switch over `ResultWrapper`; Success runs optional `onSuccess`, GenericError/NetworkError route to `ErrorHandler` and notify.
+- `runSafe` (base_state.dart:86-106) — loading-state + error envelope for async actions; returns `Future<bool>`.
 
 ### Frame coalescing analysis
 
-Implementation (base_state.dart:22-29):
+Implementation (base_state.dart:20-29):
 
 ```dart
 void notifyListeners() {
   if (_pendingNotify) return;                       // (a) dedupe while pending
   _pendingNotify = true;
+  WidgetsBinding.instance.scheduleFrame();          // (d) request the delivering frame
   WidgetsBinding.instance.addPostFrameCallback((_) {
     _pendingNotify = false;                         // (b) reset BEFORE delivery
     if (hasListeners) super.notifyListeners();      // (c) deliver once, end of frame
@@ -55,23 +56,24 @@ void notifyListeners() {
 ```
 
 Behavior:
-- Multiple `notifyListeners()` calls in the same synchronous block collapse into one delivery at the end of the current frame (`(a)` drops all subsequent calls). This is the intended "no rebuild storm" behavior.
+- Multiple `notifyListeners()` calls in the same synchronous block collapse into one delivery at the end of the current frame (`(a)` drops all subsequent calls). The coalescing is per state — notifications are never merged across providers.
 - Delivery is deferred to the post-frame phase (`(c)`), outside build/layout/paint — safe against "setState during build" style issues and safe here because provider's listener (`markNeedsBuild`) is triggered safely post-frame.
+- `(d)` schedules the frame the callback runs in. `addPostFrameCallback` only *registers* for the next frame, so without `(d)` a change raised while the UI was idle (a realtime push, a background sync) waited for an unrelated frame that might never come — the notification then stayed undelivered on any screen without a frame source of its own.
 - `hasListeners` guard means a notification is silently dropped if no widgets are subscribed at delivery time.
 
 Does it actually prevent redundant rebuilds?
 - YES for true same-frame bursts: e.g. `setLoading(true)` + `setMessage(...)` + `notifyListeners()` called back-to-back with no `await` between them deliver exactly one notification.
 - NO for the dominant real-world pattern: the typical `setLoading(true); notifyListeners(); await network(); setLoading(false); notifyListeners()`. The `await` interrupts the synchronous block, so the two notifications land in *different* frames (`isLoading=true` frame, then `false` frame) — there is nothing to coalesce across frames, so the widget still rebuilds twice (loading → loaded). Evidence: `homepage_state.dart:70-88` (`sendMissYou`), `game_state.dart:316-371` (`submitAnswer`).
-- NO across multiple providers: coalescing is per-instance (`_pendingNotify` is a field of each `BaseState`). Ten providers firing `notifyListeners` in the same frame each individually schedule a post-frame callback and each still rebuild their own dependents. The "startup rebuild storm" the doc comment claims to prevent (base_state.dart:18-20) is *not* prevented across providers — only within a single state.
+- NO across multiple providers: coalescing is per-instance (`_pendingNotify` is a field of each `BaseState`). Ten providers firing `notifyListeners` in the same frame each individually schedule a post-frame callback and each still rebuild their own dependents — cross-provider storms are *not* prevented, only the bursts inside a single state.
 
 Edge cases / risks:
 - `(b)` resets `_pendingNotify` before delivering. If a listener synchronously calls a method that calls `notifyListeners()` again during the delivery, a new callback is scheduled for a later frame — no recursion, but a chain of one-frame-per-batch notifications can span multiple frames.
-- **Idle-frame dependency**: the callback only runs when a frame is actually drawn. If `notifyListeners()` is invoked while the app is idle (e.g. a background/realtime sync completing with no animation or input scheduled), `addPostFrameCallback` registers for the *next* frame, but nothing necessarily schedules one — the notification can be delayed until the next unrelated frame (input, animation, timer) occurs. In practice the always-running homepage pulse animation (`homepage_screen.dart:36-44`) and cursor/animation sources schedule frames continuously, but on a static screen with no animations the delivery timing is not guaranteed. Confidence: HIGH that delivery is deferred; MEDIUM that a real stall occurs (frame sources above usually mask it).
+- **Delivery is guaranteed**: `(d)` requests the frame the callback runs in, so a notification raised while the UI is idle is delivered on the next frame instead of waiting for an unrelated one. Only the homepage had a frame source of its own (the repeating pulse animation, `homepage_screen.dart:28-31`); every other screen has none, so before `(d)` a realtime-driven change there was never drawn.
 - Because `notifyListeners` returns before listeners are called, any code that reads observable state immediately after notification still sees the mutated values (mutations happen before notify) — ordering is fine.
 
 ## StateMessageListener
 
-`StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (base_state.dart:101-141) is the single path that turns a state's `message` into user-visible feedback. A screen that owns a message-bearing state mixes it in and supplies the provider read:
+`StateMessageListener<T extends BaseState, W extends StatefulWidget> on State<W>` (base_state.dart:118-156) is the single path that turns a state's `message` into user-visible feedback. A screen that owns a message-bearing state mixes it in and supplies the provider read:
 
 ```dart
 class _MoodScreenState extends State<MoodScreen>
@@ -121,7 +123,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ### Failure cases
 
-1. **Fire-and-forget: no completion signal** — `fetchFromNetwork()` is unawaited (base_state.dart:55). Callers of `init()` cannot know when the refresh finished; subsequent operations cannot coordinate with it; `isLoading` is never set by `loadWithChangeDetection`, so the UI shows whatever was in cache and there is no loading indicator for the refresh. Confidence: HIGH (structural).
+1. **Fire-and-forget: no completion signal — by design** — `fetchFromNetwork()` is unawaited (base_state.dart:61). The cache *is* the UI and the network is a silent revalidation, so the refresh is deliberately not awaited: callers of `init()` cannot know when it finished, subsequent operations cannot coordinate with it, and `isLoading` is never set by `loadWithChangeDetection`, so there is no loading indicator for the refresh. Confidence: HIGH (structural).
 2. **`hasChanges` failure no longer skips the refresh** — if `hasChanges` throws (e.g. offline during `_hasBucketChanges` network calls), the exception is caught inside `loadWithChangeDetection` (base_state.dart:53-58) and routed to `ErrorHandler.handle`, and `changed` is set to `true` → the network fetch still runs and the caller's future never rejects → so `BucketState.init`'s `try/finally` still clears `_isInitLoading` and the unhandled-async-error path is gone; the app refreshes instead of silently keeping stale cache, and the user does get a surface (error snackbar/dialog, `error_handler.dart:163-175`) instead of a silent failure. Confidence: HIGH.
 3. **Re-`init` duplication / no dedupe** — `loadWithChangeDetection` has no in-flight guard. `HomepageState.init` and `MoodState.initHome` call it with no internal guard (unlike `BucketState._isInitLoading` bucket_state.dart:28, `DriveState._initialLoading` drive_state.dart:35, `GameState._isFetchingQuestion`). Tab re-activation (TabScreenMixin loadData) and pull-to-refresh can start a second fetch while the first is still running → two concurrent network fetches, last-write-wins, no ordering guarantee. Confidence: HIGH.
 4. **Stale-response overwrite (no generation token)** — because fetch is unawaited and un-guarded, a slow first fetch can land *after* a faster second fetch and overwrite the newer data with older data. Partially guarded since 4.11 (F-RT4/F-RT5/F-RT10): `BucketState` skips a snapshot whose version was bumped mid-fetch (bucket_state.dart:80-91, 130-162), `HomepageState` refetches a miss-you total observed stale (homepage_state.dart:64-68), and `CheckpointMixin` write-order tokens drop an older-observed checkpoint write (checkpoint_mixin.dart). Residual: the *in-memory* collection replace on other states (mood/game/drive snapshot sockets) still has no request-id check — a slow fetch landing after a faster one replaces newer data, though checkpoints (and hence cold-start correctness) are protected. Confidence: MEDIUM (possible, not observed in tests).
@@ -130,7 +132,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ## ResultWrapper
 
-`ResultWrapper<T>` (result_wrapper.dart:6-25) is a sealed class with `Success<T>.value`, `GenericError<T>.code/message/details`, and `NetworkError<T>.message`. It is consumed through extensions on `Result` types defined in `all_imports.dart` (e.g. `handleAsync`, `handle`, `valueOrNull`, `isSuccess`, `isError`) that are used pervasively in states. BaseState's `handleResult` (base_state.dart:62-76) routes `GenericError`/`NetworkError` into `ErrorHandler.handle` and calls `notifyListeners()`, but does NOT clear data or revert state — errors leave the last good state intact. Note: two states use the raw `handle` while others use `handleAsync`; `GameState.handleAnswerUpdate` uses `result.handle(...)` (game_state.dart:536-555) while `fetchHistory` uses `handleAsync` (game_state.dart:373-387) — inconsistent style, and `ProfileState.loadProfile` reads `valueOrNull` directly (profile_state.dart:79).
+`ResultWrapper<T>` (result_wrapper.dart:6-25) is a sealed class with `Success<T>.value`, `GenericError<T>.code/message/details`, and `NetworkError<T>.message`. It is consumed through extensions on `Result` types defined in `all_imports.dart` (e.g. `handleAsync`, `handle`, `valueOrNull`, `isSuccess`, `isError`) that are used pervasively in states. BaseState's `handleResult` (base_state.dart:67-84) routes `GenericError`/`NetworkError` into `ErrorHandler.handle` and calls `notifyListeners()`, but does NOT clear data or revert state — errors leave the last good state intact. Note: two states use the raw `handle` while others use `handleAsync`; `GameState.handleAnswerUpdate` uses `result.handle(...)` (game_state.dart:536-555) while `fetchHistory` uses `handleAsync` (game_state.dart:373-387) — inconsistent style, and `ProfileState.loadProfile` reads `valueOrNull` directly (profile_state.dart:79).
 
 ## Provider wiring
 
@@ -217,8 +219,8 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ## Errors and their effect on state
 
-- `runSafe` catch (base_state.dart:87-90): logs + `ErrorHandler.handle`; returns `false`; **no rollback by default** — state keeps last good values. Rollbacks exist only where written explicitly (drive delete/favorite, mood update) or where the mutation is skipped until server confirms (bucket).
-- `handleResult` on GenericError/NetworkError (base_state.dart:69-74) also notifies — the state rebuilds with unchanged data (a spurious rebuild but no data loss).
+- `runSafe` catch (base_state.dart:95-98): logs + `ErrorHandler.handle`; returns `false`; **no rollback by default** — state keeps last good values. Rollbacks exist only where written explicitly (drive delete/favorite, mood update) or where the mutation is skipped until server confirms (bucket).
+- `handleResult` on GenericError/NetworkError (base_state.dart:75-83) also notifies — the state rebuilds with unchanged data (a spurious rebuild but no data loss).
 - Reauth-critical errors open the reauth dialog (error_handler.dart:145-146); API 401s call global `logout()` (auth_state.dart:81-86) and, because the synthetic `"401"` code is `requiresReauth`, also open the reauth dialog with a redirect to `/login`. Both leave feature data in memory untouched.
 - An empty question bank is signaled as `Success(null)` by `pickQuestionForGame` (game_question_bank_repository.dart:92-106), so `fetchNewGameQuestion` returns `null` instead of an error (game_repository.dart:92-101): `GameState.fetchNewQuestion` sets `_noQuestionAvailable`, clears `_currentQuestion` and the cache, and the empty state shows `game_noQuestionAvailable` (game_state.dart:226-255). Real repo errors (`GenericError`/`NetworkError`) still reach `ErrorHandler`.
 - A failure of any single repo inside `Future.wait` in `ProfileState.loadProfile` (profile_state.dart:59-63) aborts the whole parallel batch unless wrapped — two of the three calls `handleResult` internally but `getPartnership` result is consumed via `valueOrNull` (line 79). If `getPartnership` throws (not returns an error wrapper), `Future.wait` rejects → `runSafe` catches → profile never updated. Confidence: MEDIUM (depends on repo wrapping).
@@ -243,13 +245,10 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ## Findings
 
-- **F-SM1** — Frame-coalesced `notifyListeners` depends on an actually drawn frame. `WHAT`: delivery scheduled via `addPostFrameCallback` (base_state.dart:25). `WHERE`: base_state.dart:22-29. `WHY`: deferral to end of frame deliberately trades immediacy for coalescing. `WHEN`: any task that mutates state outside a frame while the UI is idle. `IMPACT`: notification can be delayed until the next unrelated frame, or dropped if no frame occurs (mitigated by per-state `hasListeners`, and masked by always-running animations such as homepage pulse `homepage_screen.dart:36-44`). `CONFIDENCE`: HIGH (deferral), MEDIUM (observable stall).
-- **F-SM2** — "Prevents rebuild storms" claim is only intra-state, and does not reduce redundant rebuilds across the await boundary. `WHAT`: per-instance `_pendingNotify` collapses same-frame sync bursts only. `WHERE`: base_state.dart:13,22-29. `WHY`: `await` splits the loading sequence into two frames (setLoading(true) then setLoading(false)), and other states each coalesce independently. `WHEN`: any loading mutation on any screen. `IMPACT`: rebuild count per state is unchanged for the common path; cross-provider storms still rebuild all dependents per provider. `CONFIDENCE`: HIGH.
-- **F-SM3** — `loadWithChangeDetection` is fire-and-forget. `WHAT`: `unawaited(fetchFromNetwork())`, no completion/completion-error surfaced to caller, no `isLoading`. `WHERE`: base_state.dart:55. `WHY`: caching pipeline designed so cache is the UI, network is a silent revalidation. `WHEN`: every `init()`; `HomepageScreen._loadData` `Future.wait` completes *before* the network refresh finishes (homepage_screen.dart:72-77). `IMPACT`: callers (tab loads, refresh) can't sequence on the refresh; no UI progress for the revalidation. `CONFIDENCE`: HIGH.
 - **F-SM5** — Partner identity is duplicated across `AuthState` and `PartnerState` with separate refresh paths. `WHAT`: `_partnerId/_partnershipId` in AuthState vs `_partnershipInfo` in PartnerState; realtime updates both from the same source (lib/core/realtime/refetch_realtime_handler.dart), and `RealtimeSyncScope` must merge them (realtime_sync_scope.dart:46-53). `WHERE`: auth_state.dart:39-43, partner_state.dart:13-17, realtime_sync_scope.dart:46-53. `WHY`: Auth owned the identity for routing; Partner owned the full response; never unified. `WHEN`: any realtime partnership/profile refresh that updates both states in the same pass. `IMPACT`: transient divergence, storage written twice; converges next frame. `CONFIDENCE`: MEDIUM.
 - **F-SM6** — Profile staleness. `WHAT`: ProfileScreen uses neither TabScreenMixin nor (previously) RealtimeSyncService wiring (realtime_sync_scope.dart omitted the profile state). `WHERE`: profile_screen.dart:16 (plain StatefulWidget), realtime_sync_scope.dart:24-31. `WHY`: loadProfile uses cache+throttle instead (profile_state.dart:35-82). `WHEN`: partner changes profile, user stays on app. `IMPACT`: **PARTIALLY RESOLVED** — the realtime stack now subscribes `user_profiles` (`RefetchRealtimeHandler`, 150 ms debounce, update-only) and refreshes `ProfileState.loadProfile(force: true)` on self/partner updates; remaining gap is the no-refresh-on-tab-switch path for non-realtime stale states. `CONFIDENCE`: HIGH.
 - **F-SM8** — Homepage and Profile skip `TabScreenMixin`, so tab re-activation never re-runs their loads. `WHAT`: homepage_screen.dart:25 (plain StatefulWidget, one-shot postFrame load homepage_screen.dart:50-56), profile_screen.dart:16. `WHERE`: main_shell.dart:26-33. `WHY`: homepage assumed always-resident; profile staleness is F-SM6. `WHEN`: switch A-way and back. `IMPACT`: no refresh on return (only pull-to-refresh or external triggers). `CONFIDENCE`: HIGH (matches navigation F-N7).
-- **F-SM9** — Homepage `_loadData` launches four concurrent `init()`s with no shared loading state. `WHAT`: `Future.wait([homepageState.init(), moodState.initHome(), profileState.loadProfile(), bucketState.init()])`. `WHERE`: homepage_screen.dart:79-84. `WHY`: init()s are fire-and-forget by design (F-SM3). `WHEN`: every homepage load/refresh. `IMPACT`: four independent fetches per user-visible refresh, no cancel/dedupe across them, no aggregate loading indicator. `CONFIDENCE`: HIGH.
+- **F-SM9** — Homepage `_loadData` launches four concurrent `init()`s with no shared loading state. `WHAT`: `Future.wait([homepageState.init(), moodState.initHome(), profileState.loadProfile(), bucketState.init()])`. `WHERE`: homepage_screen.dart:79-84. `WHY`: init()s are fire-and-forget by design (stale-while-revalidate). `WHEN`: every homepage load/refresh. `IMPACT`: four independent fetches per user-visible refresh, no cancel/dedupe across them, no aggregate loading indicator. `CONFIDENCE`: HIGH.
 - **F-SM10** — `DriveState._singleItem` is a manually mirrored copy of an element of `_driveItems`. `WHAT`: separate fields updated in refreshFromRealtime/addReaction/toggleFavorite. `WHERE`: drive_state.dart:16,117-121,239-243,263,273. `WHY`: detail screen needs a stable snapshot; mirroring was copied ad hoc. `WHEN`: any operation path that skips one of the mirror statements. `IMPACT`: detail view and grid can disagree on reactions/favorites. `CONFIDENCE`: LOW (mirror statements are all present in the same code paths today).
 
 ## Invariants
@@ -259,7 +258,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 - Checkpoints are the single synchronization cursor per feature; `EMPTY` means "unknown, must re-fetch".
 - Init is a screen-driven operation (TabScreenMixin or homepage `_loadData`), never application-global; auth init is the sole exception (splash).
 - Logout clears session + checkpoints + storage and resets the six feature states in memory (via `AuthState.onClearFeatureStates`, registered by `RealtimeSyncScope`), so the next `init()` re-fetches instead of showing stale data. In-flight fetch write-backs cannot resurrect the previous user's checkpoints: every checkpoint write carries the `CacheService.checkpointEpoch` captured when its fetch started, and every clear (`clearAll`/`purge`/`clearCheckpoints`) bumps the epoch, so a fetch that completes after a logout/wipe has its checkpoint write silently dropped. Wipe is state-owned: `ProfileState.wipeAppData` clears both in-memory and media caches, then re-syncs the profile (`loadProfile(force: true)`) and raises `profile_dataWiped` last; the screen only clears the other feature states and refreshes the realtime channel.
-- BaseState notification is deferred one frame; code must never rely on synchronous listener invocation.
+- BaseState notification is deferred to the end of the next frame, and the state schedules that frame itself, so delivery never depends on some other widget's frame source; code must never rely on synchronous listener invocation.
 - A state message is user-facing text owned by the state; the owning screen renders it once through `StateMessageListener` and clears it. A screen must not also raise the same snackbar for a state-emitted message.
 - `ThemeProvider` and `LanguageProvider` both survive navigation and process restart (SharedPreferences, restored before `runApp`); both are also preserved by `StorageService.clearAll()` on logout/wipe.
 
@@ -269,8 +268,8 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 |---|---|
 | BaseState hooking into ChangeNotifier | IMPLEMENTED (base_state.dart:10-29) |
 | State message → snackbar surfacing | IMPLEMENTED (`StateMessageListener` mixin, 8 screens + the global `AuthMessageHost`; the state owns the message, the screen/root renders and clears it, `showPendingMessage()` drains it before a pop) |
-| Frame coalescing | IMPLEMENTED (partial — per-instance only) |
-| loadWithChangeDetection | IMPLEMENTED (base_state.dart:46-62); `hasChanges` exceptions caught and routed to `ErrorHandler.handle`, refetch triggered on failure |
+| Frame coalescing | IMPLEMENTED (per-instance only; the state schedules the frame that delivers the notification) |
+| loadWithChangeDetection | IMPLEMENTED (base_state.dart:46-65); `hasChanges` exceptions caught and routed to `ErrorHandler.handle`, refetch triggered on failure |
 | Change-check via checkpoint vs server max-timestamp | IMPLEMENTED (base_repository.dart:79-108, checkpoint_mixin.dart) |
 | Stale-while-revalidate cache pattern | IMPLEMENTED (all cache states) |
 | Optimistic updates w/ rollback | IMPLEMENTED (drive: delete/toggle rollback, serialized cache writes; mood: in-memory-only optimistic + full rollback; bucket deferred to realtime) |
@@ -286,9 +285,9 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 ## Notes
 
-- `BaseState` doc comment claims "startup rebuild storm" protection (base_state.dart:18-20); cross-provider storms are not actually prevented (F-SM2).
+- Coalescing is per state (`_pendingNotify` is an instance field), so a frame in which several providers notify still rebuilds each provider's dependents — the end-of-frame delivery is not a cross-provider barrier.
 - The `hasListeners` guard in the coalescing callback (base_state.dart:27) also makes dispose safe: a state disposed while a coalesced notification is still pending drops that notification instead of notifying a disposed `ChangeNotifier`.
-- `handleResult(notifyOnSuccess:)` (base_state.dart:68) is unused across the codebase (no call passes `true`), but reauth-critical `GenericError` results still notify via the error branch (base_state.dart:71,74).
-- The `Selector`-based slices mean most widgets rebuild on small typed views of state; combined with F-SM1 deferral, the effective update pipeline is: mutate → post-frame single notify → provider marks dependents → next frame rebuild.
+- `handleResult(notifyOnSuccess:)` (base_state.dart:68) is unused across the codebase (no call passes `true`), but reauth-critical `GenericError` results still notify via the error branch (base_state.dart:78,82).
+- The `Selector`-based slices mean most widgets rebuild on small typed views of state; combined with the deferred delivery, the effective update pipeline is: mutate → post-frame single notify → provider marks dependents → next frame rebuild.
 - `RealtimeSyncService` holds strong references to all feature states except ProfileState (realtime_sync_scope.dart:24-31); adding profile support is the single largest missing wiring.
 - Drive incremental sync is the only feature using server-side `updated_at` cursoring (drive_repository.dart:24); the other features gate a full refetch on a server `MAX(updated_at)` checkpoint comparison.

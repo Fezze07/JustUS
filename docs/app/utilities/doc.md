@@ -27,7 +27,7 @@ The utilities covered include:
 * **API**:
   - `bool get isLoading`
   - `String? get message`
-  - `void notifyListeners()` (Overridden to coalesce notifications via `WidgetsBinding.instance.addPostFrameCallback`)
+  - `void notifyListeners()` (Overridden to coalesce notifications via `WidgetsBinding.instance.addPostFrameCallback`; the state also calls `scheduleFrame`, so the frame that delivers the notification is always requested)
   - `void setLoading(bool value)`
   - `void setMessage(String? value)` / `void clearMessage()`
   - `Future<void> loadWithChangeDetection({required loadFromCache, required hasChanges, required fetchFromNetwork})`

@@ -83,9 +83,9 @@ final List<Object> _uncaught = <Object>[];
 
 /// Draws one frame so pending post-frame callbacks run.
 ///
-/// `tester.pump()` only draws a frame when one is already scheduled, and
-/// `addPostFrameCallback` does not schedule one - without this every coalesced
-/// notification would stay undelivered and each assertion below would see 0.
+/// `tester.pump()` only draws a frame when one is already scheduled, so the
+/// helper schedules one explicitly; the coalesced notification is delivered at
+/// the end of that frame.
 Future<void> _pumpFrame(WidgetTester tester) async {
   tester.binding.scheduleFrame();
   await tester.pump();
@@ -181,6 +181,27 @@ void main() {
       expect(notifications, 1,
           reason: '_pendingNotify must reset before the hasListeners check, '
               'otherwise a later attach is swallowed');
+    });
+
+    testWidgets('a mutation with no other frame source still reaches the '
+        'listener', (tester) async {
+      final state = _TestState();
+      var notifications = 0;
+      state.addListener(() => notifications++);
+
+      expect(tester.binding.hasScheduledFrame, isFalse,
+          reason: 'precondition: no frame is pending before the mutation');
+
+      state.setLoading(true);
+
+      expect(tester.binding.hasScheduledFrame, isTrue,
+          reason: 'the state must request the frame that delivers the '
+              'notification, otherwise a change made while the UI is idle '
+              'waits for an unrelated frame that may never come');
+
+      await tester.pump();
+
+      expect(notifications, 1);
     });
   });
 
