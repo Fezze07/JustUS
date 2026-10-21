@@ -313,7 +313,8 @@ BEGIN
   DELETE FROM public.favorites WHERE user_id = 9001 AND item_id = 9010;
 END $$;
 
--- G. partnerships: inserts must include the caller as a member
+-- G. partnerships: no client may create a row at all - request_partnership is
+--    the only writer, so the partnership_code gate cannot be skipped
 DO $$
 DECLARE
   v_state text;
@@ -322,7 +323,7 @@ BEGIN
     INSERT INTO public.partnerships (user_id_1, user_id_2, status)
     VALUES (9002, 9003, 'pending')$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'G failed: partnership created without caller as member gave %, expected 42501',
+    RAISE EXCEPTION 'G failed: client insert into partnerships gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 

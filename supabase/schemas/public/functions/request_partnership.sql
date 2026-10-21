@@ -48,6 +48,6 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION "public"."request_partnership"(text, text, integer) FROM PUBLIC, "anon";
-GRANT EXECUTE ON FUNCTION "public"."request_partnership"(text, text, integer) TO "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."request_partnership"(text, text, integer) FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."request_partnership"(text, text, integer) TO "postgres", "service_role";
 

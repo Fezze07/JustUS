@@ -16,7 +16,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
 | `users` | **ENABLED** | Self (`auth_id = auth.uid()`) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = current_user_id()`) | Denied (Default) | `authenticated`, `service_role` |
 | `user_profiles` | **ENABLED** | Self + accepted partner | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Denied (Default) | `authenticated` |
-| `partnerships` | **ENABLED** | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | `PUBLIC` |
+| `partnerships` | **ENABLED** | Members (`user_1` or `user_2`) | Denied (Default) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`) | `authenticated` |
 | `moods` | **ENABLED** | Self or Partner | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | Self (`user_id = current_user_id()`) | `PUBLIC` |
 | `missyou` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `bucket_items` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
@@ -72,8 +72,12 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 
 #### `partnerships`
 - **Policies:**
-  - `partnerships_manage_own` (FOR ALL): `USING` + `WITH CHECK ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()))`
-- **Assessment:** Access is restricted to `user_id_1` or `user_id_2`, on both the existing and the new row (a member cannot write a partnership they are not part of).
+  - `partnerships_select_own` (SELECT, `TO authenticated`): `USING ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()))`
+  - `partnerships_update_own` (UPDATE, `TO authenticated`): `USING` + `WITH CHECK` on the same two-member predicate
+  - `partnerships_delete_own` (DELETE, `TO authenticated`): `USING` on the same two-member predicate
+  - **No INSERT policy exists.** A client can never create a `partnerships` row; the `INSERT` grant is not held by `anon` either. Rows are created exclusively by `public.request_partnership(...)`, which is executable only by `postgres` / `service_role` (the backend).
+- **Acceptance is recipient-only:** `public.accept_partnership(p_partnership_id)` matches `WHERE id = p_partnership_id AND user_id_2 = public.current_user_id() AND status = 'pending'`, so only the invited user (never the sender) can promote a request to `accepted`. The same rule applies to a direct `UPDATE`: the `guard_public_partnerships_status` trigger (`public.guard_partnership_status()`) raises `API-VALIDATION-008` / SQLSTATE `42501` when a signed-in caller changes `status` and is not `user_id_2`, so the sender cannot self-accept its own request either. Other columns (`anniversary_date`) stay writable for a member.
+- **Assessment:** Read/write access is restricted to `user_id_1` or `user_id_2`, on both the existing and the new row (a member cannot write a partnership they are not part of). Because the table has no INSERT policy and `status` defaults to `'accepted'`, a signed-in client cannot forge an accepted partnership: the only way to obtain an `accepted` row is to be the recipient of a request created by the backend and to accept it.
 
 #### `drive_items` & `bucket_items` & `game_questions` & `missyou`
 - **Policies:**
@@ -155,7 +159,8 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`is_in_partnership`, `is_partner_of`, and `private.is_related_user` all require `status = 'accepted'`)
+- **Client-Uncreatable Partnerships:** **IMPLEMENTED** (`partnerships` has no INSERT policy and no `anon` INSERT grant — rows are created only by the backend through `request_partnership`; `accept_partnership` accepts only when the caller is `user_id_2` and the `guard_public_partnerships_status` trigger rejects a `status` change by the sender, so a client cannot forge an `accepted` partnership)
 - **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (is_in_partnership(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
-- **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_manage_own`; backend-only on `logs_auth_failures`)
+- **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_update_own`; backend-only on `logs_auth_failures`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `get_pending_invitations` RPC)
 - **Read-Only Question Catalog:** **IMPLEMENTED** (`game_question_bank` carries only a `FOR SELECT TO PUBLIC USING (true)` policy, so it is world-readable and client-unwritable)

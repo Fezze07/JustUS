@@ -10,7 +10,7 @@ BEGIN
   UPDATE public.partnerships
   SET status = 'accepted', anniversary_date = current_date
   WHERE id = p_partnership_id 
-    AND (user_id_1 = public.current_user_id() OR user_id_2 = public.current_user_id()) 
+    AND user_id_2 = public.current_user_id() 
     AND status = 'pending';
 END;
 $function$;

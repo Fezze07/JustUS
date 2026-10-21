@@ -68,7 +68,6 @@ DECLARE
     'public.get_pending_invitations()',
     'public.is_in_partnership(integer)',
     'public.is_partner_of(integer)',
-    'public.request_partnership(text, text, integer)',
     'public.send_missyou()',
     'public.set_mood(text)'
   ];
@@ -155,11 +154,13 @@ DECLARE
     'public.accept_partnership(integer)',
     'public.cleanup_old_logs(integer)',          -- KNOWN DEFECT, see todo.md
     'public.current_user_id()',
+    'public.drive_change_probe()',
     'public.generate_unique_partnership_code()',
     'public.get_accepted_partner(integer)',
     'public.get_or_create_emoji(text)',
     'public.is_in_partnership(integer)',
     'public.is_partner_of(integer)',
+    'public.reject_partnership(integer)',
     'public.send_missyou()',
     'public.set_current_timestamp_updated_at()',
     'public.set_mood(text)',

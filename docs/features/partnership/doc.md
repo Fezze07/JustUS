@@ -195,8 +195,8 @@ The partnership feature uses two distinct channels, by design:
 
 ### 4. Rejecting a Request
 - **User Action**: User taps "Decline" or "Cancel Request".
-- **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Calls RPC `reject_partnership(p_partnership_id = invite.id)`, deleting a pending row where the caller is a member.
-- **UI Update**: Pending invitation is removed from local list.
+- **Execution**: Calls `AuthState.rejectInvitation(invite.id)` -> Runs `PartnershipRepository.rejectPartnerRequest(invite.id)` -> Calls RPC `reject_partnership(p_partnership_id = invite.id)`, deleting a pending row where the caller is a member (either sender or recipient).
+- **UI Update**: Pending invitation is removed from local list. (Direct `DELETE` from Flutter is not used; the flow goes through the `reject_partnership` RPC.)
 
 ### 5. Inviting a Partner Who Has No Account
 - **Entry Point**: `PartnerScreen` shows "Il tuo partner non ha Just Us? Invitalo ora!" (`partner_inviteEmailPrompt`) whenever the caller has no partner.
@@ -253,9 +253,11 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
    - `public.partnerships`: SELECT and UPDATE policies restrict access strictly to the two members of the partnership (`user_id_1 = current_user_id() OR user_id_2 = current_user_id()`).
    - `v_active_partnership`: Configured with `security_invoker = true`, enforcing that view execution inherits the RLS credentials of the calling user.
 2. **RPC Function Restrictions**:
-   - `accept_partnership`: Configured with `SECURITY INVOKER`, checking that the caller is a valid member of the target partnership row before applying the `accepted` status update.
+   - `request_partnership(partner_email, partner_code, override_sender_id)`: `SECURITY INVOKER`. **Not executable by clients** — `GRANT EXECUTE` revoked from `PUBLIC`/`anon` and granted only to `postgres`, `service_role`. The Node backend calls it as `service_role` to create pending rows; clients cannot call it directly. It remains vulnerable to the `override_sender_id` parameter in general, but that is moot since only the backend uses it and the endpoint requires authentication.
+   - `accept_partnership(p_partnership_id)`: `SECURITY INVOKER`. It only updates a pending row where `id = p_partnership_id AND user_id_2 = public.current_user_id() AND status = 'pending'` — **recipient-only** (the sender cannot accept their own request). RLS provides no INSERT policy on `partnerships`, so there is no way for a client to forge an `accepted` row, and the `guard_public_partnerships_status` trigger rejects a direct `UPDATE` of `status` by the sender as well (`API-VALIDATION-008`).
+   - `reject_partnership(p_partnership_id)`: `SECURITY INVOKER`. Deletes a pending row only if the caller is `user_id_1` or `user_id_2` and `status = 'pending'`.
 3. **Backend Middleware Enforcement**:
-   - Endpoint `POST /api/v1/auth/invite` requires `authenticated()` middleware, verifying valid JWT authentication before processing request logic.
+   - Endpoint `POST /api/v1/auth/invite` requires `authenticated()` middleware, verifying valid JWT authentication before processing request logic. The backend resolves the recipient and calls `request_partnership` via `service_role`.
    - Endpoint `POST /api/v1/auth/invite-user` requires `authenticated()`, `limited(inviteUserRateLimit)` and `signed("auth-invite-user")`; the signature stops a stolen JWT from being used to spray the "Invite user" email.
 
 ---

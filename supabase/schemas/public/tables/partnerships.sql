@@ -24,10 +24,27 @@ CREATE TRIGGER set_public_partnerships_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.set_current_timestamp_updated_at();
 
-CREATE POLICY "partnerships_manage_own" ON "public"."partnerships"
-  FOR ALL
-  TO PUBLIC
-  USING (((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id())))
-  WITH CHECK (((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id())));
+CREATE TRIGGER guard_public_partnerships_status
+  BEFORE UPDATE ON public.partnerships
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_partnership_status();
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."partnerships" TO "anon", "authenticated", "postgres", "service_role";
+CREATE POLICY "partnerships_delete_own" ON "public"."partnerships"
+  FOR DELETE
+  TO "authenticated"
+  USING ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()));
+
+CREATE POLICY "partnerships_select_own" ON "public"."partnerships"
+  FOR SELECT
+  TO "authenticated"
+  USING ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()));
+
+CREATE POLICY "partnerships_update_own" ON "public"."partnerships"
+  FOR UPDATE
+  TO "authenticated"
+  USING ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()))
+  WITH CHECK ((user_id_1 = public.current_user_id()) OR (user_id_2 = public.current_user_id()));
+
+REVOKE INSERT ON TABLE "public"."partnerships" FROM "anon";
+GRANT DELETE, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."partnerships" TO "anon", "authenticated", "postgres", "service_role";
+GRANT INSERT ON TABLE "public"."partnerships" TO "authenticated", "postgres", "service_role";

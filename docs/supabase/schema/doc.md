@@ -74,9 +74,12 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `partnerships_pkey` (PRIMARY KEY: `id`)
   - `partnerships_user_id_1_fkey` (FOREIGN KEY: `user_id_1` REFERENCES `users(id)` ON DELETE CASCADE)
   - `partnerships_user_id_2_fkey` (FOREIGN KEY: `user_id_2` REFERENCES `users(id)` ON DELETE CASCADE)
-- **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `set_current_timestamp_updated_at()`)
+- **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `set_current_timestamp_updated_at()`), `guard_public_partnerships_status` (BEFORE UPDATE EXECUTE `guard_partnership_status()` — rejects a `status` change made by anyone but `user_id_2`, the invited partner)
 - **RLS Policies:**
-  - `partnerships_manage_own` (FOR ALL, USING + WITH CHECK `user_id_1 = current_user_id() OR user_id_2 = current_user_id()`)
+  - `partnerships_select_own` (FOR SELECT, `TO authenticated`, USING `user_id_1 = current_user_id() OR user_id_2 = current_user_id()`)
+  - `partnerships_update_own` (FOR UPDATE, `TO authenticated`, USING + WITH CHECK `user_id_1 = current_user_id() OR user_id_2 = current_user_id()`)
+  - `partnerships_delete_own` (FOR DELETE, `TO authenticated`, USING `user_id_1 = current_user_id() OR user_id_2 = current_user_id()`)
+  - **No INSERT policy** — the `INSERT` grant is held by `authenticated`, `postgres`, `service_role` only, and RLS still denies the insert to `authenticated` (no policy). Rows are created only through the `request_partnership` RPC, executed by the backend with the `service_role` key.
 
 ---
 
