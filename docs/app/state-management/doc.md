@@ -93,11 +93,17 @@ class _MoodScreenState extends State<MoodScreen>
 
 ## loadWithChangeDetection
 
-Real implementation (base_state.dart:46-59):
+Real implementation (base_state.dart:46-65):
 
 ```dart
 await loadFromCache();                 // (1) seed state from disk
-final changed = await hasChanges();    // (2) compare checkpoint vs server
+bool changed = true;                   // (2) compare checkpoint vs server
+try {
+  changed = await hasChanges();
+} catch (e, st) {                      // a failed check means "assume changed"
+  ErrorHandler.handle(e, stackTrace: st);
+  changed = true;
+}
 if (changed) {
   unawaited(fetchFromNetwork()         // (3) fire-and-forget full refresh
     .catchError((e, st) => ErrorHandler.handle(e, stackTrace: st)));
@@ -116,7 +122,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 ### Failure cases
 
 1. **Fire-and-forget: no completion signal** — `fetchFromNetwork()` is unawaited (base_state.dart:55). Callers of `init()` cannot know when the refresh finished; subsequent operations cannot coordinate with it; `isLoading` is never set by `loadWithChangeDetection`, so the UI shows whatever was in cache and there is no loading indicator for the refresh. Confidence: HIGH (structural).
-2. **`hasChanges` failure skips refresh silently** — if `hasChanges` throws (e.g. offline during `_hasBucketChanges` network calls), `changed` never resolves and the network fetch is skipped. `BucketState.init` only has `try/finally` (bucket_state.dart:31-37) so the exception propagates to the caller (`unawaited(loadData())` in `tab_screen.dart:59`) → unhandled async error → routed to `ErrorHandler` via the zone guard (main.dart:37-81). No data refresh happens; the app keeps showing cached data with no error surface for the *user* (only logs/dialog per `error_handler.dart:145-151`). Confidence: HIGH.
+2. **`hasChanges` failure no longer skips the refresh** — if `hasChanges` throws (e.g. offline during `_hasBucketChanges` network calls), the exception is caught inside `loadWithChangeDetection` (base_state.dart:53-58) and routed to `ErrorHandler.handle`, and `changed` is set to `true` → the network fetch still runs and the caller's future never rejects → so `BucketState.init`'s `try/finally` still clears `_isInitLoading` and the unhandled-async-error path is gone; the app refreshes instead of silently keeping stale cache, and the user does get a surface (error snackbar/dialog, `error_handler.dart:163-175`) instead of a silent failure. Confidence: HIGH.
 3. **Re-`init` duplication / no dedupe** — `loadWithChangeDetection` has no in-flight guard. `HomepageState.init` and `MoodState.initHome` call it with no internal guard (unlike `BucketState._isInitLoading` bucket_state.dart:28, `DriveState._initialLoading` drive_state.dart:35, `GameState._isFetchingQuestion`). Tab re-activation (TabScreenMixin loadData) and pull-to-refresh can start a second fetch while the first is still running → two concurrent network fetches, last-write-wins, no ordering guarantee. Confidence: HIGH.
 4. **Stale-response overwrite (no generation token)** — because fetch is unawaited and un-guarded, a slow first fetch can land *after* a faster second fetch and overwrite the newer data with older data. Partially guarded since 4.11 (F-RT4/F-RT5/F-RT10): `BucketState` skips a snapshot whose version was bumped mid-fetch (bucket_state.dart:80-91, 130-162), `HomepageState` refetches a miss-you total observed stale (homepage_state.dart:64-68), and `CheckpointMixin` write-order tokens drop an older-observed checkpoint write (checkpoint_mixin.dart). Residual: the *in-memory* collection replace on other states (mood/game/drive snapshot sockets) still has no request-id check — a slow fetch landing after a faster one replaces newer data, though checkpoints (and hence cold-start correctness) are protected. Confidence: MEDIUM (possible, not observed in tests).
 5. **Checkpoint semantics can force repeated fetches** — optimistic checkpoint resets (`CacheService.kCheckpointEmpty`, `cache_service.dart:9`) are written inside `hasChanges` only when `changed == true` (mood_state.dart:63-67). If the subsequent network fetch fails, the checkpoint stays `EMPTY`, so every subsequent `init()` computes `hasChanges == true` again and refires the network fetch — a retry-every-init loop, and a duplicate fetch per init even while the network is down. Confidence: HIGH (both states do this).

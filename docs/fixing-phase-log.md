@@ -21,7 +21,7 @@
 | 7 | Dead code & docs hygiene | 7.1–7.9 | All fixed. 7.7 closed as *already clean* (stale item). README rebuilt against the code |
 | 8 | Testing gaps | 8.1–8.7, 8.9, 8.10 | 9 fixed. Still open — 8.8 CI wiring, carried in `todo.md`. Auth-refresh retry, runnable SQL assertions for RLS and retention, `BaseState` helpers, the realtime pipeline, optimistic rollback, the force-update flow, and two suite-hardening sweeps |
 | 9 | Findings that were never planned | 9.1–9.9 | All fixed. Failed-login reporting plus route idempotency, token and session revocation on logout and password change, server-side password policy, a distinct-email risk cap, a docs reconciliation sweep, and the `user_devices` retention and session-linked prune |
-| 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.11 | 9 fixed. Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes. Still open — 10.12–10.21 carried in `todo.md` |
+| 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `reject_partnership` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
 
 ---
 
@@ -114,6 +114,16 @@
 | 10.9 | `logAppError` splits error codes on the wrong separator | Fixed (`split("-")`) | 2026-10-11 |
 | 10.10 | Non-production responses expose `details` and `stack` | Fixed (explicit `ENABLE_ERROR_DETAILS` flag) | 2026-10-12 |
 | 10.11 | Invalid-token cleanup deletes rows globally | Fixed (`user_id`-scoped delete) | 2026-10-12 |
+| 10.12 | `login()` registers the FCM token without the `supportsFcm` guard | Fixed (one shared registration helper; later replaced by installation IDs) | 2026-10-12 |
+| 10.13 | The optimistic rejection filter can never match | Fixed (via 12.6 — the dead path was deleted) | 2026-10-12 |
+| 10.14 | `ProfileState.loadProfile()` returns before reading the cache when loading | Fixed (in-flight load coalescing) | 2026-10-12 |
+| 10.16 | No backend mailer: an invitation sends no email | Fixed (docs clarification; no code change) | 2026-10-12 |
+| 10.15 | The drive cursor is a strict `>`, skipping equal timestamps | Fixed (inclusive `gte` bound) | 2026-10-14 |
+| 10.17 | The `debug_`-prefixed wipe RPC is deliberate dev-only tooling | **By design** — the prefix names a debug tool, not a production RPC | 2026-10-14 |
+| 10.18 | RPC exception messages are hardcoded Italian | Fixed (`API-VALIDATION-00x` codes resolved client-side) | 2026-10-14 |
+| 10.19 | Rejecting a partnership request bypasses the accepting RPC | Fixed (`reject_partnership` RPC) | 2026-10-20 |
+| 10.20 | A `hasChanges` failure rejects `loadWithChangeDetection` (F-SM4) | Fixed (error caught; refetch triggered) | 2026-10-20 |
+| 10.21 | Structured log records don't match the log-table columns | Fixed (records projected onto their table's columns) | 2026-10-21 |
 
 ---
 
@@ -143,6 +153,13 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 20. **No shared store (Redis/KeyDB): the backend is single-instance by design.** Rate-limit buckets, login strikes and idempotency keys are per process and cleared by a restart; the accepted exposure is documented per mechanism rather than fixed, and nonce replay is closed separately by the database `UNIQUE` constraint. → `docs/backend/security/doc.md` § Multi-Instance Vulnerability Analysis Matrix.
 21. **Error diagnostics are gated on an explicit `ENABLE_ERROR_DETAILS` flag, not `NODE_ENV`.** The gate covers the message as well as `details`/`stack`, because a copied `err.message` carried the same disclosure class in any non-production container. → `docs/backend/error-handling/doc.md` § End-to-End Error Flow Map.
 22. **Partner emails exist only for accounts that do not exist yet.** A pairing request (`POST /auth/invite`, email + 6-char code) never sends an email — the recipient must already have an account, so the request is delivered in-app plus push. The one partnership-related email is the Supabase Auth **"Invite user"** template, sent by `POST /auth/invite-user` (`admin.auth.admin.inviteUserByEmail`, signed + rate-limited 5/user, 10/IP), which is **account-only**: it writes no `partnerships` row, so pairing still needs the invitee's code afterwards. An address that already has an account gets `409 API-VALIDATION-002` (GoTrue `email_exists`/`user_already_exists`); an invited-but-unconfirmed address is re-invited. → `docs/features/partnership/doc.md` § Email Policy, `docs/audits/email.md`.
+23. **A device that cannot produce a push identifier is never registered.** The platform guard and the schema check live in one shared registration path, so startup, login and locale sync cannot drift apart; a shared placeholder on the globally-unique registration column would re-point one device's push target between unrelated accounts. (The FCM token was later replaced by a Firebase Installation ID; the guard moved with it.) → `docs/app/notifications/doc.md` § Platform Support, § Installation ID Registration.
+24. **A concurrent profile load joins the load already in flight.** `loadProfile()` hands the running load to a second caller instead of skipping it, and a forced caller chains a fresh load after it, so no caller is left with empty state. → `docs/app/architecture/doc.md` § State-scoped observations.
+25. **The drive cursor is inclusive (`gte`), not strict.** The merge replaces rows by id, so re-fetching the boundary rows is idempotent, and the `updated_at` trigger writes `NOW()` (transaction start), which makes equal timestamps reachable. → `docs/app/storage-and-caching/doc.md` § Per-checkpoint analysis.
+26. **The `debug_` prefix on the wipe RPC is deliberate.** The RPC is `service_role`-only and reachable only from the `kDebugMode` debug tile, so renaming it would advertise a debug-only tool as a production RPC; the developer-only scope is documented instead. → `docs/supabase/database-logic/doc.md` § `debug_wipe_user_data(p_user_id integer)`.
+27. **An RPC error travels as `CODE: text` and the client resolves it.** Every raise carries a stable app error code, the backend keeps the code and the client maps it through `ErrorCodes` to the ARB string; the Postgres text is a developer-facing note and never reaches a release UI. → `docs/app/localization/doc.md` § Alignment Audit & Findings.
+28. **A failing change check means "assume changed and refetch".** The `hasChanges()` await is wrapped in `try`/`catch`; the error goes to `ErrorHandler.handle`, the fallback is `changed = true` and the network fetch still runs, so the caller's future never rejects. → `docs/app/state-management/doc.md` § loadWithChangeDetection.
+29. **A log record is projected onto exactly the columns of its target table.** One extra key makes Postgres reject the whole row, so each logger function writes only its table's columns and nests the rest in `error_json`; `request_id` is a `uuid` column, so a client-supplied `X-Request-Id` is accepted only when it parses as a uuid. → `docs/backend/error-handling/doc.md` § Backend Logging Infrastructure & Supabase Tables.
 
 ---
 
@@ -192,6 +209,12 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `Backend/test/logger.test.js` | 10.9 |
 | `Backend/test/errorHandler.test.js` | 10.10 |
 | `Backend/test/notification.service.test.js` | 10.11 |
+| `Flutter/test/login_installation_id_guard_test.dart` (added as `login_device_token_guard_test.dart`) | 10.12 |
+| `Flutter/test/drive_incremental_cursor_test.dart` | 10.15 |
+| `Backend/test/dbUtils.test.js` | 10.18 |
+| `Flutter/test/rpc_error_codes_test.dart` | 10.18 |
+| `supabase/test/rpc_error_codes.test.sql` | 10.18 |
+| `Backend/test/requestContext.test.js` | 10.21 |
 | `Flutter/test/partner_invite_email_test.dart` | 15.1 |
 
 ---

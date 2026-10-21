@@ -74,7 +74,7 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
-* **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17).
+* **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`. Granted strictly to `postgres`, `service_role`.
 * **Inputs:** `p_user_id` (`integer`).

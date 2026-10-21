@@ -140,7 +140,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(userRateLimit)`
 - **Database Dependencies**: Invokes `adminSupabase.rpc("debug_wipe_user_data", { p_user_id: userId })`.
-- **Scope — developer-only**: test-data reset tool, not a production account-deletion feature. The only Flutter entry point is the wipe tile inside the `kDebugMode` block (`profile_screen.dart:468`), so a release build cannot reach it; the `debug_` prefix on the RPC is deliberate and documents that intent (10.17). The route itself carries no env gate — a release-build client that called it directly would still be served.
+- **Scope — developer-only**: test-data reset tool, not a production account-deletion feature. The only Flutter entry point is the wipe tile inside the `kDebugMode` block (`profile_screen.dart:468`), so a release build cannot reach it; the `debug_` prefix on the RPC is deliberate and documents that intent (10.17, see `docs/fixing-phase-log.md` § Item index). The route itself carries no env gate — a release-build client that called it directly would still be served.
 - **R2 Cleanup**: after the RPC succeeds, `deleteUserR2Objects(userId)` resolves the accepted partner id and deletes all objects under `uploads/{userId}/`, `profile/{userId}/`, `uploads/{partnerId}/`, `profile/{partnerId}/` (`r2.service` `listObjectKeys` + batched `DeleteObjectsCommand`). Uses `SYS-FAIL-001` if R2 cleanup fails (DB rows are already purged; re-running the wipe retries the R2 sweep).
 
 ---
