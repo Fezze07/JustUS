@@ -29,15 +29,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    final destination =
-        await AuthNavigationUtils.determinePostAuthDestination(context);
+    final routeName =
+        await AuthNavigationUtils.determinePostAuthRouteName(context);
 
     if (!mounted) return;
 
-    unawaited(Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => destination),
-    ));
+    unawaited(Navigator.pushReplacementNamed(context, routeName));
   }
 
   @override

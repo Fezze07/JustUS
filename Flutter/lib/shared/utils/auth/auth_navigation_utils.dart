@@ -24,4 +24,23 @@ class AuthNavigationUtils {
       return const PartnerScreen();
     }
   }
+
+  /// Returns the route name string corresponding to the post-authentication destination.
+  static Future<String> determinePostAuthRouteName(BuildContext context) async {
+    final authState = context.read<AuthState>();
+    if (!authState.isLoggedIn) {
+      return AppRoutes.login;
+    }
+
+    final partnerState = context.read<PartnerState>();
+    try {
+      await partnerState.fetchPartnership().timeout(const Duration(seconds: 5));
+    } catch (_) {}
+
+    if (authState.hasPartner || partnerState.partner != null) {
+      return AppRoutes.mainShell;
+    } else {
+      return AppRoutes.partner;
+    }
+  }
 }

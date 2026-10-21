@@ -30,10 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
         text: context.loc.auth_loginNoAccount,
         actionText: context.loc.auth_signUp,
         onTap: () {
-          unawaited(Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const RegisterScreen()),
-          ));
+          unawaited(Navigator.pushNamed(context, AppRoutes.register));
         },
       ),
       children: [
@@ -124,14 +121,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (!context.mounted) return;
                 if (success) {
                   if (!context.mounted) return;
-                  final destination =
-                      await AuthNavigationUtils.determinePostAuthDestination(
+                  final routeName =
+                      await AuthNavigationUtils.determinePostAuthRouteName(
                           context);
                   if (!context.mounted) return;
-                  unawaited(Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => destination),
-                  ));
+                  unawaited(Navigator.pushReplacementNamed(context, routeName));
                 }
               },
             );

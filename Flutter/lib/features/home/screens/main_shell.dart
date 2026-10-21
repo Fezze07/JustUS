@@ -130,8 +130,8 @@ class MainShellState extends State<MainShell> {
     if (!hasPartner) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          unawaited(Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const PartnerScreen()),
+          unawaited(Navigator.of(context).pushReplacementNamed(
+            AppRoutes.partner,
           ));
         }
       });

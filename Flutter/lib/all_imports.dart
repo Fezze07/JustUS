@@ -15,6 +15,7 @@ export 'package:justus/core/localization/generated/app_localizations_en.dart';
 export 'package:justus/core/localization/generated/app_localizations_it.dart';
 export 'package:justus/core/theme/app_palette.dart';
 export 'package:justus/core/theme/app_radius.dart';
+export 'package:justus/core/navigation/app_routes.dart';
 export 'package:justus/core/theme/app_theme.dart';
 export 'package:justus/features/auth/auth_models.dart';
 export 'package:justus/shared/utils/auth/auth_navigation_utils.dart';

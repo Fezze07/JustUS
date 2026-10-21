@@ -119,10 +119,9 @@ class _PartnerScreenState extends State<PartnerScreen>
                                               partner.profilePicUrl),
                                       isConnected: true,
                                       onTap: () {
-                                        unawaited(Navigator.pushReplacement(
+                                        unawaited(Navigator.pushReplacementNamed(
                                           context,
-                                          MaterialPageRoute(
-                                              builder: (_) => const MainShell()),
+                                          AppRoutes.mainShell,
                                         ));
                                       },
                                     ),
@@ -370,10 +369,9 @@ class _PartnerScreenState extends State<PartnerScreen>
                     await context.read<ProfileState>().loadProfile(force: true);
                   }
                   if (mounted) {
-                    unawaited(Navigator.pushReplacement(
+                    unawaited(Navigator.pushReplacementNamed(
                       context,
-                      MaterialPageRoute(
-                          builder: (_) => const MainShell()),
+                      AppRoutes.mainShell,
                     ));
                   }
                 }

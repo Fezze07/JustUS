@@ -189,9 +189,9 @@ class AuthState extends BaseState
             tag: 'AuthState');
         final navContext = ErrorHandler.navigatorKey.currentContext;
         if (navContext != null && navContext.mounted) {
-          unawaited(Navigator.push(
+          unawaited(Navigator.pushNamed(
             navContext,
-            MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+            AppRoutes.resetPassword,
           ));
         }
       }

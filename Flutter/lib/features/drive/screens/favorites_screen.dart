@@ -95,11 +95,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
                 item: item,
                 onTap: () {
                   driveState.loadSingleItem(item.id);
-                  unawaited(Navigator.push(
+                  unawaited(Navigator.pushNamed(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => DriveItemScreen(itemId: item.id),
-                    ),
+                    AppRoutes.driveItem,
+                    arguments: item.id,
                   ));
                 },
               );

@@ -120,13 +120,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!context.mounted) return;
 
                               if (success) {
-                                final destination =
-                                    await AuthNavigationUtils.determinePostAuthDestination(context);
+                                final routeName =
+                                    await AuthNavigationUtils.determinePostAuthRouteName(context);
                                 if (!context.mounted) return;
 
-                                unawaited(Navigator.pushReplacement(
+                                unawaited(Navigator.pushReplacementNamed(
                                   context,
-                                  MaterialPageRoute(builder: (_) => destination),
+                                  routeName,
                                 ));
                               }
                             },

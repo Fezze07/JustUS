@@ -144,11 +144,27 @@ class JustUsApp extends StatelessWidget {
               ),
               home: const SplashScreen(),
               onGenerateRoute: (settings) {
-                // If a deep link path comes in (e.g. /callback?code=...), return null so
-                // Flutter doesn't fail with an unhandled route error.
-                // Supabase Auth handles the URL parameters
+                final routes = <String, WidgetBuilder>{
+                  AppRoutes.splash: (_) => const SplashScreen(),
+                  AppRoutes.login: (_) => const LoginScreen(),
+                  AppRoutes.register: (_) => const RegisterScreen(),
+                  AppRoutes.resetPassword: (_) => const ResetPasswordScreen(),
+                  AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
+                  AppRoutes.localization: (_) => const LocalizationScreen(),
+                  AppRoutes.partner: (_) => const PartnerScreen(),
+                  AppRoutes.mainShell: (_) => const MainShell(),
+                };
+
+                WidgetBuilder? builder = routes[settings.name];
+                if (settings.name == AppRoutes.driveItem) {
+                  final id = settings.arguments is int
+                      ? settings.arguments as int
+                      : int.tryParse(settings.arguments?.toString() ?? '');
+                  if (id != null) builder = (_) => DriveItemScreen(itemId: id);
+                }
+
                 return MaterialPageRoute(
-                  builder: (context) => const SplashScreen(),
+                  builder: builder ?? ((_) => const SplashScreen()),
                   settings: settings,
                 );
               },

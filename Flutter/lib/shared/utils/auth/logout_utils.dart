@@ -38,9 +38,9 @@ class LogoutUtils {
     final authState = context.read<AuthState>();
     await authState.logout();
     if (!context.mounted) return;
-    unawaited(Navigator.pushAndRemoveUntil(
+    unawaited(Navigator.pushNamedAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      AppRoutes.login,
       (route) => false,
     ));
   }

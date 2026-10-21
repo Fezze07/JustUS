@@ -316,7 +316,7 @@ class ErrorHandler {
               Navigator.of(ctx).pop();
               // Naviga al login — l'AuthState gestirà il logout vero e proprio
               final future = navigatorKey.currentState?.pushNamedAndRemoveUntil(
-                '/login',
+                AppRoutes.login,
                 (route) => false,
               );
               if (future != null) unawaited(future);

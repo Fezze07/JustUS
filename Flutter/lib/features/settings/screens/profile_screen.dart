@@ -165,8 +165,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: context.palette.surfaceSunken,
       showAppBar: false,
       body: Selector<ProfileState, (User?, User?, bool, DateTime?, String?)>(
-        selector: (_, s) => (s.userProfile, s.partnerProfile, s.isUploading,
-            s.anniversaryDate, s.versionedProfilePicUrl),
+        selector: (_, s) => (
+          s.userProfile,
+          s.partnerProfile,
+          s.isUploading,
+          s.anniversaryDate,
+          s.versionedProfilePicUrl
+        ),
         builder: (context, profileData, _) {
           final user = profileData.$1;
           final partner = profileData.$2;
@@ -182,8 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   // Header
                   VPHeader(
                     title: context.loc.profileSettingsTitle.toUpperCase(),
-                    onBack: () =>
-                        MainShell.of(context)?.switchToTab(0),
+                    onBack: () => MainShell.of(context)?.switchToTab(0),
                   ),
 
                   const SizedBox(height: 40),
@@ -312,7 +316,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: context.palette.contentTertiary),
                       color: context.palette.accentPurple,
                       onTap: () =>
-                          Navigator.pushNamed(context, '/localization'),
+                          Navigator.pushNamed(context, AppRoutes.localization),
                     ),
                     const VPDivider(),
                     VPSettingTile(
@@ -405,7 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: context.palette.contentTertiary),
                       color: context.palette.accentPurple,
                       onTap: () =>
-                          Navigator.pushNamed(context, '/change-password'),
+                          Navigator.pushNamed(context, AppRoutes.changePassword),
                     ),
                     const VPDivider(),
                     VPSettingTile(

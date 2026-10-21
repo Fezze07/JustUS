@@ -252,11 +252,10 @@ class _DriveScreenState extends State<DriveScreen>
     return GestureDetector(
       onTap: () {
         context.read<DriveState>().loadSingleItem(item.id);
-        unawaited(Navigator.push(
+        unawaited(Navigator.pushNamed(
           context,
-          MaterialPageRoute(
-            builder: (_) => DriveItemScreen(itemId: item.id),
-          ),
+          AppRoutes.driveItem,
+          arguments: item.id,
         ));
       },
       child: Container(
