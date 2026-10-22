@@ -1,5 +1,5 @@
 -- =============================================================================
--- Partnership creation: only request_partnership creates a row, and only the
+-- Partnership creation: only partnership_request creates a row, and only the
 -- recipient can accept it  (covers todo.md 11.1)
 -- =============================================================================
 -- Run against the Supabase database (needs `psql`, Supabase MCP `execute_sql`,
@@ -11,15 +11,15 @@
 --
 -- Contract under test:
 --   * no client may INSERT into public.partnerships. A row exists only when
---     request_partnership created it, so the partnership_code gate inside that
+--     partnership_request created it, so the partnership_code gate inside that
 --     function cannot be skipped and `status` can never be forged to
 --     'accepted';
---   * request_partnership still works for the backend, which is the only
+--   * partnership_request still works for the backend, which is the only
 --     caller that creates rows (it runs on service_role);
 --   * only the recipient (user_id_2) may accept a pending request, so the
 --     sender cannot push its own request into an accepted partnership. That
 --     holds through the RPC and through a direct UPDATE of `status`, which the
---     guard_partnership_status trigger rejects for the sender.
+--     partnership_guard_status trigger rejects for the sender.
 --
 -- Assertion style follows the rest of this directory: IS DISTINCT FROM for
 -- comparisons, a pinned SQLSTATE (42501) for a denied write, and a re-read with
@@ -95,7 +95,7 @@ BEGIN
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 
-  -- A pending row would bypass the partnership_code gate of request_partnership.
+  -- A pending row would bypass the partnership_code gate of partnership_request.
   v_state := pg_temp.rls_try($q$
     INSERT INTO public.partnerships (user_id_1, user_id_2, status)
     VALUES (9001, 9002, 'pending')$q$);
@@ -143,7 +143,7 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- C. the sanctioned path: the backend calls request_partnership on
+-- C. the sanctioned path: the backend calls partnership_request on
 --    service_role, which is the only caller that may create a row.
 -- ---------------------------------------------------------------------------
 RESET ROLE;
@@ -153,20 +153,20 @@ DO $$
 DECLARE
   v_id integer;
 BEGIN
-  SELECT public.request_partnership('bob@partnership-test.local', 'BOB222', 9001) INTO v_id;
+  SELECT public.partnership_request('bob@partnership-test.local', 'BOB222', 9001) INTO v_id;
 
   IF v_id IS NULL THEN
-    RAISE EXCEPTION 'C failed: request_partnership returned no id';
+    RAISE EXCEPTION 'C failed: partnership_request returned no id';
   END IF;
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'pending' THEN
-    RAISE EXCEPTION 'C failed: request_partnership created a % row, expected pending',
+    RAISE EXCEPTION 'C failed: partnership_request created a % row, expected pending',
       coalesce((SELECT status FROM public.partnerships WHERE id = v_id), 'NULL');
   END IF;
 
   IF (SELECT user_id_1 FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9001
      OR (SELECT user_id_2 FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9002 THEN
-    RAISE EXCEPTION 'C failed: request_partnership created the wrong pair';
+    RAISE EXCEPTION 'C failed: partnership_request created the wrong pair';
   END IF;
 END $$;
 
@@ -187,7 +187,7 @@ BEGIN
     RAISE EXCEPTION 'D failed: the pending request is not visible to the recipient';
   END IF;
 
-  PERFORM public.accept_partnership(v_id);
+  PERFORM public.partnership_accept(v_id);
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
     RAISE EXCEPTION 'D failed: the recipient could not accept the request';
@@ -205,10 +205,10 @@ DO $$
 DECLARE
   v_id integer;
 BEGIN
-  SELECT public.request_partnership('alice@partnership-test.local', 'ALICE1', 9003) INTO v_id;
+  SELECT public.partnership_request('alice@partnership-test.local', 'ALICE1', 9003) INTO v_id;
 
   IF v_id IS NULL THEN
-    RAISE EXCEPTION 'E failed: request_partnership returned no id';
+    RAISE EXCEPTION 'E failed: partnership_request returned no id';
   END IF;
 END $$;
 
@@ -226,7 +226,7 @@ BEGIN
     RAISE EXCEPTION 'E failed: the sent request is not visible to its sender';
   END IF;
 
-  PERFORM public.accept_partnership(v_id);
+  PERFORM public.partnership_accept(v_id);
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'pending' THEN
     RAISE EXCEPTION 'E failed: the sender accepted its own request (status %)',
@@ -245,7 +245,7 @@ BEGIN
   SELECT id INTO v_id FROM public.partnerships
     WHERE user_id_1 = 9003 AND user_id_2 = 9001;
 
-  PERFORM public.accept_partnership(v_id);
+  PERFORM public.partnership_accept(v_id);
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
     RAISE EXCEPTION 'E failed: the recipient could not accept the request';
@@ -254,7 +254,7 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- G. the sender may not promote its own request to 'accepted' through a
---    direct UPDATE either - the guard_partnership_status trigger rejects it.
+--    direct UPDATE either - the partnership_guard_status trigger rejects it.
 --    Other column updates stay allowed for a member.
 -- ---------------------------------------------------------------------------
 RESET ROLE;
@@ -264,10 +264,10 @@ DO $$
 DECLARE
   v_id integer;
 BEGIN
-  SELECT public.request_partnership('bob@partnership-test.local', 'BOB222', 9004) INTO v_id;
+  SELECT public.partnership_request('bob@partnership-test.local', 'BOB222', 9004) INTO v_id;
 
   IF v_id IS NULL THEN
-    RAISE EXCEPTION 'G failed: request_partnership returned no id';
+    RAISE EXCEPTION 'G failed: partnership_request returned no id';
   END IF;
 END $$;
 
@@ -317,7 +317,7 @@ BEGIN
   SELECT id INTO v_id FROM public.partnerships
     WHERE user_id_1 = 9004 AND user_id_2 = 9002;
 
-  PERFORM public.accept_partnership(v_id);
+  PERFORM public.partnership_accept(v_id);
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
     RAISE EXCEPTION 'G failed: the recipient could not accept the request';
@@ -342,4 +342,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C request_partnership creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly)' AS result;
+SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C partnership_request creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly)' AS result;

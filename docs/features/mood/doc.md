@@ -23,7 +23,7 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 ┌────────────────────────────────────────────────────┴────────────────────┐
 │                             SUPABASE LAYER                              │
 │  Tables: public.moods, public.emojis, public.users                      │
-│  RPCs: set_mood, get_or_create_emoji                                    │
+│  RPCs: mood_set, emoji_get_or_create                                    │
 │  RLS Policies: SELECT / INSERT for self & active partner                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -34,13 +34,13 @@ The mood subsystem allows users to select or input Unicode emojis to express the
    - [mood_screen.dart](file:///f:/JustUS/Flutter/lib/features/mood/screens/mood_screen.dart): Renders recent emojis horizontal bar, update status button, timeline list with date/time formatting, and load more pagination.
    - [emoji_picker_sheet.dart](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart): Modal bottom sheet rendering single-emoji custom text field and 49 predefined default + user historical emojis grid.
    - [mood_state.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart): State manager maintaining `_userMood`, `_partnerMood`, `_recentEmojis`, and `_timeline`. Implements optimistic UI updates and rollback on failure.
-   - [mood_repository.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart): Interacts with Supabase database (`set_mood` RPC, queries on `moods` joined with `emojis`) and triggers FCM notifications (`notifyPartnerOnce`).
+   - [mood_repository.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart): Interacts with Supabase database (`mood_set` RPC, queries on `moods` joined with `emojis`) and triggers FCM notifications (`notifyPartnerOnce`).
    - [mood_models.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_models.dart): Data models `MoodEntry` and `MoodResponse`.
 
 2. **Database Layer (Supabase / PostgreSQL)**:
    - `public.emojis`: Dictionary table storing unique emoji character strings (`id` bigint PK, `emoji_char` text UNIQUE).
    - `public.moods`: Historical log of mood entries (`id` integer PK, `user_id` integer FK, `mood_type_id` bigint FK to `emojis.id`, `created_at` timestamptz).
-   - `set_mood(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis` and appends a new entry into `public.moods`.
+   - `mood_set(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis` and appends a new entry into `public.moods`.
 
 ---
 
@@ -88,8 +88,8 @@ User Action (Select Emoji in Sheet or Custom Input)
      insert into _timeline[0], save to StorageService)
                            │
                            ▼
-             Supabase RPC Call: set_mood
-    (Calls sbClient.rpc('set_mood', {p_emoji_char: emoji})
+             Supabase RPC Call: mood_set
+    (Calls sbClient.rpc('mood_set', {p_emoji_char: emoji})
      + Triggers push notification notifyPartnerOnce)
                            │
                            ├── Success ─────────────────────────────┐
@@ -130,10 +130,10 @@ User Action (Select Emoji in Sheet or Custom Input)
 
 3. **Backend & Database RPC Execution**
    - File: [mood_repository.dart:8-29](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L8-L29)
-   - Invokes `sbClient.rpc('set_mood', params: {'p_emoji_char': emojiChar})`.
-   - In PostgreSQL, procedure `set_mood`:
-     - Calls `get_or_create_emoji(p_emoji_char)` to resolve or insert the emoji string in `public.emojis`.
-     - Inserts a row into `public.moods` with `user_id = current_user_id()`, `mood_type_id`, and `created_at = NOW()`.
+   - Invokes `sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar})`.
+   - In PostgreSQL, procedure `mood_set`:
+     - Calls `emoji_get_or_create(p_emoji_char)` to resolve or insert the emoji string in `public.emojis`.
+     - Inserts a row into `public.moods` with `user_id = user_current_id()`, `mood_type_id`, and `created_at = NOW()`.
    - Fires asynchronous partner push notification request via `notifyPartnerOnce(notificationKey: 'moodUpdated', params: {'emojiChar': emojiChar})`.
 
 4. **Realtime Broadcast & Partner UI Update**
@@ -172,7 +172,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 
 ### 4. Partner Sharing & Visibility
 - Ownership is determined by `public.moods.user_id`.
-- Partner visibility is enforced by RLS policies: a user can read rows where `user_id = current_user_id()` OR `is_partner_of(user_id) = true`.
+- Partner visibility is enforced by RLS policies: a user can read rows where `user_id = user_current_id()` OR `partnership_is_partner(user_id) = true`.
 - `MoodState.fetchPartnerMood()` queries `public.moods` where `user_id = partnerId` ordered by `created_at DESC LIMIT 1`.
 
 ### 5. Mood Timeline & Pagination
@@ -208,9 +208,9 @@ User Action (Select Emoji in Sheet or Custom Input)
 ## Security & RLS Policies
 
 - Table `public.moods` RLS policies:
-  - **SELECT**: Allowed if `user_id = current_user_id()` OR `is_partner_of(user_id) = true`.
-  - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = current_user_id()`).
-- RPC `set_mood`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials.
+  - **SELECT**: Allowed if `user_id = user_current_id()` OR `partnership_is_partner(user_id) = true`.
+  - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = user_current_id()`).
+- RPC `mood_set`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials.
 
 ---
 

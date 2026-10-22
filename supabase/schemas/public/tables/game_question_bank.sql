@@ -13,7 +13,7 @@ ALTER TABLE "public"."game_question_bank"
 CREATE TRIGGER set_public_game_question_bank_updated_at
   BEFORE UPDATE ON public.game_question_bank
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "game_question_bank_read_all" ON "public"."game_question_bank"
   FOR SELECT

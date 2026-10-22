@@ -183,7 +183,7 @@ class DriveRepository extends BaseRepository {
   Future<ResultWrapper<void>> addReaction(
       int driveItemId, String emojiChar) async {
     return withUser((uid) async {
-      final emojiId = await sbClient.rpc('get_or_create_emoji', params: {
+      final emojiId = await sbClient.rpc('emoji_get_or_create', params: {
         'p_emoji_char': emojiChar,
       });
 

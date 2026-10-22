@@ -1,6 +1,6 @@
-DROP FUNCTION IF EXISTS public.cleanup_old_logs();
+DROP FUNCTION IF EXISTS public.logs_cleanup();
 
-CREATE OR REPLACE FUNCTION public.cleanup_old_logs(p_days integer DEFAULT 90)
+CREATE OR REPLACE FUNCTION public.logs_cleanup(p_days integer DEFAULT 90)
   RETURNS void
   LANGUAGE plpgsql
   SET search_path TO 'public'
@@ -9,7 +9,7 @@ DECLARE
   v_cutoff timestamp with time zone;
 BEGIN
   IF p_days IS NULL OR p_days < 1 THEN
-    RAISE EXCEPTION 'cleanup_old_logs: p_days must be a positive integer';
+    RAISE EXCEPTION 'logs_cleanup: p_days must be a positive integer';
   END IF;
   v_cutoff := now() - make_interval(days => p_days);
   DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
@@ -19,4 +19,4 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."cleanup_old_logs"(integer) TO PUBLIC, "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."logs_cleanup"(integer) TO PUBLIC, "postgres", "service_role";

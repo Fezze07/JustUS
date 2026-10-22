@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.guard_partnership_status()
+CREATE OR REPLACE FUNCTION public.partnership_guard_status()
   RETURNS TRIGGER
   LANGUAGE plpgsql
   SET search_path TO 'public'
@@ -6,7 +6,7 @@ CREATE OR REPLACE FUNCTION public.guard_partnership_status()
 DECLARE
   v_caller_id integer;
 BEGIN
-  v_caller_id := public.current_user_id();
+  v_caller_id := public.user_current_id();
 
   IF NEW.status IS DISTINCT FROM OLD.status
      AND v_caller_id IS NOT NULL
@@ -19,5 +19,5 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION "public"."guard_partnership_status"() FROM PUBLIC, "anon";
-GRANT EXECUTE ON FUNCTION "public"."guard_partnership_status"() TO "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."partnership_guard_status"() FROM PUBLIC, "anon";
+GRANT EXECUTE ON FUNCTION "public"."partnership_guard_status"() TO "postgres", "service_role";

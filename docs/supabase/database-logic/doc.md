@@ -13,10 +13,10 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Purpose:** Provides a single, unified view of the current user's active relationship, including status, anniversary date, and the partner's profile details (display name, profile picture). The partner's `users` row is intentionally not read.
 * **Security Context:** `WITH (security_invoker = true)`
   - Inherits RLS policies of underlying tables (`partnerships`, `user_profiles`) based on the authenticated caller's JWT token.
-* **Inputs:** None (Implicitly uses `public.current_user_id()` derived from `auth.uid()`).
+* **Inputs:** None (Implicitly uses `public.user_current_id()` derived from `auth.uid()`).
 * **Outputs:** `partnership_id`, `status`, `anniversary_date`, `partner_id`, `partner_display_name`, `partner_profile_pic_url`, `user_id_a`, `user_id_b`.
 * **Tables Touched:** `public.partnerships` (READ), `public.user_profiles` (READ).
-* **Execution Condition:** `(user_id_1 = current_user_id() OR user_id_2 = current_user_id()) AND status = 'accepted'`.
+* **Execution Condition:** `(user_id_1 = user_current_id() OR user_id_2 = user_current_id()) AND status = 'accepted'`.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
 * **Side Effects:** None (Read-only view).
 * **Failure Behavior:** Returns 0 rows if no active accepted partnership exists for the executing user.
@@ -27,10 +27,10 @@ This document provides a technical specification and analysis of all **Supabase-
 * **SQL Source:** `supabase/schemas/public/views/v_drive_dashboard.sql`
 * **Purpose:** Aggregates drive files and folders with file type metadata, current user bookmark status (`is_favorite`), and aggregated user emoji reactions (`reactions`).
 * **Security Context:** `WITH (security_invoker = true)`
-* **Inputs:** Implicitly relies on `public.current_user_id()`.
+* **Inputs:** Implicitly relies on `public.user_current_id()`.
 * **Outputs:** `id`, `partnership_id`, `name`, `original_name`, `type`, `size`, `created_at`, `updated_at`, `extension`, `mime_type`, `icon_slug`, `is_favorite` (boolean), `reactions` (JSON array of `{ user_id, emoji_char }`).
 * **Tables Touched:** `public.drive_items` (READ), `public.drive_file_types` (READ), `public.favorites` (READ), `public.drive_item_reactions` (READ), `public.emojis` (READ).
-* **Execution Condition:** Filtered by `public.is_in_partnership(d.partnership_id)`.
+* **Execution Condition:** Filtered by `public.partnership_is_member(d.partnership_id)`.
 * **Caller:** Flutter Frontend ([drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart)).
 * **Side Effects:** None (Read-only view).
 
@@ -38,8 +38,8 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ## 2. Stored Procedures (RPC Functions)
 
-### `request_partnership(partner_email text, partner_code text, override_sender_id integer)`
-* **SQL Source:** `supabase/schemas/public/functions/request_partnership.sql`
+### `partnership_request(partner_email text, partner_code text, override_sender_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_request.sql`
 * **Purpose:** Initiates a new relationship connection request between two users.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`. Granted to `authenticated`, `postgres`, `service_role`.
@@ -48,7 +48,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Outputs:** `integer` (ID of created `partnerships` row).
 * **Tables Touched:** `public.partnerships` (READ, INSERT), `public.users` (READ), `public.user_profiles` (READ).
 * **Execution Conditions & Validation Rules:**
-  1. Identifies caller ID via `override_sender_id` or `public.current_user_id()`.
+  1. Identifies caller ID via `override_sender_id` or `public.user_current_id()`.
   2. Raises EXCEPTION if user is not authenticated (`API-VALIDATION-003`).
   3. Checks if user is already in a `'pending'` or `'accepted'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`).
   4. Looks up recipient matching BOTH `email = partner_email` and `partnership_code = UPPER(partner_code)`. Raises EXCEPTION if not found (`API-VALIDATION-005`).
@@ -59,8 +59,8 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `accept_partnership(p_partnership_id integer)`
-* **SQL Source:** `supabase/schemas/public/functions/accept_partnership.sql`
+### `partnership_accept(p_partnership_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_accept.sql`
 * **Purpose:** Accepts a pending partnership request and establishes the anniversary date.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Inputs:** `p_partnership_id` (`integer`).
@@ -85,8 +85,8 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `get_partnership_names(p_user_id integer)`
-* **SQL Source:** `supabase/schemas/public/functions/get_partnership_names.sql`
+### `partnership_get_names(p_user_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_get_names.sql`
 * **Purpose:** Retrieves the display names of both members of an active accepted partnership.
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`. Granted strictly to `postgres`, `service_role`.
@@ -98,12 +98,12 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `get_pending_invitations()`
-* **SQL Source:** `supabase/schemas/public/functions/get_pending_invitations.sql`
+### `partnership_get_pending_invitations()`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_get_pending_invitations.sql`
 * **Purpose:** Returns the caller's pending partnership invitations (both sent and received) without exposing another user's full `users`/`user_profiles` row.
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
   - **Execution Grants:** Revoked from `PUBLIC`, `anon`. Granted to `authenticated`, `postgres`, `service_role`.
-* **Inputs:** None (scoped to `public.current_user_id()`).
+* **Inputs:** None (scoped to `public.user_current_id()`).
 * **Outputs:** table rows of `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received` (true when the caller is the recipient).
 * **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
 * **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. Returns 0 rows otherwise.
@@ -112,8 +112,8 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `send_missyou()`
-* **SQL Source:** `supabase/schemas/public/functions/send_missyou.sql`
+### `missyou_send()`
+* **SQL Source:** `supabase/schemas/public/functions/missyou_send.sql`
 * **Purpose:** Inserts a "Miss You" signal for the caller's active relationship.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Inputs:** None.
@@ -124,29 +124,29 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `set_mood(p_emoji_char text)`
-* **SQL Source:** `supabase/schemas/public/functions/set_mood.sql`
+### `mood_set(p_emoji_char text)`
+* **SQL Source:** `supabase/schemas/public/functions/mood_set.sql`
 * **Purpose:** Records user mood state by looking up or dynamically registering the emoji character.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Inputs:** `p_emoji_char` (`text`).
 * **Outputs:** `void`.
-* **Tables Touched:** `emojis` (READ, INSERT via `get_or_create_emoji`), `moods` (INSERT).
+* **Tables Touched:** `emojis` (READ, INSERT via `emoji_get_or_create`), `moods` (INSERT).
 * **Caller:** Flutter Frontend ([mood_repository.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart)).
 
 ---
 
-### `generate_unique_partnership_code()`
-* **SQL Source:** `supabase/schemas/public/functions/generate_unique_partnership_code.sql`
+### `partnership_generate_code()`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_generate_code.sql`
 * **Purpose:** Generates a random 6-character uppercase alphanumeric code and verifies unicity against `user_profiles`.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Outputs:** `text` (e.g. `'A8F3K9'`).
 * **Tables Touched:** `user_profiles` (READ).
-* **Caller:** Internal database helper called by `handle_new_auth_user()`.
+* **Caller:** Internal database helper called by `user_create_from_auth()`.
 
 ---
 
-### `cleanup_old_logs(p_days integer DEFAULT 90)`
-* **SQL Source:** `supabase/schemas/public/functions/cleanup_old_logs.sql`
+### `logs_cleanup(p_days integer DEFAULT 90)`
+* **SQL Source:** `supabase/schemas/public/functions/logs_cleanup.sql`
 * **Purpose:** Database maintenance. Deletes API access logs, error logs, security events, and notification logs older than `p_days` days (default **90**, matching the Node `LOG_RETENTION_DAYS` window).
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Inputs:** `p_days` (default `90`); raises an exception when NULL or `< 1`.
@@ -161,11 +161,11 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### Trigger 1: User Sign-Up Automation (`on_auth_user_created`)
 * **Event:** `AFTER INSERT ON auth.users`
-* **Target Function:** `handle_new_auth_user()` (`SECURITY DEFINER`, `SET search_path TO 'public'`)
+* **Target Function:** `user_create_from_auth()` (`SECURITY DEFINER`, `SET search_path TO 'public'`)
 * **Grants:** Execution REVOKED from `PUBLIC`. Granted to `postgres`, `service_role`.
 * **Automated Workflow:**
   1. Inserts new record into `public.users (auth_id, email)` using `NEW.id` and `NEW.email`.
-  2. Generates unique 6-character partnership code via `public.generate_unique_partnership_code()`.
+  2. Generates unique 6-character partnership code via `public.partnership_generate_code()`.
   3. Inserts initial profile into `public.user_profiles` setting `display_name = split_part(email, '@', 1)` and `partnership_code`.
   4. Fetches ID for role `'user'` from `public.roles`. If missing, inserts default role `'user'`.
   5. Assigns role to user in `public.user_roles (user_id, role_id)`.
@@ -175,7 +175,7 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### Trigger 2: Automatic Timestamp Maintenance
 * **Event:** `BEFORE UPDATE`
-* **Target Function:** `set_current_timestamp_updated_at()`
+* **Target Function:** `util_set_updated_at()`
 * **Applied Tables:** `users`, `user_profiles`, `partnerships`, `user_roles`, `drive_items`.
 * **Action:** Automatically updates `NEW.updated_at = NOW()`.
 
@@ -183,7 +183,7 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### Trigger 3: Game Question Completion (`tr_game_answers_update_question_status`)
 * **Event:** `AFTER INSERT OR UPDATE ON public.game_answers`
-* **Target Function:** `update_game_question_status()` (`SECURITY DEFINER`, `SET search_path TO 'public'`, returns `trigger`)
+* **Target Function:** `game_update_question_status()` (`SECURITY DEFINER`, `SET search_path TO 'public'`, returns `trigger`)
 * **Grants:** Execution REVOKED from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role` only — PostgreSQL does not check `EXECUTE` when firing a trigger, so no client role requires it.
 * **Action:** When `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`, sets the matching `game_questions.status` to `'both_answered'`.
 * **Side Effects:** Moves the `both_answered` transition off the client entirely, so a second player disconnecting before acknowledging no longer leaves the question stuck at `'pending'`. The resulting `game_questions` UPDATE is emitted on the realtime channel and consumed by `handleQuestionUpdate`; the game's answer INSERT and this status UPDATE can land within the same 150 ms burst, which the `GameEventBuffer` FIFO flush replays in delivery order.
@@ -205,8 +205,8 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ## Implementation Status
 
-- **Automated Sign-Up Trigger (`handle_new_auth_user`):** **100% IMPLEMENTED**
-- **Game Completion Trigger (`update_game_question_status`):** **100% IMPLEMENTED**
+- **Automated Sign-Up Trigger (`user_create_from_auth`):** **100% IMPLEMENTED**
+- **Game Completion Trigger (`game_update_question_status`):** **100% IMPLEMENTED**
 - **Security Invoker Views (`v_active_partnership`, `v_drive_dashboard`):** **100% IMPLEMENTED**
 - **RPC Stored Procedures & Validation:** **100% IMPLEMENTED**
-- **Log Cleanup (`cleanup_old_logs(p_days)`):** **IMPLEMENTED** (parameterized, `DEFAULT 90`; not `pg_cron`-scheduled — Node `retentionJob.js` is the single active driver)
+- **Log Cleanup (`logs_cleanup(p_days)`):** **IMPLEMENTED** (parameterized, `DEFAULT 90`; not `pg_cron`-scheduled — Node `retentionJob.js` is the single active driver)

@@ -23,12 +23,12 @@ CREATE INDEX idx_bucket_items_partnership_id ON public.bucket_items USING btree 
 CREATE TRIGGER set_public_bucket_items_updated_at
   BEFORE UPDATE ON public.bucket_items
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "bucket_items_partnership_access" ON "public"."bucket_items"
   FOR ALL
   TO PUBLIC
-  USING (public.is_in_partnership(partnership_id))
-  WITH CHECK (public.is_in_partnership(partnership_id));
+  USING (public.partnership_is_member(partnership_id))
+  WITH CHECK (public.partnership_is_member(partnership_id));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."bucket_items" TO "anon", "authenticated", "postgres", "service_role";

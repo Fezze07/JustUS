@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.send_missyou()
+CREATE OR REPLACE FUNCTION public.missyou_send()
   RETURNS void
   LANGUAGE plpgsql
   SET search_path TO 'public'
@@ -7,7 +7,7 @@ DECLARE
   v_partnership_id integer;
 BEGIN
   SELECT id INTO v_partnership_id FROM public.partnerships 
-  WHERE (user_id_1 = public.current_user_id() OR user_id_2 = public.current_user_id()) AND status = 'accepted'
+  WHERE (user_id_1 = public.user_current_id() OR user_id_2 = public.user_current_id()) AND status = 'accepted'
   LIMIT 1;
 
   IF v_partnership_id IS NULL THEN
@@ -18,4 +18,4 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."send_missyou"() TO PUBLIC, "authenticated", "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."missyou_send"() TO PUBLIC, "authenticated", "postgres", "service_role";

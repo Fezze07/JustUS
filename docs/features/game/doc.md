@@ -25,7 +25,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 │  game_question_bank  (static catalog, SELECT-only)           │
 │  game_questions      (per-couple question instance)          │
 │  game_answers        (per-user vote)                         │
-│  trigger: update_game_question_status → 'both_answered'      │
+│  trigger: game_update_question_status → 'both_answered'      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +51,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 - **Columns:** `question_code` (`text`, NOT NULL), `locale` (`text`, NOT NULL), `text` (`text`, NOT NULL), `created_at` / `updated_at` (`timestamptz`, DEFAULT `now()`).
 - **Primary Key:** `(question_code, locale)` — the same question code may have one row per locale, so new translations are added without touching Flutter.
 - **RLS:** `game_question_bank_read_all` — `FOR SELECT TO PUBLIC USING (true)`. The catalog is world-readable; no client role can write it (the broad table GRANT is not exercised because no INSERT/UPDATE policy exists).
-- **Trigger:** `set_public_game_question_bank_updated_at` (BEFORE UPDATE → `set_current_timestamp_updated_at()`).
+- **Trigger:** `set_public_game_question_bank_updated_at` (BEFORE UPDATE → `util_set_updated_at()`).
 - **Seed:** the repository contains **no seed** for this table (only the SQL tests insert rows), so a fresh database starts with an empty catalog and the app shows the "no question available" state until rows are loaded.
 
 ### `game_questions` (per-couple instance)
@@ -59,7 +59,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 - **SQL Source:** [game_questions.sql](file:///f:/JustUS/supabase/schemas/public/tables/game_questions.sql)
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('game_questions_id_seq')`), `created_at` (`timestamptz`), `partnership_id` (`integer`, FK → `partnerships.id` ON DELETE CASCADE), `question_code` (`text`), `status` (`text`, DEFAULT `'pending'`), `user_id_a` / `user_id_b` (`integer`, FK → `users.id`).
 - **Indexes:** `idx_game_questions_partnership_id`, `idx_game_questions_user_id_a`, `idx_game_questions_user_id_b`, `idx_game_questions_question_code`.
-- **RLS:** `game_questions_related` (`FOR ALL TO PUBLIC`, `USING` + `WITH CHECK` on `is_in_partnership(partnership_id)`).
+- **RLS:** `game_questions_related` (`FOR ALL TO PUBLIC`, `USING` + `WITH CHECK` on `partnership_is_member(partnership_id)`).
 - There is **no `text`/`question` column** and **no `active` flag**: text lives in the catalog and the active question is the couple's newest row whose `status != 'both_answered'`.
 
 ### `game_answers` (votes)
@@ -69,7 +69,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 - **Primary Key:** `(game_id, user_id)` — one vote per user per question; re-voting is an upsert. Index `idx_game_answers_user_id`.
 - **Triggers:**
   - `set_public_game_answers_updated_at` (BEFORE UPDATE) — bumps `updated_at` on every vote change (the checkpoint compares on this field).
-  - `tr_game_answers_update_question_status` (AFTER INSERT OR UPDATE) → `update_game_question_status()`: flips the parent `game_questions.status` to `'both_answered'` once `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`.
+  - `tr_game_answers_update_question_status` (AFTER INSERT OR UPDATE) → `game_update_question_status()`: flips the parent `game_questions.status` to `'both_answered'` once `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`.
 - **RLS:** `game_answers_delete_own`, `game_answers_manage_own` (INSERT: self + parent game in an accepted partnership), `game_answers_related_select` (SELECT through the parent game in an accepted partnership), `game_answers_update_own`.
 
 ---

@@ -1,5 +1,5 @@
 -- =============================================================================
--- purge_user_devices_dead_sessions: rows die with the session they belong to
+-- device_purge_dead_sessions: rows die with the session they belong to
 -- =============================================================================
 -- Run against the Supabase database (needs `psql`, Supabase MCP `execute_sql`,
 -- or the SQL editor as `postgres`). Everything runs inside a transaction that
@@ -14,7 +14,7 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- Fixtures. One auth user (the handle_new_auth_user trigger provisions the
+-- Fixtures. One auth user (the user_create_from_auth trigger provisions the
 -- public.users row) and two auth.sessions rows (one live, one expired but not
 -- yet purged by GoTrue). The four user_devices rows are inserted in the same
 -- DO block that resolves the provisioned user id, covering every state:
@@ -68,7 +68,7 @@ DECLARE
   v_pruned integer;
   v_user_id integer;
 BEGIN
-  SELECT public.purge_user_devices_dead_sessions() INTO v_pruned;
+  SELECT public.device_purge_dead_sessions() INTO v_pruned;
   SELECT id INTO v_user_id FROM public.users WHERE auth_id = '00000000-0000-0000-0000-000000000301';
 
   IF v_pruned <> 2 THEN
@@ -105,7 +105,7 @@ DO $$
 DECLARE
   v_pruned integer;
 BEGIN
-  SELECT public.purge_user_devices_dead_sessions() INTO v_pruned;
+  SELECT public.device_purge_dead_sessions() INTO v_pruned;
   IF v_pruned <> 0 THEN
     RAISE EXCEPTION 'B failed: the second call pruned % more rows', v_pruned;
   END IF;
@@ -117,14 +117,14 @@ END $$;
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
-  IF has_function_privilege('anon', 'public.purge_user_devices_dead_sessions()', 'EXECUTE') THEN
-    RAISE EXCEPTION 'C failed: anon can EXECUTE purge_user_devices_dead_sessions';
+  IF has_function_privilege('anon', 'public.device_purge_dead_sessions()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'C failed: anon can EXECUTE device_purge_dead_sessions';
   END IF;
-  IF has_function_privilege('authenticated', 'public.purge_user_devices_dead_sessions()', 'EXECUTE') THEN
-    RAISE EXCEPTION 'C failed: authenticated can EXECUTE purge_user_devices_dead_sessions';
+  IF has_function_privilege('authenticated', 'public.device_purge_dead_sessions()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'C failed: authenticated can EXECUTE device_purge_dead_sessions';
   END IF;
-  IF NOT has_function_privilege('service_role', 'public.purge_user_devices_dead_sessions()', 'EXECUTE') THEN
-    RAISE EXCEPTION 'C failed: service_role cannot EXECUTE purge_user_devices_dead_sessions';
+  IF NOT has_function_privilege('service_role', 'public.device_purge_dead_sessions()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'C failed: service_role cannot EXECUTE device_purge_dead_sessions';
   END IF;
 END $$;
 

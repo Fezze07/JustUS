@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.request_partnership (
+CREATE OR REPLACE FUNCTION public.partnership_request (
   partner_email      text,
   partner_code       text,
   override_sender_id integer DEFAULT NULL::integer
@@ -16,7 +16,7 @@ BEGIN
   IF override_sender_id IS NOT NULL THEN
     v_current_user_id := override_sender_id;
   ELSE
-    v_current_user_id := public.current_user_id();
+    v_current_user_id := public.user_current_id();
   END IF;
 
   IF v_current_user_id IS NULL THEN
@@ -48,6 +48,6 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION "public"."request_partnership"(text, text, integer) FROM PUBLIC, "anon", "authenticated";
-GRANT EXECUTE ON FUNCTION "public"."request_partnership"(text, text, integer) TO "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."partnership_request"(text, text, integer) FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."partnership_request"(text, text, integer) TO "postgres", "service_role";
 

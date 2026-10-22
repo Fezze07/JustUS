@@ -7,7 +7,7 @@ class MissYouRepository extends BaseRepository {
 
   Future<ResultWrapper<void>> sendMissYou() async {
     return tryCall(() async {
-      await sbClient.rpc('send_missyou');
+      await sbClient.rpc('missyou_send');
 
       unawaited(notifyPartnerOnce(
         notificationKey: 'missyou',

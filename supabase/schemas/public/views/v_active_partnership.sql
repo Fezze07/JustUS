@@ -4,7 +4,7 @@ CREATE VIEW "public"."v_active_partnership" WITH (security_invoker=true) AS
     p.anniversary_date,
     (
       CASE
-        WHEN p.user_id_1 = public.current_user_id() THEN p.user_id_2
+        WHEN p.user_id_1 = public.user_current_id() THEN p.user_id_2
         ELSE p.user_id_1
       END
     ) AS partner_id,
@@ -15,11 +15,11 @@ CREATE VIEW "public"."v_active_partnership" WITH (security_invoker=true) AS
    FROM public.partnerships p
      JOIN public.user_profiles up ON up.user_id = (
        CASE
-         WHEN p.user_id_1 = public.current_user_id() THEN p.user_id_2
+         WHEN p.user_id_1 = public.user_current_id() THEN p.user_id_2
          ELSE p.user_id_1
        END
      )
-  WHERE ((p.user_id_1 = public.current_user_id()) OR (p.user_id_2 = public.current_user_id()))
+  WHERE ((p.user_id_1 = public.user_current_id()) OR (p.user_id_2 = public.user_current_id()))
     AND (p.status::text = 'accepted'::text);
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."v_active_partnership" TO "anon", "authenticated", "postgres", "service_role";

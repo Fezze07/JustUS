@@ -23,7 +23,7 @@ Additionally, this document covers the partner avatar display, shared counter ca
 ┌────────────────────────────────────────────────────┴────────────────────┐
 │                             SUPABASE LAYER                              │
 │  Tables: public.missyou, public.partnerships, public.user_profiles      │
-│  RPC: send_missyou                                                      │
+│  RPC: missyou_send                                                      │
 │  RLS Policies: SELECT / INSERT restricted to active partnership members │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -33,13 +33,13 @@ Additionally, this document covers the partner avatar display, shared counter ca
 1. **Flutter Frontend**:
    - [homepage_screen.dart](file:///f:/JustUS/Flutter/lib/features/home/screens/homepage_screen.dart): UI layout following Midnight Glass aesthetics. Renders top app bar, partner avatars, days together pill, mood display, pending bucket items, and `_MissYouButton`.
    - [homepage_state.dart](file:///f:/JustUS/Flutter/lib/features/home/homepage_state.dart): State manager maintaining `_totalMissYou`, handles cache checks (`loadWithChangeDetection`), network fetches (`fetchTotalMissYou`), and tap execution (`sendMissYou`).
-   - [missyou_repository.dart](file:///f:/JustUS/Flutter/lib/features/home/missyou_repository.dart): API repository calling `sbClient.rpc('send_missyou')`, triggering push notifications (`notifyPartnerOnce`), and querying row count on `public.missyou`.
+   - [missyou_repository.dart](file:///f:/JustUS/Flutter/lib/features/home/missyou_repository.dart): API repository calling `sbClient.rpc('missyou_send')`, triggering push notifications (`notifyPartnerOnce`), and querying row count on `public.missyou`.
    - [missyou_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/miss_you_realtime_handler.dart): `MissYouRealtimeHandler` subscribes to Postgres change events on `public.missyou` (wired by `RealtimeSyncService`). On `INSERT`, invokes `_homepageState.addMissYou()`. On `DELETE`, triggers `refreshFromRealtime()`.
    - [update_service.dart](file:///f:/JustUS/Flutter/lib/core/version/update_service.dart): Checks app build version against backend `/api/v1/app-version` and displays mandatory or optional update dialogs.
 
 2. **Backend / Database Layer**:
    - `public.missyou`: PostgreSQL table storing individual "Miss You" signals. Columns: `id` (integer, PK), `partnership_id` (integer, FK to `partnerships.id`), `created_at` (timestamptz).
-   - `send_missyou` RPC: PostgreSQL stored procedure that inserts a new row into `public.missyou` bound to the caller's active partnership.
+   - `missyou_send` RPC: PostgreSQL stored procedure that inserts a new row into `public.missyou` bound to the caller's active partnership.
    - `versionService.js`: Express service serving latest app version metadata from server JSON configuration.
 
 ---
@@ -52,7 +52,7 @@ Additionally, this document covers the partner avatar display, shared counter ca
 User A (Sender)          HomepageState         Supabase DB         Realtime WS        User B (Partner)
       │                        │                    │                  │                      │
       │ ── Taps Miss You ─────>│                    │                  │                      │
-      │                        │ ── send_missyou ──>│                  │                      │
+      │                        │ ── missyou_send ──>│                  │                      │
       │                        │    (RPC call)      │                  │                      │
       │                        │                    │ ── INSERT row ──>│                      │
       │                        │                    │   into missyou   │                      │
@@ -78,7 +78,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
 
 3. **Supabase RPC Execution & Push Notification**
    - File: [missyou_repository.dart:8-16](file:///f:/JustUS/Flutter/lib/features/home/missyou_repository.dart#L8-L16)
-   - Calls `sbClient.rpc('send_missyou')`.
+   - Calls `sbClient.rpc('missyou_send')`.
    - The database function identifies the user's active partnership ID and inserts a new row into `public.missyou`.
    - Repository asynchronously fires a push notification request to the partner via `notifyPartnerOnce(notificationKey: 'missyou')`.
 
@@ -153,7 +153,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
    - **Impact**: Rapid multi-tapping by the user fires parallel calls to `sendMissYou()`.
 
 2. **Concurrency & Database Execution**:
-   - Each call executes `sbClient.rpc('send_missyou')`.
+   - Each call executes `sbClient.rpc('missyou_send')`.
    - PostgreSQL executes independent `INSERT` operations into `public.missyou`.
    - Multiple rows are inserted for rapid successive taps, causing the shared counter to increment by the exact number of taps made.
 
@@ -179,7 +179,7 @@ User A (Sender)          HomepageState         Supabase DB         Realtime WS  
 
 ### Offline Behavior
 
-- If device is offline when tapping Miss You, `sbClient.rpc('send_missyou')` throws a network exception caught by `BaseRepository.tryCall()`.
+- If device is offline when tapping Miss You, `sbClient.rpc('missyou_send')` throws a network exception caught by `BaseRepository.tryCall()`.
 - The error is wrapped into `GenericError`. `HomepageState` handles the error safely, `_isLoading` resets to `false`, and local count remains untouched.
 - When network connectivity is restored, `HomepageState.init()` or pull-to-refresh syncs total count with Supabase.
 
@@ -241,8 +241,8 @@ HomepageScreen.initState()
 ## Security & RLS Policies
 
 - Table `public.missyou` access is governed by the single `missyou_related` policy (`FOR ALL`, `TO PUBLIC`):
-  - **SELECT / UPDATE / DELETE**: Only rows whose `partnership_id` belongs to an **accepted** partnership of the caller (`USING (is_in_partnership(partnership_id))`, which requires `status = 'accepted'`).
-  - **INSERT / UPDATE**: the new row must also satisfy `WITH CHECK (is_in_partnership(partnership_id))` — inserts into pending/rejected partnerships, and updates that move a row out of the caller's accepted partnership, are rejected at the DB layer.
+  - **SELECT / UPDATE / DELETE**: Only rows whose `partnership_id` belongs to an **accepted** partnership of the caller (`USING (partnership_is_member(partnership_id))`, which requires `status = 'accepted'`).
+  - **INSERT / UPDATE**: the new row must also satisfy `WITH CHECK (partnership_is_member(partnership_id))` — inserts into pending/rejected partnerships, and updates that move a row out of the caller's accepted partnership, are rejected at the DB layer.
 
 ---
 

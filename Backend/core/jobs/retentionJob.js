@@ -87,7 +87,7 @@ async function sweepStaleUserDevices() {
   const cutoff = new Date(Date.now() - USER_DEVICE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   try {
     const deadSessionPrune = await adminSupabase.rpc(
-      "purge_user_devices_dead_sessions"
+      "device_purge_dead_sessions"
     );
     if (deadSessionPrune.error) throw deadSessionPrune.error;
 

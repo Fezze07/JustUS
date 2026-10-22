@@ -15,7 +15,7 @@ CREATE OR REPLACE FUNCTION public.drive_change_probe ()
   -- per-row EXISTS + json_agg of reactions), which the client never needs here.
   SELECT max(d.updated_at), count(*)::bigint
   FROM public.drive_items d
-  WHERE public.is_in_partnership(d.partnership_id);
+  WHERE public.partnership_is_member(d.partnership_id);
 $function$;
 
 REVOKE ALL ON FUNCTION public.drive_change_probe() FROM PUBLIC;

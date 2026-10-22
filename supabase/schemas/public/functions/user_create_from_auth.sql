@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+CREATE OR REPLACE FUNCTION public.user_create_from_auth()
   RETURNS TRIGGER
   LANGUAGE plpgsql
   SECURITY DEFINER
@@ -15,7 +15,7 @@ BEGIN
 
   -- Inserimento del profilo base con partnership_code generato
   INSERT INTO public.user_profiles (user_id, display_name, partnership_code)
-  VALUES (v_user_id, split_part(NEW.email, '@', 1), public.generate_unique_partnership_code());
+  VALUES (v_user_id, split_part(NEW.email, '@', 1), public.partnership_generate_code());
 
   -- Recupero ID del ruolo 'user' (dovrebbe essere 1 come configurato prima)
   SELECT id INTO v_role_id FROM public.roles WHERE name = 'user';
@@ -36,6 +36,6 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."handle_new_auth_user"() TO "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."user_create_from_auth"() TO "postgres", "service_role";
 
-REVOKE ALL ON FUNCTION "public"."handle_new_auth_user"() FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."user_create_from_auth"() FROM PUBLIC;

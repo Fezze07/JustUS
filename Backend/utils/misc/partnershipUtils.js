@@ -1,7 +1,7 @@
 const { adminSupabase } = require("../../all_imports");
 
 async function getPartnerId(userId) {
-    const { data, error } = await adminSupabase.rpc('get_accepted_partner', {
+    const { data, error } = await adminSupabase.rpc('partnership_get_accepted_partner', {
         target_user_id: userId
     });
 

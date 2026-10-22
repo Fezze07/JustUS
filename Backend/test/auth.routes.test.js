@@ -428,7 +428,7 @@ describe("auth routes", () => {
       throw new Error(`Unexpected table: ${table}`);
     });
 
-    // revoke_device_duplicate_session is called in parallel with fetchPreviousBinding
+    // device_revoke_duplicate_session is called in parallel with fetchPreviousBinding
     adminSupabase.rpc.mockResolvedValue({ data: 0, error: null });
 
     const app = createApp();
@@ -446,7 +446,7 @@ describe("auth routes", () => {
     expect(Array.isArray(response.body.anomalies)).toBe(true);
 
     expect(adminSupabase.rpc).toHaveBeenCalledWith(
-      "revoke_device_duplicate_session",
+      "device_revoke_duplicate_session",
       expect.objectContaining({
         p_user_id: "auth-user-1",
         p_keep_session: "session-1",
@@ -476,7 +476,7 @@ describe("auth routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
-    expect(adminSupabase.rpc).toHaveBeenCalledWith("revoke_device_duplicate_session", {
+    expect(adminSupabase.rpc).toHaveBeenCalledWith("device_revoke_duplicate_session", {
       p_user_id: "auth-user-1",
       p_fingerprint: expect.any(String),
       p_keep_session: "session-1",
@@ -503,14 +503,14 @@ describe("auth routes", () => {
       success: true,
       data: 99,
     });
-    expect(adminSupabase.rpc).toHaveBeenCalledWith("request_partnership", {
+    expect(adminSupabase.rpc).toHaveBeenCalledWith("partnership_request", {
       partner_email: "partner@example.com",
       partner_code: "ABC123",
       override_sender_id: 42,
     });
   });
 
-  test("surfaces the RPC error code raised by request_partnership", async () => {
+  test("surfaces the RPC error code raised by partnership_request", async () => {
     adminSupabase.rpc.mockResolvedValue({
       data: null,
       error: { message: "API-VALIDATION-005: Invalid partner email or code" },

@@ -17,39 +17,39 @@ CREATE INDEX idx_game_answers_user_id ON public.game_answers USING btree (user_i
 CREATE TRIGGER set_public_game_answers_updated_at
   BEFORE UPDATE ON public.game_answers
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "game_answers_delete_own" ON "public"."game_answers"
   FOR DELETE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 CREATE POLICY "game_answers_manage_own" ON "public"."game_answers"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.current_user_id()) AND (EXISTS ( SELECT 1
+  WITH CHECK ((user_id = public.user_current_id()) AND (EXISTS ( SELECT 1
    FROM public.game_questions
-  WHERE ((game_questions.id = game_answers.game_id) AND public.is_in_partnership(game_questions.partnership_id)))));
+  WHERE ((game_questions.id = game_answers.game_id) AND public.partnership_is_member(game_questions.partnership_id)))));
 
 CREATE POLICY "game_answers_related_select" ON "public"."game_answers"
   FOR SELECT
   TO PUBLIC
   USING ((EXISTS ( SELECT 1
    FROM public.game_questions
-  WHERE ((game_questions.id = game_answers.game_id) AND public.is_in_partnership(game_questions.partnership_id)))));
+  WHERE ((game_questions.id = game_answers.game_id) AND public.partnership_is_member(game_questions.partnership_id)))));
 
 CREATE POLICY "game_answers_update_own" ON "public"."game_answers"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()))
-  WITH CHECK ((user_id = public.current_user_id()) AND (EXISTS ( SELECT 1
+  USING ((user_id = public.user_current_id()))
+  WITH CHECK ((user_id = public.user_current_id()) AND (EXISTS ( SELECT 1
    FROM public.game_questions
-  WHERE ((game_questions.id = game_answers.game_id) AND public.is_in_partnership(game_questions.partnership_id)))));
+  WHERE ((game_questions.id = game_answers.game_id) AND public.partnership_is_member(game_questions.partnership_id)))));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."game_answers" TO "anon", "authenticated", "postgres", "service_role";
 
 CREATE OR REPLACE TRIGGER tr_game_answers_update_question_status
   AFTER INSERT OR UPDATE ON public.game_answers
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_game_question_status();
+  EXECUTE FUNCTION public.game_update_question_status();
 

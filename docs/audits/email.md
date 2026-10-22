@@ -10,7 +10,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 
 * The project uses **Supabase Auth SMTP** (configured with Resend in the online Supabase project) for Auth emails (confirm sign-up, invite user, reset password, password changed, etc.). The custom SMTP sender is `team@mail.justus.serverfede.eu` via `smtp.resend.com:465`.
 * No additional mailer SDK (Nodemailer, Resend SDK, SendGrid, Mailgun) is installed or used by the Node.js backend (`Backend/`).
-* Partner **pairing requests** (`POST /api/v1/auth/invite`) store rows in Postgres via the Supabase RPC `request_partnership` and deliberately do **not** dispatch an email: the recipient must already have a JustUs account, so delivery is in-app (PartnerScreen + push notification) and the 6-char `partnershipCode` is shared out-of-band.
+* Partner **pairing requests** (`POST /api/v1/auth/invite`) store rows in Postgres via the Supabase RPC `partnership_request` and deliberately do **not** dispatch an email: the recipient must already have a JustUs account, so delivery is in-app (PartnerScreen + push notification) and the 6-char `partnershipCode` is shared out-of-band.
 * Partner **account invites** (`POST /api/v1/auth/invite-user`, added 2026-10-12) call `adminSupabase.auth.admin.inviteUserByEmail()`, which is what triggers the hosted Supabase Auth **"Invite user"** email (custom Italian template, `{{ .Email }}` / `{{ .ConfirmationURL }}`). The invitee's Auth account is created by GoTrue; no `partnerships` row is written.
 * Email verification for Supabase Auth is handled by Supabase's configured SMTP (or local Supabase Inbucket in development).
 
@@ -25,7 +25,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 * **Incoming Payload**: `{ email: "partner@example.com", partnershipCode: "JUST-1234" }`
 * **Flow Trace**:
   1. Calls `resolveRequestedPartnerOrNull(email, partnershipCode)` to resolve the recipient user and profile in Supabase.
-  2. Executes `adminSupabase.rpc("request_partnership", { partner_email: email, partner_code: partnershipCode, override_sender_id: user.profileId })`.
+  2. Executes `adminSupabase.rpc("partnership_request", { partner_email: email, partner_code: partnershipCode, override_sender_id: user.profileId })`.
   3. Returns JSON response `{ success: true, data }`.
 * **Mail Dispatch Verification**:
   - **No email is dispatched** during the invitation flow.
@@ -42,7 +42,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 * **Incoming Payload**: `{ email: "partner@example.com", redirectTo: "justus://auth/callback" }`
 * **Flow Trace**:
   1. Calls `adminSupabase.auth.admin.inviteUserByEmail(email, { redirectTo })`.
-  2. GoTrue creates the invitee's `auth.users` row (`handle_new_auth_user` provisions `public.users` / `user_profiles`) and sends the hosted **"Invite user"** template through Supabase Auth SMTP.
+  2. GoTrue creates the invitee's `auth.users` row (`user_create_from_auth` provisions `public.users` / `user_profiles`) and sends the hosted **"Invite user"** template through Supabase Auth SMTP.
   3. GoTrue's `email_exists` / `user_already_exists` becomes `409 API-VALIDATION-002`; any other failure becomes `500 API-FAIL-001`.
 * **Mail Dispatch Verification**:
   - The email is dispatched by GoTrue (Supabase Auth), triggered by the backend admin call. No mailer SDK.

@@ -24,27 +24,27 @@ CREATE INDEX idx_user_devices_session_id ON public.user_devices USING btree (ses
 CREATE TRIGGER update_user_devices_updated_at
   BEFORE UPDATE ON public.user_devices
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
+  EXECUTE FUNCTION public.util_update_updated_at();
 
 CREATE POLICY "Users can delete their own devices" ON "public"."user_devices"
   FOR DELETE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 CREATE POLICY "Users can insert their own devices" ON "public"."user_devices"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.current_user_id()));
+  WITH CHECK ((user_id = public.user_current_id()));
 
 CREATE POLICY "Users can update their own devices" ON "public"."user_devices"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()))
-  WITH CHECK ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()))
+  WITH CHECK ((user_id = public.user_current_id()));
 
 CREATE POLICY "Users can view their own devices" ON "public"."user_devices"
   FOR SELECT
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."user_devices" TO "anon", "authenticated", "postgres", "service_role";

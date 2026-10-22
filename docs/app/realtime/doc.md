@@ -335,7 +335,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 - insert → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerInsert`.
 - update → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerUpdate` (re-fetches authoritative status).
 - delete → **150 ms trailing-edge debounce + FIFO flush** → `handleAnswerDelete` (clears per-user answer flags + history options).
-- The DB trigger `update_game_question_status` sets `game_questions.status = 'both_answered'` once both rows exist, emitting a `game_questions` UPDATE back on the channel. On the waiting device both events (answer INSERT + status UPDATE) routinely land within 150 ms; the FIFO flush applies both in delivery order, so the INSERT is never dropped.
+- The DB trigger `game_update_question_status` sets `game_questions.status = 'both_answered'` once both rows exist, emitting a `game_questions` UPDATE back on the channel. On the waiting device both events (answer INSERT + status UPDATE) routinely land within 150 ms; the FIFO flush applies both in delivery order, so the INSERT is never dropped.
 
 ### drive_items / drive_item_reactions
 

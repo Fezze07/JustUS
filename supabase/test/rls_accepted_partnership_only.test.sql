@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Access to a partnership requires status = 'accepted'
--- (covers audit finding 2.2: is_in_partnership / is_partner_of)
+-- (covers audit finding 2.2: partnership_is_member / partnership_is_partner)
 -- =============================================================================
 -- Run against the Supabase database (needs `psql`, Supabase MCP `execute_sql`,
 -- or the SQL editor as `postgres`). Everything runs inside a transaction that
@@ -121,29 +121,29 @@ SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000001"}'
 DO $$
 BEGIN
   -- A. helpers: accepted -> true, pending/rejected -> false
-  IF public.is_in_partnership(9001) IS DISTINCT FROM true THEN
+  IF public.partnership_is_member(9001) IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'A failed: accepted partnership not recognized (got %)',
-      coalesce(public.is_in_partnership(9001)::text, 'NULL');
+      coalesce(public.partnership_is_member(9001)::text, 'NULL');
   END IF;
-  IF public.is_in_partnership(9002) IS DISTINCT FROM false THEN
+  IF public.partnership_is_member(9002) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'A failed: pending partnership grants access (got %)',
-      coalesce(public.is_in_partnership(9002)::text, 'NULL');
+      coalesce(public.partnership_is_member(9002)::text, 'NULL');
   END IF;
-  IF public.is_in_partnership(9003) IS DISTINCT FROM false THEN
+  IF public.partnership_is_member(9003) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'A failed: rejected partnership grants access (got %)',
-      coalesce(public.is_in_partnership(9003)::text, 'NULL');
+      coalesce(public.partnership_is_member(9003)::text, 'NULL');
   END IF;
-  IF public.is_partner_of(9002) IS DISTINCT FROM true THEN
+  IF public.partnership_is_partner(9002) IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'A failed: accepted partner not recognized (got %)',
-      coalesce(public.is_partner_of(9002)::text, 'NULL');
+      coalesce(public.partnership_is_partner(9002)::text, 'NULL');
   END IF;
-  IF public.is_partner_of(9003) IS DISTINCT FROM false THEN
+  IF public.partnership_is_partner(9003) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'A failed: pending counterpart treated as partner (got %)',
-      coalesce(public.is_partner_of(9003)::text, 'NULL');
+      coalesce(public.partnership_is_partner(9003)::text, 'NULL');
   END IF;
-  IF public.is_partner_of(9004) IS DISTINCT FROM false THEN
+  IF public.partnership_is_partner(9004) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'A failed: rejected counterpart treated as partner (got %)',
-      coalesce(public.is_partner_of(9004)::text, 'NULL');
+      coalesce(public.partnership_is_partner(9004)::text, 'NULL');
   END IF;
 
   -- B. shared tables: only the accepted partnership's rows are visible
@@ -262,10 +262,10 @@ END $$;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000002"}';
 DO $$
 BEGIN
-  IF public.is_in_partnership(9001) IS DISTINCT FROM true THEN
+  IF public.partnership_is_member(9001) IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'H1 failed: bob lost accepted access';
   END IF;
-  IF public.is_partner_of(9001) IS DISTINCT FROM true THEN
+  IF public.partnership_is_partner(9001) IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'H1 failed: bob does not see alice as partner';
   END IF;
   IF (SELECT count(*) FROM public.moods) <> 2 THEN
@@ -277,10 +277,10 @@ END $$;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000003"}';
 DO $$
 BEGIN
-  IF public.is_in_partnership(9002) IS DISTINCT FROM false THEN
+  IF public.partnership_is_member(9002) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'H2 failed: carol granted access to her pending partnership';
   END IF;
-  IF public.is_partner_of(9001) IS DISTINCT FROM false THEN
+  IF public.partnership_is_partner(9001) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'H2 failed: carol sees alice as partner on a pending request';
   END IF;
   IF (SELECT count(*) FROM public.drive_items) <> 0 THEN
@@ -298,10 +298,10 @@ END $$;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000004"}';
 DO $$
 BEGIN
-  IF public.is_in_partnership(9003) IS DISTINCT FROM false THEN
+  IF public.partnership_is_member(9003) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'H3 failed: dave granted access to his rejected partnership';
   END IF;
-  IF public.is_partner_of(9001) IS DISTINCT FROM false THEN
+  IF public.partnership_is_partner(9001) IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'H3 failed: dave sees alice as partner on a rejected request';
   END IF;
   IF (SELECT count(*) FROM public.moods) <> 1 THEN

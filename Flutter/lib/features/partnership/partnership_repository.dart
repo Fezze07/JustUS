@@ -105,7 +105,7 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<void>> acceptPartnerRequest(int partnershipId) async {
     BaseRepository.clearPartnershipCache();
     return tryCall(() async {
-      await sbClient.rpc('accept_partnership', params: {
+      await sbClient.rpc('partnership_accept', params: {
         'p_partnership_id': partnershipId,
       });
 
@@ -119,7 +119,7 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<void>> rejectPartnerRequest(int partnershipId) async {
     BaseRepository.clearPartnershipCache();
     return tryCall(() async {
-      await sbClient.rpc('reject_partnership', params: {
+      await sbClient.rpc('partnership_reject', params: {
         'p_partnership_id': partnershipId,
       });
     });
@@ -157,7 +157,7 @@ class PartnershipRepository extends BaseRepository {
   Future<ResultWrapper<List<PartnershipInvitation>>>
       getPendingInvitations() async {
     return tryCall(() async {
-      final data = await sbClient.rpc('get_pending_invitations');
+      final data = await sbClient.rpc('partnership_get_pending_invitations');
       final rows = (data as List<dynamic>).cast<Map<String, dynamic>>();
 
       return rows.map(PartnershipInvitation.fromJson).toList();

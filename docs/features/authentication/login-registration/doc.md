@@ -6,7 +6,7 @@ This document provides a comprehensive reverse-engineered analysis of the **Logi
 
 The authentication subsystem in JustUS relies on a hybrid architecture:
 - **Client Application**: Flutter (Android, iOS, Web, Desktop) utilizing Provider (`AuthState`, `AuthRepository`, `CaptchaService`).
-- **Identity Provider & Auth DB**: Supabase Auth (`supabase_flutter` SDK) managing credentials, JWT generation, email redirects, and PostgreSQL user profile triggers (`handle_new_auth_user`).
+- **Identity Provider & Auth DB**: Supabase Auth (`supabase_flutter` SDK) managing credentials, JWT generation, email redirects, and PostgreSQL user profile triggers (`user_create_from_auth`).
 - **Security & Risk Backend**: Node.js / Express API (`Backend/features/auth`) enforcing IP and device rate limiting, pre-login risk assessment, device token updates, and session binding tracking.
 
 ---
@@ -30,7 +30,7 @@ Flutter UI (RegisterScreen)
    │     Supabase Auth Server
    │        │
    │        ├── Inserts record into auth.users
-   │        └── Triggers PostgreSQL AFTER INSERT (`handle_new_auth_user`)
+   │        └── Triggers PostgreSQL AFTER INSERT (`user_create_from_auth`)
    │               │
    │               ├── Inserts public.users (auth_id, email, username)
    │               ├── Inserts public.user_profiles (display_name, partnership_code)
@@ -79,7 +79,7 @@ Flutter UI (RegisterScreen)
 5. **Database Trigger & Profile Provisioning**
    - Documentation: [supabase-triggers](file:///f:/JustUS/.agents/skills/supabase-triggers/SKILL.md#L16-L20) & [supabase-functions](file:///f:/JustUS/.agents/skills/supabase-functions/SKILL.md#L51-L55)
    - Table: `auth.users`
-   - Trigger Event: `AFTER INSERT` calling `handle_new_auth_user()`
+   - Trigger Event: `AFTER INSERT` calling `user_create_from_auth()`
    - Operation: Atomically creates public user records:
      - Inserts into `public.users` with `auth_id = NEW.id`
      - Inserts into `public.user_profiles` generating an automatic unique `partnership_code` and setting `display_name = NEW.raw_user_meta_data->>'username'`
@@ -334,7 +334,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 
 1. **Network Disconnection During Session Sync**: If Supabase Auth succeeds but the subsequent call to `_syncBackendSession()` fails due to network loss, `AuthState` retains the Supabase session locally and `bindingSecret` is not retrieved. The next signed backend request triggers `ApiService` recovery (re-invoking `_syncBackendSession` via `onMissingBindingSecret`, deduplicated in-flight with a 30s cooldown); if connectivity has returned it signs normally, otherwise it fails closed with `AppError(LOCAL-BINDING-001)` and the user can retry. It is never sent unsigned.
 2. **Session Sync Response Lost After the Backend Rotated the Secret**: `/auth/session-bind` always writes a fresh `bindingSecret`, so a client that times out (8 s splash cap, 10 s `ApiService` cap) keeps the previous one. The next signed request is rejected `SEC-AUTH-002`; `ApiService._safeCall` identifies the rejection as a stale binding (not an expired token), re-binds and retries once. Self-healing: a cold restart is no longer required.
-3. **Database Trigger Latency/Failure**: If Supabase Auth creates an `auth.users` row but the PostgreSQL `handle_new_auth_user()` trigger fails or experiences delay, `fetchProfileByAuthId` returns null, triggering `AppError(DB_NOT_FOUND_001)` and halting login despite valid Supabase credentials.
+3. **Database Trigger Latency/Failure**: If Supabase Auth creates an `auth.users` row but the PostgreSQL `user_create_from_auth()` trigger fails or experiences delay, `fetchProfileByAuthId` returns null, triggering `AppError(DB_NOT_FOUND_001)` and halting login despite valid Supabase credentials.
 
 ---
 
@@ -362,7 +362,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 ### Supabase / Database
 - `auth.users`: Core identity table managed by Supabase Auth.
 - `public.users` & `public.user_profiles`: Public profile tables populated by trigger.
-- `handle_new_auth_user()`: Stored procedure triggered `AFTER INSERT` on `auth.users`.
+- `user_create_from_auth()`: Stored procedure triggered `AFTER INSERT` on `auth.users`.
 
 ---
 
@@ -374,7 +374,7 @@ During the reverse-engineering analysis, the following structural bugs, security
 | Client Input & Password Validation | **IMPLEMENTED** | `Validators` (client regex) + Supabase GoTrue `minimum_password_length` / `password_requirements` |
 | Turnstile CAPTCHA Integration | **IMPLEMENTED** | `CaptchaService` Managed-mode widget; token verified by Supabase Auth native integration |
 | Supabase Auth Registration | **IMPLEMENTED** | `signUp()` with metadata & redirect |
-| PostgreSQL Profile Trigger | **IMPLEMENTED** | `handle_new_auth_user()` trigger |
+| PostgreSQL Profile Trigger | **IMPLEMENTED** | `user_create_from_auth()` trigger |
 | Login Risk Pre-Check | **IMPLEMENTED** | `checkLoginRiskController` & `/login-risk-check` |
 | Progressive Strike Engine | **IMPLEMENTED** | `AuthState._reportFailedLogin` → `POST /login-attempt` on every credential failure; counters are per-process (see Known Issues) |
 | Backend Session Sync & Binding | **IMPLEMENTED** | `syncSessionController` & `auth_sessions` |

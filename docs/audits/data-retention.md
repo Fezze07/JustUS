@@ -13,7 +13,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 | Component | Target Artifact / Table | Scheduled Trigger / Interval | Retention Policy | Active Status | Conflict / Discrepancy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Node.js Log Sweep** | `logs_security_events`<br>`logs_api_access`<br>`logs_api_errors` | Daily via `retentionJob.js` (`sweepOldLogs`) | **90 days** (`LOG_RETENTION_DAYS`) | **ACTIVE** | None |
-| **PostgreSQL `cleanup_old_logs(p_days)`** | `logs_api_access`<br>`logs_api_errors`<br>`logs_security_events`<br>`logs_notifications` | Stored procedure (`cleanup_old_logs.sql`), not cron-scheduled | **90 days default** (`p_days integer DEFAULT 90`; null/`< 1` rejected) | **MANUAL / INACTIVE CRON** | **NONE (Aligned 2026-09-23)** |
+| **PostgreSQL `logs_cleanup(p_days)`** | `logs_api_access`<br>`logs_api_errors`<br>`logs_security_events`<br>`logs_notifications` | Stored procedure (`logs_cleanup.sql`), not cron-scheduled | **90 days default** (`p_days integer DEFAULT 90`; null/`< 1` rejected) | **MANUAL / INACTIVE CRON** | **NONE (Aligned 2026-09-23)** |
 | **Node.js Nonce Sweep** | `request_nonces` | Every 6h via `retentionJob.js` (`sweepExpiredNonces`) | Expired timestamp (`lt("expires_at", now)`) | **ACTIVE** | None |
 | **Node.js In-Memory Nonce Sweep** | `consumedNonces` Map | Every 10 min via `_sweepExpiredNonces()` | Expired timestamp | **ACTIVE** | None (Dual-layer) |
 | **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStalMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
@@ -27,10 +27,10 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 ### 1. PostgreSQL Function Analysis
 
-* **SQL File**: [`supabase/schemas/public/functions/cleanup_old_logs.sql`](file:///f:/JustUS/supabase/schemas/public/functions/cleanup_old_logs.sql)
+* **SQL File**: [`supabase/schemas/public/functions/logs_cleanup.sql`](file:///f:/JustUS/supabase/schemas/public/functions/logs_cleanup.sql)
 * **Defined Policy** (since 2026-09-23, todo 5.1):
   ```sql
-  CREATE OR REPLACE FUNCTION public.cleanup_old_logs(p_days integer DEFAULT 90)
+  CREATE OR REPLACE FUNCTION public.logs_cleanup(p_days integer DEFAULT 90)
     RETURNS void
     LANGUAGE plpgsql
     SET search_path TO 'public'
@@ -39,7 +39,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
     v_cutoff timestamp with time zone;
   BEGIN
     IF p_days IS NULL OR p_days < 1 THEN
-      RAISE EXCEPTION 'cleanup_old_logs: p_days must be a positive integer';
+      RAISE EXCEPTION 'logs_cleanup: p_days must be a positive integer';
     END IF;
     v_cutoff := now() - make_interval(days => p_days);
     DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
@@ -65,9 +65,9 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 * **Which behavior is actually active?**
   - **Node.js 90-day retention is currently ACTIVE** at runtime because `retentionJob.js` runs automatically on server initialization.
-  - The PostgreSQL `cleanup_old_logs()` SQL function exists in the database schema, but is **NOT actively scheduled via `pg_cron`** in code.
+  - The PostgreSQL `logs_cleanup()` SQL function exists in the database schema, but is **NOT actively scheduled via `pg_cron`** in code.
 * **How was the conflict resolved (2026-09-23, todo 5.1)?**
-  - The SQL function was parameterized to `cleanup_old_logs(p_days integer DEFAULT 90)` and aligned to the Node `LOG_RETENTION_DAYS = 90` window; NULL and `< 1` values raise an exception.
+  - The SQL function was parameterized to `logs_cleanup(p_days integer DEFAULT 90)` and aligned to the Node `LOG_RETENTION_DAYS = 90` window; NULL and `< 1` values raise an exception.
   - A manual or `pg_cron` invocation of the SQL function now honors the **same 90-day default** as the Node job, so it can no longer silently truncate logs to 30 days.
 
 ---
@@ -79,7 +79,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 * **Current Active Mechanism**: Node.js `sweepOldLogs()` in `retentionJob.js`.
 * **Execution Schedule**: Executed once immediately on server startup, then every 24 hours via `setInterval`.
 * **Configuration**: `LOG_RETENTION_DAYS` environment variable (**REQUIRED** — no code default; env.js throws if missing/invalid).
-* **Failure Mode**: `cleanup_old_logs()` now defaults to the same 90-day window (`p_days integer DEFAULT 90`), so a manual/`pg_cron` invocation no longer truncates logs earlier than the backend's configured retention requirement.
+* **Failure Mode**: `logs_cleanup()` now defaults to the same 90-day window (`p_days integer DEFAULT 90`), so a manual/`pg_cron` invocation no longer truncates logs earlier than the backend's configured retention requirement.
 
 ---
 
@@ -125,9 +125,9 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 ## Recommended Remediation Plan
 
 1. **Unify Log Retention Standard**: ✅ DONE (2026-09-23, todo 5.1)
-   - `cleanup_old_logs.sql` was updated to accept an explicit retention parameter defaulting to 90 days matching `LOG_RETENTION_DAYS`:
+   - `logs_cleanup.sql` was updated to accept an explicit retention parameter defaulting to 90 days matching `LOG_RETENTION_DAYS`:
      ```sql
-     CREATE OR REPLACE FUNCTION public.cleanup_old_logs(p_days integer DEFAULT 90)
+     CREATE OR REPLACE FUNCTION public.logs_cleanup(p_days integer DEFAULT 90)
        RETURNS void
        LANGUAGE plpgsql
        SET search_path TO 'public'
@@ -136,7 +136,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
        v_cutoff timestamp with time zone;
      BEGIN
        IF p_days IS NULL OR p_days < 1 THEN
-         RAISE EXCEPTION 'cleanup_old_logs: p_days must be a positive integer';
+         RAISE EXCEPTION 'logs_cleanup: p_days must be a positive integer';
        END IF;
        v_cutoff := now() - make_interval(days => p_days);
        DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
@@ -150,4 +150,4 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 2. **Single Primary Driver**: ✅ DONE (2026-09-23, todo 5.1)
    - Node.js `retentionJob.js` remains the single active retention driver (`sweepOldLogs()` daily, `LOG_RETENTION_DAYS = 90`).
-   - The PostgreSQL `cleanup_old_logs(p_days)` function is **not** `pg_cron`-scheduled; if it is ever invoked manually it now uses the same 90-day default, so no redundant conflicting window remains.
+   - The PostgreSQL `logs_cleanup(p_days)` function is **not** `pg_cron`-scheduled; if it is ever invoked manually it now uses the same 90-day default, so no redundant conflicting window remains.

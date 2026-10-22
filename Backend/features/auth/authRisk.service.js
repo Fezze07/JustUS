@@ -155,7 +155,7 @@ function buildClientContextFromParams({ deviceFingerprint }) {
 async function revokeStaleDeviceSession(authUserId, fingerprintHash, keepSessionId) {
   if (!authUserId || !fingerprintHash || !keepSessionId) return;
 
-  await adminSupabase.rpc("revoke_device_duplicate_session", {
+  await adminSupabase.rpc("device_revoke_duplicate_session", {
     p_user_id:     authUserId,
     p_fingerprint: fingerprintHash,
     p_keep_session: keepSessionId,

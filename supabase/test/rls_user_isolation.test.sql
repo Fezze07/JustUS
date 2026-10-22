@@ -8,7 +8,7 @@
 --   * `user_profiles` is readable for self and accepted partner only; pending
 --     invitees and unrelated users are not.
 --   * A pending invitation's counterpart is identifiable ONLY through
---     public.get_pending_invitations(), and that RPC must not carry an email.
+--     public.partnership_get_pending_invitations(), and that RPC must not carry an email.
 --
 -- ASSERTION RULES used throughout the supabase/test suite
 --   1. Scalar comparisons use IS DISTINCT FROM. `x <> y` evaluates to NULL —
@@ -72,8 +72,8 @@ BEGIN
        IS DISTINCT FROM 'alice@rls-test.local' THEN
     RAISE EXCEPTION 'A failed: own users row returned the wrong row';
   END IF;
-  IF public.current_user_id() IS DISTINCT FROM 9001 THEN
-    RAISE EXCEPTION 'A failed: current_user_id() did not resolve the caller';
+  IF public.user_current_id() IS DISTINCT FROM 9001 THEN
+    RAISE EXCEPTION 'A failed: user_current_id() did not resolve the caller';
   END IF;
 END $$;
 
@@ -125,7 +125,7 @@ DECLARE
 BEGIN
   SELECT invitation_id, partner_id, partner_display_name, is_received
     INTO v_invitation_id, v_partner_id, v_display_name, v_is_received
-    FROM public.get_pending_invitations();
+    FROM public.partnership_get_pending_invitations();
 
   IF v_invitation_id IS DISTINCT FROM 9002 THEN
     RAISE EXCEPTION 'D failed: RPC returned invitation_id %, expected 9002',
@@ -142,7 +142,7 @@ BEGIN
   IF v_is_received IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'D failed: a sent invitation must report is_received = false';
   END IF;
-  IF (SELECT count(*) FROM public.get_pending_invitations()) <> 1 THEN
+  IF (SELECT count(*) FROM public.partnership_get_pending_invitations()) <> 1 THEN
     RAISE EXCEPTION 'D failed: alice has exactly one pending invitation';
   END IF;
 END $$;
@@ -157,7 +157,7 @@ DECLARE
 BEGIN
   SELECT invitation_id, partner_id, is_received
     INTO v_invitation_id, v_partner_id, v_is_received
-    FROM public.get_pending_invitations();
+    FROM public.partnership_get_pending_invitations();
 
   IF v_invitation_id IS DISTINCT FROM 9002 THEN
     RAISE EXCEPTION 'D2 failed: RPC returned the wrong invitation for the recipient';
@@ -345,7 +345,7 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- H. get_pending_invitations must not carry the counterpart's email
+-- H. partnership_get_pending_invitations must not carry the counterpart's email
 --    Checked against the catalog, as the owner: information_schema hides rows
 --    the current role may not see, so a restricted role would report nothing
 --    and the assertion could never fail. pg_get_function_result is used because
@@ -357,13 +357,13 @@ DO $$
 DECLARE
   v_signature text;
 BEGIN
-  v_signature := pg_get_function_result('public.get_pending_invitations()'::regprocedure);
+  v_signature := pg_get_function_result('public.partnership_get_pending_invitations()'::regprocedure);
 
   IF v_signature !~* 'email' THEN
     RETURN;
   END IF;
 
-  RAISE EXCEPTION 'H failed: get_pending_invitations() exposes an email column: %',
+  RAISE EXCEPTION 'H failed: partnership_get_pending_invitations() exposes an email column: %',
     v_signature;
 END $$;
 
@@ -375,14 +375,14 @@ DECLARE
   v_auth     boolean;
   v_signature text;
 BEGIN
-  v_anon := has_function_privilege('anon', 'public.get_pending_invitations()', 'EXECUTE');
-  v_auth := has_function_privilege('authenticated', 'public.get_pending_invitations()', 'EXECUTE');
+  v_anon := has_function_privilege('anon', 'public.partnership_get_pending_invitations()', 'EXECUTE');
+  v_auth := has_function_privilege('authenticated', 'public.partnership_get_pending_invitations()', 'EXECUTE');
 
   IF v_anon THEN
-    RAISE EXCEPTION 'H failed: anon may EXECUTE get_pending_invitations()';
+    RAISE EXCEPTION 'H failed: anon may EXECUTE partnership_get_pending_invitations()';
   END IF;
   IF NOT v_auth THEN
-    RAISE EXCEPTION 'H failed: authenticated lost EXECUTE on get_pending_invitations()';
+    RAISE EXCEPTION 'H failed: authenticated lost EXECUTE on partnership_get_pending_invitations()';
   END IF;
   -- SECURITY DEFINER is what keeps the partnership scan from being filtered by
   -- the caller's own RLS view of `partnerships`; the function is useless
@@ -392,10 +392,10 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname = 'get_pending_invitations'
+      AND p.proname = 'partnership_get_pending_invitations'
       AND p.prosecdef
   ) THEN
-    RAISE EXCEPTION 'H failed: get_pending_invitations is no longer SECURITY DEFINER';
+    RAISE EXCEPTION 'H failed: partnership_get_pending_invitations is no longer SECURITY DEFINER';
   END IF;
   -- A SECURITY DEFINER function with an unpinned search_path is the standard
   -- escalation vector; the schema pins it to public.
@@ -404,10 +404,10 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname = 'get_pending_invitations'
+      AND p.proname = 'partnership_get_pending_invitations'
       AND (p.proconfig @> ARRAY['search_path=public'])
   ) THEN
-    RAISE EXCEPTION 'H failed: get_pending_invitations does not pin search_path to public';
+    RAISE EXCEPTION 'H failed: partnership_get_pending_invitations does not pin search_path to public';
   END IF;
 END $$;
 
@@ -437,13 +437,13 @@ DECLARE
   v_state text;
 BEGIN
   BEGIN
-    PERFORM count(*) FROM public.get_pending_invitations();
+    PERFORM count(*) FROM public.partnership_get_pending_invitations();
   EXCEPTION WHEN OTHERS THEN
     v_state := SQLSTATE;
   END;
 
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'I failed: anon calling get_pending_invitations gave %, expected 42501',
+    RAISE EXCEPTION 'I failed: anon calling partnership_get_pending_invitations gave %, expected 42501',
       coalesce(v_state, 'no error (anon could call the RPC)');
   END IF;
 END $$;

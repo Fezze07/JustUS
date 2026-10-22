@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.generate_unique_partnership_code()
+CREATE OR REPLACE FUNCTION public.partnership_generate_code()
   RETURNS text
   LANGUAGE plpgsql
   SET search_path TO 'public'
@@ -20,4 +20,4 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."generate_unique_partnership_code"() TO PUBLIC, "anon", "authenticated", "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."partnership_generate_code"() TO PUBLIC, "anon", "authenticated", "postgres", "service_role";

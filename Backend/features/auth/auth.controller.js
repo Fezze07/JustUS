@@ -212,7 +212,7 @@ const invitePartnerController = asyncHandler(async (req, res) => {
   }
 
   const data = wrapRpc(
-    await adminSupabase.rpc("request_partnership", {
+    await adminSupabase.rpc("partnership_request", {
       partner_email: email,
       partner_code: partnershipCode,
       override_sender_id: user.profileId,

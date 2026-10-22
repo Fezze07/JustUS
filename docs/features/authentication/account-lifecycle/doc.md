@@ -192,7 +192,7 @@ Logout Initiated (Profile / Partner Screen)
 | Hanging request | cut off by a 5 s timeout (`deviceRevokeTimeout`), teardown continues |
 | `401` after a failed refresh | reported as a `401` error result, **without** firing `ApiService.onSessionExpired` — that callback *is* `logout()`, so escalating here would re-enter the teardown |
 
-If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until re-registered or deleted by the retention sweep (`sweepStaleUserDevices` in `retentionJob.js`). The row's `session_id` (recorded at registration from `req.auth.claims.session_id`) is what lets the cleanup converge without the client: the sweep first calls the `purge_user_devices_dead_sessions()` RPC, which deletes rows whose `session_id` has no `auth.sessions` counterpart left (a logout that reached GoTrue deleted it), or no counterpart still live (`not_after IS NULL OR not_after > now()`) — which is where an offline logout lands once its refresh window lapses and GoTrue removes the session. The age purge for rows whose `updated_at` predates `USER_DEVICE_RETENTION_DAYS = 30` remains the backstop for legacy registrations without a session link and for an app killed before `signOut()` ever fired — that session is still genuinely alive, so neither mechanism acts any sooner.
+If the revoke never lands (offline logout, session already expired, app killed mid-teardown), the row stays in `user_devices` until re-registered or deleted by the retention sweep (`sweepStaleUserDevices` in `retentionJob.js`). The row's `session_id` (recorded at registration from `req.auth.claims.session_id`) is what lets the cleanup converge without the client: the sweep first calls the `device_purge_dead_sessions()` RPC, which deletes rows whose `session_id` has no `auth.sessions` counterpart left (a logout that reached GoTrue deleted it), or no counterpart still live (`not_after IS NULL OR not_after > now()`) — which is where an offline logout lands once its refresh window lapses and GoTrue removes the session. The age purge for rows whose `updated_at` predates `USER_DEVICE_RETENTION_DAYS = 30` remains the backstop for legacy registrations without a session link and for an app killed before `signOut()` ever fired — that session is still genuinely alive, so neither mechanism acts any sooner.
 
 ---
 
@@ -359,7 +359,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 ## Database Objects
 
 - **Table `user_devices`**: PostgreSQL table storing `user_id`, `installation_id`, `user_agent`, `device_type`, `last_ip`, `locale`, `session_id` (the `auth.sessions` row that registered the installation id; nullable, no FK — the dead-session sweep reads it). Primary conflict target: `installation_id`. No active/revoked flag: deactivation is a row delete, and the `logs_api_access` / `logs_api_errors` / `logs_security_events` foreign keys are `ON DELETE SET NULL`.
-- **Function `purge_user_devices_dead_sessions`**: SECURITY DEFINER RPC invoked by the retention job, deletes `user_devices` rows whose `session_id` no longer resolves to a live `auth.sessions` row (gone, or past its `not_after`). Backend-only: revoked from PUBLIC/anon/authenticated, granted to postgres and service_role.
+- **Function `device_purge_dead_sessions`**: SECURITY DEFINER RPC invoked by the retention job, deletes `user_devices` rows whose `session_id` no longer resolves to a live `auth.sessions` row (gone, or past its `not_after`). Backend-only: revoked from PUBLIC/anon/authenticated, granted to postgres and service_role.
 - **Procedure `debug_wipe_user_data`**: Stored procedure executed during account wipe to erase user domain records.
 
 ---
@@ -377,5 +377,5 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 | In-Memory State Provider Cleanup | **IMPLEMENTED** | `onClearFeatureStates` hook wired in `RealtimeSyncScope` resets the six provider singletons |
 | Installation ID Unregistration | **IMPLEMENTED** | `AuthState._revokeInstallationId()` → `POST /api/v1/auth/installation-id-revoke` (best-effort, 5 s cap) |
 | Other-Device Push Registration Revocation on Password Write | **IMPLEMENTED** | `AuthState._revokeOtherInstallations()` → `POST /api/v1/auth/installation-id-revoke-all` (best-effort, 5 s cap) |
-| Stale Registration Cleanup (dead-session + age) | **IMPLEMENTED** | `sweepStaleUserDevices` → `purge_user_devices_dead_sessions()` RPC (rows whose session is gone/lapsed die at the next run) + `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback |
+| Stale Registration Cleanup (dead-session + age) | **IMPLEMENTED** | `sweepStaleUserDevices` → `device_purge_dead_sessions()` RPC (rows whose session is gone/lapsed die at the next run) + `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback |
 | Account Wipe (Debug Data Erase) | **IMPLEMENTED** | `debug_wipe_user_data` procedure |

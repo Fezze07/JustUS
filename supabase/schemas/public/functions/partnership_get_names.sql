@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.get_partnership_names (
+CREATE OR REPLACE FUNCTION public.partnership_get_names (
   p_user_id integer
 )
   RETURNS jsonb
@@ -38,6 +38,6 @@ BEGIN
     );
 END;$function$;
 
-GRANT EXECUTE ON FUNCTION "public"."get_partnership_names"(integer) TO "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."partnership_get_names"(integer) TO "postgres", "service_role";
 
-REVOKE ALL ON FUNCTION "public"."get_partnership_names"(integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."partnership_get_names"(integer) FROM PUBLIC;

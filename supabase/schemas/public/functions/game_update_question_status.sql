@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.update_game_question_status()
+CREATE OR REPLACE FUNCTION public.game_update_question_status()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -14,5 +14,5 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.update_game_question_status() FROM PUBLIC, "anon", "authenticated";
-GRANT EXECUTE ON FUNCTION public.update_game_question_status() TO "postgres", "service_role";
+REVOKE ALL ON FUNCTION public.game_update_question_status() FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION public.game_update_question_status() TO "postgres", "service_role";

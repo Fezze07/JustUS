@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.purge_user_devices_dead_sessions()
+CREATE OR REPLACE FUNCTION public.device_purge_dead_sessions()
   RETURNS integer
   LANGUAGE plpgsql
   SECURITY DEFINER
@@ -20,5 +20,5 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION "public"."purge_user_devices_dead_sessions"() FROM PUBLIC, "anon", "authenticated";
-GRANT EXECUTE ON FUNCTION "public"."purge_user_devices_dead_sessions"() TO "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."device_purge_dead_sessions"() FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."device_purge_dead_sessions"() TO "postgres", "service_role";

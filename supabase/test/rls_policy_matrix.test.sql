@@ -153,8 +153,8 @@ END $$;
 --
 --    An identity gate means the USING or WITH CHECK expression references one of
 --    the constructs this schema actually gates with:
---      * current_user_id() / auth.uid() / auth.role() / auth.jwt()  -- ownership
---      * is_in_partnership() / is_partner_of() / is_related_user() -- relationship
+--      * user_current_id() / auth.uid() / auth.role() / auth.jwt()  -- ownership
+--      * partnership_is_member() / partnership_is_partner() / is_related_user() -- relationship
 --      * the bare literal false                                     -- deny-all
 --    Anything else on a non-catalog table is an unconditional grant to
 --    unauthenticated callers. The blunt version of this check (USING (true)) is
@@ -183,7 +183,7 @@ BEGIN
     END IF;
 
     IF (r.using_expr || ' ' || r.check_expr)
-         !~* 'current_user_id|auth\.uid\(\)|auth\.role\(\)|auth\.jwt\(\)|is_in_partnership|is_partner_of|is_related_user|(^|[^a-z_])false([^a-z_]|$)' THEN
+         !~* 'user_current_id|auth\.uid\(\)|auth\.role\(\)|auth\.jwt\(\)|partnership_is_member|partnership_is_partner|is_related_user|(^|[^a-z_])false([^a-z_]|$)' THEN
       v_offender := v_offender || r.tablename || '/' || r.policyname || ' (' || r.cmd || '), ';
       v_count := v_count + 1;
     END IF;
@@ -219,9 +219,9 @@ BEGIN
     RAISE EXCEPTION '6 failed: service_role sees % of the 2 fixture users', v_users;
   END IF;
 
-  SELECT public.get_accepted_partner(9101) INTO v_partner_id;
+  SELECT public.partnership_get_accepted_partner(9101) INTO v_partner_id;
   IF v_partner_id IS DISTINCT FROM 9102 THEN
-    RAISE EXCEPTION '6 failed: service_role get_accepted_partner returned %, expected 9102',
+    RAISE EXCEPTION '6 failed: service_role partnership_get_accepted_partner returned %, expected 9102',
       coalesce(v_partner_id::text, 'NULL');
   END IF;
 END $$;

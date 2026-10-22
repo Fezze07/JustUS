@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.get_or_create_emoji (
+CREATE OR REPLACE FUNCTION public.emoji_get_or_create (
   p_emoji_char text
 )
   RETURNS bigint
@@ -20,4 +20,4 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."get_or_create_emoji"(text) TO PUBLIC, "authenticated", "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."emoji_get_or_create"(text) TO PUBLIC, "authenticated", "postgres", "service_role";

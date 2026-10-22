@@ -10,7 +10,7 @@
 --
 -- Called by the backend immediately before upserting the new binding.
 
-CREATE OR REPLACE FUNCTION public.revoke_device_duplicate_session(
+CREATE OR REPLACE FUNCTION public.device_revoke_duplicate_session(
   p_user_id        uuid,
   p_fingerprint    text,
   p_keep_session   uuid
@@ -39,5 +39,5 @@ END;
 $function$;
 
 -- Only the service role (backend) may invoke this function.
-REVOKE ALL ON FUNCTION "public"."revoke_device_duplicate_session"(uuid, text, uuid) FROM PUBLIC, "anon", "authenticated";
-GRANT EXECUTE ON FUNCTION "public"."revoke_device_duplicate_session"(uuid, text, uuid) TO "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."device_revoke_duplicate_session"(uuid, text, uuid) FROM PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."device_revoke_duplicate_session"(uuid, text, uuid) TO "postgres", "service_role";

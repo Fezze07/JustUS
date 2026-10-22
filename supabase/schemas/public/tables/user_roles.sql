@@ -16,11 +16,11 @@ CREATE INDEX idx_user_roles_role_id ON public.user_roles USING btree (role_id);
 CREATE TRIGGER set_public_user_roles_updated_at
   BEFORE UPDATE ON public.user_roles
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "Users can view their own roles" ON "public"."user_roles"
   FOR SELECT
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."user_roles" TO "anon", "authenticated", "postgres", "service_role";

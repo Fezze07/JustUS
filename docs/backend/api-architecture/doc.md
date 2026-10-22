@@ -54,7 +54,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 1. **Direct Supabase Access (PostgREST / RLS / RPC)**:
    - Used for domain CRUD operations that map directly to single tables or PostgreSQL views with strict Row-Level Security (RLS) policies.
-   - **Direct Access Features**: Mood tracking (`moods`, RPC `set_mood`), Miss-You signals (`missyou`, RPC `send_missyou`), Bucket List (`bucket_items`), Game questions & answers (`game_questions`, `game_answers`, `game_question_bank`), Drive metadata & favorites (`drive_items`, `favorites`, `v_drive_dashboard`, RPC `get_or_create_emoji`), Partnership requests (`rpc/request_partnership`, `rpc/accept_partnership`).
+   - **Direct Access Features**: Mood tracking (`moods`, RPC `mood_set`), Miss-You signals (`missyou`, RPC `missyou_send`), Bucket List (`bucket_items`), Game questions & answers (`game_questions`, `game_answers`, `game_question_bank`), Drive metadata & favorites (`drive_items`, `favorites`, `v_drive_dashboard`, RPC `emoji_get_or_create`), Partnership requests (`rpc/partnership_request`, `rpc/partnership_accept`).
    - **Architectural Justification**: Eliminates backend boilerplate for simple CRUD while leveraging PostgreSQL RLS for multi-tenant isolation.
 
 2. **Node.js Express Backend API (`/api/v1`)**:

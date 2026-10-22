@@ -23,28 +23,28 @@ CREATE INDEX idx_drive_item_reactions_item_id ON public.drive_item_reactions USI
 CREATE POLICY "drive_item_reactions_delete_own" ON "public"."drive_item_reactions"
   FOR DELETE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 CREATE POLICY "drive_item_reactions_manage_own" ON "public"."drive_item_reactions"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.current_user_id()) AND (EXISTS ( SELECT 1
+  WITH CHECK ((user_id = public.user_current_id()) AND (EXISTS ( SELECT 1
    FROM public.drive_items
-  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.is_in_partnership(drive_items.partnership_id)))));
+  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.partnership_is_member(drive_items.partnership_id)))));
 
 CREATE POLICY "drive_item_reactions_related_select" ON "public"."drive_item_reactions"
   FOR SELECT
   TO PUBLIC
   USING ((EXISTS ( SELECT 1
    FROM public.drive_items
-  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.is_in_partnership(drive_items.partnership_id)))));
+  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.partnership_is_member(drive_items.partnership_id)))));
 
 CREATE POLICY "drive_item_reactions_update_own" ON "public"."drive_item_reactions"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()))
-  WITH CHECK ((user_id = public.current_user_id()) AND (EXISTS ( SELECT 1
+  USING ((user_id = public.user_current_id()))
+  WITH CHECK ((user_id = public.user_current_id()) AND (EXISTS ( SELECT 1
    FROM public.drive_items
-  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.is_in_partnership(drive_items.partnership_id)))));
+  WHERE ((drive_items.id = drive_item_reactions.item_id) AND public.partnership_is_member(drive_items.partnership_id)))));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."drive_item_reactions" TO "anon", "authenticated", "postgres", "service_role";

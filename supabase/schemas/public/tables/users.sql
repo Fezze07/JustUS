@@ -17,7 +17,7 @@ ALTER SEQUENCE "public"."users_id_seq" OWNED BY "public"."users"."id";
 CREATE TRIGGER set_public_users_updated_at
   BEFORE UPDATE ON public.users
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "users_insert_self" ON "public"."users"
   FOR INSERT
@@ -37,8 +37,8 @@ CREATE POLICY "users_select_self" ON "public"."users"
 CREATE POLICY "users_update_self" ON "public"."users"
   FOR UPDATE
   TO PUBLIC
-  USING ((id = public.current_user_id()))
-  WITH CHECK ((id = public.current_user_id()));
+  USING ((id = public.user_current_id()))
+  WITH CHECK ((id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."users" TO "anon", "authenticated", "postgres", "service_role";
 

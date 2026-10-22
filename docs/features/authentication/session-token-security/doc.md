@@ -33,7 +33,7 @@ Session Creation (Login / Register)
    ├── 3. Session Binding (POST /api/v1/auth/session-bind)
    │        │
    │        ├── Sends deviceFingerprint to Node Backend
-   │        ├── Backend revokes stale session for same device (revoke_device_duplicate_session RPC)
+   │        ├── Backend revokes stale session for same device (device_revoke_duplicate_session RPC)
    │        ├── Backend tracks session binding in PostgreSQL session_bindings table
    │        ├── Backend returns bindingSecret (saved to FlutterSecureStorage & ApiService cache)
    │        └── Backend clears failed login attempt counters (clearFailedLogins)
@@ -295,7 +295,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 ### Functionality
 
 1. Calls `trackSession()` in [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js).
-2. Revokes any existing session for the same user and device fingerprint using the `revoke_device_duplicate_session` PostgreSQL RPC.
+2. Revokes any existing session for the same user and device fingerprint using the `device_revoke_duplicate_session` PostgreSQL RPC.
 3. Upserts record into `session_bindings` PostgreSQL table using `session_id` as primary key.
 4. Generates a fresh 32-byte hex `bindingSecret` for every new binding.
 5. Invokes `clearFailedLogins()` to reset failed login counters for the IP / device / email key.

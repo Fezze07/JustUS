@@ -7,7 +7,7 @@ class MoodRepository extends BaseRepository {
 
   Future<ResultWrapper<MoodEntry>> updateMood(String emojiChar) async {
     return withUser((uid) async {
-      await sbClient.rpc('set_mood', params: {'p_emoji_char': emojiChar});
+      await sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar});
 
       unawaited(notifyPartnerOnce(
         notificationKey: 'moodUpdated',

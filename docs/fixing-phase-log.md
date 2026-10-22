@@ -21,7 +21,7 @@
 | 7 | Dead code & docs hygiene | 7.1–7.9 | All fixed. 7.7 closed as *already clean* (stale item). README rebuilt against the code |
 | 8 | Testing gaps | 8.1–8.7, 8.9, 8.10 | 9 fixed. Still open — 8.8 CI wiring, carried in `todo.md`. Auth-refresh retry, runnable SQL assertions for RLS and retention, `BaseState` helpers, the realtime pipeline, optimistic rollback, the force-update flow, and two suite-hardening sweeps |
 | 9 | Findings that were never planned | 9.1–9.9 | All fixed. Failed-login reporting plus route idempotency, token and session revocation on logout and password change, server-side password policy, a distinct-email risk cap, a docs reconciliation sweep, and the `user_devices` retention and session-linked prune |
-| 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `reject_partnership` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
+| 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `partnership_reject` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
 
 ---
 
@@ -93,7 +93,7 @@
 | 8.4 | Realtime pipeline and two handlers untested | Fixed (pipeline plus per-handler suites) | 2026-10-03 |
 | 8.5 | Optimistic rollback and cache-write ordering untested | Fixed (full rollback, `CacheWriteQueue`, both flush triggers) | 2026-10-03 |
 | 8.6 | Version and force-update flow untested | Fixed (injectable `VersionRepository` seam) | 2026-10-03 |
-| 8.7 | `cleanup_old_logs(p_days)` boundary unasserted | Fixed (parameterized and default-90 sweeps) | 2026-09-30 |
+| 8.7 | `logs_cleanup(p_days)` boundary unasserted | Fixed (parameterized and default-90 sweeps) | 2026-09-30 |
 | 8.9 | Test-suite hardening sweep (Flutter + Backend) | Fixed (non-vacuous scans, shared mocks, tracked `scripts/`) | 2026-09-30 |
 | 8.10 | Backend suite could pass for the wrong reasons | Fixed (`resetRateLimitState()`, tracked `.env.test`) | 2026-10-01 |
 | 9.1 | Failed logins are never reported — strikes inert | Fixed (best-effort report from `login()`, idempotent route) | 2026-10-04 |
@@ -121,7 +121,7 @@
 | 10.15 | The drive cursor is a strict `>`, skipping equal timestamps | Fixed (inclusive `gte` bound) | 2026-10-14 |
 | 10.17 | The `debug_`-prefixed wipe RPC is deliberate dev-only tooling | **By design** — the prefix names a debug tool, not a production RPC | 2026-10-14 |
 | 10.18 | RPC exception messages are hardcoded Italian | Fixed (`API-VALIDATION-00x` codes resolved client-side) | 2026-10-14 |
-| 10.19 | Rejecting a partnership request bypasses the accepting RPC | Fixed (`reject_partnership` RPC) | 2026-10-20 |
+| 10.19 | Rejecting a partnership request bypasses the accepting RPC | Fixed (`partnership_reject` RPC) | 2026-10-20 |
 | 10.20 | A `hasChanges` failure rejects `loadWithChangeDetection` (F-SM4) | Fixed (error caught; refetch triggered) | 2026-10-20 |
 | 10.21 | Structured log records don't match the log-table columns | Fixed (records projected onto their table's columns) | 2026-10-21 |
 

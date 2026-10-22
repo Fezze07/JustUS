@@ -18,6 +18,6 @@ CREATE INDEX idx_logs_notifications_user_id ON public.logs_notifications USING b
 CREATE POLICY "notifications_select_own" ON "public"."logs_notifications"
   FOR SELECT
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."logs_notifications" TO "anon", "authenticated", "postgres", "service_role";

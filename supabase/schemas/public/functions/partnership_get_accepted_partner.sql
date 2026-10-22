@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.get_accepted_partner (
+CREATE OR REPLACE FUNCTION public.partnership_get_accepted_partner (
   target_user_id integer
 )
   RETURNS TABLE (
@@ -19,4 +19,4 @@ CREATE OR REPLACE FUNCTION public.get_accepted_partner (
   LIMIT 1;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."get_accepted_partner"(integer) TO PUBLIC, "anon", "authenticated", "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."partnership_get_accepted_partner"(integer) TO PUBLIC, "anon", "authenticated", "postgres", "service_role";

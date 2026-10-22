@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.get_pending_invitations ()
+CREATE OR REPLACE FUNCTION public.partnership_get_pending_invitations ()
   RETURNS TABLE (
     invitation_id integer,
     status character varying,
@@ -18,24 +18,24 @@ CREATE OR REPLACE FUNCTION public.get_pending_invitations ()
     p.created_at,
     (
       CASE
-        WHEN p.user_id_2 = public.current_user_id() THEN p.user_id_1
+        WHEN p.user_id_2 = public.user_current_id() THEN p.user_id_1
         ELSE p.user_id_2
       END
     ),
     up.display_name,
-    (p.user_id_2 = public.current_user_id())
+    (p.user_id_2 = public.user_current_id())
   FROM public.partnerships p
     LEFT JOIN public.user_profiles up ON up.user_id = (
       CASE
-        WHEN p.user_id_2 = public.current_user_id() THEN p.user_id_1
+        WHEN p.user_id_2 = public.user_current_id() THEN p.user_id_1
         ELSE p.user_id_2
       END
     )
-  WHERE (p.user_id_1 = public.current_user_id() OR p.user_id_2 = public.current_user_id())
+  WHERE (p.user_id_1 = public.user_current_id() OR p.user_id_2 = public.user_current_id())
     AND p.status = 'pending'
   ORDER BY p.created_at DESC;
 $function$;
 
-REVOKE ALL ON FUNCTION "public"."get_pending_invitations"() FROM PUBLIC, "anon";
+REVOKE ALL ON FUNCTION "public"."partnership_get_pending_invitations"() FROM PUBLIC, "anon";
 
-GRANT EXECUTE ON FUNCTION "public"."get_pending_invitations"() TO "authenticated", "postgres", "service_role";
+GRANT EXECUTE ON FUNCTION "public"."partnership_get_pending_invitations"() TO "authenticated", "postgres", "service_role";

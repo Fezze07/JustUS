@@ -313,7 +313,7 @@ BEGIN
   DELETE FROM public.favorites WHERE user_id = 9001 AND item_id = 9010;
 END $$;
 
--- G. partnerships: no client may create a row at all - request_partnership is
+-- G. partnerships: no client may create a row at all - partnership_request is
 --    the only writer, so the partnership_code gate cannot be skipped
 DO $$
 DECLARE

@@ -9,14 +9,14 @@
 --     -f supabase/test/rpc_error_codes.test.sql
 --
 -- The client resolves the code to a localized message, so the code prefix is a
--- contract: request_partnership and send_missyou must raise
+-- contract: partnership_request and missyou_send must raise
 -- '<CODE>: <developer text>' and nothing else. Any drift fails here.
 --
---   request_partnership  API-VALIDATION-003  caller id not resolvable
+--   partnership_request  API-VALIDATION-003  caller id not resolvable
 --                        API-VALIDATION-004  sender already partnered
 --                        API-VALIDATION-005  email/code do not match
 --                        API-VALIDATION-006  self-invitation
---   send_missyou         API-VALIDATION-007  no accepted partnership
+--   missyou_send         API-VALIDATION-007  no accepted partnership
 -- =============================================================================
 
 BEGIN;
@@ -64,34 +64,34 @@ INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUE
 INSERT INTO public.partnerships (id, user_id_1, user_id_2, status) VALUES
   (9163, 9162, 9161, 'accepted');
 
--- 003: no auth context and no override -> current_user_id() is NULL.
+-- 003: no auth context and no override -> user_current_id() is NULL.
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-003',
-  $q$SELECT public.request_partnership('rpc-codes-target@test.local', 'TGT222', NULL)$q$
+  $q$SELECT public.partnership_request('rpc-codes-target@test.local', 'TGT222', NULL)$q$
 );
 
 -- 004: sender 9162 already has an accepted partnership.
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-004',
-  $q$SELECT public.request_partnership('rpc-codes-target@test.local', 'TGT222', 9162)$q$
+  $q$SELECT public.partnership_request('rpc-codes-target@test.local', 'TGT222', 9162)$q$
 );
 
 -- 005: sender 9160 is free but no profile matches that email + code.
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-005',
-  $q$SELECT public.request_partnership('nobody@test.local', 'ZZZZZZ', 9160)$q$
+  $q$SELECT public.partnership_request('nobody@test.local', 'ZZZZZZ', 9160)$q$
 );
 
 -- 006: sender 9160 invites themself with their own code.
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-006',
-  $q$SELECT public.request_partnership('rpc-codes-self@test.local', 'SELF01', 9160)$q$
+  $q$SELECT public.partnership_request('rpc-codes-self@test.local', 'SELF01', 9160)$q$
 );
 
--- 007: send_missyou with no accepted partnership for the current user.
+-- 007: missyou_send with no accepted partnership for the current user.
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-007',
-  $q$SELECT public.send_missyou()$q$
+  $q$SELECT public.missyou_send()$q$
 );
 
 ROLLBACK;

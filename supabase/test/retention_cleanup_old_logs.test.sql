@@ -1,5 +1,5 @@
 -- =============================================================================
--- cleanup_old_logs: parameterization and the single 90-day retention policy
+-- logs_cleanup: parameterization and the single 90-day retention policy
 -- (covers audit finding 5.1)
 -- =============================================================================
 -- Run against the Supabase database (needs `psql`, Supabase MCP `execute_sql`,
@@ -11,7 +11,7 @@
 --
 -- Any failed assertion raises an exception and aborts the script.
 --
--- The previous revision of this test inserted the result of cleanup_old_logs()
+-- The previous revision of this test inserted the result of logs_cleanup()
 -- into a timestamptz column. The function RETURNS void, so that could never
 -- work. The default is therefore verified behaviourally instead: rows are
 -- seeded either side of the 90-day boundary and the sweep is checked to remove
@@ -78,10 +78,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_logs'
+    WHERE n.nspname = 'public' AND p.proname = 'logs_cleanup'
       AND p.pronargs > 0
   ) THEN
-    RAISE EXCEPTION 'A failed: cleanup_old_logs is missing or takes no parameter';
+    RAISE EXCEPTION 'A failed: logs_cleanup is missing or takes no parameter';
   END IF;
 
   -- btrim the rendered default so `DEFAULT 90` and `DEFAULT  90` both compare
@@ -89,11 +89,11 @@ BEGIN
   SELECT btrim(pg_get_expr(p.proargdefaults, 0)) INTO v_default
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_logs'
+  WHERE n.nspname = 'public' AND p.proname = 'logs_cleanup'
     AND p.pronargs > 0;
 
   IF v_default IS NULL THEN
-    RAISE EXCEPTION 'A failed: cleanup_old_logs has no DEFAULT on p_days';
+    RAISE EXCEPTION 'A failed: logs_cleanup has no DEFAULT on p_days';
   END IF;
   IF v_default IS DISTINCT FROM '90' THEN
     RAISE EXCEPTION 'A failed: DEFAULT p_days is %, expected 90', v_default;
@@ -103,11 +103,11 @@ BEGIN
   SELECT pg_get_function_result(p.oid) INTO v_result
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_logs'
+  WHERE n.nspname = 'public' AND p.proname = 'logs_cleanup'
     AND p.pronargs > 0;
 
   IF v_result IS DISTINCT FROM 'void' THEN
-    RAISE EXCEPTION 'A failed: cleanup_old_logs no longer RETURNS void (%); the test must be revisited',
+    RAISE EXCEPTION 'A failed: logs_cleanup no longer RETURNS void (%); the test must be revisited',
       coalesce(v_result, 'NULL');
   END IF;
 END $$;
@@ -116,7 +116,7 @@ END $$;
 -- B. The DEFAULT sweep removes strictly-older-than-90-days rows in all four
 --    tables and leaves everything at 89 days or newer.
 -- ---------------------------------------------------------------------------
-SELECT public.cleanup_old_logs();
+SELECT public.logs_cleanup();
 
 DO $$
 BEGIN
@@ -162,7 +162,7 @@ END $$;
 --    10-day tier. The DEFAULT stays 90, so no off-schema cron can silently
 --    delete logs younger than 90 days.
 -- ---------------------------------------------------------------------------
-SELECT public.cleanup_old_logs(30);
+SELECT public.logs_cleanup(30);
 
 DO $$
 BEGIN
@@ -202,13 +202,13 @@ DECLARE
   v_rejected boolean := false;
 BEGIN
   BEGIN
-    PERFORM public.cleanup_old_logs(0);
+    PERFORM public.logs_cleanup(0);
   EXCEPTION WHEN others THEN
     v_rejected := true;
   END;
 
   IF NOT v_rejected THEN
-    RAISE EXCEPTION 'D failed: cleanup_old_logs(0) was allowed';
+    RAISE EXCEPTION 'D failed: logs_cleanup(0) was allowed';
   END IF;
 END $$;
 
@@ -217,13 +217,13 @@ DECLARE
   v_rejected boolean := false;
 BEGIN
   BEGIN
-    PERFORM public.cleanup_old_logs(-1);
+    PERFORM public.logs_cleanup(-1);
   EXCEPTION WHEN others THEN
     v_rejected := true;
   END;
 
   IF NOT v_rejected THEN
-    RAISE EXCEPTION 'D failed: cleanup_old_logs(-1) was allowed';
+    RAISE EXCEPTION 'D failed: logs_cleanup(-1) was allowed';
   END IF;
 END $$;
 
@@ -232,13 +232,13 @@ DECLARE
   v_rejected boolean := false;
 BEGIN
   BEGIN
-    PERFORM public.cleanup_old_logs(NULL);
+    PERFORM public.logs_cleanup(NULL);
   EXCEPTION WHEN others THEN
     v_rejected := true;
   END;
 
   IF NOT v_rejected THEN
-    RAISE EXCEPTION 'D failed: cleanup_old_logs(NULL) was allowed';
+    RAISE EXCEPTION 'D failed: logs_cleanup(NULL) was allowed';
   END IF;
 END $$;
 

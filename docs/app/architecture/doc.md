@@ -16,7 +16,7 @@ The app uses two trust paths:
 1. **Flutter -> Supabase (direct)** for RLS-safe data operations (moods, missyou, bucket list, game answers, drive dashboard via views, partnership RPCs). Configured in `lib/core/network/supabase_service.dart`, called through `BaseRepository.sbClient`.
 2. **Flutter -> Node/Express backend (`/api/v1`)** for privileged operations that are abusable/billable: Cloudflare R2 media presign/complete/delete, FCM installation-id registration, session binding sync, invite, login-risk check, refresh proxy, user wipe. Driven by `lib/core/network/api_service.dart` (HMAC-signed, nonce-protected, JWT-authenticated).
 
-The Flutter app is NOT responsible for the database schema; it relies on hosted Supabase objects (`v_active_partnership`, `v_drive_dashboard`, RPCs `request_partnership`/`accept_partnership`/`send_missyou`/`set_mood`, etc.) that are documented in `.agents/skills/` but are not versioned in the repo.
+The Flutter app is NOT responsible for the database schema; it relies on hosted Supabase objects (`v_active_partnership`, `v_drive_dashboard`, RPCs `partnership_request`/`partnership_accept`/`missyou_send`/`mood_set`, etc.) that are documented in `.agents/skills/` but are not versioned in the repo.
 
 ---
 
@@ -157,7 +157,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 Every feature exposes `*Repository extends BaseRepository`:
 
 - `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherInstallations` (`POST /auth/installation-id-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateInstallationId` (backend, signed).
-- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `accept_partnership` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (RPC `reject_partnership`), `updateAnniversaryDate`, `getPendingInvitations` (RPC `get_pending_invitations`, returns only the caller's pending invitations).
+- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `partnership_accept` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (RPC `partnership_reject`), `updateAnniversaryDate`, `getPendingInvitations` (RPC `partnership_get_pending_invitations`, returns only the caller's pending invitations).
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `GameQuestionBankRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase tables/views/RPCs); `DriveRepository`, `UserRepository` and `VersionRepository` also make signed backend calls for media, notifications and version checks where needed.
 
 ### Services
@@ -378,7 +378,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 - `ErrorHandler._showSnackBar` uses an `OverlayEntry` via the root navigator overlay (NOT `ScaffoldMessenger`). It is aware of scheduler phases and defers insertion to the next frame when called during build. A `Future.delayed(4s)` removes it in release; in debug it persists until dismissed.
 - `ErrorDialog` (reusable widget in `shared/design_system/error_dialog.dart`) shows error code only in debug mode (`kDebugMode`). The reauth dialog navigates to `/login` via `pushNamedAndRemoveUntil`, clearing the navigation stack.
 - `AppError` (`lib/core/error_handling/app_error.dart`) supports factories: `.network()`, `.timeout()`, `.fromException()`, `.fromJson()` (from backend envelope). `ErrorCodes` maps codes to localized user messages and classifies severity/reauth requirements.
-- RPC failures keep their code end-to-end. A database raise is `'<CODE>: <developer text>'`; the backend turns the code into an `AppError` (`wrapRpc`) and the client resolves it in `ErrorHandler.toAppError` — `ErrorCodes.resolveServerCode` reads the prefix off `PostgrestException.message` for calls the client makes directly (e.g. `send_missyou`), and `BaseRepository.tryCall` stores that `AppError` in `GenericError.details` so the code survives the wrapper. An `AppError` thrown inside a repository action (a `MediaService` MIME/size guard, `'No active partnership'`, an R2 upload failure) is preserved the same way, so the client resolves the intended code instead of falling back to `LOCAL-UNKNOWN`; an `AppError` carried in `GenericError.details` wins in `toAppError`. `toAppError` also maps a `NetworkError` (and a bare `SocketException`/`HttpException`) to `AppError.network()`. Only the code reaches the UI; the developer text stays in logs and the debug dialog.
+- RPC failures keep their code end-to-end. A database raise is `'<CODE>: <developer text>'`; the backend turns the code into an `AppError` (`wrapRpc`) and the client resolves it in `ErrorHandler.toAppError` — `ErrorCodes.resolveServerCode` reads the prefix off `PostgrestException.message` for calls the client makes directly (e.g. `missyou_send`), and `BaseRepository.tryCall` stores that `AppError` in `GenericError.details` so the code survives the wrapper. An `AppError` thrown inside a repository action (a `MediaService` MIME/size guard, `'No active partnership'`, an R2 upload failure) is preserved the same way, so the client resolves the intended code instead of falling back to `LOCAL-UNKNOWN`; an `AppError` carried in `GenericError.details` wins in `toAppError`. `toAppError` also maps a `NetworkError` (and a bare `SocketException`/`HttpException`) to `AppError.network()`. Only the code reaches the UI; the developer text stays in logs and the debug dialog.
 
 ### Logging
 
@@ -471,7 +471,7 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F11: `PartnershipRepository.rejectPartnerRequest` deletes directly via Supabase
 
-**Resolved (2026-10-20)**: `rejectPartnerRequest` now calls RPC `reject_partnership` (server enforces membership + `status='pending'`), matching `accept_partnership` encapsulation. No notification is sent on reject by design (same as before).
+**Resolved (2026-10-20)**: `rejectPartnerRequest` now calls RPC `partnership_reject` (server enforces membership + `status='pending'`), matching `partnership_accept` encapsulation. No notification is sent on reject by design (same as before).
 
 **Impact**: No notification is sent to the sender when their partnership request is rejected. This may or may not be intended behavior; it is a functional asymmetry.
 

@@ -30,7 +30,7 @@ Feature action (Supabase mutation succeeds)
               └─ POST /api/v1/notify/partner (JWT + rate limit 12/min)   notify.routes.js:33-39
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
-                                └─ resolveNotificationTarget → get_accepted_partner(senderId)  service:129-154
+                                └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
                                       └─ sendNotificationToUser(receiverId, type, key, params)  service:59-105
                                             ├─ fetchUserDevices → isDeliverableDevice filter   service:30-41,22-28
                                             ├─ group fids by device.locale ('en' default)      utils:190-200
@@ -164,7 +164,7 @@ await adminSupabase
 - **Scoped by `user_id`**: `installation_id` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
 - Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
 - Client side: `AuthRepository.revokeInstallationId()` → `ApiService.revokeInstallationId()`, called by `AuthState._revokeInstallationId()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
-- Unrevoked stale rows (e.g. offline logout, session expiration, or a password-change revoke-all that could not land) converge through the periodic retention job (`sweepStaleUserDevices` in `retentionJob.js`). Every registration records the session that created it (`user_devices.session_id`, from `req.auth.claims.session_id`), so the sweep first runs the `purge_user_devices_dead_sessions()` RPC to delete rows whose session is gone from `auth.sessions` or past its `not_after` — those cases die at the next sweep run instead of waiting out the window — then the age purge (`updated_at` older than `USER_DEVICE_RETENTION_DAYS = 30`) as the fallback for sessionless registrations and for app kills before `signOut()`.
+- Unrevoked stale rows (e.g. offline logout, session expiration, or a password-change revoke-all that could not land) converge through the periodic retention job (`sweepStaleUserDevices` in `retentionJob.js`). Every registration records the session that created it (`user_devices.session_id`, from `req.auth.claims.session_id`), so the sweep first runs the `device_purge_dead_sessions()` RPC to delete rows whose session is gone from `auth.sessions` or past its `not_after` — those cases die at the next sweep run instead of waiting out the window — then the age purge (`updated_at` older than `USER_DEVICE_RETENTION_DAYS = 30`) as the fallback for sessionless registrations and for app kills before `signOut()`.
 - The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same FID via the upsert.
 
 ### Backend other-device revocation — `POST /api/v1/auth/installation-id-revoke-all`
@@ -234,7 +234,7 @@ notifySchema = z.object({
 `notification.service.js` (orchestration) and `notification.utils.js` (message building + FCM delivery):
 
 1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:129-154`)
-   - Resolves the receiver through RPC `get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`).
+   - Resolves the receiver through RPC `partnership_get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`).
    - `type === 'partner'` → receiver is the active partner; otherwise `receiverId` must be supplied and must equal the partner id.
 
 2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
@@ -266,9 +266,9 @@ notifySchema = z.object({
 
 | # | Key | Event source | Triggering mutation | Params sent | ARB keys | Implemented |
 |---|---|---|---|---|---|---|
-| 1 | `requestAccepted` | PartnershipRepository | `acceptPartnerRequest` after RPC `accept_partnership` (`partnership_repository.dart:101-104`) | `{partnerName}` | `notif_requestAccepted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 2 | `missyou` | MissYouRepository | `sendMissYou` after RPC `send_missyou` (`missyou_repository.dart:12-15`) | `{partnerName}` | `notif_missyou_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 3 | `moodUpdated` | MoodRepository | `updateMood` after RPC `set_mood` (`mood_repository.dart:15-21`) | `{partnerName, emojiChar}` | `notif_moodUpdated_title/body({partnerName})` — emoji param unused | PARTIALLY IMPLEMENTED |
+| 1 | `requestAccepted` | PartnershipRepository | `acceptPartnerRequest` after RPC `partnership_accept` (`partnership_repository.dart:101-104`) | `{partnerName}` | `notif_requestAccepted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 2 | `missyou` | MissYouRepository | `sendMissYou` after RPC `missyou_send` (`missyou_repository.dart:12-15`) | `{partnerName}` | `notif_missyou_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 3 | `moodUpdated` | MoodRepository | `updateMood` after RPC `mood_set` (`mood_repository.dart:15-21`) | `{partnerName, emojiChar}` | `notif_moodUpdated_title/body({partnerName})` — emoji param unused | PARTIALLY IMPLEMENTED |
 | 4 | `answerSubmitted` | GameRepository | `submitAnswer` after `game_answers` upsert (`game_repository.dart:51-54`) | `{partnerName}` | `notif_answerSubmitted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 5 | `newQuestion` | GameRepository | `fetchNewGameQuestion` after `game_questions` insert (`game_repository.dart:120-123`) | `{}` (no name) | `notif_newQuestion_title/body` (no params) | PARTIALLY IMPLEMENTED |
 | 6 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
@@ -485,11 +485,11 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Locale sync on resume / language change | IMPLEMENTED |
 | Installation id revocation at logout (`POST /auth/installation-id-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
 | Other-device installation id revocation on password write (`POST /auth/installation-id-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
-| Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`purge_user_devices_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
+| Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`device_purge_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
 | JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
 | Request signing on notify endpoint | NOT IMPLEMENTED (F-PN10) |
-| Partner resolution via `get_accepted_partner` RPC | IMPLEMENTED |
+| Partner resolution via `partnership_get_accepted_partner` RPC | IMPLEMENTED |
 | Server-side localization (server map, it/en) | IMPLEMENTED |
 | FCM multicast with 500-FID batching | IMPLEMENTED |
 | FCM retry (3 attempts, backoff) | IMPLEMENTED |
@@ -517,7 +517,7 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `purge_user_devices_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
+`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
 The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
 

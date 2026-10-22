@@ -113,7 +113,7 @@ describe("retentionJob - all cleanup jobs", () => {
     // 3. User devices sweep test (dead-session prune + 30-day cutoff)
     expect(adminSupabase.from).toHaveBeenCalledWith("user_devices");
     expect(adminSupabase.rpc).toHaveBeenCalledWith(
-      "purge_user_devices_dead_sessions"
+      "device_purge_dead_sessions"
     );
     const userDeviceLtCalls = __queryBuilder.lt.mock.calls.filter(call => call[0] === "updated_at");
     expect(userDeviceLtCalls.length).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe("retentionJob - all cleanup jobs", () => {
     await startRetentionJobs();
 
     expect(adminSupabase.rpc).toHaveBeenCalledWith(
-      "purge_user_devices_dead_sessions"
+      "device_purge_dead_sessions"
     );
     expect(__queryBuilder.lt).toHaveBeenCalledWith(
       "updated_at",

@@ -16,22 +16,22 @@ ALTER TABLE "public"."user_profiles"
 CREATE TRIGGER set_public_user_profiles_updated_at
   BEFORE UPDATE ON public.user_profiles
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  EXECUTE FUNCTION public.util_set_updated_at();
 
 CREATE POLICY "profiles_insert_self" ON "public"."user_profiles"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.current_user_id()));
+  WITH CHECK ((user_id = public.user_current_id()));
 
 CREATE POLICY "profiles_select_self_or_partner" ON "public"."user_profiles"
   FOR SELECT
   TO "authenticated"
-  USING (((user_id = public.current_user_id()) OR private.is_related_user(user_id)));
+  USING (((user_id = public.user_current_id()) OR private.is_related_user(user_id)));
 
 CREATE POLICY "profiles_update_self" ON "public"."user_profiles"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()))
-  WITH CHECK ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()))
+  WITH CHECK ((user_id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."user_profiles" TO "anon", "authenticated", "postgres", "service_role";

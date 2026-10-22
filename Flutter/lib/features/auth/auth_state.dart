@@ -599,7 +599,7 @@ class AuthState extends BaseState
       if (result.isError) {
         throw result;
       }
-      AnsiLogger.auth('RPC accept_partnership success', tag: 'AuthState');
+      AnsiLogger.auth('RPC partnership_accept success', tag: 'AuthState');
       await fetchSentInvitations();
       await fetchReceivedInvitations();
 
@@ -832,7 +832,7 @@ class AuthState extends BaseState
   /// the push registrations die with the sessions `_revokeOtherSessions` just
   /// killed. Strictly best-effort and bounded by [sessionRevokeTimeout]; an
   /// unresolvable local installation id skips the call and leaves the retention
-  /// sweep (`purge_user_devices_dead_sessions`) as the backstop.
+  /// sweep (`device_purge_dead_sessions`) as the backstop.
   Future<void> _revokeOtherInstallations() async {
     try {
       final keepInstallationId =

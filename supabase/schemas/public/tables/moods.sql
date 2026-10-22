@@ -20,22 +20,22 @@ CREATE INDEX idx_moods_user_id ON public.moods USING btree (user_id);
 CREATE POLICY "moods_delete_own" ON "public"."moods"
   FOR DELETE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()));
 
 CREATE POLICY "moods_manage_own" ON "public"."moods"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.current_user_id()));
+  WITH CHECK ((user_id = public.user_current_id()));
 
 CREATE POLICY "moods_related_access" ON "public"."moods"
   FOR SELECT
   TO PUBLIC
-  USING (((user_id = public.current_user_id()) OR public.is_partner_of(user_id)));
+  USING (((user_id = public.user_current_id()) OR public.partnership_is_partner(user_id)));
 
 CREATE POLICY "moods_update_own" ON "public"."moods"
   FOR UPDATE
   TO PUBLIC
-  USING ((user_id = public.current_user_id()))
-  WITH CHECK ((user_id = public.current_user_id()));
+  USING ((user_id = public.user_current_id()))
+  WITH CHECK ((user_id = public.user_current_id()));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."moods" TO "anon", "authenticated", "postgres", "service_role";

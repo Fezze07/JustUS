@@ -42,7 +42,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 │                             SUPABASE LAYER                              │
 │  Tables: public.drive_items, public.favorites, drive_item_reactions     │
 │  View: v_drive_dashboard (security_invoker = true)                      │
-│  RPC: get_or_create_emoji                                               │
+│  RPC: emoji_get_or_create                                               │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -289,7 +289,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 ### Favorites Subsystem
 
 - Table: `public.favorites` (`user_id`, `item_id`).
-- RLS Policy: `favorites_own` (FOR ALL) — users can manage only their own favorites, and the referenced `item_id` must belong to an **accepted** partnership (`WITH CHECK user_id = current_user_id() AND item in accepted partnership`).
+- RLS Policy: `favorites_own` (FOR ALL) — users can manage only their own favorites, and the referenced `item_id` must belong to an **accepted** partnership (`WITH CHECK user_id = user_current_id() AND item in accepted partnership`).
 - Toggle Execution: `DriveRepository.toggleFavorite(itemId, isFavorite)` ([drive_repository.dart:88-103](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L88-L103)).
   - If `isFavorite == true`: Inserts row into `public.favorites`.
   - If `isFavorite == false`: Deletes row matching `user_id` and `item_id`.
@@ -300,7 +300,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 
 - Table: `public.drive_item_reactions` (`id`, `item_id`, `user_id`, `emoji_id`).
 - Add Reaction Execution: `DriveRepository.addReaction(itemId, emojiChar)` ([drive_repository.dart:121-147](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L121-L147)).
-  - Calls PostgreSQL RPC `get_or_create_emoji(p_emoji_char)` to resolve `emoji_id`.
+  - Calls PostgreSQL RPC `emoji_get_or_create(p_emoji_char)` to resolve `emoji_id`.
   - Inserts row into `public.drive_item_reactions`.
   - Fires partner push notification `notifyPartnerOnce('reactionAdded')`.
 - View Integration: `v_drive_dashboard` aggregates reactions into a JSONB array of emoji strings returned with each drive item payload.
@@ -355,7 +355,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Local Media Disk Cache | **IMPLEMENTED** | `MediaCacheManager` (30-day stale period) |
 | Incremental Sync & Checkpoints | **IMPLEMENTED** | `v_drive_dashboard` query on `updated_at > checkpoint` |
 | Favorites Subsystem | **IMPLEMENTED** | `public.favorites` + `v_drive_dashboard` join |
-| Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `get_or_create_emoji` |
+| Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `emoji_get_or_create` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
 | Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.filename` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
