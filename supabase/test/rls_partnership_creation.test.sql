@@ -1,6 +1,6 @@
 -- =============================================================================
--- Partnership creation: only partnership_request creates a row, and only the
--- recipient can accept it  (covers todo.md 11.1)
+-- Partnership creation: only partnership_request creates a row, only the
+-- recipient can accept it, and membership is immutable  (covers 11.1, 11.2)
 -- =============================================================================
 -- Run against the Supabase database (needs `psql`, Supabase MCP `execute_sql`,
 -- or the SQL editor as `postgres`). Everything runs inside a transaction that is
@@ -19,7 +19,10 @@
 --   * only the recipient (user_id_2) may accept a pending request, so the
 --     sender cannot push its own request into an accepted partnership. That
 --     holds through the RPC and through a direct UPDATE of `status`, which the
---     partnership_guard_status trigger rejects for the sender.
+--     partnership_guard_status trigger rejects for the sender;
+--   * membership is immutable: no UPDATE may change `user_id_1` / `user_id_2`
+--     (covers todo.md 11.2), so an existing pair cannot be re-pointed to a
+--     third party.
 --
 -- Assertion style follows the rest of this directory: IS DISTINCT FROM for
 -- comparisons, a pinned SQLSTATE (42501) for a denied write, and a re-read with
@@ -325,6 +328,65 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- H. membership is immutable: a member of an accepted pair may not re-point it
+--    to a third party, which would cut the partner off and hand the couple's
+--    data to someone else.
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+RESET request.jwt.claims;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000001"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9001 AND user_id_2 = 9002;
+
+  IF v_id IS NULL
+     OR (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'H failed: the alice-bob partnership is not accepted';
+  END IF;
+
+  v_state := pg_temp.rls_try(format(
+    'UPDATE public.partnerships SET user_id_2 = 9003 WHERE id = %s', v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'H failed: re-pointing user_id_2 gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try(format(
+    'UPDATE public.partnerships SET user_id_1 = 9003 WHERE id = %s', v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'H failed: re-pointing user_id_1 gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try(format(
+    'UPDATE public.partnerships SET user_id_1 = NULL WHERE id = %s', v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'H failed: nulling user_id_1 gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+END $$;
+
+-- H-post: the accepted pair is untouched, checked with the RLS bypass in place.
+RESET ROLE;
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.partnerships
+       WHERE user_id_1 = 9001 AND user_id_2 = 9002 AND status = 'accepted') <> 1 THEN
+    RAISE EXCEPTION 'H-post failed: the accepted alice-bob pair is gone';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships WHERE user_id_1 = 9001 AND user_id_2 = 9003)
+     OR EXISTS (SELECT 1 FROM public.partnerships WHERE user_id_1 = 9003 AND user_id_2 = 9002) THEN
+    RAISE EXCEPTION 'H-post failed: a re-pointed row exists';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- F. final state: exactly the three accepted rows the sanctioned path produced
 -- ---------------------------------------------------------------------------
 RESET ROLE;
@@ -342,4 +404,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C partnership_request creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly)' AS result;
+SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C partnership_request creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly, H membership is immutable)' AS result;

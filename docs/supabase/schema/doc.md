@@ -74,7 +74,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `partnerships_pkey` (PRIMARY KEY: `id`)
   - `partnerships_user_id_1_fkey` (FOREIGN KEY: `user_id_1` REFERENCES `users(id)` ON DELETE CASCADE)
   - `partnerships_user_id_2_fkey` (FOREIGN KEY: `user_id_2` REFERENCES `users(id)` ON DELETE CASCADE)
-- **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `util_set_updated_at()`), `guard_public_partnerships_status` (BEFORE UPDATE EXECUTE `partnership_guard_status()` — rejects a `status` change made by anyone but `user_id_2`, the invited partner)
+- **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `util_set_updated_at()`), `guard_public_partnerships_status` (BEFORE UPDATE EXECUTE `partnership_guard_status()` — rejects any change to `user_id_1` / `user_id_2`, and a `status` change made by anyone but `user_id_2`, the invited partner)
 - **RLS Policies:**
   - `partnerships_select_own` (FOR SELECT, `TO authenticated`, USING `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)
   - `partnerships_update_own` (FOR UPDATE, `TO authenticated`, USING + WITH CHECK `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)

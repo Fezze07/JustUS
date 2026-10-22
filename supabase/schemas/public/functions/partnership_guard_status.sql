@@ -8,6 +8,12 @@ DECLARE
 BEGIN
   v_caller_id := public.user_current_id();
 
+  IF NEW.user_id_1 IS DISTINCT FROM OLD.user_id_1
+     OR NEW.user_id_2 IS DISTINCT FROM OLD.user_id_2 THEN
+    RAISE EXCEPTION 'API-VALIDATION-009: Partnership members cannot be changed'
+      USING ERRCODE = '42501';
+  END IF;
+
   IF NEW.status IS DISTINCT FROM OLD.status
      AND v_caller_id IS NOT NULL
      AND v_caller_id IS DISTINCT FROM NEW.user_id_2 THEN
