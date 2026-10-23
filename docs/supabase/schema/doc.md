@@ -70,10 +70,17 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `anniversary_date`: `date`
   - `created_at`: `timestamp with time zone` DEFAULT `now()`
   - `updated_at`: `timestamp with time zone` DEFAULT `now()`
+  - `cancel_requested_by`: `integer` (FK -> `users.id` ON DELETE CASCADE) — member who requested cancellation
+  - `cancel_expires_at`: `timestamp with time zone` — request deadline; the row reverts to `accepted` when it passes
+  - `cancel_declined_at`: `timestamp with time zone` — last partner decline, drives the 24h re-request cooldown
 - **Constraints:**
   - `partnerships_pkey` (PRIMARY KEY: `id`)
   - `partnerships_user_id_1_fkey` (FOREIGN KEY: `user_id_1` REFERENCES `users(id)` ON DELETE CASCADE)
   - `partnerships_user_id_2_fkey` (FOREIGN KEY: `user_id_2` REFERENCES `users(id)` ON DELETE CASCADE)
+  - `partnerships_cancel_requested_by_fkey` (FOREIGN KEY: `cancel_requested_by` REFERENCES `users(id)` ON DELETE CASCADE)
+  - `partnerships_status_check` (CHECK: `status IN ('pending', 'accepted', 'cancelled')`)
+  - `partnerships_cancel_requester_check` (CHECK: `cancel_requested_by IS NULL OR cancel_requested_by = user_id_1 OR cancel_requested_by = user_id_2`)
+  - `partnerships_cancel_state_check` (CHECK: `status = 'cancelled'` ⇔ `cancel_requested_by` and `cancel_expires_at` are both non-NULL)
 - **Triggers:** `set_public_partnerships_updated_at` (BEFORE UPDATE EXECUTE `util_set_updated_at()`), `guard_public_partnerships_status` (BEFORE UPDATE EXECUTE `partnership_guard_status()` — rejects any change to `user_id_1` / `user_id_2`, and a `status` change made by anyone but `user_id_2`, the invited partner)
 - **RLS Policies:**
   - `partnerships_select_own` (FOR SELECT, `TO authenticated`, USING `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)

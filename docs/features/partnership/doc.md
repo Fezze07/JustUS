@@ -57,7 +57,7 @@ The partnership architecture spans three main layers:
    - [auth.schemas.js](file:///f:/JustUS/Backend/features/auth/auth.schemas.js): Zod schemas `inviteSchema` (email format + 6-character partnership code) and `inviteUserSchema` (`email` + optional `redirectTo` URL).
 
 3. **Database Layer (Supabase / PostgreSQL)**:
-   - `public.partnerships`: Main database table storing pair relationships with columns `id`, `user_id_1`, `user_id_2`, `status`, `anniversary_date`, `created_at`, `updated_at`.
+   - `public.partnerships`: Main database table storing pair relationships with columns `id`, `user_id_1`, `user_id_2`, `status`, `anniversary_date`, `created_at`, `updated_at`, plus the cancellation state fields `cancel_requested_by`, `cancel_expires_at`, `cancel_declined_at`. The cancellation fields are constrained (`status IN ('pending', 'accepted', 'cancelled')`, requester must be a member, requester and expiry set only while `cancelled`), but no request/approve flow writes them yet.
    - `public.user_profiles`: Stores user profile metadata including unique `partnership_code`.
    - `v_active_partnership`: PostgreSQL view returning the accepted partner's profile details (`partner_id`, `partner_display_name`, `partner_profile_pic_url`).
    - Stored Procedures: `partnership_request(partner_email, partner_code)`, `partnership_accept(p_partnership_id)`, and `partnership_get_pending_invitations()` (pending-request identity for the caller only).
