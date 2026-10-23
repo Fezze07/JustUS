@@ -50,7 +50,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Execution Conditions & Validation Rules:**
   1. Identifies caller ID via `override_sender_id` or `public.user_current_id()`.
   2. Raises EXCEPTION if user is not authenticated (`API-VALIDATION-003`).
-  3. Checks if user is already in a `'pending'` or `'accepted'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`).
+  3. Checks if user is already in a `'pending'`, `'accepted'` or `'cancelled'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`).
   4. Looks up recipient matching BOTH `email = partner_email` and `partnership_code = UPPER(partner_code)`. Raises EXCEPTION if not found (`API-VALIDATION-005`).
   5. Prevents self-invitation (`v_partner_id = v_current_user_id`). Raises EXCEPTION (`API-VALIDATION-006`).
 * **Error Contract:** Every raise is `RAISE EXCEPTION '<CODE>: <developer text>';`. `wrapRpc` ([dbUtils.js](file:///f:/JustUS/Backend/utils/db/dbUtils.js)) reads the code prefix and turns it into an `AppError` with that code, so the client localizes it through `ErrorCodes.userMessage` (see [localization/doc.md](file:///f:/JustUS/docs/app/localization/doc.md)). The text after the prefix is a developer-facing note only; it never reaches the UI.

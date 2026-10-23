@@ -23,7 +23,7 @@ BEGIN
     RAISE EXCEPTION 'API-VALIDATION-003: User not authenticated or invalid ID';
   END IF;
 
-  IF EXISTS (SELECT 1 FROM public.partnerships WHERE (user_id_1 = v_current_user_id OR user_id_2 = v_current_user_id) AND status IN ('pending', 'accepted')) THEN
+  IF EXISTS (SELECT 1 FROM public.partnerships WHERE (user_id_1 = v_current_user_id OR user_id_2 = v_current_user_id) AND status IN ('pending', 'accepted', 'cancelled')) THEN
     RAISE EXCEPTION 'API-VALIDATION-004: Partnership request already exists';
   END IF;
 

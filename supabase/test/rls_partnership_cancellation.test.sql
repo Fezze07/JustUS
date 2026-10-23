@@ -42,8 +42,8 @@
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
 -- E (tamper), G (expiry), K (cancellation read), L (push partner), F
--- (accept by partner), I (double-accept guard) and the J mood checks; H
--- (11.1/11.2) and the cancelled-sender half of I belong to later items.
+-- (accept by partner), I (double-accept guard and cancelled-sender freeze) and
+-- the J mood checks; H (11.1/11.2) belongs to a later item.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -1256,6 +1256,32 @@ BEGIN
   DELETE FROM public.partnerships WHERE id = v_pid;
 END $$;
 
+-- I2. a cancelled sender cannot start a new pairing (B.8).
+RESET ROLE;
+RESET request.jwt.claims;
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  v_msg text;
+BEGIN
+  BEGIN
+    PERFORM public.partnership_request('frank@cancellation-test.local', 'CAL106', 9103);
+  EXCEPTION WHEN OTHERS THEN
+    v_msg := SQLERRM;
+  END;
+
+  IF v_msg IS NULL OR v_msg NOT LIKE 'API-VALIDATION-004:%' THEN
+    RAISE EXCEPTION 'I2 failed: the cancelled sender request gave %',
+      coalesce(v_msg, 'no error (the request was created)');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships
+              WHERE user_id_1 = 9103 AND user_id_2 = 9106) THEN
+    RAISE EXCEPTION 'I2 failed: the cancelled sender created a request';
+  END IF;
+END $$;
+RESET ROLE;
+
 -- ---------------------------------------------------------------------------
 -- Final state: alice-bob accepted, alice-carol pending, carol-dave cancelled
 -- with dave still the requester.
@@ -1414,4 +1440,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, I cancelled sender cannot start a new pairing, final state)' AS result;
