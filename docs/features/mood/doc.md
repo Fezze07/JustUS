@@ -211,7 +211,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 
 - Table `public.moods` RLS policies:
   - **SELECT**: Allowed if `user_id = user_current_id()` OR `partnership_is_partner(user_id) = true`.
-  - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = user_current_id()`).
+  - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = user_current_id()`). INSERT and UPDATE additionally require `partnership_id IS NULL OR partnership_is_member(partnership_id)`, so a client cannot attach a mood to another pair's partnership or to a pending/cancelled one.
 - `public.moods.partnership_id` references `public.partnerships(id)` with `ON DELETE CASCADE`, so a couple's mood history is removed with the partnership. No backfill was needed (the table was empty); a mood written outside a partnership stays `NULL`. `mood_set` resolves the caller's `accepted` partnership and stores its id, so a paired user's new mood always belongs to the couple.
 - RPC `mood_set`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials (including the partnership lookup).
 

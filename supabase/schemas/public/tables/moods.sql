@@ -29,7 +29,8 @@ CREATE POLICY "moods_delete_own" ON "public"."moods"
 CREATE POLICY "moods_manage_own" ON "public"."moods"
   FOR INSERT
   TO PUBLIC
-  WITH CHECK ((user_id = public.user_current_id()));
+  WITH CHECK ((user_id = public.user_current_id())
+    AND ((partnership_id IS NULL) OR public.partnership_is_member(partnership_id)));
 
 CREATE POLICY "moods_related_access" ON "public"."moods"
   FOR SELECT
@@ -40,6 +41,7 @@ CREATE POLICY "moods_update_own" ON "public"."moods"
   FOR UPDATE
   TO PUBLIC
   USING ((user_id = public.user_current_id()))
-  WITH CHECK ((user_id = public.user_current_id()));
+  WITH CHECK ((user_id = public.user_current_id())
+    AND ((partnership_id IS NULL) OR public.partnership_is_member(partnership_id)));
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."moods" TO "anon", "authenticated", "postgres", "service_role";

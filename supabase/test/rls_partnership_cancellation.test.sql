@@ -801,30 +801,8 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- J. moods follow the partnership (A.5 cascade)
+-- J. moods follow the partnership (A.5 cascade, A.6 write, A.7 policy)
 -- ---------------------------------------------------------------------------
--- Runs after the final-state check because it deletes the carol-dave fixture.
-DO $$
-DECLARE
-  v_mood_id integer;
-BEGIN
-  INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
-    SELECT 9104, NULL, id FROM public.partnerships
-     WHERE user_id_1 = 9103 AND user_id_2 = 9104
-    RETURNING id INTO v_mood_id;
-
-  IF v_mood_id IS NULL THEN
-    RAISE EXCEPTION 'J failed: the mood insert was refused';
-  END IF;
-
-  DELETE FROM public.partnerships
-   WHERE user_id_1 = 9103 AND user_id_2 = 9104;
-
-  IF EXISTS (SELECT 1 FROM public.moods WHERE id = v_mood_id) THEN
-    RAISE EXCEPTION 'J failed: the mood outlived the partnership';
-  END IF;
-END $$;
-
 -- J2. mood_set writes the caller's accepted partnership id (A.6).
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101","role":"authenticated"}';
@@ -859,9 +837,91 @@ BEGIN
   END IF;
 END $$;
 
+-- J4. a client cannot attach a mood to a partnership it does not belong to
+--     (the cancelled carol-dave row).
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101","role":"authenticated"}';
+DO $$
+DECLARE
+  v_state text;
+BEGIN
+  v_state := pg_temp.rls_try(format($q$
+    INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
+    VALUES (9101, NULL, %s)$q$, current_setting('test.cd_id')));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'J4 failed: attaching a mood to a foreign partnership gave %, expected 42501',
+      coalesce(v_state, 'no error (the insert was allowed)');
+  END IF;
+END $$;
+
+-- J5. a mood may stay unattached, but it cannot be attached to, or moved onto,
+--     a partnership the caller belongs to that is not accepted.
+DO $$
+DECLARE
+  v_mood_id integer;
+  v_pending_id integer;
+  v_state text;
+BEGIN
+  INSERT INTO public.moods (user_id, mood_type_id) VALUES (9101, NULL)
+    RETURNING id INTO v_mood_id;
+
+  SELECT id INTO v_pending_id FROM public.partnerships
+   WHERE user_id_1 = 9101 AND user_id_2 = 9103;
+
+  v_state := pg_temp.rls_try(format($q$
+    INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
+    VALUES (9101, NULL, %s)$q$, v_pending_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'J5 failed: attaching a pending partnership gave %, expected 42501',
+      coalesce(v_state, 'no error (the insert was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.moods SET partnership_id = %s WHERE id = %s$q$, v_pending_id, v_mood_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'J5 failed: moving a mood onto a pending partnership gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  IF (SELECT partnership_id FROM public.moods WHERE id = v_mood_id) IS NOT NULL THEN
+    RAISE EXCEPTION 'J5 failed: the mood moved despite the rejection';
+  END IF;
+
+  v_state := pg_temp.rls_try(format($q$
+    INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
+    VALUES (9101, NULL, %s)$q$,
+    (SELECT id FROM public.partnerships
+      WHERE user_id_1 = 9101 AND user_id_2 = 9102)));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'J5 failed: attaching the accepted partnership gave %', v_state;
+  END IF;
+END $$;
+
 RESET ROLE;
 RESET request.jwt.claims;
 
+-- J1. deleting the partnership cascades its moods (A.5). Runs last because it
+--     removes the carol-dave fixture.
+DO $$
+DECLARE
+  v_mood_id integer;
+BEGIN
+  INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
+    SELECT 9104, NULL, id FROM public.partnerships
+     WHERE user_id_1 = 9103 AND user_id_2 = 9104
+    RETURNING id INTO v_mood_id;
+
+  IF v_mood_id IS NULL THEN
+    RAISE EXCEPTION 'J1 failed: the mood insert was refused';
+  END IF;
+
+  DELETE FROM public.partnerships
+   WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  IF EXISTS (SELECT 1 FROM public.moods WHERE id = v_mood_id) THEN
+    RAISE EXCEPTION 'J1 failed: the mood outlived the partnership';
+  END IF;
+END $$;
+
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;

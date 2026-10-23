@@ -17,7 +17,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 | `users` | **ENABLED** | Self (`auth_id = auth.uid()`) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = user_current_id()`) | Denied (Default) | `authenticated`, `service_role` |
 | `user_profiles` | **ENABLED** | Self + accepted partner | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | Denied (Default) | `authenticated` |
 | `partnerships` | **ENABLED** | Members (`user_1` or `user_2`) | Denied (Default) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`), `pending` only | `authenticated` |
-| `moods` | **ENABLED** | Self or Partner | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | `PUBLIC` |
+| `moods` | **ENABLED** | Self or Partner | Self (`user_id = user_current_id()`) + NULL/own accepted `partnership_id` | Self (`user_id = user_current_id()`) + NULL/own accepted `partnership_id` | Self (`user_id = user_current_id()`) | `PUBLIC` |
 | `missyou` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `bucket_items` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
 | `game_questions` | **ENABLED** | Partnership Members | Partnership Members | Partnership Members | Partnership Members | `PUBLIC` |
@@ -98,8 +98,8 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 #### `moods`
 - **Policies:**
   - `moods_related_access` (SELECT): `USING ((user_id = public.user_current_id()) OR public.partnership_is_partner(user_id))`
-  - `moods_manage_own` (INSERT), `moods_update_own` (UPDATE), `moods_delete_own` (DELETE): `user_id = public.user_current_id()` (UPDATE carries explicit `WITH CHECK (user_id = public.user_current_id())`)
-- **Assessment:** `partnership_is_partner` filters by `status = 'accepted'` as well, so only an accepted partner's mood rows are readable.
+  - `moods_manage_own` (INSERT), `moods_update_own` (UPDATE), `moods_delete_own` (DELETE): `user_id = public.user_current_id()`, and the INSERT/UPDATE `WITH CHECK` also requires `partnership_id IS NULL OR public.partnership_is_member(partnership_id)`
+- **Assessment:** `partnership_is_partner` filters by `status = 'accepted'` as well, so only an accepted partner's mood rows are readable. A client can only tag a mood with its own **accepted** partnership or leave it unattached; another pair's id or a pending/cancelled row is rejected.
 
 #### `game_answers` & `drive_item_reactions` & `favorites`
 - **Policies:**
@@ -163,6 +163,6 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`partnership_is_member`, `partnership_is_partner`, and `private.is_related_user` all require `status = 'accepted'`)
 - **Client-Uncreatable Partnerships:** **IMPLEMENTED** (`partnerships` has no INSERT policy and no `anon` INSERT grant — rows are created only by the backend through `partnership_request`; `partnership_accept` accepts only when the caller is `user_id_2`, the `guard_public_partnerships_status` trigger rejects a `status` change by the sender and any change to `user_id_1` / `user_id_2`, and it only permits the cancellation transitions (member request `-010`, member revert `-011`, unchanged cancelled row `-012`), so a client can neither forge nor re-point an `accepted` partnership)
 - **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (partnership_is_member(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
-- **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_update_own`; backend-only on `logs_auth_failures`)
+- **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + `partnership_id IS NULL OR partnership_is_member(partnership_id)` on `moods_manage_own`/`moods_update_own`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_update_own`; backend-only on `logs_auth_failures`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `partnership_get_pending_invitations` RPC)
 - **Read-Only Question Catalog:** **IMPLEMENTED** (`game_question_bank` carries only a `FOR SELECT TO PUBLIC USING (true)` policy, so it is world-readable and client-unwritable)

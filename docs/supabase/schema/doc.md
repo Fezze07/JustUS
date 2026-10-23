@@ -95,7 +95,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 #### `moods`
 - **SQL Source:** `supabase/schemas/public/tables/moods.sql`
 - **Columns:** `id` (`integer`, PK, DEFAULT `nextval('moods_id_seq')`), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `mood_type_id` (`bigint`, FK -> `emojis.id`), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE, indexed), `created_at` (`timestamp with time zone`, DEFAULT `now()`).
-- **RLS:** `moods_related_access` (SELECT user or accepted partner), `moods_manage_own` (INSERT WITH CHECK `user_id = user_current_id()`), `moods_update_own` (UPDATE USING + WITH CHECK `user_id = user_current_id()`), `moods_delete_own` (DELETE self).
+- **RLS:** `moods_related_access` (SELECT user or accepted partner), `moods_manage_own` (INSERT WITH CHECK `user_id = user_current_id() AND (partnership_id IS NULL OR partnership_is_member(partnership_id))`), `moods_update_own` (UPDATE USING `user_id = user_current_id()`, same `WITH CHECK`), `moods_delete_own` (DELETE self).
 
 #### `missyou`
 - **SQL Source:** `supabase/schemas/public/tables/missyou.sql`

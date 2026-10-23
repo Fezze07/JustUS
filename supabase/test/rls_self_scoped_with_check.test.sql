@@ -41,7 +41,7 @@ END $$;
 -- Fixtures (inserted as superuser, which bypasses RLS)
 --   9001 alice <-> 9002 bob    : 9001 accepted partnership
 --   9001 alice <-> 9003 carol  : 9002 pending partnership
---   9001 alice <-> 9004 dave   : 9003 rejected partnership
+--   9001 alice <-> 9004 dave   : 9003 cancelled partnership
 -- ---------------------------------------------------------------------------
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9001, '00000000-0000-0000-0000-000000000001', 'alice@rls-test.local'),
@@ -55,15 +55,15 @@ INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUE
   (9003, 'Carol', 'CAROL3'),
   (9004, 'Dave',  'DAVE44');
 
-INSERT INTO public.partnerships (id, user_id_1, user_id_2, status) VALUES
-  (9001, 9001, 9002, 'accepted'),
-  (9002, 9001, 9003, 'pending'),
-  (9003, 9001, 9004, 'rejected');
+INSERT INTO public.partnerships (id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at) VALUES
+  (9001, 9001, 9002, 'accepted',  NULL, NULL),
+  (9002, 9001, 9003, 'pending',   NULL, NULL),
+  (9003, 9001, 9004, 'cancelled', 9001, now() + interval '7 days');
 
 INSERT INTO public.drive_items (id, type, name, partnership_id) VALUES
   (9010, 'image', 'accepted-photo.png', 9001),
   (9011, 'image', 'pending-photo.png',  9002),
-  (9012, 'image', 'rejected-photo.png', 9003);
+  (9012, 'image', 'cancelled-photo.png', 9003);
 
 INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
   (9040, 9001, 'game_q_accepted',  9001, 9002),
@@ -100,7 +100,7 @@ BEGIN
   END IF;
   IF (SELECT status FROM public.partnerships WHERE id = 9001) IS DISTINCT FROM 'accepted'
      OR (SELECT status FROM public.partnerships WHERE id = 9002) IS DISTINCT FROM 'pending'
-     OR (SELECT status FROM public.partnerships WHERE id = 9003) IS DISTINCT FROM 'rejected' THEN
+     OR (SELECT status FROM public.partnerships WHERE id = 9003) IS DISTINCT FROM 'cancelled' THEN
     RAISE EXCEPTION 'fixture failed: partnership statuses are incorrect';
   END IF;
 END $$;
@@ -299,7 +299,7 @@ BEGIN
   v_state := pg_temp.rls_try($q$
     UPDATE public.favorites SET item_id = 9012 WHERE user_id = 9001 AND item_id = 9010$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'F failed: moving favorite onto rejected item gave %, expected 42501',
+    RAISE EXCEPTION 'F failed: moving favorite onto cancelled item gave %, expected 42501',
       coalesce(v_state, 'no error (the update was allowed)');
   END IF;
 
@@ -307,7 +307,7 @@ BEGIN
     RAISE EXCEPTION 'F failed: favorite item changed despite the rejection';
   END IF;
   IF EXISTS (SELECT 1 FROM public.favorites WHERE user_id = 9001 AND item_id = 9012) THEN
-    RAISE EXCEPTION 'F failed: favorite leaked onto the rejected item';
+    RAISE EXCEPTION 'F failed: favorite leaked onto the cancelled item';
   END IF;
 
   DELETE FROM public.favorites WHERE user_id = 9001 AND item_id = 9010;
