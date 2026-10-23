@@ -123,6 +123,7 @@ DECLARE
   v_fn text[] := ARRAY[
     'public.debug_wipe_user_data(integer)',
     'public.partnership_expire_cancellations()',
+    'public.partnership_get_cancellation_partner(integer)',
     'public.partnership_get_names(integer)',
     'public.user_create_from_auth()',
     'public.device_purge_dead_sessions()',

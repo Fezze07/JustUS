@@ -124,6 +124,19 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `partnership_get_cancellation_partner(p_user_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_get_cancellation_partner.sql`
+* **Purpose:** Lets the backend address the cancellation-request push to the other member of a cancelled pair, without a client-readable "who is my ex-partner" lookup.
+* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`, `STABLE`. Backend-only: not executable by `authenticated` or `anon`.
+* **Inputs:** `p_user_id integer`.
+* **Outputs:** `integer` — the other member's user id, or NULL when the user has no `cancelled` row.
+* **Tables Touched:** `public.partnerships` (SELECT).
+* **Execution Conditions:** Selects the most recent (`id DESC`) `cancelled` row where `p_user_id` is `user_id_1` or `user_id_2` and returns the opposite member; accepted/pending rows are ignored.
+* **Caller:** none yet; intended for the backend request push on `service_role`.
+* **Side Effects:** Read-only.
+
+---
+
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
 * **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
