@@ -1,9 +1,11 @@
 CREATE TABLE "public"."moods" (
-  "id"           integer                  NOT NULL DEFAULT nextval('public.moods_id_seq'::regclass),
-  "user_id"      integer,
-  "created_at"   timestamp with time zone DEFAULT now(),
-  "mood_type_id" bigint,
+  "id"             integer                  NOT NULL DEFAULT nextval('public.moods_id_seq'::regclass),
+  "user_id"        integer,
+  "created_at"     timestamp with time zone DEFAULT now(),
+  "mood_type_id"   bigint,
+  "partnership_id" integer,
   CONSTRAINT "moods_mood_type_id_fkey" FOREIGN KEY (mood_type_id) REFERENCES public.emojis(id) ON DELETE CASCADE,
+  CONSTRAINT "moods_partnership_id_fkey" FOREIGN KEY (partnership_id) REFERENCES public.partnerships(id) ON DELETE CASCADE,
   CONSTRAINT "moods_pkey" PRIMARY KEY (id),
   CONSTRAINT "moods_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
@@ -14,6 +16,8 @@ ALTER TABLE "public"."moods"
 ALTER SEQUENCE "public"."moods_id_seq" OWNED BY "public"."moods"."id";
 
 CREATE INDEX idx_moods_mood_type_id ON public.moods USING btree (mood_type_id);
+
+CREATE INDEX idx_moods_partnership_id ON public.moods USING btree (partnership_id);
 
 CREATE INDEX idx_moods_user_id ON public.moods USING btree (user_id);
 

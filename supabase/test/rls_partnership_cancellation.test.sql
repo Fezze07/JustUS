@@ -26,8 +26,9 @@
 --   * a member may raw-`DELETE` only a `pending` row: an accepted or
 --     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`.
 --
--- Sections A (request), B (delete), C (revert) and E (tamper); D (cooldown),
--- F (accept), G (expiry), H (11.1/11.2) and I/J belong to later items.
+-- Sections A (request), B (delete), C (revert), E (tamper) and the J cascade
+-- check; D (cooldown), F (accept), G (expiry), H (11.1/11.2) and the rest of
+-- I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -799,6 +800,31 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- J. moods follow the partnership (A.5 cascade)
+-- ---------------------------------------------------------------------------
+-- Runs after the final-state check because it deletes the carol-dave fixture.
+DO $$
+DECLARE
+  v_mood_id integer;
+BEGIN
+  INSERT INTO public.moods (user_id, mood_type_id, partnership_id)
+    SELECT 9104, NULL, id FROM public.partnerships
+     WHERE user_id_1 = 9103 AND user_id_2 = 9104
+    RETURNING id INTO v_mood_id;
+
+  IF v_mood_id IS NULL THEN
+    RAISE EXCEPTION 'J failed: the mood insert was refused';
+  END IF;
+
+  DELETE FROM public.partnerships
+   WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  IF EXISTS (SELECT 1 FROM public.moods WHERE id = v_mood_id) THEN
+    RAISE EXCEPTION 'J failed: the mood outlived the partnership';
+  END IF;
+END $$;
+
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, final state)' AS result;

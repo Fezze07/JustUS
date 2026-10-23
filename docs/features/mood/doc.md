@@ -60,6 +60,7 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 | `id` | `integer` | `PRIMARY KEY` | Unique identifier for mood entry. |
 | `user_id` | `integer` | `FOREIGN KEY (users.id)` | Identifier of the user who set the mood. |
 | `mood_type_id` | `bigint` | `FOREIGN KEY (emojis.id)` | Reference to the emoji dictionary record. |
+| `partnership_id` | `integer` | `FOREIGN KEY (partnerships.id) ON DELETE CASCADE`, indexed | Couple the mood belongs to; deleted with the partnership. |
 | `created_at` | `timestamp with time zone` | `DEFAULT NOW()` | UTC timestamp when mood was recorded. |
 
 ### Application Model (`MoodEntry`)
@@ -210,6 +211,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 - Table `public.moods` RLS policies:
   - **SELECT**: Allowed if `user_id = user_current_id()` OR `partnership_is_partner(user_id) = true`.
   - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = user_current_id()`).
+- `public.moods.partnership_id` references `public.partnerships(id)` with `ON DELETE CASCADE`, so a couple's mood history is removed with the partnership. No backfill was needed (the table was empty); a mood written outside a partnership stays `NULL`.
 - RPC `mood_set`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials.
 
 ---
