@@ -14,6 +14,17 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- The trigger is the only writer of the cooldown timestamp: a partner
+  -- decline records it, everything else keeps OLD.
+  IF OLD.status = 'cancelled'
+     AND NEW.status = 'accepted'
+     AND v_caller_id IS NOT NULL
+     AND v_caller_id IS DISTINCT FROM OLD.cancel_requested_by THEN
+    NEW.cancel_declined_at := now();
+  ELSE
+    NEW.cancel_declined_at := OLD.cancel_declined_at;
+  END IF;
+
   -- The backend and the expiry job write without a user JWT.
   IF v_caller_id IS NULL THEN
     RETURN NEW;

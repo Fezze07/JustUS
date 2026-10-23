@@ -19,7 +19,10 @@
 --   * the cancellation fields are read-only on a non-status update, so a raw
 --     PATCH cannot pre-seed or tamper with them;
 --   * any other status change is rejected (`API-VALIDATION-012`);
---   * pending -> accepted is still recipient-only (`API-VALIDATION-008`).
+--   * pending -> accepted is still recipient-only (`API-VALIDATION-008`);
+--   * a partner decline records `cancel_declined_at`, while a requester
+--     restore, the service-role expiry path and every other update preserve
+--     it, so a client cannot clear or forge the cooldown.
 --
 -- Sections A (request), C (revert) and E (tamper); B (delete), D (cooldown),
 -- F (accept), G (expiry), H (11.1/11.2) and I/J belong to later items.
@@ -249,8 +252,9 @@ BEGIN
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted'
      OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS NOT NULL
-     OR (SELECT cancel_expires_at FROM public.partnerships WHERE id = v_id) IS NOT NULL THEN
-    RAISE EXCEPTION 'C1 failed: the row is not accepted with NULL cancellation fields';
+     OR (SELECT cancel_expires_at FROM public.partnerships WHERE id = v_id) IS NOT NULL
+     OR (SELECT cancel_declined_at FROM public.partnerships WHERE id = v_id) IS NOT NULL THEN
+    RAISE EXCEPTION 'C1 failed: the row is not accepted with NULL cancellation fields and no decline';
   END IF;
 END $$;
 
@@ -278,6 +282,57 @@ BEGIN
      OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS NOT NULL
      OR (SELECT cancel_expires_at FROM public.partnerships WHERE id = v_id) IS NOT NULL THEN
     RAISE EXCEPTION 'C2 failed: the row is not accepted with NULL cancellation fields';
+  END IF;
+
+  IF (SELECT cancel_declined_at FROM public.partnerships WHERE id = v_id)
+       NOT BETWEEN now() - interval '1 minute' AND now() THEN
+    RAISE EXCEPTION 'C2 failed: the partner decline did not record cancel_declined_at';
+  END IF;
+
+  PERFORM set_config('test.declined_at',
+    (SELECT cancel_declined_at::text FROM public.partnerships WHERE id = v_id), true);
+END $$;
+
+-- C2b. a raw PATCH can neither clear nor forge the decline timestamp: the
+--      trigger forces it back to the stored value.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+  v_before timestamptz;
+BEGIN
+  SELECT id, cancel_declined_at INTO v_id, v_before FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  IF v_before IS NULL THEN
+    RAISE EXCEPTION 'C2b failed: no decline timestamp to protect';
+  END IF;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships
+       SET cancel_declined_at = NULL
+     WHERE id = %s$q$, v_id));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'C2b failed: clearing the timestamp gave %', v_state;
+  END IF;
+
+  IF (SELECT cancel_declined_at FROM public.partnerships WHERE id = v_id)
+       IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'C2b failed: the client cleared cancel_declined_at';
+  END IF;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships
+       SET cancel_declined_at = now() - interval '10 days'
+     WHERE id = %s$q$, v_id));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'C2b failed: forging the timestamp gave %', v_state;
+  END IF;
+
+  IF (SELECT cancel_declined_at FROM public.partnerships WHERE id = v_id)
+       IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'C2b failed: the client forged cancel_declined_at';
   END IF;
 END $$;
 
@@ -373,6 +428,44 @@ BEGIN
   IF (SELECT status FROM public.partnerships
        WHERE user_id_1 = 9103 AND user_id_2 = 9104) IS DISTINCT FROM 'accepted' THEN
     RAISE EXCEPTION 'C5 failed: the service-role revert did not restore accepted';
+  END IF;
+
+  -- The expiry path is not a partner decline, so it must not touch the cooldown.
+  IF (SELECT cancel_declined_at FROM public.partnerships
+       WHERE user_id_1 = 9103 AND user_id_2 = 9104)
+       IS DISTINCT FROM current_setting('test.declined_at')::timestamptz THEN
+    RAISE EXCEPTION 'C5 failed: the service-role revert changed cancel_declined_at';
+  END IF;
+END $$;
+
+-- C6. a requester restore keeps the stored decline timestamp.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_before timestamptz;
+BEGIN
+  SELECT id, cancel_declined_at INTO v_id, v_before FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  UPDATE public.partnerships
+     SET status = 'cancelled',
+         cancel_requested_by = 9104,
+         cancel_expires_at = now() + interval '7 days'
+   WHERE id = v_id;
+
+  UPDATE public.partnerships
+     SET status = 'accepted',
+         cancel_requested_by = NULL,
+         cancel_expires_at = NULL
+   WHERE id = v_id;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted'
+     OR (SELECT cancel_declined_at FROM public.partnerships WHERE id = v_id)
+          IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'C6 failed: the requester restore disturbed the cooldown';
   END IF;
 END $$;
 
@@ -559,8 +652,14 @@ BEGIN
           WHERE user_id_1 = 9103 AND user_id_2 = 9104) IS NULL THEN
     RAISE EXCEPTION 'final failed: carol-dave is not cancelled with dave as requester';
   END IF;
+
+  IF (SELECT cancel_declined_at FROM public.partnerships
+       WHERE user_id_1 = 9103 AND user_id_2 = 9104)
+       IS DISTINCT FROM current_setting('test.declined_at')::timestamptz THEN
+    RAISE EXCEPTION 'final failed: the cooldown timestamp changed during the tamper section';
+  END IF;
 END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, C requester/partner revert, C non-member denied, C revert of non-cancelled denied, C service-role revert, E tamper denied, E ordinary update allowed, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, final state)' AS result;
