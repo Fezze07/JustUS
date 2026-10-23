@@ -22,7 +22,10 @@
 --   4. the only tables an unauthenticated role may read without restriction are
 --      the six public catalogs;
 --   5. any other policy reachable by anon/public must be gated on the caller's
---      identity, so an accidental USING (true) on user data fails here.
+--      identity, so an accidental USING (true) on user data fails here;
+--   6. the only DELETE-granting policy on `partnerships` is the pending-only
+--      one, so an accepted/cancelled pair cannot be destroyed from the client;
+--   7. both mood write policies gate `partnership_id` on an accepted partnership.
 -- =============================================================================
 
 BEGIN;
@@ -228,6 +231,72 @@ END $$;
 
 RESET ROLE;
 
+-- ---------------------------------------------------------------------------
+-- 7: the only DELETE-granting policy on partnerships is pending-only.
+--
+--    A second permissive DELETE (or FOR ALL) policy would widen the delete
+--    surface without touching the reviewed policy, so the count is asserted
+--    too, not just the definition of the known policy.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  r          record;
+  v_count    int := 0;
+  v_offend   text := '';
+BEGIN
+  FOR r IN
+    SELECT policyname, qual
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'partnerships'
+      AND cmd IN ('DELETE', 'ALL')
+    ORDER BY policyname
+  LOOP
+    v_count := v_count + 1;
+
+    IF r.policyname <> 'partnerships_delete_own'
+       OR coalesce(r.qual, '') !~* 'status.*=.*''pending''' THEN
+      v_offend := v_offend || r.policyname || ', ';
+    END IF;
+  END LOOP;
+
+  IF v_count <> 1 OR v_offend <> '' THEN
+    RAISE EXCEPTION '7 failed: expected only the pending-only partnerships_delete_own, found % DELETE-granting policy/policies (offending: %)',
+      v_count, coalesce(nullif(v_offend, ''), 'none');
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 8: mood writes may attach only a NULL or accepted partnership id.
+--
+--    The INSERT and UPDATE policies must both carry the accepted-partnership
+--    gate; a missing WITH CHECK would let a client attach a mood to another
+--    pair (or to a pending/cancelled one) without any error.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_insert text;
+  v_update text;
+BEGIN
+  SELECT with_check INTO v_insert
+  FROM pg_policies
+  WHERE schemaname = 'public' AND tablename = 'moods' AND policyname = 'moods_manage_own';
+
+  SELECT with_check INTO v_update
+  FROM pg_policies
+  WHERE schemaname = 'public' AND tablename = 'moods' AND policyname = 'moods_update_own';
+
+  IF coalesce(v_insert, '') !~* 'partnership_is_member\(partnership_id\)' THEN
+    RAISE EXCEPTION '8 failed: moods_manage_own does not gate partnership_id on an accepted partnership (WITH CHECK: %)',
+      coalesce(v_insert, '<policy missing>');
+  END IF;
+
+  IF coalesce(v_update, '') !~* 'partnership_is_member\(partnership_id\)' THEN
+    RAISE EXCEPTION '8 failed: moods_update_own does not gate partnership_id on an accepted partnership (WITH CHECK: %)',
+      coalesce(v_update, '<policy missing>');
+  END IF;
+END $$;
+
 ROLLBACK;
 
-SELECT 'rls-policy-matrix: passed (1 RLS enabled everywhere, 2 no policy-less tables, 3 every FOR ALL has WITH CHECK, 4 public catalogs allowlisted, 5 anon policies identity-gated, 6 service_role bypass)' AS result;
+SELECT 'rls-policy-matrix: passed (1 RLS enabled everywhere, 2 no policy-less tables, 3 every FOR ALL has WITH CHECK, 4 public catalogs allowlisted, 5 anon policies identity-gated, 6 service_role bypass, 7 partnerships DELETE is pending-only, 8 mood writes gate the partnership)' AS result;

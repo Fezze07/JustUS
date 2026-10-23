@@ -242,7 +242,7 @@ HomepageScreen.initState()
 
 - Table `public.missyou` access is governed by the single `missyou_related` policy (`FOR ALL`, `TO PUBLIC`):
   - **SELECT / UPDATE / DELETE**: Only rows whose `partnership_id` belongs to an **accepted** partnership of the caller (`USING (partnership_is_member(partnership_id))`, which requires `status = 'accepted'`).
-  - **INSERT / UPDATE**: the new row must also satisfy `WITH CHECK (partnership_is_member(partnership_id))` — inserts into pending/rejected partnerships, and updates that move a row out of the caller's accepted partnership, are rejected at the DB layer.
+  - **INSERT / UPDATE**: the new row must also satisfy `WITH CHECK (partnership_is_member(partnership_id))` — inserts into pending/cancelled partnerships, and updates that move a row out of the caller's accepted partnership, are rejected at the DB layer.
 
 ---
 

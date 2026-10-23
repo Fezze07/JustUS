@@ -90,7 +90,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 
 #### `drive_items` & `bucket_items` & `game_questions` & `missyou`
 - **Policies:**
-  - `drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` (all `FOR ALL`, `TO PUBLIC`): `USING (public.partnership_is_member(partnership_id))` **with explicit `WITH CHECK (public.partnership_is_member(partnership_id))`** — writes (INSERT/UPDATE) are validated against the caller's accepted partnerships at the DB layer, so a row can never be created in — or moved into — a pending/rejected partnership.
+  - `drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` (all `FOR ALL`, `TO PUBLIC`): `USING (public.partnership_is_member(partnership_id))` **with explicit `WITH CHECK (public.partnership_is_member(partnership_id))`** — writes (INSERT/UPDATE) are validated against the caller's accepted partnerships at the DB layer, so a row can never be created in — or moved into — a pending/cancelled partnership.
 - **Helper Function `partnership_is_member` Code:**
   ```sql
   SELECT EXISTS (
@@ -100,7 +100,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
     AND (user_id_1 = public.user_current_id() OR user_id_2 = public.user_current_id())
   );
   ```
-- **Assessment:** **ACCEPTED-ONLY RELATIONSHIP CHECK**. `partnership_is_member` requires the `partnerships` row to both include the caller and have `status = 'accepted'`. Pending or rejected requests no longer grant any access.
+- **Assessment:** **ACCEPTED-ONLY RELATIONSHIP CHECK**. `partnership_is_member` requires the `partnerships` row to both include the caller and have `status = 'accepted'`. Pending or cancelled requests no longer grant any access.
 
 #### `moods`
 - **Policies:**

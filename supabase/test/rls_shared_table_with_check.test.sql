@@ -40,7 +40,7 @@ END $$;
 -- Fixtures (inserted as superuser, which bypasses RLS)
 --   9001 alice <-> 9002 bob    : 9001 accepted partnership
 --   9001 alice <-> 9003 carol  : 9002 pending partnership
---   9001 alice <-> 9004 dave   : 9003 rejected partnership
+--   9001 alice <-> 9004 dave   : 9003 cancelled partnership
 -- ---------------------------------------------------------------------------
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9001, '00000000-0000-0000-0000-000000000001', 'alice@rls-test.local'),
@@ -54,20 +54,20 @@ INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUE
   (9003, 'Carol', 'CAROL3'),
   (9004, 'Dave',  'DAVE44');
 
-INSERT INTO public.partnerships (id, user_id_1, user_id_2, status) VALUES
-  (9001, 9001, 9002, 'accepted'),
-  (9002, 9001, 9003, 'pending'),
-  (9003, 9001, 9004, 'rejected');
+INSERT INTO public.partnerships (id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at) VALUES
+  (9001, 9001, 9002, 'accepted',  NULL, NULL),
+  (9002, 9001, 9003, 'pending',   NULL, NULL),
+  (9003, 9001, 9004, 'cancelled', 9001, now() + interval '7 days');
 
 INSERT INTO public.drive_items (id, type, name, partnership_id) VALUES
-  (9010, 'image', 'accepted-photo.png', 9001),
-  (9011, 'image', 'pending-photo.png',  9002),
-  (9012, 'image', 'rejected-photo.png', 9003);
+  (9010, 'image', 'accepted-photo.png',  9001),
+  (9011, 'image', 'pending-photo.png',   9002),
+  (9012, 'image', 'cancelled-photo.png', 9003);
 
 INSERT INTO public.bucket_items (id, text, partnership_id) VALUES
-  (9020, 'accepted-bucket', 9001),
-  (9021, 'pending-bucket',  9002),
-  (9022, 'rejected-bucket', 9003);
+  (9020, 'accepted-bucket',  9001),
+  (9021, 'pending-bucket',   9002),
+  (9022, 'cancelled-bucket', 9003);
 
 INSERT INTO public.missyou (id, partnership_id) VALUES
   (9030, 9001),
@@ -77,13 +77,13 @@ INSERT INTO public.missyou (id, partnership_id) VALUES
 INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b) VALUES
   (9040, 9001, 'game_q_accepted', 9001, 9002),
   (9041, 9002, 'game_q_pending',  9001, 9003),
-  (9042, 9003, 'game_q_rejected', 9001, 9004);
+  (9042, 9003, 'game_q_cancelled', 9001, 9004);
 
 -- The wording lives in the bank now, so the codes above are seeded there too.
 INSERT INTO public.game_question_bank (question_code, locale, text) VALUES
   ('game_q_accepted',      'it', 'accepted-q'),
   ('game_q_pending',       'it', 'pending-q'),
-  ('game_q_rejected',      'it', 'rejected-q'),
+  ('game_q_cancelled',     'it', 'cancelled-q'),
   ('game_q_accepted_new',  'it', 'accepted-new-q');
 
 -- Pre-flight: a fixture that failed to insert would leave every "must be 0"
@@ -98,7 +98,7 @@ BEGIN
   END IF;
   IF (SELECT status FROM public.partnerships WHERE id = 9001) IS DISTINCT FROM 'accepted'
      OR (SELECT status FROM public.partnerships WHERE id = 9002) IS DISTINCT FROM 'pending'
-     OR (SELECT status FROM public.partnerships WHERE id = 9003) IS DISTINCT FROM 'rejected' THEN
+     OR (SELECT status FROM public.partnerships WHERE id = 9003) IS DISTINCT FROM 'cancelled' THEN
     RAISE EXCEPTION 'fixture failed: the partnership statuses are not as intended';
   END IF;
 END $$;
@@ -240,39 +240,39 @@ BEGIN
   END IF;
 END $$;
 
--- C. INSERT into a rejected partnership must be rejected with 42501.
+-- C. INSERT into a cancelled partnership must be rejected with 42501.
 DO $$
 DECLARE
   v_state text;
 BEGIN
   v_state := pg_temp.rls_try($q$
     INSERT INTO public.drive_items (id, type, name, partnership_id)
-    VALUES (9130, 'image', 'rejected-insert.png', 9003)$q$);
+    VALUES (9130, 'image', 'cancelled-insert.png', 9003)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'C failed: drive_items insert into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'C failed: drive_items insert into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 
   v_state := pg_temp.rls_try($q$
     INSERT INTO public.bucket_items (id, text, partnership_id)
-    VALUES (9131, 'rejected-insert', 9003)$q$);
+    VALUES (9131, 'cancelled-insert', 9003)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'C failed: bucket_items insert into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'C failed: bucket_items insert into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 
   v_state := pg_temp.rls_try($q$
     INSERT INTO public.missyou (id, partnership_id) VALUES (9132, 9003)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'C failed: missyou insert into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'C failed: missyou insert into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 
   v_state := pg_temp.rls_try($q$
     INSERT INTO public.game_questions (id, partnership_id, question_code, user_id_a, user_id_b)
-    VALUES (9133, 9003, 'game_q_rejected', 9001, 9004)$q$);
+    VALUES (9133, 9003, 'game_q_cancelled', 9001, 9004)$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'C failed: game_questions insert into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'C failed: game_questions insert into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the insert was allowed)');
   END IF;
 END $$;
@@ -293,7 +293,7 @@ BEGIN
   v_state := pg_temp.rls_try($q$
     UPDATE public.bucket_items SET partnership_id = 9003 WHERE id = 9020$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'D failed: bucket_items moved into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'D failed: bucket_items moved into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the update was allowed)');
   END IF;
 
@@ -307,7 +307,7 @@ BEGIN
   v_state := pg_temp.rls_try($q$
     UPDATE public.game_questions SET partnership_id = 9003 WHERE id = 9040$q$);
   IF v_state IS DISTINCT FROM '42501' THEN
-    RAISE EXCEPTION 'D failed: game_questions moved into rejected partnership gave %, expected 42501',
+    RAISE EXCEPTION 'D failed: game_questions moved into cancelled partnership gave %, expected 42501',
       coalesce(v_state, 'no error (the update was allowed)');
   END IF;
 
@@ -320,8 +320,8 @@ BEGIN
   END IF;
 END $$;
 
--- B/C/D-post. Verify no rejected row was persisted, with the RLS bypass in
--- place: alice cannot read the pending/rejected partnerships, so checking as
+-- B/C/D-post. Verify no blocked row was persisted, with the RLS bypass in
+-- place: alice cannot read the pending/cancelled partnerships, so checking as
 -- alice would see nothing and "pass" regardless.
 RESET ROLE;
 DO $$
@@ -330,7 +330,7 @@ BEGIN
      OR EXISTS (SELECT 1 FROM public.bucket_items   WHERE id IN (9121, 9131))
      OR EXISTS (SELECT 1 FROM public.missyou        WHERE id IN (9122, 9132))
      OR EXISTS (SELECT 1 FROM public.game_questions WHERE id IN (9123, 9133)) THEN
-    RAISE EXCEPTION 'B/C failed: a rejected row was persisted';
+    RAISE EXCEPTION 'B/C failed: a blocked row was persisted';
   END IF;
   IF (SELECT partnership_id FROM public.drive_items    WHERE id = 9011) IS DISTINCT FROM 9002
      OR (SELECT partnership_id FROM public.bucket_items   WHERE id = 9021) IS DISTINCT FROM 9002
@@ -342,7 +342,7 @@ BEGIN
      OR (SELECT partnership_id FROM public.bucket_items   WHERE id = 9022) IS DISTINCT FROM 9003
      OR (SELECT partnership_id FROM public.missyou        WHERE id = 9032) IS DISTINCT FROM 9003
      OR (SELECT partnership_id FROM public.game_questions WHERE id = 9042) IS DISTINCT FROM 9003 THEN
-    RAISE EXCEPTION 'D failed: a rejected-partnership row was modified';
+    RAISE EXCEPTION 'D failed: a cancelled-partnership row was modified';
   END IF;
 END $$;
 
@@ -417,4 +417,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'shared-table-with-check: passed (pre-flight, A accepted writes, B pending inserts, C rejected inserts, D cross-partnership moves, B/C/D-post leak checks, anon, I service_role)' AS result;
+SELECT 'shared-table-with-check: passed (pre-flight, A accepted writes, B pending inserts, C cancelled inserts, D cross-partnership moves, B/C/D-post leak checks, anon, I service_role)' AS result;
