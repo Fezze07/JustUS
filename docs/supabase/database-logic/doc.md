@@ -85,6 +85,19 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `partnership_cancel_revert(p_partnership_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_cancel_revert.sql`
+* **Purpose:** Reverts a cancellation request: the requester restores the pair or the partner declines it.
+* **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`; RLS limits the row to the two members.
+* **Inputs:** `p_partnership_id` (`integer`).
+* **Outputs:** `void`.
+* **Tables Touched:** `public.partnerships` (UPDATE).
+* **Execution Conditions:** Updates the row where `id = p_partnership_id`, `status = 'cancelled'`, and the caller is `user_id_1` or `user_id_2`; sets `status = 'accepted'` and clears `cancel_requested_by` / `cancel_expires_at`. Zero rows raise `API-VALIDATION-011` with SQLSTATE `42501`. `cancel_declined_at` is not written here: the guard trigger records it on a partner decline and preserves it on a requester restore.
+* **Caller:** none yet; granted to `authenticated` for the cancellation flow.
+* **Side Effects:** Unfreezes the partnership; no data is deleted.
+
+---
+
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
 * **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).

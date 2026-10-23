@@ -68,6 +68,7 @@ DECLARE
     'public.partnership_get_pending_invitations()',
     'public.partnership_is_member(integer)',
     'public.partnership_is_partner(integer)',
+    'public.partnership_cancel_revert(integer)',
     'public.partnership_request_cancel(integer)',
     'public.missyou_send()',
     'public.mood_set(text)'

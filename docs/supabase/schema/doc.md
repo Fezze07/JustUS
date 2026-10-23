@@ -177,7 +177,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 20 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 21 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `partnership_accept(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
 2. `partnership_request(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
@@ -199,6 +199,7 @@ All 20 PostgreSQL functions in `supabase/schemas/public/functions/`:
 18. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`; granted to `authenticated`, `postgres`, `service_role`.
 19. `game_update_question_status()`: `SECURITY DEFINER` SET `search_path = public` trigger function (returns `trigger`) on `game_answers`; sets `game_questions.status = 'both_answered'` when `COUNT(game_answers WHERE game_id = NEW.game_id) >= 2`. Revoked from `PUBLIC`, `anon`, `authenticated`; granted only to `postgres`, `service_role`. PostgreSQL performs no `EXECUTE` privilege check when firing a trigger, so no client role needs the grant and the function is not reachable over PostgREST RPC.
 20. `partnership_request_cancel(p_partnership_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Locks (`FOR UPDATE`) the caller's `accepted` partnership and sets `status = 'cancelled'`, `cancel_requested_by = caller`, `cancel_expires_at = now() + interval '7 days'`. A row that is missing, not `accepted`, or not the caller's raises `API-VALIDATION-010` / SQLSTATE `42501`; a partner decline inside the last 24 hours (`cancel_declined_at`) raises `API-VALIDATION-013` / SQLSTATE `P0001`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+21. `partnership_cancel_revert(p_partnership_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Updates the caller's `cancelled` partnership to `accepted` and clears `cancel_requested_by` / `cancel_expires_at`; `cancel_declined_at` stays with the guard trigger (recorded on a partner decline, preserved on a requester restore). A row that is missing, not `cancelled`, or not the caller's raises `API-VALIDATION-011` / SQLSTATE `42501`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
 
 > `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 

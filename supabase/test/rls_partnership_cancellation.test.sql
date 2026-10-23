@@ -27,7 +27,10 @@
 --     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`;
 --   * `partnership_request_cancel` performs the request for either member,
 --     rejects a non-member and an `anon` caller, and refuses a retry inside
---     the 24h cooldown (`API-VALIDATION-013`).
+--     the 24h cooldown (`API-VALIDATION-013`);
+--   * `partnership_cancel_revert` restores the caller's `cancelled` row to
+--     `accepted` with both cancel fields cleared, and rejects a non-member or
+--     a non-cancelled row (`API-VALIDATION-011`).
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
 -- E (tamper) and the J mood checks; F (accept), G (expiry), H (11.1/11.2) and
@@ -371,7 +374,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- C. revert / decline
 -- ---------------------------------------------------------------------------
--- C1. the requester (alice) reverts her own request.
+-- C1. the requester (alice) reverts her own request through the RPC.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
 DO $$
@@ -382,12 +385,7 @@ BEGIN
   SELECT id INTO v_id FROM public.partnerships
     WHERE user_id_1 = 9101 AND user_id_2 = 9102;
 
-  v_state := pg_temp.rls_try(format($q$
-    UPDATE public.partnerships
-       SET status = 'accepted',
-           cancel_requested_by = NULL,
-           cancel_expires_at = NULL
-     WHERE id = %s$q$, v_id));
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_cancel_revert(%s)', v_id));
   IF v_state IS NOT NULL THEN
     RAISE EXCEPTION 'C1 failed: the requester revert was refused with %', v_state;
   END IF;
@@ -400,7 +398,7 @@ BEGIN
   END IF;
 END $$;
 
--- C2. the partner (carol) declines dave's request.
+-- C2. the partner (carol) declines dave's request through the RPC.
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000103"}';
 DO $$
 DECLARE
@@ -410,12 +408,7 @@ BEGIN
   SELECT id INTO v_id FROM public.partnerships
     WHERE user_id_1 = 9103 AND user_id_2 = 9104;
 
-  v_state := pg_temp.rls_try(format($q$
-    UPDATE public.partnerships
-       SET status = 'accepted',
-           cancel_requested_by = NULL,
-           cancel_expires_at = NULL
-     WHERE id = %s$q$, v_id));
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_cancel_revert(%s)', v_id));
   IF v_state IS NOT NULL THEN
     RAISE EXCEPTION 'C2 failed: the partner decline was refused with %', v_state;
   END IF;
@@ -478,7 +471,7 @@ BEGIN
   END IF;
 END $$;
 
--- C3. a non-member cannot revert.
+-- C3. a non-member cannot revert (raw and RPC).
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
 DO $$
 DECLARE
@@ -510,6 +503,13 @@ BEGIN
   IF v_state IS NOT NULL THEN
     RAISE EXCEPTION 'C3 failed: the non-member revert gave %, expected no error and no rows', v_state;
   END IF;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_cancel_revert(%s)',
+    current_setting('test.cd_id')::integer));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'C3 failed: the non-member RPC revert gave %, expected 42501',
+      coalesce(v_state, 'no error (the revert was allowed)');
+  END IF;
 END $$;
 
 RESET ROLE;
@@ -521,8 +521,8 @@ BEGIN
   END IF;
 END $$;
 
--- C4. a revert of a non-cancelled row is rejected: the sender of the pending
---     alice-carol request may not promote it to accepted.
+-- C4. a revert of a non-cancelled row is rejected (raw and RPC): the sender of
+--     the pending alice-carol request may not promote it to accepted.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
 DO $$
@@ -542,6 +542,12 @@ BEGIN
   IF v_state IS DISTINCT FROM '42501' THEN
     RAISE EXCEPTION 'C4 failed: promoting a pending row gave %, expected 42501',
       coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_cancel_revert(%s)', v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'C4 failed: the RPC on a pending row gave %, expected 42501',
+      coalesce(v_state, 'no error (the revert was allowed)');
   END IF;
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'pending' THEN
@@ -1130,4 +1136,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
