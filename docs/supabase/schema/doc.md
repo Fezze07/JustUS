@@ -177,7 +177,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ## Stored Procedures (RPC Functions)
 
-All 24 PostgreSQL functions in `supabase/schemas/public/functions/`:
+All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 1. `partnership_accept(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
 2. `partnership_request(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
@@ -203,6 +203,7 @@ All 24 PostgreSQL functions in `supabase/schemas/public/functions/`:
 22. `partnership_expire_cancellations()`: `SECURITY DEFINER` SET `search_path = public`, returns the number of reverted rows (`integer`). Reverts every `cancelled` partnership whose `cancel_expires_at <= now()` to `accepted`, clearing both cancel fields; `cancel_declined_at` is left to the guard trigger. Revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
 23. `partnership_get_cancellation()`: `SECURITY DEFINER` SET `search_path = public`, returns `TABLE (partnership_id integer, partner_id integer, partner_display_name text, partner_profile_pic_url text, requested_by_me boolean)`. Calls `partnership_expire_cancellations()` first (lazy expiry), then returns only the caller's `cancelled` row with the counterpart's profile fields and whether the caller is the requester. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
 24. `partnership_get_cancellation_partner(p_user_id integer)`: `SECURITY DEFINER` SET `search_path = public`, `STABLE`, returns `integer`. Returns the other member id of the user's most recent `cancelled` row (NULL when there is none). Backend-only: revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
+25. `partnership_cancel_accept(p_partnership_id integer, p_actor_id integer)`: `SECURITY DEFINER` SET `search_path = public`. Locks the row, requires it to be `cancelled`, `p_actor_id` to be a member but not the requester, and `cancel_expires_at > now()`; otherwise raises `API-VALIDATION-012` / SQLSTATE `42501` or `API-VALIDATION-014` / SQLSTATE `P0001`. Deletes the partnership row (FK cascades couple data). Backend-only: revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
 
 > `private.is_related_user(target_user_id integer)` (`SECURITY DEFINER`, non-exposed `private` schema, `USAGE` granted to `authenticated`) backs `profiles_select_self_or_partner` and returns true only for an `accepted` partnership.
 

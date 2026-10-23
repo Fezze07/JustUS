@@ -41,9 +41,9 @@
 --     cancelled row for the backend and is not executable by clients.
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
--- E (tamper), G (expiry), K (cancellation read), L (push partner) and the J
--- mood checks; F (accept), H (11.1/11.2) and the rest of I/J belong to later
--- items.
+-- E (tamper), G (expiry), K (cancellation read), L (push partner), F
+-- (accept by partner) and the J mood checks; H (11.1/11.2) and the rest of I/J
+-- belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -1223,7 +1223,11 @@ BEGIN
   END IF;
 END $$;
 
+RESET ROLE;
+RESET request.jwt.claims;
+
 -- Restore the pending fixture so the final-state check sees all three rows.
+DELETE FROM public.partnerships WHERE user_id_1 = 9101 AND user_id_2 = 9103;
 INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9101, 9103, 'pending');
 
 -- ---------------------------------------------------------------------------
@@ -1384,4 +1388,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;

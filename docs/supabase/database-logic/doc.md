@@ -137,6 +137,19 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `partnership_cancel_accept(p_partnership_id integer, p_actor_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_cancel_accept.sql`
+* **Purpose:** The only path that destroys couple data. Accepts a cancellation on behalf of the partner who did not request it.
+* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`. Backend-only; not executable by `authenticated` or `anon`.
+* **Inputs:** `p_partnership_id integer`, `p_actor_id integer`.
+* **Outputs:** `void`.
+* **Tables Touched:** `public.partnerships` (SELECT FOR UPDATE, DELETE). Deletions cascade via `ON DELETE CASCADE` to `drive_items`, `bucket_items`, `game_questions`, `game_answers`, `missyou`, `moods` and related tables.
+* **Execution Conditions:** Locks the row; requires `status = 'cancelled'`, `p_actor_id` is a member, `p_actor_id <> cancel_requested_by`, and `cancel_expires_at > now()`. Otherwise raises `API-VALIDATION-012` / SQLSTATE `42501` (not found/wrong status/wrong actor/requester) or `API-VALIDATION-014` / SQLSTATE `P0001` (expired). Deletes only that partnership row; unrelated pending rows are not touched.
+* **Caller:** backend endpoint on `service_role` (B.6 wiring later).
+* **Side Effects:** Permanently deletes the couple and all cascaded couple data; no restore path.
+
+---
+
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
 * **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
