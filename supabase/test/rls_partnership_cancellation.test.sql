@@ -22,9 +22,11 @@
 --   * pending -> accepted is still recipient-only (`API-VALIDATION-008`);
 --   * a partner decline records `cancel_declined_at`, while a requester
 --     restore, the service-role expiry path and every other update preserve
---     it, so a client cannot clear or forge the cooldown.
+--     it, so a client cannot clear or forge the cooldown;
+--   * a member may raw-`DELETE` only a `pending` row: an accepted or
+--     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`.
 --
--- Sections A (request), C (revert) and E (tamper); B (delete), D (cooldown),
+-- Sections A (request), B (delete), C (revert) and E (tamper); D (cooldown),
 -- F (accept), G (expiry), H (11.1/11.2) and I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
@@ -627,6 +629,143 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- B. raw DELETE is limited to pending rows (11.3)
+-- ---------------------------------------------------------------------------
+-- Runs last so the fixtures are in their final states: alice-bob accepted,
+-- carol-dave cancelled, alice-carol pending.
+-- B1. neither member may delete the accepted alice-bob row.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9101 AND user_id_2 = 9102;
+
+  DELETE FROM public.partnerships WHERE id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'B1 failed: alice deleted the accepted row';
+  END IF;
+END $$;
+
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000102"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9101 AND user_id_2 = 9102;
+
+  DELETE FROM public.partnerships WHERE id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'B1 failed: bob deleted the accepted row';
+  END IF;
+END $$;
+
+-- B2. neither member may delete the cancelled carol-dave row.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000103"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  DELETE FROM public.partnerships WHERE id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'B2 failed: carol deleted the cancelled row';
+  END IF;
+END $$;
+
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  DELETE FROM public.partnerships WHERE id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'B2 failed: dave deleted the cancelled row';
+  END IF;
+END $$;
+
+-- B3. the creator may still delete the pending alice-carol request.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9101 AND user_id_2 = 9103;
+
+  DELETE FROM public.partnerships WHERE id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'B3 failed: the pending delete removed % rows, expected 1', v_count;
+  END IF;
+END $$;
+
+-- B-post: the accepted and cancelled rows survived, the pending row is gone.
+RESET ROLE;
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.partnerships
+       WHERE (user_id_1 = 9101 AND user_id_2 = 9102)
+          OR (user_id_1 = 9103 AND user_id_2 = 9104)) <> 2 THEN
+    RAISE EXCEPTION 'B-post failed: a member deleted an accepted or cancelled row';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships
+       WHERE user_id_1 = 9101 AND user_id_2 = 9103) THEN
+    RAISE EXCEPTION 'B-post failed: the pending row was not deleted';
+  END IF;
+END $$;
+
+-- B4. anon lost DELETE and TRUNCATE; authenticated keeps DELETE.
+RESET request.jwt.claims;
+SET LOCAL ROLE anon;
+DO $$
+DECLARE
+  v_state text;
+BEGIN
+  v_state := pg_temp.rls_try($q$
+    DELETE FROM public.partnerships
+     WHERE id = current_setting('test.cd_id')::integer$q$);
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'B4 failed: the anon delete gave %, expected 42501',
+      coalesce(v_state, 'no error (the delete was attempted)');
+  END IF;
+END $$;
+
+RESET ROLE;
+DO $$
+BEGIN
+  IF has_table_privilege('anon', 'public.partnerships', 'DELETE')
+     OR has_table_privilege('anon', 'public.partnerships', 'TRUNCATE') THEN
+    RAISE EXCEPTION 'B4 failed: anon still holds DELETE or TRUNCATE';
+  END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.partnerships', 'DELETE') THEN
+    RAISE EXCEPTION 'B4 failed: authenticated lost its DELETE grant';
+  END IF;
+END $$;
+
+-- Restore the pending fixture so the final-state check sees all three rows.
+INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9101, 9103, 'pending');
+
+-- ---------------------------------------------------------------------------
 -- Final state: alice-bob accepted, alice-carol pending, carol-dave cancelled
 -- with dave still the requester.
 -- ---------------------------------------------------------------------------
@@ -662,4 +801,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, final state)' AS result;

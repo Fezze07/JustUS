@@ -85,7 +85,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **RLS Policies:**
   - `partnerships_select_own` (FOR SELECT, `TO authenticated`, USING `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)
   - `partnerships_update_own` (FOR UPDATE, `TO authenticated`, USING + WITH CHECK `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)
-  - `partnerships_delete_own` (FOR DELETE, `TO authenticated`, USING `user_id_1 = user_current_id() OR user_id_2 = user_current_id()`)
+  - `partnerships_delete_own` (FOR DELETE, `TO authenticated`, USING `(user_id_1 = user_current_id() OR user_id_2 = user_current_id()) AND status = 'pending'`) — only a pending request can be deleted from the client; accepted/cancelled rows survive, and `anon` holds no `DELETE`/`TRUNCATE` grant.
   - **No INSERT policy** — the `INSERT` grant is held by `authenticated`, `postgres`, `service_role` only, and RLS still denies the insert to `authenticated` (no policy). Rows are created only through the `partnership_request` RPC, executed by the backend with the `service_role` key.
 
 ---

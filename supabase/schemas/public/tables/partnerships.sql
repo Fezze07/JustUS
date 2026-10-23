@@ -39,7 +39,7 @@ CREATE TRIGGER guard_public_partnerships_status
 CREATE POLICY "partnerships_delete_own" ON "public"."partnerships"
   FOR DELETE
   TO "authenticated"
-  USING ((user_id_1 = public.user_current_id()) OR (user_id_2 = public.user_current_id()));
+  USING (((user_id_1 = public.user_current_id()) OR (user_id_2 = public.user_current_id())) AND status = 'pending');
 
 CREATE POLICY "partnerships_select_own" ON "public"."partnerships"
   FOR SELECT
@@ -55,3 +55,4 @@ CREATE POLICY "partnerships_update_own" ON "public"."partnerships"
 REVOKE INSERT ON TABLE "public"."partnerships" FROM "anon";
 GRANT DELETE, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."partnerships" TO "anon", "authenticated", "postgres", "service_role";
 GRANT INSERT ON TABLE "public"."partnerships" TO "authenticated", "postgres", "service_role";
+REVOKE DELETE, TRUNCATE ON TABLE "public"."partnerships" FROM "anon";
