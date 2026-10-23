@@ -24,11 +24,14 @@
 --     restore, the service-role expiry path and every other update preserve
 --     it, so a client cannot clear or forge the cooldown;
 --   * a member may raw-`DELETE` only a `pending` row: an accepted or
---     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`.
+--     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`;
+--   * `partnership_request_cancel` performs the request for either member,
+--     rejects a non-member and an `anon` caller, and refuses a retry inside
+--     the 24h cooldown (`API-VALIDATION-013`).
 --
--- Sections A (request), B (delete), C (revert), E (tamper) and the J mood
--- checks; D (cooldown), F (accept), G (expiry), H (11.1/11.2) and the rest of
--- I/J belong to later items.
+-- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
+-- E (tamper) and the J mood checks; F (accept), G (expiry), H (11.1/11.2) and
+-- the rest of I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -54,37 +57,46 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- Fixtures (inserted as superuser, which bypasses RLS)
---   9101 alice / 9102 bob / 9103 carol / 9104 dave
+--   9101 alice / 9102 bob / 9103 carol / 9104 dave / 9105 erin / 9106 frank
 --   alice-bob   accepted  (request by user_id_1, then member revert)
 --   carol-dave  accepted  (request by user_id_2, then partner revert)
 --   alice-carol pending   (revert of a non-cancelled row)
+--   erin-frank  accepted  (RPC request and cooldown; declined 25h ago so the
+--                          first RPC call is allowed)
 -- ---------------------------------------------------------------------------
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9101, '00000000-0000-0000-0000-000000000101', 'alice@cancellation-test.local'),
   (9102, '00000000-0000-0000-0000-000000000102', 'bob@cancellation-test.local'),
   (9103, '00000000-0000-0000-0000-000000000103', 'carol@cancellation-test.local'),
-  (9104, '00000000-0000-0000-0000-000000000104', 'dave@cancellation-test.local');
+  (9104, '00000000-0000-0000-0000-000000000104', 'dave@cancellation-test.local'),
+  (9105, '00000000-0000-0000-0000-000000000105', 'erin@cancellation-test.local'),
+  (9106, '00000000-0000-0000-0000-000000000106', 'frank@cancellation-test.local');
 
 INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUES
   (9101, 'Alice', 'CAL101'),
   (9102, 'Bob',   'CAL102'),
   (9103, 'Carol', 'CAL103'),
-  (9104, 'Dave',  'CAL104');
+  (9104, 'Dave',  'CAL104'),
+  (9105, 'Erin',  'CAL105'),
+  (9106, 'Frank', 'CAL106');
 
-INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES
-  (9101, 9102, 'accepted'),
-  (9103, 9104, 'accepted'),
-  (9101, 9103, 'pending');
+INSERT INTO public.partnerships (user_id_1, user_id_2, status, cancel_declined_at) VALUES
+  (9101, 9102, 'accepted', NULL),
+  (9103, 9104, 'accepted', NULL),
+  (9101, 9103, 'pending',  NULL),
+  (9105, 9106, 'accepted', now() - interval '25 hours');
 
--- Resolve the id while RLS is bypassed, so the non-member case can name a row
+-- Resolve the ids while RLS is bypassed, so the non-member case can name a row
 -- it is not allowed to see.
 CREATE TEMP TABLE pids AS
 SELECT
   max(id) FILTER (WHERE user_id_1 = 9101 AND user_id_2 = 9102) AS ab,
-  max(id) FILTER (WHERE user_id_1 = 9103 AND user_id_2 = 9104) AS cd
+  max(id) FILTER (WHERE user_id_1 = 9103 AND user_id_2 = 9104) AS cd,
+  max(id) FILTER (WHERE user_id_1 = 9105 AND user_id_2 = 9106) AS ef
 FROM public.partnerships;
 
 SELECT set_config('test.cd_id', cd::text, true) FROM pids;
+SELECT set_config('test.ef_id', ef::text, true) FROM pids;
 
 -- ---------------------------------------------------------------------------
 -- A. request cancellation
@@ -226,6 +238,133 @@ BEGIN
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'cancelled'
      OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9104 THEN
     RAISE EXCEPTION 'A5 failed: the row is not cancelled with dave as requester';
+  END IF;
+END $$;
+
+-- A6. the RPC performs the same request for user_id_1. The stored decline is
+--     25h old, so the cooldown has run out (D covers the blocked case).
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000105"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)', v_id));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'A6 failed: the RPC request was refused with %', v_state;
+  END IF;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'cancelled'
+     OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9105 THEN
+    RAISE EXCEPTION 'A6 failed: the RPC did not cancel the row with erin as requester';
+  END IF;
+
+  IF (SELECT cancel_expires_at FROM public.partnerships WHERE id = v_id)
+       NOT BETWEEN now() + interval '6 days 23 hours' AND now() + interval '7 days 1 hour' THEN
+    RAISE EXCEPTION 'A6 failed: the RPC expiry is not about 7 days ahead';
+  END IF;
+END $$;
+
+-- A7. the RPC rejects a second request on the already-cancelled row.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000106"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)', v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'A7 failed: a second RPC request gave %, expected 42501',
+      coalesce(v_state, 'no error (the request was allowed)');
+  END IF;
+
+  IF (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9105 THEN
+    RAISE EXCEPTION 'A7 failed: the second RPC request took over the existing one';
+  END IF;
+END $$;
+
+-- A8. the RPC accepts the other member (user_id_2) as requester too.
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.partnerships
+   SET status = 'accepted',
+       cancel_requested_by = NULL,
+       cancel_expires_at = NULL
+ WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000106"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)', v_id));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'A8 failed: the user_id_2 RPC request was refused with %', v_state;
+  END IF;
+
+  IF (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9106 THEN
+    RAISE EXCEPTION 'A8 failed: the RPC did not record frank as requester';
+  END IF;
+END $$;
+
+-- A9. a non-member cannot request someone else's partnership.
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.partnerships
+   SET status = 'accepted',
+       cancel_requested_by = NULL,
+       cancel_expires_at = NULL
+ WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_state text;
+BEGIN
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)',
+    current_setting('test.ef_id')));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'A9 failed: a non-member RPC request gave %, expected 42501',
+      coalesce(v_state, 'no error (the request was allowed)');
+  END IF;
+END $$;
+
+-- A10. anon cannot call the RPC at all (no EXECUTE grant).
+RESET request.jwt.claims;
+SET LOCAL ROLE anon;
+DO $$
+DECLARE
+  v_state text;
+BEGIN
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)',
+    current_setting('test.ef_id')));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'A10 failed: the anon RPC call gave %, expected 42501',
+      coalesce(v_state, 'no error (the request was allowed)');
+  END IF;
+END $$;
+
+RESET ROLE;
+RESET request.jwt.claims;
+DO $$
+BEGIN
+  IF (SELECT status FROM public.partnerships
+       WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS DISTINCT FROM 'accepted'
+     OR (SELECT cancel_requested_by FROM public.partnerships
+          WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS NOT NULL THEN
+    RAISE EXCEPTION 'A-post2 failed: a non-member or anon RPC call changed the erin-frank row';
   END IF;
 END $$;
 
@@ -471,6 +610,73 @@ BEGIN
     RAISE EXCEPTION 'C6 failed: the requester restore disturbed the cooldown';
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- D. 24h cooldown after a partner decline
+-- ---------------------------------------------------------------------------
+-- D1. a decline inside the last 24h blocks the RPC request.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)', v_id));
+  IF v_state IS DISTINCT FROM 'P0001' THEN
+    RAISE EXCEPTION 'D1 failed: a request inside the cooldown gave %, expected P0001',
+      coalesce(v_state, 'no error (the request was allowed)');
+  END IF;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'D1 failed: the refused request changed the row';
+  END IF;
+END $$;
+
+-- D2. once the decline is older than 24h the same request succeeds.
+RESET ROLE;
+RESET request.jwt.claims;
+ALTER TABLE public.partnerships DISABLE TRIGGER guard_public_partnerships_status;
+UPDATE public.partnerships
+   SET cancel_declined_at = now() - interval '25 hours'
+ WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+ALTER TABLE public.partnerships ENABLE TRIGGER guard_public_partnerships_status;
+SELECT set_config('test.declined_at',
+  (SELECT cancel_declined_at::text FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104), true);
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_request_cancel(%s)', v_id));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'D2 failed: the request after the cooldown was refused with %', v_state;
+  END IF;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'cancelled'
+     OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 9104 THEN
+    RAISE EXCEPTION 'D2 failed: the RPC request after the cooldown did not cancel the row';
+  END IF;
+END $$;
+
+-- D3. restore the carol-dave fixture for the tamper section.
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.partnerships
+   SET status = 'accepted',
+       cancel_requested_by = NULL,
+       cancel_expires_at = NULL
+ WHERE user_id_1 = 9103 AND user_id_2 = 9104;
 
 -- ---------------------------------------------------------------------------
 -- E. tamper with the cancellation fields
@@ -924,4 +1130,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;

@@ -67,6 +67,10 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 - Auth mapping: a Supabase `AuthException` raised during **login/registration** is caught in `AuthState.login`/`register` and rethrown as `AppError(AUTH-FAIL-CRED)`; the same code covers the "no user/session" outcomes. A generic `AuthException` reaching `ErrorHandler._toAppError` (token/session validation) still maps to `AUTH-FAIL-001`.
 - Flag `isCritical`: True if `requiresReauth` or `SEC-BLOCK-001` / `SEC-BLOCK-002`.
 
+### 3. Database RPC validation errors (`API-VALIDATION-*`)
+
+The Supabase RPCs raise validation failures as Postgres exceptions whose message starts with `API-VALIDATION-<id>`; PostgREST returns that message in its error envelope, and `ErrorCodes.resolveServerCode` only recognizes the codes on its `serverCodes` allowlist. The cancellation RPC adds `-010` (no `accepted` partnership with that id belongs to the caller; SQLSTATE `42501`) and `-013` (a partner decline is still inside the 24-hour cooldown; SQLSTATE `P0001`). Until a code is added to the allowlist it reaches the UI as the raw message instead of a localized `userMessage`.
+
 ---
 
 ## User Presentation Controls
