@@ -33,11 +33,14 @@
 --     a non-cancelled row (`API-VALIDATION-011`);
 --   * `partnership_expire_cancellations` reverts every expired request in one
 --     statement, leaves non-expired ones and `cancel_declined_at` alone, and is
---     not executable by `authenticated` or `anon`.
+--     not executable by `authenticated` or `anon`;
+--   * `partnership_get_cancellation` returns the caller's cancelled row with the
+--     counterpart identity and `requested_by_me`, nothing for a non-member, and
+--     lazily expires a stale request before answering.
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
--- E (tamper), G (lazy expiry) and the J mood checks; F (accept), H (11.1/11.2)
--- and the rest of I/J belong to later items.
+-- E (tamper), G (expiry), K (cancellation read) and the J mood checks; F
+-- (accept), H (11.1/11.2) and the rest of I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -1059,6 +1062,110 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- K. read the cancellation for the PartnerScreen (B.4)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.user_profiles SET profile_pic_url = 'cal-test/carol.png' WHERE user_id = 9103;
+UPDATE public.user_profiles SET profile_pic_url = 'cal-test/dave.png'  WHERE user_id = 9104;
+
+-- K1. the requester (dave) gets carol's identity and requested_by_me = true.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_n integer;
+  v_pid integer;
+  v_partner integer;
+  v_name text;
+  v_pic text;
+  v_by_me boolean;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.partnership_get_cancellation();
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'K1 failed: the request read returned % rows, expected 1', v_n;
+  END IF;
+
+  SELECT partnership_id, partner_id, partner_display_name, partner_profile_pic_url, requested_by_me
+    INTO v_pid, v_partner, v_name, v_pic, v_by_me
+    FROM public.partnership_get_cancellation();
+
+  IF v_pid IS DISTINCT FROM current_setting('test.cd_id')::integer
+     OR v_partner IS DISTINCT FROM 9103
+     OR v_name IS DISTINCT FROM 'Carol'
+     OR v_pic IS DISTINCT FROM 'cal-test/carol.png'
+     OR v_by_me IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'K1 failed: unexpected read (% %, % %, %)',
+      v_pid, v_partner, v_name, v_pic, v_by_me;
+  END IF;
+END $$;
+
+-- K2. the partner (carol) gets the same row with requested_by_me = false.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000103"}';
+DO $$
+DECLARE
+  v_pid integer;
+  v_partner integer;
+  v_name text;
+  v_pic text;
+  v_by_me boolean;
+BEGIN
+  SELECT partnership_id, partner_id, partner_display_name, partner_profile_pic_url, requested_by_me
+    INTO v_pid, v_partner, v_name, v_pic, v_by_me
+    FROM public.partnership_get_cancellation();
+
+  IF v_pid IS DISTINCT FROM current_setting('test.cd_id')::integer
+     OR v_partner IS DISTINCT FROM 9104
+     OR v_name IS DISTINCT FROM 'Dave'
+     OR v_pic IS DISTINCT FROM 'cal-test/dave.png'
+     OR v_by_me IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'K2 failed: unexpected read (% %, % %, %)',
+      v_pid, v_partner, v_name, v_pic, v_by_me;
+  END IF;
+END $$;
+
+-- K3. a non-member gets nothing.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_n integer;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.partnership_get_cancellation();
+  IF v_n <> 0 THEN
+    RAISE EXCEPTION 'K3 failed: a non-member saw % cancellation rows', v_n;
+  END IF;
+END $$;
+
+-- K4. an expired request is reverted by the read and returns no row.
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.partnerships
+   SET status = 'cancelled',
+       cancel_requested_by = 9105,
+       cancel_expires_at = now() - interval '1 minute'
+ WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000106"}';
+DO $$
+DECLARE
+  v_n integer;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.partnership_get_cancellation();
+  IF v_n <> 0 THEN
+    RAISE EXCEPTION 'K4 failed: the expired request still returned % rows', v_n;
+  END IF;
+
+  IF (SELECT status FROM public.partnerships
+       WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'K4 failed: the read did not lazily expire the request';
+  END IF;
+END $$;
+
+RESET ROLE;
+RESET request.jwt.claims;
+
 -- Restore the pending fixture so the final-state check sees all three rows.
 INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9101, 9103, 'pending');
 
@@ -1220,4 +1327,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;

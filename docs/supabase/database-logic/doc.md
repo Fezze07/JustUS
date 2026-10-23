@@ -111,6 +111,19 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `partnership_get_cancellation()`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_get_cancellation.sql`
+* **Purpose:** One scoped read for both PartnerScreen cancellation states, so the client renders "you requested the cancellation" or "your partner requested it" without touching `partnerships` or `user_profiles` directly.
+* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`. The result is filtered by `public.user_current_id()`, so a non-member (or a caller with no session) gets no row.
+* **Inputs:** none.
+* **Outputs:** `TABLE (partnership_id integer, partner_id integer, partner_display_name text, partner_profile_pic_url text, requested_by_me boolean)`.
+* **Tables Touched:** `public.partnerships` (UPDATE via the expiry sweep, then SELECT), `public.user_profiles` (SELECT).
+* **Execution Conditions:** Calls `partnership_expire_cancellations()` first, then returns the caller's `cancelled` row and the counterpart's profile fields. `requested_by_me` is true when `cancel_requested_by` is the caller. An expired request is reverted by the sweep, so the read returns no row and the pair is already back to `accepted`.
+* **Caller:** PartnerScreen via the `partnership_get_cancellation` RPC (`authenticated`); granted to `authenticated`, `postgres`, `service_role` and revoked from `PUBLIC`, `anon`.
+* **Side Effects:** May revert the caller's expired request (and any other expired request) to `accepted`; deletes nothing.
+
+---
+
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
 * **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
