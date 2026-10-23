@@ -19,7 +19,10 @@
 --   * only the recipient (user_id_2) may accept a pending request, so the
 --     sender cannot push its own request into an accepted partnership. That
 --     holds through the RPC and through a direct UPDATE of `status`, which the
---     partnership_guard_status trigger rejects for the sender;
+--     partnership_guard_status trigger rejects for the sender. A recipient who
+--     already holds another accepted/cancelled partnership cannot accept a
+--     second row either (B.7, `rls_partnership_cancellation.test.sql` §I), so
+--     each acceptance below goes to a still-free recipient;
 --   * membership is immutable: no UPDATE may change `user_id_1` / `user_id_2`
 --     (covers todo.md 11.2), so an existing pair cannot be re-pointed to a
 --     third party.
@@ -54,18 +57,24 @@ END $$;
 --   9002 bob    : free, profile code BOB222
 --   9003 carol  : free, profile code CAROL3
 --   9004 dave   : free, profile code DAVE4
+--   9005 erin   : free, profile code ERIN55
+--   9006 frank  : free, profile code FRANK6
 -- ---------------------------------------------------------------------------
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9001, '00000000-0000-0000-0000-000000000001', 'alice@partnership-test.local'),
   (9002, '00000000-0000-0000-0000-000000000002', 'bob@partnership-test.local'),
   (9003, '00000000-0000-0000-0000-000000000003', 'carol@partnership-test.local'),
-  (9004, '00000000-0000-0000-0000-000000000004', 'dave@partnership-test.local');
+  (9004, '00000000-0000-0000-0000-000000000004', 'dave@partnership-test.local'),
+  (9005, '00000000-0000-0000-0000-000000000005', 'erin@partnership-test.local'),
+  (9006, '00000000-0000-0000-0000-000000000006', 'frank@partnership-test.local');
 
 INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUES
   (9001, 'Alice', 'ALICE1'),
   (9002, 'Bob',   'BOB222'),
   (9003, 'Carol', 'CAROL3'),
-  (9004, 'Dave',  'DAVE4');
+  (9004, 'Dave',  'DAVE4'),
+  (9005, 'Erin',  'ERIN55'),
+  (9006, 'Frank', 'FRANK6');
 
 -- ---------------------------------------------------------------------------
 -- A. as alice (authenticated): no client insert may create a partnership.
@@ -198,8 +207,8 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- E. the sender may NOT accept its own request: carol requests alice, tries to
---    accept it herself, and the row must stay pending until alice accepts.
+-- E. the sender may NOT accept its own request: carol requests dave, tries to
+--    accept it herself, and the row must stay pending until dave accepts.
 -- ---------------------------------------------------------------------------
 RESET ROLE;
 RESET request.jwt.claims;
@@ -208,7 +217,7 @@ DO $$
 DECLARE
   v_id integer;
 BEGIN
-  SELECT public.partnership_request('alice@partnership-test.local', 'ALICE1', 9003) INTO v_id;
+  SELECT public.partnership_request('dave@partnership-test.local', 'DAVE4', 9003) INTO v_id;
 
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'E failed: partnership_request returned no id';
@@ -223,7 +232,7 @@ DECLARE
   v_id integer;
 BEGIN
   SELECT id INTO v_id FROM public.partnerships
-    WHERE user_id_1 = 9003 AND user_id_2 = 9001;
+    WHERE user_id_1 = 9003 AND user_id_2 = 9004;
 
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'E failed: the sent request is not visible to its sender';
@@ -240,13 +249,13 @@ END $$;
 -- ...and the recipient still can.
 RESET ROLE;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000001"}';
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000004"}';
 DO $$
 DECLARE
   v_id integer;
 BEGIN
   SELECT id INTO v_id FROM public.partnerships
-    WHERE user_id_1 = 9003 AND user_id_2 = 9001;
+    WHERE user_id_1 = 9003 AND user_id_2 = 9004;
 
   PERFORM public.partnership_accept(v_id);
 
@@ -267,7 +276,7 @@ DO $$
 DECLARE
   v_id integer;
 BEGIN
-  SELECT public.partnership_request('bob@partnership-test.local', 'BOB222', 9004) INTO v_id;
+  SELECT public.partnership_request('frank@partnership-test.local', 'FRANK6', 9005) INTO v_id;
 
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'G failed: partnership_request returned no id';
@@ -276,14 +285,14 @@ END $$;
 
 RESET ROLE;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000004"}';
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000005"}';
 DO $$
 DECLARE
   v_id integer;
   v_state text;
 BEGIN
   SELECT id INTO v_id FROM public.partnerships
-    WHERE user_id_1 = 9004 AND user_id_2 = 9002;
+    WHERE user_id_1 = 9005 AND user_id_2 = 9006;
 
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'G failed: the sent request is not visible to its sender';
@@ -312,13 +321,13 @@ END $$;
 -- ...and the recipient still can.
 RESET ROLE;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000002"}';
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000006"}';
 DO $$
 DECLARE
   v_id integer;
 BEGIN
   SELECT id INTO v_id FROM public.partnerships
-    WHERE user_id_1 = 9004 AND user_id_2 = 9002;
+    WHERE user_id_1 = 9005 AND user_id_2 = 9006;
 
   PERFORM public.partnership_accept(v_id);
 

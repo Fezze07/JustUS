@@ -42,8 +42,8 @@
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
 -- E (tamper), G (expiry), K (cancellation read), L (push partner), F
--- (accept by partner) and the J mood checks; H (11.1/11.2) and the rest of I/J
--- belong to later items.
+-- (accept by partner), I (double-accept guard) and the J mood checks; H
+-- (11.1/11.2) and the cancelled-sender half of I belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -1231,6 +1231,32 @@ DELETE FROM public.partnerships WHERE user_id_1 = 9101 AND user_id_2 = 9103;
 INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9101, 9103, 'pending');
 
 -- ---------------------------------------------------------------------------
+-- I. double-accept hole (B.7)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+RESET request.jwt.claims;
+INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9105, 9103, 'pending');
+DO $$
+DECLARE
+  v_pid integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_pid FROM public.partnerships WHERE user_id_1 = 9105 AND user_id_2 = 9103;
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000103"}';
+  v_state := pg_temp.rls_try(format('SELECT public.partnership_accept(%s)', v_pid));
+  RESET ROLE;
+  RESET request.jwt.claims;
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'I1 failed: double-accept gave %, expected 42501', coalesce(v_state, 'no error');
+  END IF;
+  IF (SELECT status FROM public.partnerships WHERE id = v_pid) IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'I1 failed: the pending row was accepted despite existing partnership';
+  END IF;
+  DELETE FROM public.partnerships WHERE id = v_pid;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- Final state: alice-bob accepted, alice-carol pending, carol-dave cancelled
 -- with dave still the requester.
 -- ---------------------------------------------------------------------------
@@ -1388,4 +1414,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, final state)' AS result;

@@ -179,7 +179,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
-1. `partnership_accept(p_partnership_id integer)`: Updates partnership status to `'accepted'` and sets `anniversary_date = CURRENT_DATE`.
+1. `partnership_accept(p_partnership_id integer)`: Updates the recipient's `pending` partnership to `'accepted'` and sets `anniversary_date = CURRENT_DATE`; raises `API-VALIDATION-012` / SQLSTATE `42501` when the recipient already holds another `accepted` or `cancelled` partnership.
 2. `partnership_request(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Revoked from `PUBLIC`, granted to `authenticated`, `postgres`, `service_role`.
 3. `user_current_id()`: Converts `auth.uid()` (`uuid`) to internal `users.id` (`integer`).
 4. `partnership_generate_code()`: Generates random 6-character uppercase alphanumeric code checking unicity against `user_profiles`.
