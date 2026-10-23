@@ -39,8 +39,8 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 
 2. **Database Layer (Supabase / PostgreSQL)**:
    - `public.emojis`: Dictionary table storing unique emoji character strings (`id` bigint PK, `emoji_char` text UNIQUE).
-   - `public.moods`: Historical log of mood entries (`id` integer PK, `user_id` integer FK, `mood_type_id` bigint FK to `emojis.id`, `created_at` timestamptz).
-   - `mood_set(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis` and appends a new entry into `public.moods`.
+   - `public.moods`: Historical log of mood entries (`id` integer PK, `user_id` integer FK, `mood_type_id` bigint FK to `emojis.id`, `partnership_id` integer FK to `partnerships.id`, `created_at` timestamptz).
+   - `mood_set(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis` and appends a new entry into `public.moods`, tagged with the caller's `accepted` `partnership_id` (NULL when the caller has none).
 
 ---
 
@@ -133,8 +133,9 @@ User Action (Select Emoji in Sheet or Custom Input)
    - File: [mood_repository.dart:8-29](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L8-L29)
    - Invokes `sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar})`.
    - In PostgreSQL, procedure `mood_set`:
+     - Resolves the caller's `accepted` partnership id (`partnerships` where the caller is a member and `status = 'accepted'`), NULL if none.
      - Calls `emoji_get_or_create(p_emoji_char)` to resolve or insert the emoji string in `public.emojis`.
-     - Inserts a row into `public.moods` with `user_id = user_current_id()`, `mood_type_id`, and `created_at = NOW()`.
+     - Inserts a row into `public.moods` with `user_id = user_current_id()`, `mood_type_id`, `partnership_id` and `created_at = NOW()`.
    - Fires asynchronous partner push notification request via `notifyPartnerOnce(notificationKey: 'moodUpdated', params: {'emojiChar': emojiChar})`.
 
 4. **Realtime Broadcast & Partner UI Update**
@@ -211,8 +212,8 @@ User Action (Select Emoji in Sheet or Custom Input)
 - Table `public.moods` RLS policies:
   - **SELECT**: Allowed if `user_id = user_current_id()` OR `partnership_is_partner(user_id) = true`.
   - **INSERT / UPDATE / DELETE**: Restricted to the owner (`user_id = user_current_id()`).
-- `public.moods.partnership_id` references `public.partnerships(id)` with `ON DELETE CASCADE`, so a couple's mood history is removed with the partnership. No backfill was needed (the table was empty); a mood written outside a partnership stays `NULL`.
-- RPC `mood_set`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials.
+- `public.moods.partnership_id` references `public.partnerships(id)` with `ON DELETE CASCADE`, so a couple's mood history is removed with the partnership. No backfill was needed (the table was empty); a mood written outside a partnership stays `NULL`. `mood_set` resolves the caller's `accepted` partnership and stores its id, so a paired user's new mood always belongs to the couple.
+- RPC `mood_set`: Configured as `SECURITY INVOKER`, ensuring execution respects caller RLS credentials (including the partnership lookup).
 
 ---
 

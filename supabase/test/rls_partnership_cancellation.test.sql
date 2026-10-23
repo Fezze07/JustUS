@@ -26,8 +26,8 @@
 --   * a member may raw-`DELETE` only a `pending` row: an accepted or
 --     cancelled row is left untouched, and `anon` holds no `DELETE`/`TRUNCATE`.
 --
--- Sections A (request), B (delete), C (revert), E (tamper) and the J cascade
--- check; D (cooldown), F (accept), G (expiry), H (11.1/11.2) and the rest of
+-- Sections A (request), B (delete), C (revert), E (tamper) and the J mood
+-- checks; D (cooldown), F (accept), G (expiry), H (11.1/11.2) and the rest of
 -- I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
@@ -825,6 +825,43 @@ BEGIN
   END IF;
 END $$;
 
+-- J2. mood_set writes the caller's accepted partnership id (A.6).
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101","role":"authenticated"}';
+DO $$
+DECLARE
+  v_partnership_id integer;
+BEGIN
+  PERFORM public.mood_set('🧪');
+
+  SELECT partnership_id INTO v_partnership_id FROM public.moods
+   WHERE user_id = 9101 ORDER BY id DESC LIMIT 1;
+
+  IF v_partnership_id IS DISTINCT FROM (SELECT id FROM public.partnerships
+       WHERE user_id_1 = 9101 AND user_id_2 = 9102) THEN
+    RAISE EXCEPTION 'J2 failed: mood_set did not attach the accepted partnership';
+  END IF;
+END $$;
+
+-- J3. a user without an accepted partnership writes NULL.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104","role":"authenticated"}';
+DO $$
+DECLARE
+  v_partnership_id integer;
+BEGIN
+  PERFORM public.mood_set('🧪');
+
+  SELECT partnership_id INTO v_partnership_id FROM public.moods
+   WHERE user_id = 9104 ORDER BY id DESC LIMIT 1;
+
+  IF v_partnership_id IS NOT NULL THEN
+    RAISE EXCEPTION 'J3 failed: an unpaired mood did not keep partnership_id NULL';
+  END IF;
+END $$;
+
+RESET ROLE;
+RESET request.jwt.claims;
+
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied, C revert of non-cancelled denied, C service-role revert keeps it, C requester restore keeps it, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, final state)' AS result;
