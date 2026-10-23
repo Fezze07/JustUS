@@ -30,11 +30,14 @@
 --     the 24h cooldown (`API-VALIDATION-013`);
 --   * `partnership_cancel_revert` restores the caller's `cancelled` row to
 --     `accepted` with both cancel fields cleared, and rejects a non-member or
---     a non-cancelled row (`API-VALIDATION-011`).
+--     a non-cancelled row (`API-VALIDATION-011`);
+--   * `partnership_expire_cancellations` reverts every expired request in one
+--     statement, leaves non-expired ones and `cancel_declined_at` alone, and is
+--     not executable by `authenticated` or `anon`.
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
--- E (tamper) and the J mood checks; F (accept), G (expiry), H (11.1/11.2) and
--- the rest of I/J belong to later items.
+-- E (tamper), G (lazy expiry) and the J mood checks; F (accept), H (11.1/11.2)
+-- and the rest of I/J belong to later items.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -975,6 +978,87 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- G. expiry reverts every expired request in one statement
+-- ---------------------------------------------------------------------------
+-- G1. an expired erin-frank request is reverted; the non-expired carol-dave
+--     request and the cooldown timestamp are left alone.
+RESET ROLE;
+RESET request.jwt.claims;
+UPDATE public.partnerships
+   SET status = 'cancelled',
+       cancel_requested_by = 9105,
+       cancel_expires_at = now() - interval '1 minute'
+ WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+DO $$
+DECLARE
+  v_count integer;
+  v_before timestamptz;
+BEGIN
+  SELECT cancel_declined_at INTO v_before FROM public.partnerships
+    WHERE user_id_1 = 9105 AND user_id_2 = 9106;
+
+  v_count := public.partnership_expire_cancellations();
+  IF v_count < 1 THEN
+    RAISE EXCEPTION 'G1 failed: the expiry reverted % rows, expected at least 1', v_count;
+  END IF;
+
+  IF (SELECT status FROM public.partnerships
+       WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS DISTINCT FROM 'accepted'
+     OR (SELECT cancel_requested_by FROM public.partnerships
+          WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS NOT NULL
+     OR (SELECT cancel_expires_at FROM public.partnerships
+          WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS NOT NULL THEN
+    RAISE EXCEPTION 'G1 failed: the expired request was not reverted cleanly';
+  END IF;
+
+  -- The pair survives and the cooldown timestamp is untouched.
+  IF (SELECT count(*) FROM public.partnerships
+       WHERE user_id_1 = 9105 AND user_id_2 = 9106) <> 1 THEN
+    RAISE EXCEPTION 'G1 failed: the expiry removed the partnership row';
+  END IF;
+
+  IF (SELECT cancel_declined_at FROM public.partnerships
+       WHERE user_id_1 = 9105 AND user_id_2 = 9106) IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'G1 failed: the expiry changed cancel_declined_at';
+  END IF;
+
+  -- The non-expired carol-dave request is untouched.
+  IF (SELECT status FROM public.partnerships
+       WHERE user_id_1 = 9103 AND user_id_2 = 9104) IS DISTINCT FROM 'cancelled' THEN
+    RAISE EXCEPTION 'G1 failed: the expiry reverted a non-expired request';
+  END IF;
+END $$;
+
+-- G2. the expiry is backend-only: neither authenticated nor anon may call it.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_state text;
+BEGIN
+  v_state := pg_temp.rls_try('SELECT public.partnership_expire_cancellations()');
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'G2 failed: the authenticated call gave %, expected 42501',
+      coalesce(v_state, 'no error (the call was allowed)');
+  END IF;
+END $$;
+
+RESET ROLE;
+RESET request.jwt.claims;
+DO $$
+BEGIN
+  IF has_function_privilege('authenticated', 'public.partnership_expire_cancellations()', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.partnership_expire_cancellations()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'G2 failed: the expiry function is executable by a client role';
+  END IF;
+
+  IF NOT has_function_privilege('service_role', 'public.partnership_expire_cancellations()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'G2 failed: service_role cannot execute the expiry function';
+  END IF;
+END $$;
+
 -- Restore the pending fixture so the final-state check sees all three rows.
 INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES (9101, 9103, 'pending');
 
@@ -1136,4 +1220,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, final state)' AS result;

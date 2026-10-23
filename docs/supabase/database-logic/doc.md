@@ -98,6 +98,19 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `partnership_expire_cancellations()`
+* **SQL Source:** `supabase/schemas/public/functions/partnership_expire_cancellations.sql`
+* **Purpose:** Reverts every expired cancellation request in one statement, so a stale request cannot freeze a pair forever.
+* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'` (the backend/expiry job calls it without a user JWT). Not executable by `authenticated` or `anon`.
+* **Inputs:** none.
+* **Outputs:** `integer` — the number of rows reverted.
+* **Tables Touched:** `public.partnerships` (UPDATE).
+* **Execution Conditions:** Reverts every row with `status = 'cancelled'` and `cancel_expires_at <= now()` to `status = 'accepted'`, clearing `cancel_requested_by` / `cancel_expires_at`. `cancel_declined_at` is not written: the guard trigger preserves it, so an expiry never counts as a decline.
+* **Caller:** none yet; intended for the backend expiry job on `service_role`.
+* **Side Effects:** Unfreezes expired pairs; no row or couple data is deleted.
+
+---
+
 ### `debug_wipe_user_data(p_user_id integer)`
 * **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
 * **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
