@@ -59,7 +59,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 2. **Node.js Express Backend API (`/api/v1`)**:
    - Used for operations requiring elevated privileges, third-party API orchestration, HMAC signing, heavy rate limiting, or atomic domain wipes.
-   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Installation ID registration and revocation (`/api/v1/auth/installation-id`, `/api/v1/auth/installation-id-revoke`, `/api/v1/auth/installation-id-revoke-all`), Session binding (`/api/v1/auth/session-bind`), Account data wipe (`/api/v1/users/wipe`).
+   - **Backend API Features**: Pre-signed media upload/download (`/api/v1/media/*`), Push notification dispatch (`/api/v1/notify/*`), Installation ID registration and revocation (`/api/v1/auth/installation-id`, `/api/v1/auth/installation-id-revoke`, `/api/v1/auth/installation-id-revoke-all`), Session binding (`/api/v1/auth/session-bind`), Account data wipe (`/api/v1/users/wipe`), Partnership cancellation acceptance (`/api/v1/partnership/cancel/accept`).
 
 ---
 
@@ -131,11 +131,16 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `validated({ body: notifySchema })`
 - **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
-- **Cancellation Push Partner**: the cancellation-request push (not wired yet) resolves the ex-partner with the backend-only `partnership_get_cancellation_partner(p_user_id)` RPC on `service_role`; the function is not executable by clients.
+- **Cancellation Push Partner**: `cancellationRequested` resolves via `getCancellationPartnerId` (uses `partnership_get_cancellation_partner`); `cancellationAccepted` is sent directly by the acceptance endpoint.
 
 ---
 
 ### 4. User Domain Operations
+
+#### `POST /api/v1/partnership/cancel/accept`
+- **Controller/Service**: `acceptCancellation` in `features/partnership/*` ([`partnership.routes.js`](file:///f:/JustUS/Backend/features/partnership/partnership.routes.js))
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(cancelRateLimit)` $\rightarrow$ `signed("partnership-cancel-accept")` $\rightarrow$ `validated({ body: { partnershipId } })`
+- **Behavior**: Loads the cancelled row as service_role, validates the caller is the non-requester member and not expired (calls `partnership_expire_cancellations()` on expiry → `API-VALIDATION-014`), calls `partnership_cancel_accept(partnershipId, actorId)` (service_role RPC), best-effort deletes `uploads/<user1>/` and `uploads/<user2>/` via `deleteObjectsByPrefix` (no `profile/`), sends `cancellationAccepted` to the requester, returns `{ success: true }`. R2 failure does not roll back the DB delete.
 
 #### `POST /api/v1/users/wipe`
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))

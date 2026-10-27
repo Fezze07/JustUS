@@ -234,8 +234,9 @@ notifySchema = z.object({
 `notification.service.js` (orchestration) and `notification.utils.js` (message building + FCM delivery):
 
 1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:129-154`)
-   - Resolves the receiver through RPC `partnership_get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`).
-   - `type === 'partner'` → receiver is the active partner; otherwise `receiverId` must be supplied and must equal the partner id.
+   - Resolves the receiver through RPC `partnership_get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`) for accepted partnerships.
+   - If `getPartnerId` returns null and `notificationKey === 'cancellationRequested'`, falls back to `getCancellationPartnerId(senderId)` via `partnership_get_cancellation_partner`.
+   - `type === 'partner'` → receiver is the active or cancellation partner; otherwise `receiverId` must be supplied and must equal the partner id.
 
 2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
    - `fetchUserDevices(userId)` (`:30-41`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
@@ -274,6 +275,9 @@ notifySchema = z.object({
 | 6 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 7 | `reactionAdded` | DriveRepository | `addReaction` after `drive_item_reactions` insert (`drive_repository.dart:139-145`) | `{partnerName, emojiChar}` | `notif_reactionAdded_title/body({partnerName, emojiChar})` | PARTIALLY IMPLEMENTED |
 | 8 | `bucketItemAdded` | BucketRepository | `addBucketItem` after `bucket_items` insert (`bucket_repository.dart:49-52`) | `{partnerName}` | `notif_bucketItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 9 | `cancellationRequested` | Client (requester) | After `partnership_request_cancel` RPC success; resolved via `getCancellationPartnerId` (row cancelled) | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 10 | `cancellationDeclined` | Client (after revert) | After `partnership_cancel_revert` (partner decline or requester restore) — normal partner path | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 11 | `cancellationAccepted` | Backend (accept endpoint) | After `partnership_cancel_accept` deletes the row | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
 
 - All sends are fire-and-forget (`unawaited(notifyPartnerOnce(...))`) and swallow errors (`base_repository.dart:163-174`). No notification is retried, and the sender gets no feedback that the delivery failed.
 - **No destination screen / deep link is attached to any type** (cross-doc navigation F-N5; tap handling section below).
