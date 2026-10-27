@@ -69,7 +69,15 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 
 ### 3. Database RPC validation errors (`API-VALIDATION-*`)
 
-The Supabase RPCs raise validation failures as Postgres exceptions whose message starts with `API-VALIDATION-<id>`; PostgREST returns that message in its error envelope, and `ErrorCodes.resolveServerCode` only recognizes the codes on its `serverCodes` allowlist. The cancellation RPC adds `-010` (no `accepted` partnership with that id belongs to the caller; SQLSTATE `42501`) and `-013` (a partner decline is still inside the 24-hour cooldown; SQLSTATE `P0001`). Until a code is added to the allowlist it reaches the UI as the raw message instead of a localized `userMessage`.
+The Supabase RPCs raise validation failures as Postgres exceptions whose message starts with `API-VALIDATION-<id>`; PostgREST returns that message in its error envelope, and `ErrorCodes.resolveServerCode` only recognizes the codes on its `serverCodes` allowlist. The partnership-cancellation family is now recognized end to end:
+
+- `-010` — request blocked: no `accepted` partnership with that id belongs to the caller (SQLSTATE `42501`).
+- `-011` — revert blocked: no `cancelled` row for the caller (SQLSTATE `42501`).
+- `-012` — accept blocked: wrong actor/status or requester (SQLSTATE `42501`); `partnership_accept` also raises it when the recipient already holds another accepted/cancelled pair.
+- `-013` — request blocked by the 24-hour cooldown after a partner decline (SQLSTATE `P0001`).
+- `-014` — accept blocked because the request expired (SQLSTATE `P0001`).
+
+All five constants (`apiValidation010`…`014`) map through `ErrorCodes.userMessage` to the EN/IT `error_apiValidation010`…`014` strings. A code outside the allowlist still reaches the UI as the raw message instead of a localized `userMessage`.
 
 ---
 

@@ -205,6 +205,13 @@ The partnership feature uses two distinct channels, by design:
 - **Side Effects**: GoTrue creates the invitee's Auth account (`user_create_from_auth` provisions `public.users` / `user_profiles`) and sends the hosted "Invite user" email; no `partnerships` row is written.
 - **Error**: an address that already has an account returns `409 API-VALIDATION-002` and the dialog points the user at the 6-character code flow.
 
+### 6. Partnership Cancellation (Flutter data layer)
+- **Model**: `PartnershipCancellation` (`partnership_repository.dart` / `partnership_models.dart`) carries `partnershipId`, `partnerId`, `partnerDisplayName`, `partnerProfilePicUrl` and `requestedByMe`, mapped from `partnership_get_cancellation()`.
+- **Repository**: `PartnershipRepository.requestCancellation(id)` -> `partnership_request_cancel`; `revertCancellation(id)` -> `partnership_cancel_revert`; `acceptCancellation(id)` -> signed `POST /api/v1/partnership/cancel/accept` (`ApiService.acceptPartnershipCancellation`, `requireSignature: true`); `getCancellation()` -> `partnership_get_cancellation` (the only call that exposes the cancelled state, because `v_active_partnership`/`AuthState.hasPartner` stay empty while cancelled). Every mutation clears the static `_activePartnershipFuture` cache before calling the server.
+- **State**: `PartnerState` holds `PartnershipCancellation? cancellation`, fetches it after `getPartnership()` in both `fetchPartnership()` and `refreshFromRealtime()`, and clears it when the read returns no row. A cancelled row must not populate `partner`/`partnershipInfo` as an active pair.
+- **Reconciliation**: `acceptCancellation` treats the deletion as successful only when the read finds no cancellation *and* no accepted partner; an expired request (row back to `accepted`) keeps the original `API-VALIDATION-014` error instead of the "ended" copy. The screen refreshes `AuthState` on that path as well.
+- **Realtime**: `isRelevantPartnership` accepts sparse DELETE payloads (PK-only under the default replica identity), and a delete that removes a known cancellation routes to `PartnerScreen` through `ErrorHandler.navigatorKey` so it also works above pushed routes.
+
 ---
 
 ## Realtime Synchronization & Redirection Rules
@@ -220,7 +227,7 @@ Supabase Realtime Channel ('justus-sync-{userId}-{gen}')
                            ▼
 RefetchRealtimeHandler.handle()
                             │
-                            ├── 1. Filters relevance (RealtimeSyncSession.isRelevantPartnership: checks user_id_1, user_id_2)
+                            ├── 1. Filters relevance (RealtimeSyncSession.isRelevantPartnership: checks user_id_1, user_id_2; a DELETE is kept even when the payload is PK-only)
                             ├── 2. Deduplicates event key (RealtimeSyncSession.markSeen)
                             ├── 3. Debounces execution (150ms timer)
                            │
@@ -229,9 +236,11 @@ Clear local cache (BaseRepository.clearPartnershipCache())
                            │
                            ▼
 Trigger UI state refreshes:
-  ├── PartnerState.refreshFromRealtime()
+  ├── PartnerState.refreshFromRealtime()  (partnership + cancellation read)
   └── AuthState.refreshPartnershipFromRealtime()
 ```
+
+When the refresh proves that a known cancellation is gone because the partner accepted (no accepted partnership and no cancellation row), `PartnerState` replaces the stack with `PartnerScreen` through `ErrorHandler.navigatorKey`; the redirect is not limited to `MainShell` and shows no dialog. A requester restore/partner decline keeps the pair `accepted`, and an expiry reverts the same way, so neither triggers the redirect.
 
 ### Automatic Redirection to PartnerScreen
 
@@ -316,6 +325,9 @@ During the reverse-engineering analysis, the following technical findings and bu
 | Cancellation Read (RPC) | **IMPLEMENTED** | `partnership_get_cancellation` RPC: caller's cancelled row + counterpart identity + `requested_by_me`, with lazy expiry |
 | Cancellation Push Partner (RPC) | **IMPLEMENTED** | `partnership_get_cancellation_partner` RPC: resolves the ex-partner for the request push; backend-only |
 | Cancellation Accept (RPC) | **IMPLEMENTED** | `partnership_cancel_accept` RPC: partner deletes the row and cascades couple data; backend-only |
+| Cancellation Client Calls | **IMPLEMENTED** | `PartnershipRepository.requestCancellation` / `revertCancellation` (RPCs), `acceptCancellation` (signed backend endpoint), `getCancellation` (read RPC); cache cleared before each mutation |
+| Cancellation State | **IMPLEMENTED** | `PartnerState.cancellation` fetched with the partnership (fetch + realtime); `AuthState.hasPartner` stays false while cancelled |
+| Cancellation Realtime / Reverse Redirect | **IMPLEMENTED** | PK-only DELETE relevance, `ErrorHandler.navigatorKey` redirect from pushed routes once a known request resolves, lost accept response resolved against the accepted-partnership read |
 | Invite Partner With No Account | **IMPLEMENTED** | `POST /auth/invite-user` → `admin.inviteUserByEmail()`; hosted "Invite user" email; account-only, no `partnerships` row |
 | Realtime State Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `partnerships` table |
 | Automatic Redirection on Login | **IMPLEMENTED** | `SplashScreen` routes based on `partnerState.partner` |

@@ -136,7 +136,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 - `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> installation-id registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
 - `AuthState.register()` performs only signup; it **does not** set login data even when Supabase auto-confirms (so no session bootstrap happens on register).
-- `PartnerState` re-fetches partnership on realtime events.
+- `PartnerState` re-fetches partnership on realtime events and holds the parallel `PartnershipCancellation? cancellation` (fetched after the accepted-partnership read). While cancelled the active view is empty, so `AuthState.hasPartner` stays false.
 - `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and coalesces concurrent loads: a caller that arrives while another load is in flight awaits that same load (cache read + network fetch run once), and a forced caller chains a fresh load after it — no caller is left with empty state.
 
 ---
@@ -157,7 +157,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 Every feature exposes `*Repository extends BaseRepository`:
 
 - `AuthRepository` - `checkLoginRisk`, `reportFailedLogin`, `syncSession` (all via backend API), `currentSession`, `signInWithPassword`, `signUp`, `signOut`, `revokeOtherSessions` (`signOut(scope: others)`) and `revokeOtherInstallations` (`POST /auth/installation-id-revoke-all`), both run after a password write, `changePassword`, `updatePasswordWithoutCurrent`, `updateInstallationId` (backend, signed).
-- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `partnership_accept` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (RPC `partnership_reject`), `updateAnniversaryDate`, `getPendingInvitations` (RPC `partnership_get_pending_invitations`, returns only the caller's pending invitations).
+- `PartnershipRepository` - `getActivePartnership()` (with a **static shared future cache** keyed by user; invalidated via `clearPartnershipCache()`), `getPartnership()`, `fetchPartnerProfile()`, `inviteUser` (backend `/auth/invite`), `acceptPartnerRequest` (RPC `partnership_accept` + fire-and-forget `requestAccepted` notification), `inviteUnregisteredPartner` (backend `/auth/invite-user`, account-only invite email), `rejectPartnerRequest` (RPC `partnership_reject`), `updateAnniversaryDate`, `getPendingInvitations` (RPC `partnership_get_pending_invitations`, returns only the caller's pending invitations), and the cancellation calls `requestCancellation` / `revertCancellation` (RPCs), `acceptCancellation` (signed `POST /partnership/cancel/accept` through `ApiService.requireSignature`) and `getCancellation` (RPC `partnership_get_cancellation`). Each cancellation mutation clears the partnership cache first.
 - `MissYouRepository`, `MoodRepository`, `BucketRepository`, `GameRepository`, `GameQuestionBankRepository`, `DriveRepository`, `UserRepository`, `VersionRepository` - feature data access (Supabase tables/views/RPCs); `DriveRepository`, `UserRepository` and `VersionRepository` also make signed backend calls for media, notifications and version checks where needed.
 
 ### Services
@@ -495,12 +495,13 @@ Flutter test files live in `Flutter/test/` and use `mocktail`:
 
 | Test file | Coverage area |
 |---|---|
-| `api_service_test.dart` | API error handling: SocketException -> NetworkError, timeout -> NetworkError, generic exception handling, HTTP status code handling; token refresh + retry and the binding-secret paths (cached secret, pre-flight recovery, fail-closed `LOCAL-BINDING-001`, 30s recovery throttle, `SEC-AUTH-002` stale-secret re-bind + single retry) |
+| `api_service_test.dart` | API error handling: SocketException -> NetworkError, timeout -> NetworkError, generic exception handling, HTTP status code handling; token refresh + retry and the binding-secret paths (cached secret, pre-flight recovery, fail-closed `LOCAL-BINDING-001`, 30s recovery throttle, `SEC-AUTH-002` stale-secret re-bind + single retry); the signed `/partnership/cancel/accept` path, body and signature headers |
 | `game_state_test.dart` | Game state behavior |
 | `logging_restrictions_test.dart` | Logging restrictions |
 | `mood_screen_test.dart` | Mood screen rendering |
 | `mood_state_test.dart` | Mood state management |
-| `partner_state_test.dart` | Partner state management |
+| `partner_state_test.dart` | Partner state management, including cancellation fetch, requested-by-me/partner states, lost accept response vs expiry, and the `ErrorHandler.navigatorKey` redirect from a pushed route |
+| `partnership_cancellation_test.dart` | `PartnershipCancellation.fromJson` and the four repository cancellation calls (RPC names/params, signed backend endpoint, null read mapping) |
 | `version_update_test.dart` | App update flow: `AppVersionResponse.fromJson` parsing and defaults, `VersionRepository` -> `ApiService` route and parse, the `localBuild >= serverBuild` up-to-date branch, the `forceUpdate || localBuild < minBuild` mandatory truth table, the non-dismissible dialog (barrier tap and back gesture), the manual-check toasts and the two call sites |
 
 Test helpers in `test_helpers/`: `mock_secure_storage.dart` and `mock_path_provider.dart` (platform-channel mocks), `source_scan.dart` (source-file scanning), `realtime_payload_factory.dart`, `settle_helpers.dart`.

@@ -141,6 +141,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller/Service**: `acceptCancellation` in `features/partnership/*` ([`partnership.routes.js`](file:///f:/JustUS/Backend/features/partnership/partnership.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(cancelRateLimit)` $\rightarrow$ `signed("partnership-cancel-accept")` $\rightarrow$ `validated({ body: { partnershipId } })`
 - **Behavior**: Loads the cancelled row as service_role, validates the caller is the non-requester member and not expired (calls `partnership_expire_cancellations()` on expiry → `API-VALIDATION-014`), calls `partnership_cancel_accept(partnershipId, actorId)` (service_role RPC), best-effort deletes `uploads/<user1>/` and `uploads/<user2>/` via `deleteObjectsByPrefix` (no `profile/`), sends `cancellationAccepted` to the requester, returns `{ success: true }`. R2 failure does not roll back the DB delete.
+- **Flutter caller**: `ApiService.acceptPartnershipCancellation({required int partnershipId})` posts `{ partnershipId }` to `ApiRoutes.partnershipCancelAccept` with `requireSignature: true`; `PartnershipRepository.acceptCancellation` wraps it after clearing the partnership cache.
 
 #### `POST /api/v1/users/wipe`
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))

@@ -96,7 +96,7 @@ Channel name: `justus-sync-$userId-$generation` — the generation counter (`Rea
 | # | Table | Event types | Callback | Debounce | Dispatches to |
 |---|---|---|---|---|---|
 | 1 | `moods` | all | `MoodRealtimeHandler.handle` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` per **distinct** changed user (`mood_change_batch.dart`) |
-| 2 | `partnerships` | all | `RefetchRealtimeHandler.handle` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
+| 2 | `partnerships` | all (UPDATE and DELETE, including PK-only DELETE) | `RefetchRealtimeHandler.handle` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
 | 3 | `missyou` | all | `MissYouRealtimeHandler.handle` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
 | 4 | `bucket_items` | all | `BucketRealtimeHandler.handle` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
 | 5 | `game_questions` | all | `GameRealtimeHandler.handle` | **none** for insert/delete (immediate); 150 ms FIFO flush for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (via `game_event_buffer.dart`) |
@@ -118,7 +118,7 @@ Every trailing-edge timer in the app is provided by one shared mixin, `TrailingE
 | Debouncer | Host (`with TrailingEdgeDebounce`) | Delay | Coalesces | Consequence of coalescing |
 |---|---|---|---|---|
 | Mood | `MoodChangeBatch` (`mood_change_batch.dart`) | 120 ms | multiple mood events | The **union** of distinct `changedUserId`s in the burst is flushed; a same-window burst from BOTH users refreshes both sides — nothing is skipped. |
-| Partnership | `RefetchRealtimeHandler` | 150 ms | partnership events | One full partnership refresh + cache clear. Order-insensitive (full refetch). |
+| Partnership | `RefetchRealtimeHandler` | 150 ms | partnership events | One full partnership refresh (including the cancellation read) + cache clear. Order-insensitive (full refetch). |
 | Game (answers + question updates) | `GameEventBuffer` (`game_event_buffer.dart`) | 150 ms | multiple game events | Full burst is buffered **FIFO** and every event is applied in delivery order — nothing is dropped. |
 | Game (question insert/delete) | — | **none** | n/a | Immediate dispatch to `handleQuestionInsert/Delete` — explicitly bypasses the debounce "so events aren't dropped by debounce". |
 | Drive | `RefetchRealtimeHandler` | 150 ms | drive/reaction events | One full `DriveState.refreshFromRealtime()` — safer than granular, since it re-pulls the whole list. |
@@ -183,7 +183,7 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 | Filter | Rule | Notes |
 |---|---|---|
 | `RealtimeSyncSession.isRelevantMood` | `user_id == userId \|\| user_id == partnerId` | Guards self + partner moods |
-| `isRelevantPartnership` | any of `user_id_1/user_id_2` in row == `userId` | Note: `user_id_a/b` also checked (unused columns, harmless) |
+| `isRelevantPartnership` | Membership: any of `user_id_1/user_id_2` in row == `userId` (`user_id_a/b` also checked, unused columns, harmless). A DELETE is kept when the payload id equals the session `partnershipId`, when it has no id (PK-only), or when `userId` is set — delete payloads cannot be attributed reliably | Any DELETE while a user is configured is processed; the debounced full refresh resolves the state |
 | `isRelevantMissYou` | → `isPartnershipRecord` | partnership_id match |
 | `isPartnershipRecord` | `partnershipId == null` → `false` (strict); else `eventPartnershipId == partnershipId`. Sparse DELETE payloads (REPLICA IDENTITY DEFAULT → only PK delivered, no `partnership_id`) are exempt | Used by bucket, missyou, game_questions, drive_items |
 | `isRelevantGame` | questions → partnership; answers → `user_id` self/partner | |
@@ -292,9 +292,11 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### partnerships
 
-- **Flow**: partnership event → `isRelevantPartnership` (membership) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`. (`RefetchRealtimeHandler` instance)
-- Refresh re-reads `getActivePartnership` (now uncached), applies partner/partnership id to `AuthState`, persists via `StorageService.savePartner`/`savePartnershipId`, and `notifyListeners()` → `RealtimeSyncScope` Consumer2 → `configure(new ids)` → channel replaced and re-bound to the correct partnership.
+- **Flow**: partnership event → `isRelevantPartnership` (membership; sparse DELETE payloads accepted) → dedup → 150 ms debounce → `BaseRepository.clearPartnershipCache()` + `Future.wait([PartnerState.refreshFromRealtime(), AuthState.refreshPartnershipFromRealtime()])`. (`RefetchRealtimeHandler` instance)
+- Refresh re-reads `getActivePartnership` (now uncached) and `partnership_get_cancellation`, applies partner/partnership id to `AuthState`, persists via `StorageService.savePartner`/`savePartnershipId`, and `notifyListeners()` → `RealtimeSyncScope` Consumer2 → `configure(new ids)` → channel replaced and re-bound to the correct partnership.
 - **Acceptance path**: a status change `pending → accepted` is received by both users; each reconfigures and resubscribes. The accepting user's `refreshPartnershipFromRealtime` (spawned by `acceptPartner`) and the event-driven one are coalesced by the same `_partnershipRefreshTimer`.
+- **DELETE path**: the default `REPLICA IDENTITY` delivers only the primary key on DELETE. `isRelevantPartnership` keeps a delete when its id matches the session `partnershipId` or when the payload has no id at all, so a PK-only delete still reaches the debounced full refresh; the refresh then observes the missing row and clears both caches.
+- **Cancellation path**: while a request is `cancelled`, `v_active_partnership` returns no active row, so `AuthState.hasPartner` becomes false and `PartnerState.cancellation` carries the requester/partner view. `MainShell` redirects to `PartnerScreen` when `hasPartner` goes false; `PartnerState` additionally teleports through `ErrorHandler.navigatorKey` when a known cancellation resolves to no partner, so the redirect also works above pushed routes (`ProfileScreen`) and shows no dialog. A requester revert, partner decline or lazy expiry restores the accepted pair, so both branches keep the user in place. The accept screen reconciles a lost response by re-reading both sources: a deleted row yields the ended state, an expired request yields `API-VALIDATION-014`.
 
 ### user_profiles
 
@@ -454,6 +456,8 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 | `game_answers` composite dedup key (F-RT6) | IMPLEMENTED (`game_id:user_id`, `realtime_sync_session.dart`) |
 | Drive-reaction relevance on reacting user, not in-memory list (F-RT8) | IMPLEMENTED (`realtime_sync_session.dart`) |
 | Checkpoint write-order guard (F-RT10) | IMPLEMENTED (`CheckpointMixin` writer token, `game_state.dart`, `mood_state.dart`) |
+| Partnership DELETE relevance (PK-only payloads) | IMPLEMENTED (`realtime_sync_session.dart` delete branch) |
+| Partnership cancellation refresh + reverse teleport | IMPLEMENTED (`partner_state.dart`, `main_shell.dart`, `ErrorHandler.navigatorKey`) |
 
 ---
 
@@ -461,7 +465,8 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 
 | Test file | Realtime coverage |
 |---|---|
-| `Flutter/test/realtime_sync_service_test.dart` | Service-level pipeline against a mocked `SupabaseClient`/`RealtimeChannel`: the first channel binds all nine tables with `event: all` (`justus-sync-<userId>-<generation>`), an identity change removes the stale generation and opens the next one, a `moods` insert flows channel → real `MoodRealtimeHandler` → real `MoodState` → repository (one partner refresh, own mood untouched), a burst of partner mood inserts coalesces into exactly one refetch, a `game_questions` insert reaches the game state with no debounce, a replayed `missyou` insert reaches the counter once, a foreign-partnership `bucket_items` row never reaches the state, a token refresh calls `realtime.setAuth` without resubscribing, and `dispose()` removes the channel. |
+| `Flutter/test/realtime_sync_service_test.dart` | Service-level pipeline against a mocked `SupabaseClient`/`RealtimeChannel`: the first channel binds all nine tables with `event: all` (`justus-sync-<userId>-<generation>`), an identity change removes the stale generation and opens the next one, a `moods` insert flows channel → real `MoodRealtimeHandler` → real `MoodState` → repository (one partner refresh, own mood untouched), a burst of partner mood inserts coalesces into exactly one refetch, a `game_questions` insert reaches the game state with no debounce, a replayed `missyou` insert reaches the counter once, a foreign-partnership `bucket_items` row never reaches the state, a PK-only `partnerships` DELETE triggers exactly one `PartnerState.refreshFromRealtime`, a token refresh calls `realtime.setAuth` without resubscribing, and `dispose()` removes the channel. |
+| `Flutter/test/partner_state_test.dart` | Partner/cancellation state: paired, cancelled-by-me, cancelled-by-partner, deleted-row cleanup, lost accept response (`ended`) vs expired accept (`-014`), the reverse teleport from a pushed route when a known cancellation resolves to no partner, and no teleport while the request is still pending. |
 | `Flutter/test/bucket_realtime_handler_test.dart` | `BucketRealtimeHandler`: insert/update/delete are forwarded immediately (no debounce) with the correct record (update reads `newRecord`, delete reads `oldRecord`), foreign-partnership rows are dropped, sparse PK-only deletes are still applied, replays are dropped before the state is touched. The second group drives a real `BucketState`: insert lands without any full refetch, update toggles in place without duplicating, delete removes the row, an update for an unknown row is ignored. |
 | `Flutter/test/miss_you_realtime_handler_test.dart` | `MissYouRealtimeHandler`: insert increments with the decoded row id (and with a null id when the key is absent), delete refetches instead of incrementing, update does neither, foreign-partnership rows are dropped, sparse PK-only deletes are still refetched, replays are dropped. The second group drives a real `HomepageState`: the optimistic counter is persisted without a refetch, a replay does not double count (F-RT5 end to end), and a delete replaces the counter with the server total. |
 | `Flutter/test/game_realtime_handler_test.dart` | `GameRealtimeHandler`: question insert/delete stay immediate, every other event is buffered and flushed FIFO (F-RT1 burst), `clear()` cancels a pending flush, answer insert/update/delete routing by record. |

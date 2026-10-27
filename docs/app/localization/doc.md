@@ -96,6 +96,9 @@ Server notification templates support `it` and `en` across key events:
 | Notification Key | Italian Title / Body Template | English Title / Body Template |
 | :--- | :--- | :--- |
 | `requestAccepted` | **Richiesta Accettata** / `{partnerName} ha accettato la tua richiesta` | **Request Accepted** / `{partnerName} accepted your request` |
+| `cancellationRequested` | **Richiesta di interruzione** / `{partnerName} ha chiesto di interrompere la partnership` | **Cancellation Request** / `{partnerName} asked to end the partnership` |
+| `cancellationDeclined` | **Richiesta di interruzione rifiutata** / `{partnerName} ha rifiutato la richiesta di interruzione` | **Cancellation Declined** / `{partnerName} declined the cancellation request` |
+| `cancellationAccepted` | **Partnership interrotta** / `{partnerName} ha accettato la richiesta di interruzione` | **Partnership Ended** / `{partnerName} accepted the cancellation request` |
 | `missyou` | **Mi manchi** / `{partnerName} sente la tua mancanza` | **Miss You** / `{partnerName} misses you` |
 | `moodUpdated` | **Nuovo Umore** / `{partnerName} ha aggiornato il suo umore` | **New Mood** / `{partnerName} updated their mood` |
 | `answerSubmitted` | **Nuova Risposta** / `{partnerName} ha risposto alla domanda` | **New Answer** / `{partnerName} answered the question` |
@@ -110,12 +113,28 @@ Server notification templates support `it` and `en` across key events:
 - If requested `locale` is unsupported or missing, defaults to `'en'`.
 - If key is unrecognized, falls back to `default` template.
 
+### Flutter Error-Code Localization (Partnership Cancellation)
+
+The cancellation RPCs raise `API-VALIDATION-010`…`014` inside the Postgres exception message. `ErrorCodes.resolveServerCode()` accepts only codes on the `serverCodes` allowlist, and `ErrorCodes.userMessage()` maps each to an ARB key:
+
+| Code | Constant | ARB key | Meaning |
+| :--- | :--- | :--- | :--- |
+| `API-VALIDATION-010` | `apiValidation010` | `error_apiValidation010` | Request blocked: no matching accepted partnership / caller not a member |
+| `API-VALIDATION-011` | `apiValidation011` | `error_apiValidation011` | Revert blocked: nothing cancelled for this caller |
+| `API-VALIDATION-012` | `apiValidation012` | `error_apiValidation012` | Accept blocked: wrong actor/status, or recipient already paired |
+| `API-VALIDATION-013` | `apiValidation013` | `error_apiValidation013` | 24-hour cooldown after a partner decline |
+| `API-VALIDATION-014` | `apiValidation014` | `error_apiValidation014` | Cancellation request expired |
+
+The EN/IT strings live in `intl_en.arb` / `intl_it.arb` and the generated `app_localizations*.dart`; `flutter gen-l10n` keeps them in sync. An unknown or unlisted RPC code still reaches the UI as the raw server message.
+
 ---
 
 ## Alignment Audit & Findings
 
 1. **Frontend-Backend Key Consistency:**
-   - **Status:** **ALIGNED**. All notification event keys sent by Flutter (`requestAccepted`, `missyou`, `moodUpdated`, etc.) match the keys defined in `notification.utils.js`.
+   - **Status:** **ALIGNED**. All notification event keys sent by Flutter (`requestAccepted`, `missyou`, `moodUpdated`, etc.) match the keys defined in `notification.utils.js`. The cancellation catalog adds `cancellationRequested`, `cancellationDeclined` and `cancellationAccepted` in both locales.
+2. **Cancellation Error Codes:**
+   - **Status:** **ALIGNED**. `010`–`014` are allowlisted and localized in both `en` and `it`; `rpc_error_codes_test.dart` pins the EN/IT messages and the `resolveServerCode()` acceptance.
 
 
 ---
@@ -126,4 +145,5 @@ Server notification templates support `it` and `en` across key events:
 - **Runtime Language Switcher:** **100% IMPLEMENTED**
 - **Persistence (`SharedPreferences`):** **100% IMPLEMENTED**
 - **Background Isolate Localizations:** **100% IMPLEMENTED**
-- **Backend Notification Localization:** **100% IMPLEMENTED**
+- **Backend Notification Localization:** **100% IMPLEMENTED** (including `cancellationRequested` / `cancellationDeclined` / `cancellationAccepted`)
+- **Cancellation RPC Error Messages (`010`–`014`):** **100% IMPLEMENTED** (allowlist + EN/IT ARB + generated code)
