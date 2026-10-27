@@ -5,6 +5,7 @@ const {
   createDownloadUrl,
   isConfigured,
   getPartnerId,
+  getCancellationPartnerId,
   AppError,
   assertDbSuccess,
 } = require("../../all_imports");
@@ -71,7 +72,13 @@ async function registerCompletedUpload({ user, payload }) {
     };
   }
 
-  const partnerId = await getPartnerId(user.profileId);
+  let partnerId = await getPartnerId(user.profileId);
+  if (partnerId == null) {
+    partnerId = await getCancellationPartnerId(user.profileId);
+  }
+  if (partnerId == null) {
+    throw new AppError({ errorKey: "API_VALIDATION_001", message: "No partner found" });
+  }
   const item = assertDbSuccess(
     await adminSupabase
       .from("drive_items")
