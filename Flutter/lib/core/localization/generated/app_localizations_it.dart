@@ -422,6 +422,24 @@ class AppLocalizationsIt extends AppLocalizations {
   String get profile_disconnectSession => 'DISCONNETTI SESSIONE';
 
   @override
+  String get profile_cancelRequest =>
+      'RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP';
+
+  @override
+  String get profile_cancelRequestTitle =>
+      'Richiedi la cancellazione della partnership';
+
+  @override
+  String get profile_cancelRequestContent =>
+      'Il tuo partner deve approvare. L\'app resterà in pausa fino ad allora.';
+
+  @override
+  String get profile_cancelRequestConfirm => 'Richiedi cancellazione';
+
+  @override
+  String get profile_cancelRequestSent => 'Cancellazione richiesta';
+
+  @override
   String get profile_identitySection => 'IDENTITÀ';
 
   @override
@@ -535,6 +553,33 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get partner_cancelRequestTooltip => 'Annulla richiesta';
+
+  @override
+  String partner_cancellationWaiting(String partner) {
+    return 'Cancellazione richiesta. In attesa che $partner approvi per continuare.';
+  }
+
+  @override
+  String get partner_restorePartnership => 'Ripristina partnership';
+
+  @override
+  String partner_cancellationRequested(String partner) {
+    return '$partner ha chiesto di interrompere la partnership';
+  }
+
+  @override
+  String get partner_cancellationSubtitle => 'Cancellazione partnership';
+
+  @override
+  String get partner_cancellationEndTitle => 'Interrompi la partnership';
+
+  @override
+  String get partner_cancellationEndContent =>
+      'Tutti i dati condivisi verranno eliminati. L\'azione è definitiva.';
+
+  @override
+  String get partner_cancellationEnded =>
+      'Partnership interrotta. Tutti i dati condivisi sono stati eliminati.';
 
   @override
   String get partner_requestButton => 'Richiedi';
@@ -1093,5 +1138,30 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String notif_bucketItemAdded_body(String partnerName) {
     return '$partnerName ha aggiunto un desiderio';
+  }
+
+  @override
+  String get notif_cancellationRequested_title => 'Richiesta di interruzione';
+
+  @override
+  String notif_cancellationRequested_body(String partnerName) {
+    return '$partnerName ha chiesto di interrompere la partnership';
+  }
+
+  @override
+  String get notif_cancellationDeclined_title =>
+      'Richiesta di interruzione rifiutata';
+
+  @override
+  String notif_cancellationDeclined_body(String partnerName) {
+    return '$partnerName ha rifiutato la richiesta di interruzione';
+  }
+
+  @override
+  String get notif_cancellationAccepted_title => 'Partnership interrotta';
+
+  @override
+  String notif_cancellationAccepted_body(String partnerName) {
+    return '$partnerName ha accettato la richiesta di interruzione';
   }
 }

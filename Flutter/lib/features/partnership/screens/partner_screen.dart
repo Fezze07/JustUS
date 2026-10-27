@@ -102,7 +102,10 @@ class _PartnerScreenState extends State<PartnerScreen>
                                 child: Column(
                                   children: [
                                     Text(
-                                      'Cancellation requested. Waiting for ${cancellation.partnerDisplayName ?? 'partner'} to approve before continuing.',
+                                      context.loc
+                                          .partner_cancellationWaiting(
+                                              cancellation.partnerDisplayName ??
+                                                  context.loc.common_partner),
                                       textAlign: TextAlign.center,
                                       style: VpWidgets.googleFont(
                                         color: context.palette.contentPrimary,
@@ -129,7 +132,8 @@ class _PartnerScreenState extends State<PartnerScreen>
                                           ErrorHandler.handle(res, context: context);
                                         }
                                       },
-                                      child: const Text('Restore partnership'),
+                                      child: Text(context
+                                          .loc.partner_restorePartnership),
                                     ),
                                   ],
                                 ),
@@ -152,16 +156,21 @@ class _PartnerScreenState extends State<PartnerScreen>
                                   isReceived: true,
                                 ),
                                 isReceived: true,
-                                title: '${cancellation.partnerDisplayName ?? 'Partner'} asked to end the partnership',
+                                title: context.loc.partner_cancellationRequested(
+                                    cancellation.partnerDisplayName ??
+                                        context.loc.common_partner),
+                                subtitle:
+                                    context.loc.partner_cancellationSubtitle,
                                 showAccept: true,
                                 showReject: true,
                                 onAccept: () async {
                                   final confirmed = await showDialog<bool>(
                                     context: context,
                                     builder: (context) => VPDialog(
-                                      title: 'End partnership',
-                                      content: const Text(
-                                          'This will delete all shared data. This action is final.'),
+                                      title:
+                                          context.loc.partner_cancellationEndTitle,
+                                      content: Text(context
+                                          .loc.partner_cancellationEndContent),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
@@ -175,7 +184,8 @@ class _PartnerScreenState extends State<PartnerScreen>
                                           ),
                                           onPressed: () =>
                                               Navigator.pop(context, true),
-                                          child: const Text('Accept'),
+                                          child: Text(context
+                                              .loc.partner_acceptTooltip),
                                         ),
                                       ],
                                     ),
@@ -194,7 +204,7 @@ class _PartnerScreenState extends State<PartnerScreen>
                                     await partnerState.fetchPartnership();
                                     if (!context.mounted) return;
                                     ErrorHandler.showSnackBar(context,
-                                        'Partnership ended. All shared data was deleted.');
+                                        context.loc.partner_cancellationEnded);
                                   } else {
                                     await context
                                         .read<AuthState>()
@@ -204,7 +214,7 @@ class _PartnerScreenState extends State<PartnerScreen>
                                     if (partnerState.cancellation == null &&
                                         partnerState.partner == null) {
                                       ErrorHandler.showSnackBar(context,
-                                          'Partnership ended. All shared data was deleted.');
+                                          context.loc.partner_cancellationEnded);
                                     } else {
                                       ErrorHandler.handle(res, context: context);
                                     }

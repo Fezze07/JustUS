@@ -476,9 +476,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         final confirmed = await showDialog<bool>(
                           context: context,
                           builder: (context) => VPDialog(
-                            title: 'Request partnership cancellation',
-                            content: const Text(
-                                'Your partner must approve. The app will pause until then.'),
+                            title: context.loc.profile_cancelRequestTitle,
+                            content:
+                                Text(context.loc.profile_cancelRequestContent),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -489,7 +489,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   backgroundColor: context.palette.danger,
                                 ),
                                 onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Request cancellation'),
+                                child: Text(
+                                    context.loc.profile_cancelRequestConfirm),
                               ),
                             ],
                           ),
@@ -505,7 +506,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           await context.read<AuthState>().refreshPartnershipFromRealtime();
                           await partnerState.fetchPartnership();
                           if (!context.mounted) return;
-                          ErrorHandler.showSnackBar(context, 'Cancellation requested');
+                          ErrorHandler.showSnackBar(
+                              context, context.loc.profile_cancelRequestSent);
                           Navigator.pushReplacementNamed(context, AppRoutes.partner);
                         } else {
                           ErrorHandler.handle(res, context: context);
@@ -527,7 +529,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 color: context.palette.danger),
                             const SizedBox(width: 12),
                             Text(
-                              'REQUEST PARTNERSHIP CANCELLATION',
+                              context.loc.profile_cancelRequest,
                               style: VpWidgets.googleFont(
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 2,

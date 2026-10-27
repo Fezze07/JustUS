@@ -177,6 +177,11 @@
   "profile_wipeConfirm": "CANCELLA TUTTO",
   "profile_dataWiped": "Dati cancellati. Sincronizzazione...",
   "profile_disconnectSession": "DISCONNETTI SESSIONE",
+  "profile_cancelRequest": "RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP",
+  "profile_cancelRequestTitle": "Richiedi la cancellazione della partnership",
+  "profile_cancelRequestContent": "Il tuo partner deve approvare. L'app resterà in pausa fino ad allora.",
+  "profile_cancelRequestConfirm": "Richiedi cancellazione",
+  "profile_cancelRequestSent": "Cancellazione richiesta",
   "profile_identitySection": "IDENTITÀ",
   "profile_displayNameTitle": "Nome visualizzato",
   "profile_displayNameSubtitle": "Come appari al tuo partner",
@@ -214,6 +219,27 @@
   "partner_acceptTooltip": "Accetta",
   "partner_declineTooltip": "Rifiuta",
   "partner_cancelRequestTooltip": "Annulla richiesta",
+  "partner_cancellationWaiting": "Cancellazione richiesta. In attesa che {partner} approvi per continuare.",
+  "@partner_cancellationWaiting": {
+    "placeholders": {
+      "partner": {
+        "type": "String"
+      }
+    }
+  },
+  "partner_restorePartnership": "Ripristina partnership",
+  "partner_cancellationRequested": "{partner} ha chiesto di interrompere la partnership",
+  "@partner_cancellationRequested": {
+    "placeholders": {
+      "partner": {
+        "type": "String"
+      }
+    }
+  },
+  "partner_cancellationSubtitle": "Cancellazione partnership",
+  "partner_cancellationEndTitle": "Interrompi la partnership",
+  "partner_cancellationEndContent": "Tutti i dati condivisi verranno eliminati. L'azione è definitiva.",
+  "partner_cancellationEnded": "Partnership interrotta. Tutti i dati condivisi sono stati eliminati.",
   "partner_requestButton": "Richiedi",
   "drive_title": "I nostri ricordi",
   "drive_subtitle": "ARCHIVIO VIOLA",
@@ -478,6 +504,33 @@
   "notif_bucketItemAdded_title": "Nuovo desiderio nella bucket list",
   "notif_bucketItemAdded_body": "{partnerName} ha aggiunto un desiderio",
   "@notif_bucketItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationRequested_title": "Richiesta di interruzione",
+  "notif_cancellationRequested_body": "{partnerName} ha chiesto di interrompere la partnership",
+  "@notif_cancellationRequested_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationDeclined_title": "Richiesta di interruzione rifiutata",
+  "notif_cancellationDeclined_body": "{partnerName} ha rifiutato la richiesta di interruzione",
+  "@notif_cancellationDeclined_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationAccepted_title": "Partnership interrotta",
+  "notif_cancellationAccepted_body": "{partnerName} ha accettato la richiesta di interruzione",
+  "@notif_cancellationAccepted_body": {
     "placeholders": {
       "partnerName": {
         "type": "String"

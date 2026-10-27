@@ -277,6 +277,21 @@ class NotificationService {
           title: loc.notif_bucketItemAdded_title,
           body: loc.notif_bucketItemAdded_body(partnerName)
         );
+      case 'cancellationRequested':
+        return (
+          title: loc.notif_cancellationRequested_title,
+          body: loc.notif_cancellationRequested_body(partnerName)
+        );
+      case 'cancellationDeclined':
+        return (
+          title: loc.notif_cancellationDeclined_title,
+          body: loc.notif_cancellationDeclined_body(partnerName)
+        );
+      case 'cancellationAccepted':
+        return (
+          title: loc.notif_cancellationAccepted_title,
+          body: loc.notif_cancellationAccepted_body(partnerName)
+        );
       default:
         return (title: 'JustUS', body: '');
     }

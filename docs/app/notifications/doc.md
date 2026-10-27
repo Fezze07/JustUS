@@ -275,8 +275,8 @@ notifySchema = z.object({
 | 6 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 7 | `reactionAdded` | DriveRepository | `addReaction` after `drive_item_reactions` insert (`drive_repository.dart:139-145`) | `{partnerName, emojiChar}` | `notif_reactionAdded_title/body({partnerName, emojiChar})` | PARTIALLY IMPLEMENTED |
 | 8 | `bucketItemAdded` | BucketRepository | `addBucketItem` after `bucket_items` insert (`bucket_repository.dart:49-52`) | `{partnerName}` | `notif_bucketItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 9 | `cancellationRequested` | Client (requester) | After `partnership_request_cancel` RPC success; resolved via `getCancellationPartnerId` (row cancelled) | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
-| 10 | `cancellationDeclined` | Client (after revert) | After `partnership_cancel_revert` (partner decline or requester restore) — normal partner path | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 9 | `cancellationRequested` | PartnershipRepository | `requestCancellation` after `partnership_request_cancel` RPC success; resolved via `getCancellationPartnerId` (row cancelled) | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 10 | `cancellationDeclined` | PartnershipRepository | `revertCancellation` after `partnership_cancel_revert` (partner decline or requester restore) — normal partner path | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
 | 11 | `cancellationAccepted` | Backend (accept endpoint) | After `partnership_cancel_accept` deletes the row | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
 
 - All sends are fire-and-forget (`unawaited(notifyPartnerOnce(...))`) and swallow errors (`base_repository.dart:163-174`). No notification is retried, and the sender gets no feedback that the delivery failed.
@@ -310,7 +310,7 @@ notifySchema = z.object({
 - `_notifications.initialize(onDidReceiveNotificationResponse: (r) => _onNotificationTapController.add(r.payload))`.
 - Android: `requestNotificationsPermission()` + create channel `justus_channel` / `'JustUs Notifications'` / `importance: Importance.high` — only when NOT in a background isolate (`:119-141`).
 
-### `showRemoteMessage(message, {isBackground})` (`:144-203`)
+### `showRemoteMessage(message, {isBackground})` (`:178-228`)
 
 1. `kIsWeb` → no-op.
 2. Load locale from `SharedPreferences` (`LanguageHelper.storageKey = 'app_language_code'`), else `initFromSystemLocale()`.
@@ -318,11 +318,11 @@ notifySchema = z.object({
 4. Else fall back to `data['title']/['body']` or `message.notification`; if neither present → silently return (notification not shown).
 5. `_notifications.show(id: _notificationId(message), payload: jsonEncode(message.data))`.
 
-### `_localizeNotification` (`:205-258`)
+### `_localizeNotification` (`:230-298`)
 
-Switch over the 8 keys resolving ARB getters (e.g. `loc.notif_missyou_body(partnerName)`). Defaults for missing params: `partnerName = 'Your partner'`, `emojiChar = '❤️'`. Unknown key → `(title: 'JustUS', body: '')` (F-PN7).
+Switch over the 11 keys resolving ARB getters (e.g. `loc.notif_missyou_body(partnerName)`). Defaults for missing params: `partnerName = 'Your partner'`, `emojiChar = '❤️'`. Unknown key → `(title: 'JustUS', body: '')` (F-PN7).
 
-### `showNotification` (`:260-299`)
+### `showNotification` (`:300-339`)
 
 Channel `justus_channel`, `importance: high`, `priority: high` (Android); Darwin present-all options; Linux/Windows details.
 
@@ -366,7 +366,7 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 
 `LOCALIZATIONS = { it: {...}, en: {...} }` with one entry per notification key plus a `default` entry. The per-device `user_devices.locale` (fallback `'en'` for null/unknown) selects the language; `params` are merged into the template (`p.partnerName`, `p.emojiChar`).
 
-### Pass 2 — Client (`notification_service.dart:144-258`)
+### Pass 2 — Client (`notification_service.dart:178-298`)
 
 `LanguageHelper` holds a static `appLoc`, initialized from the saved `app_language_code` pref or the system locale; `_localizeNotification` maps the key to an ARB getter. Client fallback locale is `it` (`language_helper.dart:27`).
 
@@ -453,7 +453,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN7: Unknown `notificationKey` shows an empty-body notification (LOW)
 
-- **WHAT**: `_localizeNotification` returns `(title: 'JustUS', body: '')` for unhandled keys (`notification_service.dart:255-256`) and `showRemoteMessage` shows it as-is.
+- **WHAT**: `_localizeNotification` returns `(title: 'JustUS', body: '')` for unhandled keys (`notification_service.dart:295-296`) and `showRemoteMessage` shows it as-is.
 - **WHERE**: `notification_service.dart:255-256`.
 - **WHEN**: A new key is deployed server-side before the app switch is updated (or a client crafts an arbitrary key — see F-PN10).
 - **IMPACT**: The user sees a `JustUS` notification with an empty body. No data exposure.

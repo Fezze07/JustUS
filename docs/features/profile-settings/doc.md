@@ -21,6 +21,7 @@ This document provides a reverse-engineering technical analysis of the end-to-en
 9. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
 10. **App Version Display & Interactive Update Check**: Displays cached/live app version (`v{version}`) loaded from `SharedPreferences` key `app_version` (falling back to `package_info_plus`). Manual update checks display an immediate inline loading spinner on the tile and footer.
 11. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL, Cloudflare R2, and local storage without invalidating authentication tokens.
+12. **Partnership Cancellation Request**: When paired (`AuthState.hasPartner`), a danger-styled tile above Logout opens a simple confirmation dialog and calls `partnership_request_cancel`. The couple is frozen, the partner is pushed, and the requester lands on `PartnerScreen` in the waiting state; a cooldown/error response keeps the user on Profile.
 
 ---
 
@@ -56,6 +57,18 @@ Profile Screen → Tap Language → LocalizationScreen
   → LanguageHelper.setAppLocale(Locale('en')) → AppLocalizations Lookup Updated
   → notifyListeners() → MaterialApp Rebuilds UI in English
 ```
+
+### Partnership Cancellation Request Flow
+```
+Profile Screen (paired) → Tap "REQUEST PARTNERSHIP CANCELLATION" → Simple VPDialog
+  → Confirm → PartnerState.requestCancellation(partnershipId)
+  → RPC partnership_request_cancel(p_partnership_id)
+  → Fire-and-forget cancellationRequested push to the partner
+  → Clear partnership cache → Refresh AuthState + PartnerState
+  → Snackbar profile_cancelRequestSent → pushReplacementNamed(PartnerScreen)
+  → Requester waits on the cancellation card (Restore partnership available)
+```
+Failure (including the 24h cooldown `API-VALIDATION-013`) closes nothing and stays on Profile with the mapped error.
 
 ### Account Data Wipe Flow (Debug)
 ```
@@ -99,12 +112,13 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Frontend
 
 ### Screens & Widgets
-- [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart): Main violet-punk styled screen rendering connected avatars, names, partner code, IDENTITY setting group (display name edit dialog), debug utilities, logout button, and version label.
+- [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart): Main violet-punk styled screen rendering connected avatars, names, partner code, IDENTITY setting group (display name edit dialog), the partner-only cancellation tile (simple confirmation dialog), debug utilities, logout button, and version label.
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart): Screen listing supported languages (`_LanguageTile`); selecting a language calls `LanguageProvider.setLanguageCode`.
 - [`change_password_screen.dart`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart): Form with text fields for current password, new password, and confirmation password.
 
 ### Key Logic & Repositories
 - [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart): Manages `_userProfile`, `_partnerProfile`, `_isUploading`, `_anniversaryDate`, throttling server profile fetches (1-minute window), uploading profile photos, updating the display name, and calling `wipeAppData()`.
+- `PartnerState` / `PartnershipRepository` (partnership feature): the cancellation call `requestCancellation(partnershipId)` runs the RPC and fires the `cancellationRequested` push; the screen then refreshes both states and navigates to `PartnerScreen`.
 - [`user_repository.dart`](file:///f:/JustUS/Flutter/lib/features/settings/user_repository.dart): Contains API calls:
   - `fetchProfileByAuthId(authId)`: Queries `users` joined with `user_profiles`.
   - `fetchProfile()`: Queries `users` for current authenticated user.
@@ -191,6 +205,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 - Device token registration (`updateInstallationId`) occurs at boot and login, passing the current device locale (`languageCode`).
 - Changing device locale at runtime triggers `didChangeLocales` in `AuthState` to re-sync the locale with `user_devices`.
+- The cancellation request sends one fire-and-forget `cancellationRequested` push to the partner after the RPC succeeds; the backend resolves the target through `partnership_get_cancellation_partner` because the row is already `cancelled`.
 
 ---
 
@@ -199,6 +214,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - **Media Upload Failures**: Caught in `MediaService.uploadMedia()` with logging and exception rethrowing. `ProfileState` catches errors via `runSafe()`, clearing uploading status and presenting user feedback.
 - **Status Messages**: `ProfileState` owns the user-facing status text — `profile_photoUploading` while the photo upload runs, `profile_saved` on a completed display-name, photo, or anniversary update, and `profile_dataWiped` after a wipe — and `ProfileScreen` renders it through the `StateMessageListener` mixin (`clearMessage` after display). The wipe confirmation is state-owned too: `wipeAppData` runs the whole flow (wipe → `clear()` → `loadProfile(force: true)`) and sets `profile_dataWiped` last, so the reload no longer clips the message before the listener fires.
 - **Wipe Failures**: Handled via `ResultWrapper`. If backend returns non-success, an exception is thrown and an error SnackBar is displayed without clearing local state.
+- **Cancellation Request Failures**: `PartnerState.requestCancellation` returns the RPC error; `ErrorHandler` maps `API-VALIDATION-010` (not requestable) and `-013` (24h cooldown) to EN/IT messages and the screen stays on Profile.
 
 ---
 
@@ -319,6 +335,7 @@ No known bugs remain in the account-wipe flow. The R2 object cleanup and the del
 | Session Logout | **IMPLEMENTED** | Clears tokens, local storage, closes WebSocket connection |
 | Password Change Navigation | **IMPLEMENTED** | Wired submit form with reauthentication, loading state, localized validation & error handling |
 | Account Data Wipe (Debug) | **IMPLEMENTED** | Purges PostgreSQL, R2 objects (`uploads/` + `profile/` prefixes for user & partner), & local app cache; secure storage (tokens) intentionally retained |
+| Partnership Cancellation Request | **IMPLEMENTED** | Danger tile shown only when paired; simple confirmation dialog; `partnership_request_cancel` + `cancellationRequested` push; success replaces the route with `PartnerScreen`; cooldown/errors stay on Profile |
 
 ---
 

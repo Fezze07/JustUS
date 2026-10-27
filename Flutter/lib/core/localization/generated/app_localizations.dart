@@ -884,6 +884,36 @@ abstract class AppLocalizations {
   /// **'DISCONNETTI SESSIONE'**
   String get profile_disconnectSession;
 
+  /// No description provided for @profile_cancelRequest.
+  ///
+  /// In it, this message translates to:
+  /// **'RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP'**
+  String get profile_cancelRequest;
+
+  /// No description provided for @profile_cancelRequestTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiedi la cancellazione della partnership'**
+  String get profile_cancelRequestTitle;
+
+  /// No description provided for @profile_cancelRequestContent.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo partner deve approvare. L\'app resterà in pausa fino ad allora.'**
+  String get profile_cancelRequestContent;
+
+  /// No description provided for @profile_cancelRequestConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiedi cancellazione'**
+  String get profile_cancelRequestConfirm;
+
+  /// No description provided for @profile_cancelRequestSent.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancellazione richiesta'**
+  String get profile_cancelRequestSent;
+
   /// No description provided for @profile_identitySection.
   ///
   /// In it, this message translates to:
@@ -1105,6 +1135,48 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Annulla richiesta'**
   String get partner_cancelRequestTooltip;
+
+  /// No description provided for @partner_cancellationWaiting.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancellazione richiesta. In attesa che {partner} approvi per continuare.'**
+  String partner_cancellationWaiting(String partner);
+
+  /// No description provided for @partner_restorePartnership.
+  ///
+  /// In it, this message translates to:
+  /// **'Ripristina partnership'**
+  String get partner_restorePartnership;
+
+  /// No description provided for @partner_cancellationRequested.
+  ///
+  /// In it, this message translates to:
+  /// **'{partner} ha chiesto di interrompere la partnership'**
+  String partner_cancellationRequested(String partner);
+
+  /// No description provided for @partner_cancellationSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancellazione partnership'**
+  String get partner_cancellationSubtitle;
+
+  /// No description provided for @partner_cancellationEndTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Interrompi la partnership'**
+  String get partner_cancellationEndTitle;
+
+  /// No description provided for @partner_cancellationEndContent.
+  ///
+  /// In it, this message translates to:
+  /// **'Tutti i dati condivisi verranno eliminati. L\'azione è definitiva.'**
+  String get partner_cancellationEndContent;
+
+  /// No description provided for @partner_cancellationEnded.
+  ///
+  /// In it, this message translates to:
+  /// **'Partnership interrotta. Tutti i dati condivisi sono stati eliminati.'**
+  String get partner_cancellationEnded;
 
   /// No description provided for @partner_requestButton.
   ///
@@ -2119,6 +2191,42 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'{partnerName} ha aggiunto un desiderio'**
   String notif_bucketItemAdded_body(String partnerName);
+
+  /// No description provided for @notif_cancellationRequested_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiesta di interruzione'**
+  String get notif_cancellationRequested_title;
+
+  /// No description provided for @notif_cancellationRequested_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha chiesto di interrompere la partnership'**
+  String notif_cancellationRequested_body(String partnerName);
+
+  /// No description provided for @notif_cancellationDeclined_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Richiesta di interruzione rifiutata'**
+  String get notif_cancellationDeclined_title;
+
+  /// No description provided for @notif_cancellationDeclined_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha rifiutato la richiesta di interruzione'**
+  String notif_cancellationDeclined_body(String partnerName);
+
+  /// No description provided for @notif_cancellationAccepted_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Partnership interrotta'**
+  String get notif_cancellationAccepted_title;
+
+  /// No description provided for @notif_cancellationAccepted_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} ha accettato la richiesta di interruzione'**
+  String notif_cancellationAccepted_body(String partnerName);
 }
 
 class _AppLocalizationsDelegate

@@ -29,6 +29,7 @@ const Set<String> _standalone = <String>{
   'lib/firebase_options.dart',
   // Constants, models and framework glue with no project dependency
   'lib/core/localization/language_helper.dart',
+  'lib/core/navigation/app_routes.dart',
   'lib/core/local_storage/cache_service.dart',
   'lib/core/media/compression_service.dart',
   'lib/core/network/api_config.dart',

@@ -252,6 +252,15 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **Theme/Loc**: dark-only; labels pre-localized and `.toUpperCase()`-ed by the chip.
 - **Usage**: drive_screen.
 
+### InvitationTile - `features/partnership/widgets/invitation_tile.dart`
+
+- **Purpose**: one tile for pending partnership invitations and the partner's cancellation request (reused rather than a parallel card).
+- **API**: `{required PartnershipInvitation invite, required bool isReceived, VoidCallback? onAccept, VoidCallback? onReject, String? title, String? subtitle, IconData? leadingIcon, String? acceptTooltip, String? rejectTooltip, bool showAccept = false, bool showReject = false}`.
+- **Defaults**: reproduce the invitation rendering exactly - `title` falls back to the invite username, `subtitle` to `partner_wantsToConnect` / `partner_waitingResponse`, `leadingIcon` to `person_add_outlined` / `mail_outline`; received rows show accept + reject, sent rows show the cancel-request action.
+- **Custom variant**: the cancellation card passes its own copy, the broken-heart icon and both actions, while `acceptTooltip` / `rejectTooltip` override the default labels.
+- **Deps**: `PartnershipInvitation`, `VpWidgets`, `AppPalette`; strings are passed pre-localized by the caller.
+- **Tests**: `test/invitation_tile_test.dart` pins the default received/sent rendering and the custom variant.
+
 ### Loading: no dedicated component
 
 Loading is inline in `VPButton` (label swap + `Semantics(busy: true)`). There is no
@@ -311,6 +320,7 @@ and it is a candidate for a future `VPLoadingOverlay`.
 | VPAuthLayout / VPAuthLink | login + register | - |
 | VPCircleButton | drive back button + drive media action controls | - |
 | VPFilterChip | drive | - |
+| InvitationTile | partner invitations + cancellation request card | - |
 | VPSheet | emoji picker, media picker service, drive reactions | - |
 | ErrorDialog | via DialogUtils/ErrorHandler | - |
 | ProtectedNetworkImage (relocated to shared/widgets) | via VPAvatar | - |

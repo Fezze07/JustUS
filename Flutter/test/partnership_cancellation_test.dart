@@ -4,10 +4,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 import 'package:justus/all_imports.dart';
+import 'test_helpers/mock_secure_storage.dart';
 
 class _MockClient extends Mock implements sb.SupabaseClient {}
 
 class _MockApi extends Mock implements ApiService {}
+
+class _RecordingPartnershipRepository extends PartnershipRepository {
+  _RecordingPartnershipRepository({required super.sbClient});
+
+  final List<String> notifications = [];
+
+  @override
+  Future<void> notifyPartnerOnce({
+    required String notificationKey,
+    Map<String, String> params = const {},
+  }) async {
+    notifications.add(notificationKey);
+  }
+}
 
 class _FakeRpc extends Mock implements sb.PostgrestFilterBuilder<dynamic> {
   _FakeRpc(this.result);
@@ -29,6 +44,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
   });
@@ -56,32 +72,36 @@ void main() {
     );
   });
 
-  test('requestCancellation calls partnership_request_cancel', () async {
+  test('requestCancellation calls partnership_request_cancel once and pushes',
+      () async {
     final client = _MockClient();
     when(() => client.rpc('partnership_request_cancel',
             params: {'p_partnership_id': 5}))
         .thenAnswer((_) => _FakeRpc(null));
-    final repository = PartnershipRepository(sbClient: client);
+    final repository = _RecordingPartnershipRepository(sbClient: client);
 
     final result = await repository.requestCancellation(5);
 
     expect(result, isA<Success<void>>());
     verify(() => client.rpc('partnership_request_cancel',
         params: {'p_partnership_id': 5})).called(1);
+    expect(repository.notifications, ['cancellationRequested']);
   });
 
-  test('revertCancellation calls partnership_cancel_revert', () async {
+  test('revertCancellation calls partnership_cancel_revert once and pushes',
+      () async {
     final client = _MockClient();
     when(() => client.rpc('partnership_cancel_revert',
             params: {'p_partnership_id': 5}))
         .thenAnswer((_) => _FakeRpc(null));
-    final repository = PartnershipRepository(sbClient: client);
+    final repository = _RecordingPartnershipRepository(sbClient: client);
 
     final result = await repository.revertCancellation(5);
 
     expect(result, isA<Success<void>>());
     verify(() => client.rpc('partnership_cancel_revert',
         params: {'p_partnership_id': 5})).called(1);
+    expect(repository.notifications, ['cancellationDeclined']);
   });
 
   test('acceptCancellation uses the signed backend call', () async {

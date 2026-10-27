@@ -138,6 +138,11 @@
   "profile_wipeConfirm": "WIPE EVERYTHING",
   "profile_dataWiped": "Data wiped. Re-syncing...",
   "profile_disconnectSession": "DISCONNECT SESSION",
+  "profile_cancelRequest": "REQUEST PARTNERSHIP CANCELLATION",
+  "profile_cancelRequestTitle": "Request partnership cancellation",
+  "profile_cancelRequestContent": "Your partner must approve. The app will pause until then.",
+  "profile_cancelRequestConfirm": "Request cancellation",
+  "profile_cancelRequestSent": "Cancellation requested",
   "profile_identitySection": "IDENTITY",
   "profile_displayNameTitle": "Display name",
   "profile_displayNameSubtitle": "How you appear to your partner",
@@ -175,6 +180,27 @@
   "partner_acceptTooltip": "Accept",
   "partner_declineTooltip": "Decline",
   "partner_cancelRequestTooltip": "Cancel Request",
+  "partner_cancellationWaiting": "Cancellation requested. Waiting for {partner} to approve before continuing.",
+  "@partner_cancellationWaiting": {
+    "placeholders": {
+      "partner": {
+        "type": "String"
+      }
+    }
+  },
+  "partner_restorePartnership": "Restore partnership",
+  "partner_cancellationRequested": "{partner} asked to end the partnership",
+  "@partner_cancellationRequested": {
+    "placeholders": {
+      "partner": {
+        "type": "String"
+      }
+    }
+  },
+  "partner_cancellationSubtitle": "Partnership cancellation",
+  "partner_cancellationEndTitle": "End partnership",
+  "partner_cancellationEndContent": "This will delete all shared data. This action is final.",
+  "partner_cancellationEnded": "Partnership ended. All shared data was deleted.",
   "partner_requestButton": "Request",
   "drive_title": "Our Memories",
   "drive_subtitle": "VIOLET ARCHIVE",
@@ -439,6 +465,33 @@
   "notif_bucketItemAdded_title": "New Wish in the Bucket List",
   "notif_bucketItemAdded_body": "{partnerName} added a wish",
   "@notif_bucketItemAdded_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationRequested_title": "Cancellation Request",
+  "notif_cancellationRequested_body": "{partnerName} asked to end the partnership",
+  "@notif_cancellationRequested_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationDeclined_title": "Cancellation Declined",
+  "notif_cancellationDeclined_body": "{partnerName} declined the cancellation request",
+  "@notif_cancellationDeclined_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_cancellationAccepted_title": "Partnership Ended",
+  "notif_cancellationAccepted_body": "{partnerName} accepted the cancellation request",
+  "@notif_cancellationAccepted_body": {
     "placeholders": {
       "partnerName": {
         "type": "String"

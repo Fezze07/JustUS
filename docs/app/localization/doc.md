@@ -127,6 +127,27 @@ The cancellation RPCs raise `API-VALIDATION-010`…`014` inside the Postgres exc
 
 The EN/IT strings live in `intl_en.arb` / `intl_it.arb` and the generated `app_localizations*.dart`; `flutter gen-l10n` keeps them in sync. An unknown or unlisted RPC code still reaches the UI as the raw server message.
 
+### Flutter Cancellation UI Keys
+
+The cancellation flow reads its copy from the ARB files (no hardcoded English):
+
+| Key | EN | IT |
+| :--- | :--- | :--- |
+| `profile_cancelRequest` | REQUEST PARTNERSHIP CANCELLATION | RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP |
+| `profile_cancelRequestTitle` | Request partnership cancellation | Richiedi la cancellazione della partnership |
+| `profile_cancelRequestContent` | Your partner must approve. The app will pause until then. | Il tuo partner deve approvare. L'app resterà in pausa fino ad allora. |
+| `profile_cancelRequestConfirm` | Request cancellation | Richiedi cancellazione |
+| `profile_cancelRequestSent` | Cancellation requested | Cancellazione richiesta |
+| `partner_cancellationWaiting` | Cancellation requested. Waiting for {partner} to approve before continuing. | Cancellazione richiesta. In attesa che {partner} approvi per continuare. |
+| `partner_restorePartnership` | Restore partnership | Ripristina partnership |
+| `partner_cancellationRequested` | {partner} asked to end the partnership | {partner} ha chiesto di interrompere la partnership |
+| `partner_cancellationSubtitle` | Partnership cancellation | Cancellazione partnership |
+| `partner_cancellationEndTitle` | End partnership | Interrompi la partnership |
+| `partner_cancellationEndContent` | This will delete all shared data. This action is final. | Tutti i dati condivisi verranno eliminati. L'azione è definitiva. |
+| `partner_cancellationEnded` | Partnership ended. All shared data was deleted. | Partnership interrotta. Tutti i dati condivisi sono stati eliminati. |
+
+The three push keys (`notif_cancellationRequested_*`, `notif_cancellationDeclined_*`, `notif_cancellationAccepted_*`) mirror the backend templates and are consumed by `NotificationService._localizeNotification` when a data-only push arrives.
+
 ---
 
 ## Alignment Audit & Findings
@@ -135,6 +156,8 @@ The EN/IT strings live in `intl_en.arb` / `intl_it.arb` and the generated `app_l
    - **Status:** **ALIGNED**. All notification event keys sent by Flutter (`requestAccepted`, `missyou`, `moodUpdated`, etc.) match the keys defined in `notification.utils.js`. The cancellation catalog adds `cancellationRequested`, `cancellationDeclined` and `cancellationAccepted` in both locales.
 2. **Cancellation Error Codes:**
    - **Status:** **ALIGNED**. `010`–`014` are allowlisted and localized in both `en` and `it`; `rpc_error_codes_test.dart` pins the EN/IT messages and the `resolveServerCode()` acceptance.
+3. **Cancellation UI Copy:**
+   - **Status:** **ALIGNED**. Every cancellation string (Profile button/dialog/snackbar, both PartnerScreen states, restore/accept/decline and the ended copy) is an ARB key in both locales; no hardcoded copy remains in `profile_screen.dart` or `partner_screen.dart`.
 
 
 ---

@@ -418,6 +418,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_disconnectSession => 'DISCONNECT SESSION';
 
   @override
+  String get profile_cancelRequest => 'REQUEST PARTNERSHIP CANCELLATION';
+
+  @override
+  String get profile_cancelRequestTitle => 'Request partnership cancellation';
+
+  @override
+  String get profile_cancelRequestContent =>
+      'Your partner must approve. The app will pause until then.';
+
+  @override
+  String get profile_cancelRequestConfirm => 'Request cancellation';
+
+  @override
+  String get profile_cancelRequestSent => 'Cancellation requested';
+
+  @override
   String get profile_identitySection => 'IDENTITY';
 
   @override
@@ -531,6 +547,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get partner_cancelRequestTooltip => 'Cancel Request';
+
+  @override
+  String partner_cancellationWaiting(String partner) {
+    return 'Cancellation requested. Waiting for $partner to approve before continuing.';
+  }
+
+  @override
+  String get partner_restorePartnership => 'Restore partnership';
+
+  @override
+  String partner_cancellationRequested(String partner) {
+    return '$partner asked to end the partnership';
+  }
+
+  @override
+  String get partner_cancellationSubtitle => 'Partnership cancellation';
+
+  @override
+  String get partner_cancellationEndTitle => 'End partnership';
+
+  @override
+  String get partner_cancellationEndContent =>
+      'This will delete all shared data. This action is final.';
+
+  @override
+  String get partner_cancellationEnded =>
+      'Partnership ended. All shared data was deleted.';
 
   @override
   String get partner_requestButton => 'Request';
@@ -1079,5 +1122,29 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String notif_bucketItemAdded_body(String partnerName) {
     return '$partnerName added a wish';
+  }
+
+  @override
+  String get notif_cancellationRequested_title => 'Cancellation Request';
+
+  @override
+  String notif_cancellationRequested_body(String partnerName) {
+    return '$partnerName asked to end the partnership';
+  }
+
+  @override
+  String get notif_cancellationDeclined_title => 'Cancellation Declined';
+
+  @override
+  String notif_cancellationDeclined_body(String partnerName) {
+    return '$partnerName declined the cancellation request';
+  }
+
+  @override
+  String get notif_cancellationAccepted_title => 'Partnership Ended';
+
+  @override
+  String notif_cancellationAccepted_body(String partnerName) {
+    return '$partnerName accepted the cancellation request';
   }
 }

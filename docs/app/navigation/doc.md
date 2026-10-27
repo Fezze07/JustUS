@@ -24,6 +24,7 @@ Everything else (`LocalizationScreen`, `ChangePasswordScreen`, `ProfileScreen` p
 | `pushNamed` | `/localization` (profile_screen.dart:270), `/change-password` (profile_screen.dart:327), `/login` (error_handler.dart:262) | |
 | `push` + `MaterialPageRoute` | Login->Register; HomepageMenu->ProfileScreen; Drive->DriveItemScreen; Favorites->DriveItemScreen | login_screen.dart:33, homepage_screen.dart:167, drive_screen.dart:290, favorites_screen.dart:100 |
 | `pushReplacement` + `MaterialPageRoute` | Splash->{MainShell,PartnerScreen,Login}; Login->{MainShell,PartnerScreen}; PartnerScreen->MainShell (2 sites) | splash_screen.dart:37-40, login_screen.dart:108, partner_screen.dart:113,358 |
+| `pushReplacementNamed` | Profile cancellation request -> PartnerScreen; PartnerScreen restore/decline -> MainShell; PartnerScreen accept -> stays (cancellation branch) | profile_screen.dart (cancellation request), partner_screen.dart (restore/decline) |
 | `pushAndRemoveUntil((r)=>false)` | Register->PartnerScreen; Logout->LoginScreen; Reauth->LoginScreen; runtime partnership loss->PartnerScreen (`MainShell`/`PartnerState`, through the global navigator) | register_screen.dart:107, logout_utils.dart:43, error_handler.dart:262, main_shell.dart:130-147, partner_state.dart:_teleportIfEnded |
 | `pop` | Back buttons, dialogs, register->login footer | register_screen.dart:34, profile_screen.dart:134, etc. |
 | Static `GlobalKey<MainShellState>` | Cross-tab jumps from content screens | main_shell.dart:5, homepage_screen.dart:193/369/471/530 |
@@ -122,7 +123,8 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 - **Add-partner card** -> `DialogUtils.showPartnerInvite(context)` (line 129) - a dialog, no route.
 - **Invitation accept** (line 344-368): `AuthState.acceptInvitation` -> `fetchPartnership` -> `ProfileState.loadProfile(force:true)` -> `pushReplacement(MainShell)`. On failure shows snackbar, stays.
 - **Invitation reject** (line 370-371): direct state call, no navigation.
-- There is **no "skip" or logout affordance** on `PartnerScreen` (no way to leave authentic different from login): the only exits are accept/tap-partner (->MainShell) or OS back (-> previous route; at cold start the previous route is the splash, long gone via pushReplacement, so back exits the app).
+- **Cancellation cards**: while `PartnerState.cancellation != null`, the normal pairing content is hidden. The requester sees the waiting card; `Restore partnership` calls `revertCancellation` -> refresh -> `pushReplacementNamed(MainShell)`. The partner sees the reusable `InvitationTile`; decline follows the same restore path, while accept confirms, calls the signed endpoint, shows the ended copy and stays on `PartnerScreen` (now empty, ready for a new pairing). The requester never sees the accept action.
+- **Logout** is available in the footer on every `PartnerScreen` state, including while cancelled.
 
 ---
 
@@ -216,7 +218,7 @@ Two mechanisms:
 
 ## Partnership-driven navigation
 
-- Forward: accept invitation or tap existing-partner card on `PartnerScreen` -> `pushReplacement(MainShell)` (partner_screen.dart:113,358).
+- Forward: accept invitation or tap existing-partner card on `PartnerScreen` -> `pushReplacement(MainShell)` (partner_screen.dart:113,358). The cancellation request from Profile is also forward: `pushReplacementNamed(PartnerScreen)` after `partnership_request_cancel` succeeds; restore/decline later replaces it with `MainShell`.
 - Reverse: a `partnerships` realtime event refreshes `PartnerState` + `AuthState`; once the pair stops being active (cancellation requested or row deleted) `AuthState.hasPartner` turns false. `MainShell.build` schedules a `pushNamedAndRemoveUntil(AppRoutes.partner)` through `ErrorHandler.navigatorKey`; `PartnerState` performs the same redirect (`_teleportIfEnded`, after both reads) when a known cancellation resolves to no partner, so it also works above pushed routes such as `ProfileScreen`. No dialog is shown. `PartnerScreen` then renders the cancellation card from `PartnerState.cancellation` (requester sees the waiting card; the partner can accept or decline). Revert, decline and lazy expiry restore the accepted pair and no redirect fires.
 - Homepage cross-tab jumps use `MainShell.shellKey.currentState?.switchToTab(2|3|5)` (homepage_screen.dart:193/369/471/530) - a child content screen reaching into its parent shell through a global static key (inappropriate layer, Findings).
 

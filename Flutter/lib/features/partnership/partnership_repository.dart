@@ -170,6 +170,11 @@ class PartnershipRepository extends BaseRepository {
       await sbClient.rpc('partnership_request_cancel', params: {
         'p_partnership_id': partnershipId,
       });
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'cancellationRequested',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 
@@ -179,6 +184,11 @@ class PartnershipRepository extends BaseRepository {
       await sbClient.rpc('partnership_cancel_revert', params: {
         'p_partnership_id': partnershipId,
       });
+
+      unawaited(notifyPartnerOnce(
+        notificationKey: 'cancellationDeclined',
+        params: {'partnerName': await StorageService.getUsername() ?? ''},
+      ));
     });
   }
 
