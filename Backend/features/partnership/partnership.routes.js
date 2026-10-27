@@ -1,19 +1,26 @@
 const express = require("express");
-const { authenticated } = require("../../core/auth/auth.middleware");
-const { limited } = require("../../core/rateLimit");
-const { signed } = require("../../core/security/signed.middleware");
-const { validated } = require("../../core/validation/validate.middleware");
+const { chain, authenticated, signed, validated, limited } = require("../../routes/routeHelpers");
+const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 const { acceptCancelSchema } = require("./partnership.schemas");
 const { acceptCancellation } = require("./partnership.controller");
 
 const router = express.Router();
 
+const cancelRateLimit = createIpUserRateLimit({
+  name: "partnership.cancel.accept",
+  message: "Too many cancellation requests",
+  ipMax: 30,
+  userMax: 10,
+});
+
 router.post(
   "/cancel/accept",
-  authenticated(),
-  limited(),
-  signed("partnership-cancel-accept"),
-  validated({ body: acceptCancelSchema }),
+  ...chain(
+    authenticated(),
+    limited(cancelRateLimit),
+    signed("partnership-cancel-accept"),
+    validated({ body: acceptCancelSchema })
+  ),
   acceptCancellation
 );
 

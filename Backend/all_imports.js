@@ -3,6 +3,9 @@
 // Usage: const { AppError, logger } = require('./all_imports');
 
 module.exports = {
+  get acceptCancellation() { return require('./features/partnership/partnership.controller').acceptCancellation; },
+  get acceptCancelSchema() { return require('./features/partnership/partnership.schemas').acceptCancelSchema; },
+  get acceptPartnershipCancellation() { return require('./features/partnership/partnership.service').acceptPartnershipCancellation; },
   get adminSupabase() { return require('./config/db').adminSupabase; },
   get API_PREFIX() { return require('./config/apiRoutes').API_PREFIX; },
   get API_V1_PATHS() { return require('./config/apiRoutes').API_V1_PATHS; },
@@ -41,6 +44,7 @@ module.exports = {
   get deleteObject() { return require('./features/media/r2.service').deleteObject; },
   get deleteObjects() { return require('./features/media/r2.service').deleteObjects; },
   get deleteObjectsByPrefix() { return require('./features/media/r2.service').deleteObjectsByPrefix; },
+  get deletePartnershipMedia() { return require('./features/partnership/partnership.service').deletePartnershipMedia; },
   get deleteSchema() { return require('./features/media/media.schemas').deleteSchema; },
   get deleteUserR2Objects() { return require('./features/user/user.controller').deleteUserR2Objects; },
   get deliverToBatches() { return require('./features/notifications/notification.utils').deliverToBatches; },
@@ -54,6 +58,7 @@ module.exports = {
   get fetchUserDevices() { return require('./features/notifications/notification.service').fetchUserDevices; },
   get fileQuerySchema() { return require('./features/media/media.schemas').fileQuerySchema; },
   get generateBindingSecret() { return require('./services/requestSigningService').generateBindingSecret; },
+  get getCancellationPartnerId() { return require('./utils/misc/partnershipUtils').getCancellationPartnerId; },
   get getEntry() { return require('./core/infra/idempotencyStore').getEntry; },
   get getLatestAppVersion() { return require('./services/versionService').getLatestAppVersion; },
   get getPartnerId() { return require('./utils/misc/partnershipUtils').getPartnerId; },
