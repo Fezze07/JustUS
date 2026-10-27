@@ -7,6 +7,7 @@ const notifyRoutes = require("../features/notifications/notify.routes");
 const versionRoutes = require("./version");
 const mediaRoutes = require("../features/media/media.routes");
 const userRoutes = require("../features/user/user.routes");
+const partnershipRoutes = require("../features/partnership/partnership.routes");
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.use("/app-version", versionRoutes);
 router.use("/media", mediaRoutes);
 router.use("/notify", notifyRoutes);
 router.use("/users", userRoutes);
+router.use("/partnership", partnershipRoutes);
 
 router.use((_req, _res, next) => {
   next(new AppError({ errorKey: "API_NOT_FOUND_001" }));

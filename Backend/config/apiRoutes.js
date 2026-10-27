@@ -13,6 +13,8 @@ const API_V1_PATHS = {
   mediaBase: `${API_V1_PREFIX}/media`,
   notifyBase: `${API_V1_PREFIX}/notify`,
   usersBase: `${API_V1_PREFIX}/users`,
+  partnershipBase: `${API_V1_PREFIX}/partnership`,
+  partnershipCancelAccept: `${API_V1_PREFIX}/partnership/cancel/accept`,
   appVersion: `${API_V1_PREFIX}/app-version`,
   authLoginAttempt: `${API_V1_PREFIX}/auth/login-attempt`,
   authLoginRiskCheck: `${API_V1_PREFIX}/auth/login-risk-check`,
