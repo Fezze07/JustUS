@@ -39,6 +39,7 @@ const MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h
 const MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000;         // 48 h
 const ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 const ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;            // 24 h default N-days cutoff
+const CANCEL_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 
 // ── Nonce sweep ───────────────────────────────────────────────────────────────
 
@@ -166,6 +167,21 @@ async function sweepStalMultipartUploads() {
   }
 }
 
+// ── Partnership cancellation expiry ───────────────────────────────────────────
+
+async function sweepExpiredCancellations() {
+  try {
+    const { data, error } = await adminSupabase.rpc("partnership_expire_cancellations");
+    if (error) throw error;
+    const count = typeof data === "number" ? data : 0;
+    if (count > 0) {
+      logInfo("retention.cancellations", { reverted: count });
+    }
+  } catch (err) {
+    await logError({ error: { message: err.message, name: err.name }, event: "retention.cancellations.failed" });
+  }
+}
+
 // ── R2 orphaned-object sweep ─────────────────────────────────────────────────
 
 async function fetchReferencedKeys() {
@@ -250,6 +266,7 @@ async function startRetentionJobs() {
     sweepStaleUserDevices(),
     sweepStalMultipartUploads(),
     sweepStaleOrphanObjects(),
+    sweepExpiredCancellations(),
   ]);
 
   intervalIds = [
@@ -258,6 +275,7 @@ async function startRetentionJobs() {
     setInterval(sweepStaleUserDevices, USER_DEVICE_SWEEP_INTERVAL_MS),
     setInterval(sweepStalMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS),
     setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS),
+    setInterval(sweepExpiredCancellations, CANCEL_SWEEP_INTERVAL_MS),
   ];
 
   logInfo("retention.started", {
@@ -266,6 +284,7 @@ async function startRetentionJobs() {
     nonceSweepIntervalH: NONCE_SWEEP_INTERVAL_MS / 3_600_000,
     r2MultipartMaxAgeH: MULTIPART_MAX_AGE_MS / 3_600_000,
     r2OrphanMaxAgeH: ORPHAN_MAX_AGE_MS / 3_600_000,
+    cancellationSweepIntervalH: CANCEL_SWEEP_INTERVAL_MS / 3_600_000,
   });
 
   await initialSweeps;
