@@ -138,6 +138,34 @@ void main() {
       expect(ApiConfig.appUrl(ApiRoutes.authCallbackPath),
           'https://justus-dev.serverfede.eu/auth/callback');
     });
+
+    test('builds the signed partnership cancellation accept request', () async {
+      await StorageService.saveRequestBindingSecret('binding-secret-xyz');
+      ApiService.readAccessTokenForTest = () => 'access-token';
+
+      Uri? seenUri;
+      Map<String, String>? seenHeaders;
+      String? seenBody;
+      when(() => mockClient.post(any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'))).thenAnswer((invocation) async {
+        seenUri = invocation.positionalArguments[0] as Uri;
+        seenHeaders =
+            invocation.namedArguments[#headers] as Map<String, String>;
+        seenBody = invocation.namedArguments[#body] as String;
+        return http.Response(jsonEncode({'success': true}), 200);
+      });
+
+      final result =
+          await apiService.acceptPartnershipCancellation(partnershipId: 42);
+
+      expect(result, isA<Success<Map<String, dynamic>>>());
+      expect(seenUri.toString(),
+          'https://justus-dev.serverfede.eu/api/v1/partnership/cancel/accept');
+      expect(jsonDecode(seenBody!), {'partnershipId': 42});
+      expect(seenHeaders!['X-Request-Signature'], isNotNull);
+      expect(seenHeaders!['X-Request-Nonce'], isNotNull);
+    });
   });
 
   group('ApiService - Auth Refresh & Retry Flow (Phase 8.1)', () {

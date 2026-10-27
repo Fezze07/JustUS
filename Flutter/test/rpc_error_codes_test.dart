@@ -55,6 +55,29 @@ void main() {
           'Non puoi invitare te stesso.');
       expect(ErrorCodes.userMessage(ErrorCodes.apiValidation007, en),
           'No active partnership found.');
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation010, en),
+          "You can't request cancellation for this partnership.");
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation011, it),
+          "Non c'è alcuna richiesta di cancellazione da annullare.");
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation012, en),
+          "You can't perform this cancellation action.");
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation013, it),
+          'Non puoi richiedere la cancellazione di nuovo. Riprova più tardi.');
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation014, en),
+          'This cancellation request has expired.');
+    });
+
+    test('accepts the cancellation codes from an RPC message', () {
+      for (final code in const [
+        ErrorCodes.apiValidation010,
+        ErrorCodes.apiValidation011,
+        ErrorCodes.apiValidation012,
+        ErrorCodes.apiValidation013,
+        ErrorCodes.apiValidation014,
+      ]) {
+        expect(ErrorCodes.serverCodes, contains(code));
+        expect(ErrorCodes.resolveServerCode('$code: detail'), code);
+      }
     });
   });
 

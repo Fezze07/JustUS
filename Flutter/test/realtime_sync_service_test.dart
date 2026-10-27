@@ -99,6 +99,7 @@ void main() {
   late _MockGameState game;
   late _MockBucketState bucket;
   late _MockHomepageState home;
+  late _MockPartnerState partnerState;
 
   /// Configure the identity, then subscribe without waiting for the reconnect
   /// backoff timer (`refreshChannel` cancels it and subscribes right away).
@@ -191,7 +192,7 @@ void main() {
 
     // Every state that takes part in `refreshAll()` (fired once the channel
     // reports `subscribed`) must answer, otherwise the refresh throws.
-    final partnerState = _MockPartnerState();
+    partnerState = _MockPartnerState();
     when(partnerState.refreshFromRealtime).thenAnswer((_) async {});
     final authState = _MockAuthState();
     when(authState.refreshPartnershipFromRealtime).thenAnswer((_) async {});
@@ -325,6 +326,18 @@ void main() {
             newRecord: any(named: 'newRecord'),
             oldRecord: any(named: 'oldRecord'),
           ));
+    });
+
+    test('a PK-only partnership DELETE triggers a PartnershipState refresh',
+        () async {
+      await connect();
+      clearInteractions(partnerState);
+
+      emit('partnerships', sb.PostgresChangeEvent.delete,
+          oldRecord: {'id': 9001});
+      await Future<void>.delayed(_afterDebounce);
+
+      verify(partnerState.refreshFromRealtime).called(1);
     });
   });
 
