@@ -70,11 +70,12 @@ class _PartnerScreenState extends State<PartnerScreen>
             ),
 
             Expanded(
-              child: Consumer2<ProfileState, AuthState>(
-                builder: (context, profileState, authState, _) {
+              child: Consumer3<ProfileState, AuthState, PartnerState>(
+                builder: (context, profileState, authState, partnerState, _) {
                   final partner = profileState.partnerProfile;
                   final sentInvitations = authState.sentInvitations;
                   final receivedInvitations = authState.receivedInvitations;
+                  final cancellation = partnerState.cancellation;
                   AnsiLogger.auth(
                       'Building with ${sentInvitations.length} sent, ${receivedInvitations.length} received',
                       tag: 'PartnerScreen');
@@ -83,6 +84,7 @@ class _PartnerScreenState extends State<PartnerScreen>
                     onRefresh: () async {
                       await authState.fetchSentInvitations();
                       await authState.fetchReceivedInvitations();
+                      await partnerState.fetchPartnership();
                     },
                     color: context.palette.primary,
                     backgroundColor: context.palette.surface,
@@ -91,76 +93,217 @@ class _PartnerScreenState extends State<PartnerScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Your Personal Code Card
-                          if (profileState.userProfile?.partnershipCode != null)
-                            _buildYourCodeCard(
-                                profileState.userProfile!.partnershipCode!),
-
-                          // Invite a partner who has no JustUs account yet
-                          if (partner == null) _buildInviteByEmailButton(),
-
-                          const SizedBox(height: 16),
-
-                          Center(
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 32,
-                              runSpacing: 32,
-                              children: [
-                                // Existing Partner
-                                if (partner != null)
-                                  SizedBox(
-                                    width: 160,
-                                    height: 160,
-                                    child: _buildPartnerCard(
-                                      name: partner.username,
-                                      imageUrl:
-                                          ApiService.resolveProtectedMediaUrl(
-                                              partner.profilePicUrl),
-                                      isConnected: true,
-                                      onTap: () {
-                                        unawaited(Navigator.pushReplacementNamed(
-                                          context,
-                                          AppRoutes.mainShell,
-                                        ));
-                                      },
+                          if (cancellation != null && cancellation.requestedByMe) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                              child: VPCard(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Cancellation requested. Waiting for ${cancellation.partnerDisplayName ?? 'partner'} to approve before continuing.',
+                                      textAlign: TextAlign.center,
+                                      style: VpWidgets.googleFont(
+                                        color: context.palette.contentPrimary,
+                                      ),
                                     ),
-                                  ),
-
-                                // New Connection (only if no partner and no sent invitation)
-                                if (partner == null && sentInvitations.isEmpty)
-                                  SizedBox(
-                                    width: 160,
-                                    height: 160,
-                                    child: _buildAddPartnerCard(onTap: () {
-                                      DialogUtils.showPartnerInvite(context);
-                                    }),
-                                  ),
-                              ],
+                                    const SizedBox(height: 12),
+                                    FilledButton(
+                                      onPressed: () async {
+                                        final res = await partnerState
+                                            .revertCancellation(
+                                                cancellation.partnershipId);
+                                        if (!context.mounted) return;
+                                        if (res is Success<void>) {
+                                          PartnershipRepository
+                                              .clearPartnershipCache();
+                                          await context
+                                              .read<AuthState>()
+                                              .refreshPartnershipFromRealtime();
+                                          await partnerState.fetchPartnership();
+                                          if (!context.mounted) return;
+                                          Navigator.pushReplacementNamed(
+                                              context, AppRoutes.mainShell);
+                                        } else {
+                                          ErrorHandler.handle(res, context: context);
+                                        }
+                                      },
+                                      child: const Text('Restore partnership'),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-
-                          if (receivedInvitations.isNotEmpty) ...[
                             const SizedBox(height: 16),
-                            _buildInvitationsList(
-                                context.loc.partner_receivedRequests,
-                                receivedInvitations,
-                                isReceived: true),
+                          ] else if (cancellation != null &&
+                              !cancellation.requestedByMe) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                              child: InvitationTile(
+                                invite: PartnershipInvitation(
+                                  id: cancellation.partnershipId,
+                                  status: 'pending',
+                                  createdAt: DateTime.now(),
+                                  partnerId: cancellation.partnerId,
+                                  partnerDisplayName:
+                                      cancellation.partnerDisplayName,
+                                  isReceived: true,
+                                ),
+                                isReceived: true,
+                                title: '${cancellation.partnerDisplayName ?? 'Partner'} asked to end the partnership',
+                                showAccept: true,
+                                showReject: true,
+                                onAccept: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => VPDialog(
+                                      title: 'End partnership',
+                                      content: const Text(
+                                          'This will delete all shared data. This action is final.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: Text(context.loc.common_cancel),
+                                        ),
+                                        FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                context.palette.danger,
+                                          ),
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Accept'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed != true || !context.mounted) return;
+                                  final res = await partnerState
+                                      .acceptCancellation(
+                                          cancellation.partnershipId);
+                                  if (!context.mounted) return;
+                                  if (res is Success<Map<String, dynamic>>) {
+                                    PartnershipRepository
+                                        .clearPartnershipCache();
+                                    await context
+                                        .read<AuthState>()
+                                        .refreshPartnershipFromRealtime();
+                                    await partnerState.fetchPartnership();
+                                    if (!context.mounted) return;
+                                    ErrorHandler.showSnackBar(context,
+                                        'Partnership ended. All shared data was deleted.');
+                                  } else {
+                                    await context
+                                        .read<AuthState>()
+                                        .refreshPartnershipFromRealtime();
+                                    await partnerState.fetchPartnership();
+                                    if (!context.mounted) return;
+                                    if (partnerState.cancellation == null &&
+                                        partnerState.partner == null) {
+                                      ErrorHandler.showSnackBar(context,
+                                          'Partnership ended. All shared data was deleted.');
+                                    } else {
+                                      ErrorHandler.handle(res, context: context);
+                                    }
+                                  }
+                                },
+                                onReject: () async {
+                                  final res = await partnerState.revertCancellation(
+                                      cancellation.partnershipId);
+                                  if (!context.mounted) return;
+                                  if (res is Success<void>) {
+                                    PartnershipRepository.clearPartnershipCache();
+                                    await context
+                                        .read<AuthState>()
+                                        .refreshPartnershipFromRealtime();
+                                    await partnerState.fetchPartnership();
+                                    if (!context.mounted) return;
+                                    Navigator.pushReplacementNamed(
+                                        context, AppRoutes.mainShell);
+                                  } else {
+                                    ErrorHandler.handle(res, context: context);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                           ],
 
-                          if (sentInvitations.isNotEmpty) ...[
+                          if (cancellation == null) ...[
+                            // Your Personal Code Card
+                            if (profileState.userProfile?.partnershipCode != null)
+                              _buildYourCodeCard(
+                                  profileState.userProfile!.partnershipCode!),
+
+                            // Invite a partner who has no JustUs account yet
+                            if (partner == null) _buildInviteByEmailButton(),
+
                             const SizedBox(height: 16),
-                            _buildInvitationsList(
-                                context.loc.partner_sentRequests,
-                                sentInvitations,
-                                isReceived: false),
-                          ] else if (sentInvitations.isEmpty &&
-                              receivedInvitations.isEmpty &&
-                              kDebugMode) ...[
-                            const SizedBox(height: 32),
-                            Text(context.loc.partner_noPendingInvites,
-                                style: TextStyle(
-                                    color: context.palette.contentHint)),
+
+                            Center(
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 32,
+                                runSpacing: 32,
+                                children: [
+                                  // Existing Partner
+                                  if (partner != null)
+                                    SizedBox(
+                                      width: 160,
+                                      height: 160,
+                                      child: _buildPartnerCard(
+                                        name: partner.username,
+                                        imageUrl:
+                                            ApiService.resolveProtectedMediaUrl(
+                                                partner.profilePicUrl),
+                                        isConnected: true,
+                                        onTap: () {
+                                          unawaited(Navigator.pushReplacementNamed(
+                                            context,
+                                            AppRoutes.mainShell,
+                                          ));
+                                        },
+                                      ),
+                                    ),
+
+                                  // New Connection (only if no partner and no sent invitation)
+                                  if (partner == null && sentInvitations.isEmpty)
+                                    SizedBox(
+                                      width: 160,
+                                      height: 160,
+                                      child: _buildAddPartnerCard(onTap: () {
+                                        DialogUtils.showPartnerInvite(context);
+                                      }),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            if (receivedInvitations.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _buildInvitationsList(
+                                  context.loc.partner_receivedRequests,
+                                  receivedInvitations,
+                                  isReceived: true),
+                            ],
+
+                            if (sentInvitations.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _buildInvitationsList(
+                                  context.loc.partner_sentRequests,
+                                  sentInvitations,
+                                  isReceived: false),
+                            ] else if (sentInvitations.isEmpty &&
+                                receivedInvitations.isEmpty &&
+                                kDebugMode) ...[
+                              const SizedBox(height: 32),
+                              Text(context.loc.partner_noPendingInvites,
+                                  style: TextStyle(
+                                      color: context.palette.contentHint)),
+                            ],
                           ],
                         ],
                       ),

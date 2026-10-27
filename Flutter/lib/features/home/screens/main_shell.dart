@@ -129,7 +129,16 @@ class MainShellState extends State<MainShell> {
     final hasPartner = context.select<AuthState, bool>((a) => a.hasPartner);
     if (!hasPartner) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        final nav = ErrorHandler.navigatorKey.currentState;
+        if (nav != null && nav.mounted) {
+          final current = ModalRoute.of(nav.context)?.settings.name;
+          if (current != AppRoutes.partner) {
+            nav.pushNamedAndRemoveUntil(
+              AppRoutes.partner,
+              (route) => false,
+            );
+          }
+        } else if (mounted) {
           unawaited(Navigator.of(context).pushReplacementNamed(
             AppRoutes.partner,
           ));

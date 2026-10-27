@@ -82,6 +82,16 @@ class RealtimeSyncSession {
   }
 
   bool isRelevantPartnership(sb.PostgresChangePayload payload) {
+    if (payload.eventType.name == 'delete') {
+      final row = currentRecord(payload);
+      final pid = rowInt(row, 'id') ?? rowInt(row, 'partnership_id');
+      if (partnershipId != null && pid == partnershipId) {
+        return true;
+      }
+      if (partnershipId != null && pid == null) {
+        return true;
+      }
+    }
     final row = currentRecord(payload);
     final ids = <int?>[
       rowInt(row, 'user_id_1'),
@@ -90,7 +100,13 @@ class RealtimeSyncSession {
       rowInt(row, 'user_id_b'),
     ];
 
-    return ids.any((id) => id != null && id == userId);
+    if (ids.any((id) => id != null && id == userId)) {
+      return true;
+    }
+    if (payload.eventType.name == 'delete' && userId != null) {
+      return true;
+    }
+    return false;
   }
 
   bool isRelevantMissYou(sb.PostgresChangePayload payload) {

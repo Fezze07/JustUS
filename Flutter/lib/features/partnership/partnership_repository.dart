@@ -163,4 +163,43 @@ class PartnershipRepository extends BaseRepository {
       return rows.map(PartnershipInvitation.fromJson).toList();
     });
   }
+
+  Future<ResultWrapper<void>> requestCancellation(int partnershipId) async {
+    BaseRepository.clearPartnershipCache();
+    return tryCall(() async {
+      await sbClient.rpc('partnership_request_cancel', params: {
+        'p_partnership_id': partnershipId,
+      });
+    });
+  }
+
+  Future<ResultWrapper<void>> revertCancellation(int partnershipId) async {
+    BaseRepository.clearPartnershipCache();
+    return tryCall(() async {
+      await sbClient.rpc('partnership_cancel_revert', params: {
+        'p_partnership_id': partnershipId,
+      });
+    });
+  }
+
+  Future<ResultWrapper<Map<String, dynamic>>> acceptCancellation(
+      int partnershipId) async {
+    BaseRepository.clearPartnershipCache();
+    return _api.acceptPartnershipCancellation(partnershipId: partnershipId);
+  }
+
+  Future<ResultWrapper<PartnershipCancellation?>> getCancellation() async {
+    return tryCall(() async {
+      final data = await sbClient.rpc('partnership_get_cancellation');
+      if (data == null) {
+        return null;
+      }
+      final rows = data as List<dynamic>;
+      if (rows.isEmpty) {
+        return null;
+      }
+      final row = rows.first as Map<String, dynamic>;
+      return PartnershipCancellation.fromJson(row);
+    });
+  }
 }

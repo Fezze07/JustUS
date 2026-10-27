@@ -585,6 +585,17 @@ class ApiService {
     );
   }
 
+  Future<ResultWrapper<Map<String, dynamic>>> acceptPartnershipCancellation({
+    required int partnershipId,
+  }) {
+    return _post(
+      ApiRoutes.partnershipCancelAccept,
+      body: {'partnershipId': partnershipId},
+      requireSignature: true,
+      label: 'Accept Partnership Cancellation',
+    );
+  }
+
   // -------------------- App Version --------------------
 
   Future<ResultWrapper<AppVersionResponse>> getAppVersion() async {

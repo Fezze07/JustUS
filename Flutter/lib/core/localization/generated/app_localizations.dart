@@ -1868,6 +1868,36 @@ abstract class AppLocalizations {
   /// **'Non hai una partnership attiva.'**
   String get error_apiValidation007;
 
+  /// No description provided for @error_apiValidation010.
+  ///
+  /// In it, this message translates to:
+  /// **'Non puoi richiedere la cancellazione di questa partnership.'**
+  String get error_apiValidation010;
+
+  /// No description provided for @error_apiValidation011.
+  ///
+  /// In it, this message translates to:
+  /// **'Non c\'è alcuna richiesta di cancellazione da annullare.'**
+  String get error_apiValidation011;
+
+  /// No description provided for @error_apiValidation012.
+  ///
+  /// In it, this message translates to:
+  /// **'Non puoi eseguire questa azione di cancellazione.'**
+  String get error_apiValidation012;
+
+  /// No description provided for @error_apiValidation013.
+  ///
+  /// In it, this message translates to:
+  /// **'Non puoi richiedere la cancellazione di nuovo. Riprova più tardi.'**
+  String get error_apiValidation013;
+
+  /// No description provided for @error_apiValidation014.
+  ///
+  /// In it, this message translates to:
+  /// **'Questa richiesta di cancellazione è scaduta.'**
+  String get error_apiValidation014;
+
   /// No description provided for @error_apiNotFound001.
   ///
   /// In it, this message translates to:

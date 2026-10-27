@@ -934,6 +934,26 @@ class AppLocalizationsIt extends AppLocalizations {
   String get error_apiValidation007 => 'Non hai una partnership attiva.';
 
   @override
+  String get error_apiValidation010 =>
+      'Non puoi richiedere la cancellazione di questa partnership.';
+
+  @override
+  String get error_apiValidation011 =>
+      'Non c\'è alcuna richiesta di cancellazione da annullare.';
+
+  @override
+  String get error_apiValidation012 =>
+      'Non puoi eseguire questa azione di cancellazione.';
+
+  @override
+  String get error_apiValidation013 =>
+      'Non puoi richiedere la cancellazione di nuovo. Riprova più tardi.';
+
+  @override
+  String get error_apiValidation014 =>
+      'Questa richiesta di cancellazione è scaduta.';
+
+  @override
   String get error_apiNotFound001 => 'Servizio non disponibile.';
 
   @override

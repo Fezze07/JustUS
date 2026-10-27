@@ -35,6 +35,11 @@ class ErrorCodes {
   static const String apiValidation005 = 'API-VALIDATION-005';
   static const String apiValidation006 = 'API-VALIDATION-006';
   static const String apiValidation007 = 'API-VALIDATION-007';
+  static const String apiValidation010 = 'API-VALIDATION-010';
+  static const String apiValidation011 = 'API-VALIDATION-011';
+  static const String apiValidation012 = 'API-VALIDATION-012';
+  static const String apiValidation013 = 'API-VALIDATION-013';
+  static const String apiValidation014 = 'API-VALIDATION-014';
   static const String apiNotFound001 = 'API-NOT_FOUND-001';
   static const String apiTimeout001 = 'API-TIMEOUT-001';
   static const String apiFail001 = 'API-FAIL-001';
@@ -79,6 +84,11 @@ class ErrorCodes {
     apiValidation005,
     apiValidation006,
     apiValidation007,
+    apiValidation010,
+    apiValidation011,
+    apiValidation012,
+    apiValidation013,
+    apiValidation014,
   ];
 
   /// Estrae il codice da un messaggio di eccezione del database
@@ -131,6 +141,16 @@ class ErrorCodes {
         return loc.error_apiValidation006;
       case apiValidation007:
         return loc.error_apiValidation007;
+      case apiValidation010:
+        return loc.error_apiValidation010;
+      case apiValidation011:
+        return loc.error_apiValidation011;
+      case apiValidation012:
+        return loc.error_apiValidation012;
+      case apiValidation013:
+        return loc.error_apiValidation013;
+      case apiValidation014:
+        return loc.error_apiValidation014;
       case apiNotFound001:
         return loc.error_apiNotFound001;
       case apiTimeout001:

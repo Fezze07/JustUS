@@ -923,6 +923,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get error_apiValidation007 => 'No active partnership found.';
 
   @override
+  String get error_apiValidation010 =>
+      'You can\'t request cancellation for this partnership.';
+
+  @override
+  String get error_apiValidation011 =>
+      'There is no cancellation request to revert.';
+
+  @override
+  String get error_apiValidation012 =>
+      'You can\'t perform this cancellation action.';
+
+  @override
+  String get error_apiValidation013 =>
+      'You can\'t request cancellation again yet. Try later.';
+
+  @override
+  String get error_apiValidation014 => 'This cancellation request has expired.';
+
+  @override
   String get error_apiNotFound001 => 'Service unavailable.';
 
   @override

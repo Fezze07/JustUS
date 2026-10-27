@@ -178,6 +178,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           final isUploading = profileData.$3;
           final userPicPath = profileData.$5;
           final partnerPicPath = partner?.profilePicUrl;
+          final authState = context.watch<AuthState>();
+          final partnerState = context.watch<PartnerState>();
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -466,6 +468,78 @@ class _ProfileScreenState extends State<ProfileScreen>
                       },
                     ),
                   ]),
+
+                  if (authState.hasPartner) ...[
+                    const SizedBox(height: 24),
+                    InkWell(
+                      onTap: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => VPDialog(
+                            title: 'Request partnership cancellation',
+                            content: const Text(
+                                'Your partner must approve. The app will pause until then.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text(context.loc.common_cancel),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: context.palette.danger,
+                                ),
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Request cancellation'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !context.mounted) return;
+                        final pid = partnerState.partnershipInfo?.partnershipId ??
+                            authState.partnershipId;
+                        if (pid == null) return;
+                        final res = await partnerState.requestCancellation(pid);
+                        if (!context.mounted) return;
+                        if (res is Success<void>) {
+                          PartnershipRepository.clearPartnershipCache();
+                          await context.read<AuthState>().refreshPartnershipFromRealtime();
+                          await partnerState.fetchPartnership();
+                          if (!context.mounted) return;
+                          ErrorHandler.showSnackBar(context, 'Cancellation requested');
+                          Navigator.pushReplacementNamed(context, AppRoutes.partner);
+                        } else {
+                          ErrorHandler.handle(res, context: context);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: context.palette.surfaceSunken,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          border: Border.all(
+                              color: context.palette.danger.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.heart_broken_outlined,
+                                color: context.palette.danger),
+                            const SizedBox(width: 12),
+                            Text(
+                              'REQUEST PARTNERSHIP CANCELLATION',
+                              style: VpWidgets.googleFont(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                                color: context.palette.danger,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
                   if (kDebugMode) ...[
                     const SizedBox(height: 48),

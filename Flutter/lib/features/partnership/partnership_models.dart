@@ -79,6 +79,32 @@ class PartnershipResponse {
   }
 }
 
+class PartnershipCancellation {
+  final int partnershipId;
+  final int partnerId;
+  final String? partnerDisplayName;
+  final String? partnerProfilePicUrl;
+  final bool requestedByMe;
+
+  PartnershipCancellation({
+    required this.partnershipId,
+    required this.partnerId,
+    this.partnerDisplayName,
+    this.partnerProfilePicUrl,
+    required this.requestedByMe,
+  });
+
+  factory PartnershipCancellation.fromJson(Map<String, dynamic> json) {
+    return PartnershipCancellation(
+      partnershipId: (json['partnership_id'] as num).toInt(),
+      partnerId: (json['partner_id'] as num).toInt(),
+      partnerDisplayName: json['partner_display_name'] as String?,
+      partnerProfilePicUrl: json['partner_profile_pic_url'] as String?,
+      requestedByMe: (json['requested_by_me'] as bool?) ?? false,
+    );
+  }
+}
+
 class PartnershipInvitation {
   final int id;
   final String status;

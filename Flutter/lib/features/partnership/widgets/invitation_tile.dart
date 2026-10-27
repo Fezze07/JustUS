@@ -7,6 +7,13 @@ class InvitationTile extends StatelessWidget {
   final bool isReceived;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final String? title;
+  final String? subtitle;
+  final IconData? leadingIcon;
+  final String? acceptTooltip;
+  final String? rejectTooltip;
+  final bool showAccept;
+  final bool showReject;
 
   const InvitationTile({
     super.key,
@@ -14,6 +21,13 @@ class InvitationTile extends StatelessWidget {
     required this.isReceived,
     this.onAccept,
     this.onReject,
+    this.title,
+    this.subtitle,
+    this.leadingIcon,
+    this.acceptTooltip,
+    this.rejectTooltip,
+    this.showAccept = false,
+    this.showReject = false,
   });
 
   @override
@@ -35,7 +49,8 @@ class InvitationTile extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isReceived ? Icons.person_add_outlined : Icons.mail_outline,
+              leadingIcon ??
+                  (isReceived ? Icons.person_add_outlined : Icons.mail_outline),
               color: context.palette.primary,
               size: 20,
             ),
@@ -46,7 +61,7 @@ class InvitationTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  invite.username,
+                  title ?? invite.username,
                   style: GoogleFonts.plusJakartaSans(
                     color: context.palette.contentPrimary,
                     fontWeight: FontWeight.bold,
@@ -54,9 +69,10 @@ class InvitationTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  isReceived
-                      ? context.loc.partner_wantsToConnect
-                      : context.loc.partner_waitingResponse,
+                  subtitle ??
+                      (isReceived
+                          ? context.loc.partner_wantsToConnect
+                          : context.loc.partner_waitingResponse),
                   style: GoogleFonts.plusJakartaSans(
                     color: context.palette.contentTertiary,
                     fontSize: 12,
@@ -65,23 +81,23 @@ class InvitationTile extends StatelessWidget {
               ],
             ),
           ),
-          if (isReceived) ...[
+          if (showAccept || isReceived) ...[
             IconButton(
               onPressed: onAccept,
               icon: Icon(Icons.check_circle, color: context.palette.accentGreen),
-              tooltip: context.loc.partner_acceptTooltip,
+              tooltip: acceptTooltip ?? context.loc.partner_acceptTooltip,
             ),
             IconButton(
               onPressed: onReject,
               icon: Icon(Icons.cancel, color: context.palette.accentPink),
-              tooltip: context.loc.partner_declineTooltip,
+              tooltip: rejectTooltip ?? context.loc.partner_declineTooltip,
             ),
-          ] else
+          ] else if (showReject || !isReceived)
             IconButton(
               onPressed: onReject,
               icon: Icon(Icons.delete_outline,
                   color: context.palette.contentTertiary),
-              tooltip: context.loc.partner_cancelRequestTooltip,
+              tooltip: rejectTooltip ?? context.loc.partner_cancelRequestTooltip,
             ),
         ],
       ),

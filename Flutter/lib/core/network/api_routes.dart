@@ -27,5 +27,8 @@ class ApiRoutes {
 
   static const String notifyPartner = '$apiPrefix/notify/partner';
 
+  static const String partnershipCancelAccept =
+      '$apiPrefix/partnership/cancel/accept';
+
   static const String userWipe = '$apiPrefix/users/wipe';
 }
