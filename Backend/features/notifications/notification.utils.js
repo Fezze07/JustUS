@@ -34,6 +34,18 @@ const LOCALIZATIONS = {
       title: "Richiesta Accettata",
       body: `${p.partnerName || "Il tuo partner"} ha accettato la tua richiesta`,
     }),
+    cancellationRequested: (p) => ({
+      title: "Richiesta di interruzione",
+      body: `${p.partnerName || "Il tuo partner"} ha chiesto di interrompere la partnership`,
+    }),
+    cancellationDeclined: (p) => ({
+      title: "Richiesta di interruzione rifiutata",
+      body: `${p.partnerName || "Il tuo partner"} ha rifiutato la richiesta di interruzione`,
+    }),
+    cancellationAccepted: (p) => ({
+      title: "Partnership interrotta",
+      body: `${p.partnerName || "Il tuo partner"} ha accettato la richiesta di interruzione`,
+    }),
     missyou: (p) => ({
       title: "Mi manchi",
       body: `${p.partnerName || "Il tuo partner"} sente la tua mancanza`,
@@ -71,6 +83,18 @@ const LOCALIZATIONS = {
     requestAccepted: (p) => ({
       title: "Request Accepted",
       body: `${p.partnerName || "Your partner"} accepted your request`,
+    }),
+    cancellationRequested: (p) => ({
+      title: "Cancellation Request",
+      body: `${p.partnerName || "Your partner"} asked to end the partnership`,
+    }),
+    cancellationDeclined: (p) => ({
+      title: "Cancellation Declined",
+      body: `${p.partnerName || "Your partner"} declined the cancellation request`,
+    }),
+    cancellationAccepted: (p) => ({
+      title: "Partnership Ended",
+      body: `${p.partnerName || "Your partner"} accepted the cancellation request`,
     }),
     missyou: (p) => ({
       title: "Miss You",

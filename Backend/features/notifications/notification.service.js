@@ -1,5 +1,6 @@
 const {
   getPartnerId,
+  getCancellationPartnerId,
   adminSupabase,
   AppError,
   assertDbSuccess,
@@ -135,11 +136,15 @@ async function resolveNotificationTarget(type, body, senderId) {
   const { notificationKey, params, receiverId } = body;
 
   if (type === "partner") {
-    if (!partnerId) {
+    let resolvedPartnerId = partnerId;
+    if (!resolvedPartnerId && notificationKey === "cancellationRequested") {
+      resolvedPartnerId = await getCancellationPartnerId(senderId);
+    }
+    if (!resolvedPartnerId) {
       throw new AppError({ errorKey: "API_VALIDATION_001", message: "Partner not found" });
     }
 
-    return { receiverId: partnerId, notificationKey, params };
+    return { receiverId: resolvedPartnerId, notificationKey, params };
   }
 
   if (!receiverId) {
