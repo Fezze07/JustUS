@@ -9,7 +9,8 @@
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 --     -f supabase/test/rls_partnership_cancellation.test.sql
 --
--- Contract under test (partnership-cancellation.md §3.2):
+-- Contract under test (docs/features/partnership/doc.md "Security & Authorization Boundaries"
+-- and docs/supabase/schema/doc.md):
 --   * accepted -> cancelled requires a member, `cancel_requested_by = caller`
 --     and a non-NULL `cancel_expires_at` (`API-VALIDATION-010`);
 --   * cancelled -> accepted requires a member and clears both cancel fields
