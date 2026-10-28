@@ -36,8 +36,8 @@ The partnership architecture spans three main layers:
 │                             SUPABASE LAYER                              │
 │  Tables: public.partnerships, public.users, public.user_profiles        │
 │  View: v_active_partnership (security_invoker = true)                   │
-│  RPCs: partnership_request, partnership_accept                          │
-│  Triggers: user_create_from_auth                                         │
+│  RPCs: partnership_request, partnership_accept, partnership_cancel_*    │
+│  Triggers: user_create_from_auth, guard_public_partnerships_status      │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -68,13 +68,14 @@ The partnership architecture spans three main layers:
 
 ### Partnership States
 
-The partnership subsystem defines three logical states per user:
+The partnership subsystem defines four logical states per user:
 
 | State | Status Column | Description |
 |---|---|---|
 | **None** | `none` (or no row) | User has no active partnership and no pending invitations (sent or received). |
 | **Pending** | `pending` | A partnership request has been created in `public.partnerships` with `status = 'pending'`, waiting for acceptance or rejection. |
 | **Accepted** | `accepted` | An active partnership is established (`status = 'accepted'`). Both users are linked. |
+| **Cancelled** | `cancelled` | One member asked to end the pair. Both are frozen out of couple features until reverts/declines/expiry return the row to `accepted`, or the partner accepts and the row (with the couple data) is deleted. |
 
 ### State Transition Diagram
 
@@ -97,16 +98,18 @@ The partnership subsystem defines three logical states per user:
                 └───────────────┘        └───────────────┘
 ```
 
+An `accepted` pair can additionally move to `cancelled` (see §8): a member requests it, the pair returns to `accepted` on restore/decline/expiry, and the row plus couple data are deleted when the other member accepts.
+
 ### Transition & Invariant Rules
 
 1. **Request Initiation**:
-   - **Who can initiate**: Any authenticated user who does not already have an active or pending partnership.
+   - **Who can initiate**: Any authenticated user who does not already have a pending, accepted or cancelled partnership.
    - **Self-Invitation Prevention**: A user who names their own email + code is rejected by the backend controller ([auth.controller.js:210](file:///f:/JustUS/Backend/features/auth/auth.controller.js#L210)) with `API-VALIDATION-006`; the same code is raised by the `partnership_request` RPC guard for any direct caller. The client localizes it via `ErrorCodes.userMessage`.
    - **Duplicate Requests**: Prevented by checking existing `pending`, `accepted` and `cancelled` records for the sender in `partnership_request` RPC (raises `API-VALIDATION-004`), so a member whose partnership is frozen by a cancellation request cannot start a new pairing until it is restored or expires.
    - **Recipient Matching**: Initiator must provide **both** the exact target email (case-insensitive) and exact 6-character `partnership_code`; a mismatch raises `API-VALIDATION-005`.
 
 2. **Rejection Handling**:
-   - When a user rejects an incoming request or cancels a sent request, Flutter executes a direct SQL `DELETE` on `public.partnerships` where `id = partnershipId` and `status = 'pending'` ([partnership_repository.dart:110](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L110)).
+   - When a user rejects an incoming request or withdraws a sent one, Flutter invokes `partnership_reject(p_partnership_id)` ([partnership_repository.dart:119](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart#L119)). The RPC deletes a row only where the caller is a member and `status = 'pending'`, and the `partnerships_delete_own` policy enforces the same `status = 'pending'` condition on a raw `DELETE`.
    - The row is permanently removed from the database. The system transitions back to the **None** state.
 
 3. **Acceptance Handling**:
@@ -311,6 +314,7 @@ During the reverse-engineering analysis, the following technical findings and bu
 1. **Simultaneous Mutual Invitations**: If User A sends a request to User B, and User B simultaneously sends a request to User A, `partnership_request` RPC handles conflict resolution by checking existing pending records.
 2. **Realtime Disconnection during Acceptance**: If Realtime socket drops when partner accepts an invitation, `RealtimeSyncService` fallback timer (polling every 15s) or pull-to-refresh on `PartnerScreen` ensures eventual consistency.
 3. **User Deletion / Account Wipe**: When `debug_wipe_user_data` RPC is called, associated `partnerships` records are deleted via database foreign key cascading (`ON DELETE CASCADE`), resetting linked partner states back to **None**.
+4. **Third-Party Invitations**: `partnership_request` checks only the sender, so an unpaired user can still create a pending invitation addressed to someone who already has an `accepted` or `cancelled` partnership. The row shows up in the recipient's pending list and fires the "new request" push, but `partnership_accept` refuses it (`API-VALIDATION-012`) because the recipient already holds a partnership. Tracked as `todo.md` 11.13; the cancellation feature deliberately deletes no unrelated pending rows.
 
 ---
 

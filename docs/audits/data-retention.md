@@ -18,6 +18,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 | **Node.js In-Memory Nonce Sweep** | `consumedNonces` Map | Every 10 min via `_sweepExpiredNonces()` | Expired timestamp | **ACTIVE** | None (Dual-layer) |
 | **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStalMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Node.js R2 Orphaned-Object Sweep** | Cloudflare R2 finalized objects under `uploads/` + `profile/` not referenced by `drive_items.filename` / `drive_items.metadata.thumbnail` / `user_profiles.profile_pic_url` | Every 6h via `retentionJob.js` (`sweepStaleOrphanObjects`) | **24 hours** (`ORPHAN_MAX_AGE_MS`) | **ACTIVE** | None |
+| **Node.js Partnership Cancellation Sweep** | `public.partnerships` rows with `status = 'cancelled'` | Every 6h via `retentionJob.js` (`sweepExpiredCancellations`) + lazily on `partnership_get_cancellation` | `cancel_expires_at <= now()` (7 days from the request) | **ACTIVE** | Reverts to `accepted`, clears the cancel fields, keeps `cancel_declined_at`; no push |
 | **Flutter Media Cache** | Local R2 image/video files | Automated via `MediaCacheManager` (`flutter_cache_manager`) | **30 days** (`stalePeriod`) / **300 objects** | **ACTIVE** | None |
 | **Flutter Local Checkpoints** | `SharedPreferences` checkpoint keys | Cleared on user logout / data wipe | Indefinite until manual clear or logout | **ACTIVE** | None |
 

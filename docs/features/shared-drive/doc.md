@@ -189,7 +189,8 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 ```
 - Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
 - The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.
-- The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes.
+- `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the other member through `partnership_get_cancellation_partner` and inserts the row normally (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
+- The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes, and by the partnership cancellation acceptance endpoint, which sweeps `uploads/<user1>/` and `uploads/<user2>/` for the ex-couple — never `profile/<uid>/`. Failures are logged and the orphan sweep catches leftovers; the database delete is not rolled back.
 
 ---
 

@@ -33,7 +33,7 @@ The application initialization sequence follows a strict synchronous-to-asynchro
 5. Server Binding & Listener (index.js)
    └── app.listen(env.port, "0.0.0.0")
 6. Background Retention Jobs Launch (core/jobs/retentionJob.js: startRetentionJobs())
-   ├── Immediate initial sweeps (Nonces, Logs, R2 Multipart, R2 Orphans)
+   ├── Immediate initial sweeps (Nonces, Logs, R2 Multipart, R2 Orphans, Cancellations)
    └── Timed interval registrations (setInterval)
 ```
 
@@ -66,6 +66,11 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Interval**: Every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Threshold**: Deletes unreferenced objects older than 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
 - **Logic**: Lists objects via `r2.service.listObjects` (keys + `LastModified`), builds the referenced-key set from `drive_items.filename`, `drive_items.metadata.thumbnail` (thumbnail objects), and `user_profiles.profile_pic_url`, then batch-deletes (`deleteObjects`) any listed object not referenced and older than the cutoff. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for failed upload completions. The 24 h cutoff exceeds the 300 s presigned-PUT lifetime so in-flight uploads are never swept.
+
+### 5. Partnership Cancellation Sweep (`sweepExpiredCancellations`)
+- **Target Table**: `public.partnerships` rows with `status = 'cancelled'`.
+- **Interval**: Every 6 hours (`CANCEL_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
+- **Logic**: Calls the `partnership_expire_cancellations()` RPC, which reverts every row whose `cancel_expires_at <= now()` to `accepted` and clears `cancel_requested_by` / `cancel_expires_at`; `cancel_declined_at` is preserved. Logs `retention.cancellations` with the reverted count. The same RPC runs lazily inside `partnership_get_cancellation`, so a user opening the app after the 7-day deadline sees the restored pair immediately instead of waiting for the next tick. Expiry is silent — no push.
 
 ---
 
