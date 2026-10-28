@@ -156,6 +156,36 @@ BEGIN
     RAISE EXCEPTION 'B failed: users.id changed to %', v_id;
   END IF;
 
+  -- auth_id / email are immutable for clients: a foreign uuid, NULL and a new
+  -- email must all be refused, and the row must stay as it was.
+  v_state := pg_temp.rls_try($q$
+    UPDATE public.users SET auth_id = '00000000-0000-0000-0000-000000000002' WHERE id = 9001$q$);
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'B failed: users.auth_id reassignment gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try($q$
+    UPDATE public.users SET auth_id = NULL WHERE id = 9001$q$);
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'B failed: clearing users.auth_id gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  v_state := pg_temp.rls_try($q$
+    UPDATE public.users SET email = 'hijacked@rls-test.local' WHERE id = 9001$q$);
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'B failed: users.email reassignment gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  IF (SELECT auth_id FROM public.users WHERE id = 9001)
+       IS DISTINCT FROM '00000000-0000-0000-0000-000000000001'
+     OR (SELECT email FROM public.users WHERE id = 9001)
+       IS DISTINCT FROM 'alice@rls-test.local' THEN
+    RAISE EXCEPTION 'B failed: identity columns changed despite the rejections';
+  END IF;
+
   UPDATE public.users SET updated_at = now() WHERE id = 9001;
   IF (SELECT id FROM public.users WHERE id = 9001) IS DISTINCT FROM 9001 THEN
     RAISE EXCEPTION 'B failed: users.id changed during a non-key update';
@@ -410,6 +440,12 @@ BEGIN
   END IF;
   IF (SELECT count(*) FROM public.game_answers         WHERE game_id = 9041 AND user_id = 9003) <> 1 THEN
     RAISE EXCEPTION 'I failed: service_role cannot see game_answers';
+  END IF;
+
+  UPDATE public.users SET email = 'alice-service@rls-test.local' WHERE id = 9001;
+  IF (SELECT email FROM public.users WHERE id = 9001)
+       IS DISTINCT FROM 'alice-service@rls-test.local' THEN
+    RAISE EXCEPTION 'I failed: service_role could not update users.email';
   END IF;
 END $$;
 

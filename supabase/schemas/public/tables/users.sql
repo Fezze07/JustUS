@@ -19,6 +19,11 @@ CREATE TRIGGER set_public_users_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.util_set_updated_at();
 
+CREATE TRIGGER guard_public_users_identity
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.users_guard_identity();
+
 CREATE POLICY "users_insert_self" ON "public"."users"
   FOR INSERT
   TO PUBLIC

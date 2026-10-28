@@ -35,11 +35,11 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
   - `users_auth_id_key` (UNIQUE: `auth_id`)
   - `users_email_key` (UNIQUE: `email`)
   - `users_auth_id_fkey` (FOREIGN KEY: `auth_id` REFERENCES `auth.users(id)` ON DELETE CASCADE)
-- **Triggers:** `set_public_users_updated_at` (BEFORE UPDATE EXECUTE `util_set_updated_at()`)
+- **Triggers:** `set_public_users_updated_at` (BEFORE UPDATE EXECUTE `util_set_updated_at()`), `guard_public_users_identity` (BEFORE UPDATE EXECUTE `users_guard_identity()`) — rejects any client change to `auth_id` or `email` (`API-VALIDATION-015` / SQLSTATE `42501`); `postgres` and `service_role` may still write them
 - **RLS Policies:**
   - `users_select_self` (FOR SELECT, `TO authenticated`, USING `auth_id = (SELECT auth.uid())`)
   - `users_insert_self` (FOR INSERT WITH CHECK `(SELECT auth.uid()) = auth_id`)
-  - `users_update_self` (FOR UPDATE USING + WITH CHECK `id = user_current_id()`)
+  - `users_update_self` (FOR UPDATE USING + WITH CHECK `id = user_current_id()`; the `guard_public_users_identity` trigger pins `auth_id` / `email`)
 
 #### `user_profiles`
 - **SQL Source:** `supabase/schemas/public/tables/user_profiles.sql`
@@ -213,6 +213,7 @@ All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
 - **`on_auth_user_created`:** `AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION user_create_from_auth();`
 - **`set_public_users_updated_at`:** `BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION util_set_updated_at();`
+- **`guard_public_users_identity`:** `BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION users_guard_identity();` - rejects a client `UPDATE` that changes `auth_id` or `email` with `API-VALIDATION-015` / SQLSTATE `42501`; `postgres` / `service_role` keep the write path for provisioning and verified flows. The insert-time provisioner `user_create_from_auth` is unaffected.
 - **`set_public_user_profiles_updated_at`:** `BEFORE UPDATE ON public.user_profiles FOR EACH ROW EXECUTE FUNCTION util_set_updated_at();`
 - **`set_public_partnerships_updated_at`:** `BEFORE UPDATE ON public.partnerships FOR EACH ROW EXECUTE FUNCTION util_set_updated_at();`
 - **`set_public_user_roles_updated_at`:** `BEFORE UPDATE ON public.user_roles FOR EACH ROW EXECUTE FUNCTION util_set_updated_at();`

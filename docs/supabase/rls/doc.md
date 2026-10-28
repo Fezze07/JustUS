@@ -14,7 +14,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 
 | Table Name | RLS Status | SELECT Policy | INSERT Policy | UPDATE Policy | DELETE Policy | Target Roles |
 | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
-| `users` | **ENABLED** | Self (`auth_id = auth.uid()`) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = user_current_id()`) | Denied (Default) | `authenticated`, `service_role` |
+| `users` | **ENABLED** | Self (`auth_id = auth.uid()`) | Self (`auth.uid() = auth_id`) / Service Role | Self (`id = user_current_id()`; `auth_id`/`email` pinned by trigger) | Denied (Default) | `authenticated`, `service_role` |
 | `user_profiles` | **ENABLED** | Self + accepted partner | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | Denied (Default) | `authenticated` |
 | `partnerships` | **ENABLED** | Members (`user_1` or `user_2`) | Denied (Default) | Members (`user_1` or `user_2`) | Members (`user_1` or `user_2`), `pending` only | `authenticated` |
 | `moods` | **ENABLED** | Self or Partner | Self (`user_id = user_current_id()`) + NULL/own accepted `partnership_id` | Self (`user_id = user_current_id()`) + NULL/own accepted `partnership_id` | Self (`user_id = user_current_id()`) | `PUBLIC` |
@@ -53,6 +53,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
   - `users_insert_self` (INSERT): `WITH CHECK ((SELECT auth.uid()) = auth_id)`
   - `users_insert_service_role` (INSERT): `TO service_role WITH CHECK (true)`
   - `users_update_self` (UPDATE): `USING` + `WITH CHECK (id = public.user_current_id())`
+- **Identity columns are immutable:** the `guard_public_users_identity` trigger (`public.users_guard_identity()`) rejects any `UPDATE` that changes `auth_id` or `email` with `API-VALIDATION-015` / SQLSTATE `42501`. `auth_id` is what `user_current_id()` resolves through, so a client rewriting it (or setting it to `NULL`) would lock the account out of every RLS predicate; `email` is provisioned from `auth.users` at sign-up. `postgres` / `service_role` retain the write path for provisioning and verified flows.
 - **Assessment:** **SELF-SCOPED SELECT POLICY**. An authenticated user can read only their own row; `service_role` retains full access through its RLS bypass. No other user's email/UUID is reachable by direct query.
 
 #### `user_profiles`
@@ -172,4 +173,5 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 - **Explicit `WITH CHECK` on Shared-Table Mutation:** **IMPLEMENTED** (`drive_items_related`, `bucket_items_partnership_access`, `game_questions_related`, `missyou_related` all carry `WITH CHECK (partnership_is_member(partnership_id))`; INSERT/UPDATE outside the caller's accepted partnership is rejected at the DB layer)
 - **Explicit `WITH CHECK` on Self & Parent-Scoped Writes:** **IMPLEMENTED** (every write-capable policy without an explicit new-row check now carries one: self-ownership on `moods_update_own`, `users_update_self`, `profiles_update_self`; self + `partnership_id IS NULL OR partnership_is_member(partnership_id)` on `moods_manage_own`/`moods_update_own`; self + parent-in-accepted-partnership on `game_answers_manage_own`/`game_answers_update_own`, `drive_item_reactions_manage_own`/`drive_item_reactions_update_own`, `favorites_own`; member-scope on `partnerships_update_own`; backend-only on `logs_auth_failures`)
 - **Strict User & Profile Isolation:** **IMPLEMENTED** (`users` self-only; `user_profiles` self + accepted partner via `private.is_related_user`; pending invitation identity exposed only through the scoped `partnership_get_pending_invitations` RPC)
+- **Client-Immutable User Identity:** **IMPLEMENTED** (`users.auth_id` / `users.email` cannot be changed by a client `UPDATE`; `guard_public_users_identity` / `users_guard_identity()` raises `API-VALIDATION-015`, while `postgres` / `service_role` keep the provisioning and verified-flow path)
 - **Read-Only Question Catalog:** **IMPLEMENTED** (`game_question_bank` carries only a `FOR SELECT TO PUBLIC USING (true)` policy, so it is world-readable and client-unwritable)

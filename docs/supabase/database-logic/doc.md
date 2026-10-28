@@ -268,6 +268,15 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### Trigger 4: User Identity Immutability (`guard_public_users_identity`)
+* **Event:** `BEFORE UPDATE ON public.users`
+* **Target Function:** `users_guard_identity()` (`SET search_path TO 'public'`)
+* **Grants:** Execution REVOKED from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role`; PostgreSQL does not check `EXECUTE` when firing a trigger.
+* **Action:** Raises `API-VALIDATION-015` / SQLSTATE `42501` when a caller other than `postgres` / `service_role` changes `auth_id` or `email`. Other columns (for example `updated_at`) stay writable.
+* **Side Effects:** A client can no longer rewrite its `auth_id` (to a random UUID or `NULL`), which would make `public.user_current_id()` return `NULL` and lock the row out of every RLS predicate. Insert-time provisioning by `user_create_from_auth()` is unaffected.
+
+---
+
 ## Non-Obvious Database-Side Behaviors
 
 1. **Automatic Partner Code Assignment:**
