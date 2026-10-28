@@ -314,6 +314,24 @@ During the reverse-engineering analysis, the following technical findings and bu
 
 ---
 
+## Rollout Notes
+
+### Pre-flight check: duplicate accepted rows (2026-10-28)
+
+The old double-accept hole could leave a user holding two `accepted` rows. Before relying on the paired-recipient guard in `partnership_accept`, the linked project was checked with:
+
+```sql
+SELECT user_id, count(*) FROM (
+  SELECT user_id_1 AS user_id FROM partnerships WHERE status = 'accepted'
+  UNION ALL
+  SELECT user_id_2 AS user_id FROM partnerships WHERE status = 'accepted'
+) t GROUP BY user_id HAVING count(*) > 1;
+```
+
+Result: **no rows**. No manual repair was needed, so the guard applies to a clean dataset.
+
+---
+
 ## Dependencies
 
 - **Flutter**: `provider`, `supabase_flutter`, `flutter_dotenv`.
