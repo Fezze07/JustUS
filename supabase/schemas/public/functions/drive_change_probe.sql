@@ -18,6 +18,6 @@ CREATE OR REPLACE FUNCTION public.drive_change_probe ()
   WHERE public.partnership_is_member(d.partnership_id);
 $function$;
 
-REVOKE ALL ON FUNCTION public.drive_change_probe() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.drive_change_probe() FROM PUBLIC, "anon";
 
 GRANT EXECUTE ON FUNCTION public.drive_change_probe() TO "authenticated", "postgres", "service_role";

@@ -64,4 +64,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."debug_wipe_user_data"(integer) TO "postgres", "service_role";
 
-REVOKE ALL ON FUNCTION "public"."debug_wipe_user_data"(integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."debug_wipe_user_data"(integer) FROM PUBLIC, "anon";

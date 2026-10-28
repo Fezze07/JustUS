@@ -55,6 +55,7 @@ DECLARE
     'public.partnership_accept(integer)',
     'public.user_current_id()',
     'public.partnership_get_accepted_partner(integer)',
+    'public.drive_change_probe()',
     'public.emoji_get_or_create(text)',
     'public.partnership_get_pending_invitations()',
     'public.partnership_is_member(integer)',
@@ -152,7 +153,6 @@ DO $$
 DECLARE
   v_anon_ok text[] := ARRAY[
     'public.user_current_id()',
-    'public.drive_change_probe()',
     'public.emoji_get_or_create(text)',
     'public.partnership_is_member(integer)',
     'public.partnership_is_partner(integer)',

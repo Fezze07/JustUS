@@ -147,7 +147,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - `public.user_profiles`: Holds profile attributes (`user_id`, `display_name`, `profile_pic_url`, `partnership_code`, `created_at`, `updated_at`).
 
 ### Stored Procedures & RPCs
-- `debug_wipe_user_data(p_user_id integer)`: Administrative stored procedure executing data deletion. Configured with `SECURITY DEFINER` and restricted execution rights (revoked from `PUBLIC`, granted to `postgres`/`service_role` only, invoked by the backend via `adminSupabase`).
+- `debug_wipe_user_data(p_user_id integer)`: Administrative stored procedure executing data deletion. Configured with `SECURITY DEFINER` and restricted execution rights (revoked from `PUBLIC`/`anon`, granted to `postgres`/`service_role` only, invoked by the backend via `adminSupabase`).
 
 ---
 
