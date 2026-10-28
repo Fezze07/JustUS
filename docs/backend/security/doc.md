@@ -51,7 +51,7 @@ The exact execution order of middleware in the application pipeline is determine
   5. Constant-time string equality comparison (`expectedSignature === signature`).
   6. Call `consumeNonce` to record nonce usage.
 - **Failure Behavior**: Throws `AppError({ errorKey: "SEC-SIGNATURE-001" })` or `SEC-BLOCK-001` (401/403).
-- **Storage & Expiration**: Session secret stored in PostgreSQL `auth_sessions.binding_secret`.
+- **Storage & Expiration**: Session secret stored in PostgreSQL `session_bindings.binding_secret`.
 - **Bypass Possibilities**: Requests on routes not wrapped with `signed(...)` helper skip HMAC verification completely.
 - **Multi-Instance Behavior**: HMAC verification is stateless given the session `bindingSecret` in database/request; works across multi-instance nodes.
 
@@ -86,18 +86,18 @@ The exact execution order of middleware in the application pipeline is determine
 ### 4. JWT Verification & Session Binding
 
 - **Threat Addressed**: Stolen JWT tokens used on unauthorized devices/IPs; session hijacking.
-- **Implementation Location**: [`middleware/authMiddleware.js`](file:///f:/JustUS/Backend/middleware/authMiddleware.js), [`utils/security/tokenUtils.js`](file:///f:/JustUS/Backend/utils/security/tokenUtils.js).
+- **Implementation Location**: [`middleware/authMiddleware.js`](file:///f:/JustUS/Backend/middleware/authMiddleware.js), [`utils/security/tokenUtils.js`](file:///f:/JustUS/Backend/utils/security/tokenUtils.js), [`supabase/schemas/public/functions/session_is_live.sql`](file:///f:/JustUS/supabase/schemas/public/functions/session_is_live.sql).
 - **Request Flow & Validation Order**:
   1. Extract Bearer token from `Authorization` header.
-  2. Validate token via Supabase Auth API `authSupabase.auth.getUser(token)`.
+  2. Validate token via Supabase Auth API `authSupabase.auth.getUser(token)`. GoTrue verifies the JWT and rejects a token whose `session_id` no longer resolves to an `auth.sessions` row, so a deleted session stops working before the JWT expires.
   3. Validate token lifetime against `env.maxAccessTokenLifetimeSec`.
   4. Fetch user profile from `users` table.
-  5. Fetch session binding record from `auth_sessions` table matching `session_id` or `${profile.id}:${clientContext.deviceFingerprintHash}`.
-  6. Enforce session binding: verify `device_fingerprint_hash`, `user_agent_hash`, and check if `revoked_at` is null.
-  7. Detect subnet/IP range changes (`isIpRangeChanged`) and log security events.
+  5. Fetch the session binding from `session_bindings` matching `session_id` or `${profile.id}:${clientContext.deviceFingerprintHash}`, and call `session_is_live(session_id)` in parallel.
+  6. Reject with `AUTH-FAIL-001` when `session_is_live` returns false: the function reads `auth.sessions.not_after` (the Supabase session timebox) and catches an expiry GoTrue only enforces at token refresh. An RPC error fails open — GoTrue already enforces session existence, so this is defence in depth.
+  7. Enforce session binding: verify `device_fingerprint_hash` (`AUTH-FAIL-006`).
   8. Attach `req.user` (with `profileId`, `role`, `capabilities`) and `req.sessionBinding` (`bindingSecret`).
-- **Failure Behavior**: Returns `AUTH-FAIL-002` (missing token), `AUTH-FAIL-004` (invalid role), `AUTH-FAIL-005` (no profile/invalid session binding).
-- **Storage**: `auth_sessions` table in Supabase PostgreSQL.
+- **Failure Behavior**: Returns `AUTH-FAIL-001` (invalid/expired token or expired server-side session), `AUTH-FAIL-002` (missing token), `AUTH-FAIL-004` (invalid role), `AUTH-FAIL-005` (no profile), `AUTH-FAIL-006` (device binding mismatch).
+- **Storage**: `session_bindings` (device binding and signing secret) plus Supabase `auth.sessions` (session existence and `not_after`).
 - **Multi-Instance Behavior**: Fully stateful via PostgreSQL queries; consistent across instances.
 
 ---
@@ -210,7 +210,7 @@ The exact execution order of middleware in the application pipeline is determine
 | **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies. | **HIGH** |
 | **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node** (accepted — single instance). Retried requests on different instances bypass the cache and re-execute; within one instance a retried key returns the first response and runs once. | **HIGH** |
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. The DB `UNIQUE (nonce)` insert is the authoritative replay check; the memory map is only a cache. | **LOW (SAFE)** |
-| **JWT & Session Binding** | PostgreSQL `auth_sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
+| **JWT & Session Binding** | PostgreSQL `session_bindings` + Supabase `auth.sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
 | **HMAC Verification** | Request Payload + DB Session Secret | **Multi-Instance Safe**. Stateless computation per request. | **LOW (SAFE)** |
 | **Cloudflare Turnstile** | External API | **Multi-Instance Safe**. Verified natively by Supabase Auth at sign-in/sign-up; no per-instance state. | **LOW (SAFE)** |
 

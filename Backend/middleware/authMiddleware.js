@@ -44,10 +44,14 @@ async function authenticateToken(req, res, next) {
     }
 
     const clientContext = buildClientContext(req);
-    const { profile, sessionBinding } = await resolveProfileAndSession(verified, clientContext);
+    const { profile, sessionBinding, sessionLive } = await resolveProfileAndSession(verified, clientContext);
 
     if (!profile) {
       return next(new AppError({ errorKey: "AUTH_FAIL_005" }));
+    }
+
+    if (!sessionLive) {
+      return next(new AppError({ errorKey: "AUTH_FAIL_001" }));
     }
 
     validateSessionBinding(sessionBinding, clientContext);
@@ -72,11 +76,13 @@ function extractBearerToken(req) {
 async function resolveProfileAndSession(verified, clientContext) {
   let profile;
   let sessionBinding;
+  let sessionLive = true;
 
   if (verified.claims.session_id) {
-    [profile, sessionBinding] = await Promise.all([
+    [profile, sessionBinding, sessionLive] = await Promise.all([
       fetchUserProfile(verified.user.id),
       fetchSessionBinding(verified, null, clientContext),
+      isSessionLive(verified.claims.session_id),
     ]);
   } else {
     profile = await fetchUserProfile(verified.user.id);
@@ -85,7 +91,17 @@ async function resolveProfileAndSession(verified, clientContext) {
     }
   }
 
-  return { profile, sessionBinding };
+  return { profile, sessionBinding, sessionLive };
+}
+
+// Fail open on RPC errors: GoTrue already rejects deleted sessions; this is defence in depth.
+async function isSessionLive(sessionId) {
+  try {
+    const { data, error } = await adminSupabase.rpc("session_is_live", { p_session_id: sessionId });
+    return error ? true : data !== false;
+  } catch (_) {
+    return true;
+  }
 }
 
 function applyResponseWatermark(res, req) {

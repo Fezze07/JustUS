@@ -122,6 +122,7 @@ DECLARE
     'public.partnership_get_names(integer)',
     'public.user_create_from_auth()',
     'public.device_purge_dead_sessions()',
+    'public.session_is_live(uuid)',
     'public.game_update_question_status()'
   ];
   v_sig    text;

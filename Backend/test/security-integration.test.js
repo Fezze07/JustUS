@@ -66,6 +66,7 @@ describe("Security Integration Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetRateLimitState();
+    adminSupabase.rpc.mockResolvedValue({ data: true, error: null });
   });
 
   describe("Authentication Middleware (JWT & Binding)", () => {
@@ -220,13 +221,14 @@ describe("Security Integration Tests", () => {
         binding_secret: "secret-123",
       };
 
-      const requestWithSession = (session) => {
+      const requestWithSession = (session, liveness = { data: true, error: null }) => {
         const token = generateMockJWT(validUserPayload);
 
         authSupabase.auth.getUser.mockResolvedValue({
           data: { user: { id: "auth-user-1" } },
           error: null,
         });
+        adminSupabase.rpc.mockResolvedValue(liveness);
 
         adminSupabase.from.mockImplementation((table) => {
           if (table === "users") {
@@ -254,6 +256,23 @@ describe("Security Integration Tests", () => {
         const send = requestWithSession({
           ...baseSession,
         });
+
+        expect((await send()).status).not.toBe(401);
+      });
+
+      test("FAIL: a session past not_after is rejected despite a valid JWT", async () => {
+        const send = requestWithSession({ ...baseSession }, { data: false, error: null });
+
+        const response = await send();
+        expect(response.status).toBe(401);
+        expect(response.body.error.code).toBe("AUTH-FAIL-001");
+      });
+
+      test("PASS: a liveness RPC outage does not lock users out", async () => {
+        const send = requestWithSession(
+          { ...baseSession },
+          { data: null, error: { message: "database unavailable" } }
+        );
 
         expect((await send()).status).not.toBe(401);
       });

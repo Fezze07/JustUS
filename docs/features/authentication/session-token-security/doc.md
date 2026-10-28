@@ -243,7 +243,7 @@ Backend token verification is executed by `authenticateToken` middleware on ever
 1. **Token Extraction**: Extracts Bearer token from `Authorization` header.
 2. **Supabase getUser Verification**:
    - Calls `authSupabase.auth.getUser(token)`.
-   - Makes a remote RPC request to Supabase Auth server to confirm the token is valid, active, and unrevoked.
+   - Makes a remote RPC request to Supabase Auth server to confirm the token is valid and its `session_id` still resolves to an `auth.sessions` row (a deleted session is rejected).
 3. **Claims Decoding & Lifetime Validation**:
    - Decodes JWT payload (`decodeTokenClaims`).
    - Asserts `claims.role === "authenticated"`.
@@ -251,6 +251,9 @@ Backend token verification is executed by `authenticateToken` middleware on ever
 4. **Database Profile Lookup**:
    - Queries `public.users` via `adminSupabase` matching `auth_id = user.id`.
    - Loads internal integer `profile.id`, display name, user roles, and capabilities (`resolveCapabilities`).
+5. **Server-Side Session Lifetime**:
+   - Calls `public.session_is_live(session_id)` in parallel with the profile and binding lookups. The `SECURITY DEFINER` function reads `auth.sessions.not_after`; `false` rejects the request with `AUTH-FAIL-001`, closing the gap between a session's timebox expiry and its access token's expiry.
+   - An RPC error fails open: GoTrue already rejects deleted sessions, so this check is defence in depth.
 
 ---
 
@@ -337,9 +340,9 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 
 | Error Code | HTTP Status | Trigger Condition | Consequence |
 |---|---|---|---|
-| `AUTH_FAIL_001` | 401 | Invalid / expired Supabase token, or token lifetime exceeds policy | Triggers client refresh attempt |
+| `AUTH_FAIL_001` | 401 | Invalid / expired Supabase token, token lifetime exceeds policy, or server-side session past `auth.sessions.not_after` | Triggers client refresh attempt |
 | `AUTH_FAIL_002` | 401 | Missing Bearer token in Authorization header | Aborts request |
-| `AUTH_FAIL_003` | 401 | Session explicitly revoked (`revoked_at` is set in `auth_sessions`) | Forces logout |
+| `AUTH_FAIL_003` | 401 | Not emitted by the current backend; a deleted session is rejected by GoTrue and surfaces as `AUTH_FAIL_001` | — |
 | `AUTH_FAIL_004` | 401 | Token role claims !== `'authenticated'` | Aborts request |
 | `AUTH_FAIL_005` | 401 | User profile not found in `public.users` table | Aborts request |
 | `AUTH_FAIL_006` | 401 | Device Fingerprint or User-Agent binding mismatch | Forces re-login |

@@ -133,6 +133,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 #### `session_bindings`
 - **SQL Source:** `supabase/schemas/public/tables/session_bindings.sql`
 - **Columns:** `session_id` (`uuid`, PK, FK -> `auth.sessions(id)` ON DELETE CASCADE), `device_fingerprint_hash` (`text` NOT NULL), `binding_secret` (`text` NOT NULL), `country_code` (`text`), `created_at` (`timestamptz`), `last_seen_at` (`timestamptz`).
+- **Liveness RPC:** `session_is_live(p_session_id uuid)` (`SECURITY DEFINER`, `STABLE`, backend-only) returns whether the linked `auth.sessions` row exists and its `not_after` is null or in the future. `authenticateToken` rejects a false result with `AUTH-FAIL-001`, so a session past its timebox expiry cannot outlive it on the strength of an unexpired access token.
 
 #### `request_nonces`
 - **SQL Source:** `supabase/schemas/public/tables/request_nonces.sql`
