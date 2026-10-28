@@ -22,6 +22,7 @@
 | 8 | Testing gaps | 8.1–8.7, 8.9, 8.10 | 9 fixed. Still open — 8.8 CI wiring, carried in `todo.md`. Auth-refresh retry, runnable SQL assertions for RLS and retention, `BaseState` helpers, the realtime pipeline, optimistic rollback, the force-update flow, and two suite-hardening sweeps |
 | 9 | Findings that were never planned | 9.1–9.9 | All fixed. Failed-login reporting plus route idempotency, token and session revocation on logout and password change, server-side password policy, a distinct-email risk cap, a docs reconciliation sweep, and the `user_devices` retention and session-linked prune |
 | 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `partnership_reject` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
+| 11 | Security & privilege | 11.1–11.13 | All fixed. No client INSERT policy on `partnerships`; immutable membership and identity columns; `DELETE` limited to pending rows; `anon`/`PUBLIC` EXECUTE revoked and ACLs pinned in each function file; notification receivers resolved from the partnership; a DB-authoritative nonce check; server-side session-expiry validation; a signed-route boundary pinned by a route-table test; and an invite-recipient guard |
 
 ---
 
@@ -124,6 +125,19 @@
 | 10.19 | Rejecting a partnership request bypasses the accepting RPC | Fixed (`partnership_reject` RPC) | 2026-10-20 |
 | 10.20 | A `hasChanges` failure rejects `loadWithChangeDetection` (F-SM4) | Fixed (error caught; refetch triggered) | 2026-10-20 |
 | 10.21 | Structured log records don't match the log-table columns | Fixed (records projected onto their table's columns) | 2026-10-21 |
+| 11.9 | `consumeNonce` discards the database's uniqueness result | Fixed (DB-first nonce check; `23505` is a replay) | 2026-10-11 |
+| 11.1 | An accepted partnership can be forged with a single INSERT | Fixed (no INSERT policy; per-command policies plus a status guard) | 2026-10-21 |
+| 11.2 | An accepted partnership can be re-pointed to a third party | Fixed (membership columns immutable via trigger) | 2026-10-22 |
+| 11.3 | Either member can DELETE the couple's shared history | Fixed (`DELETE` restricted to pending rows) | 2026-10-23 |
+| 11.4 | `users_update_self` does not pin `auth_id` or `email` | Fixed (identity columns pinned by a trigger) | 2026-10-28 |
+| 11.5 | `anon` / `PUBLIC` hold EXECUTE on four partner-revealing functions | Fixed (`anon`/`PUBLIC` EXECUTE revoked) | 2026-10-28 |
+| 11.6 | `debug_wipe_user_data` effective ACL is order-dependent | Fixed (ACL pinned in the function file) | 2026-10-28 |
+| 11.7 | `override_sender_id` forges a pending invite attributed to a victim | Fixed (via 11.1 — the EXECUTE grant that enabled the forgery was revoked) | 2026-10-28 |
+| 11.8 | Unpaired senders bypass the notification receiver check | Fixed (fail closed; receiver resolved from the partnership) | 2026-10-28 |
+| 11.10 | Server-side session expiry is never checked | Fixed (`session_is_live` checked server-side) | 2026-10-28 |
+| 11.11 | `notify.routes.js` has an unreachable route and a shared rate-limit bucket | Fixed (dead route deleted; `limited()` stays before `validated()`) | 2026-10-28 |
+| 11.12 | Three authenticated mutating routes are unsigned | Fixed (all three signed; signed-route table pinned by a test) | 2026-10-28 |
+| 11.13 | A partnership request can be addressed to an already-paired user | Fixed (recipient guard; `API-VALIDATION-004` reused) | 2026-10-28 |
 
 ---
 
@@ -160,6 +174,18 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 27. **An RPC error travels as `CODE: text` and the client resolves it.** Every raise carries a stable app error code, the backend keeps the code and the client maps it through `ErrorCodes` to the ARB string; the Postgres text is a developer-facing note and never reaches a release UI. → `docs/app/localization/doc.md` § Alignment Audit & Findings.
 28. **A failing change check means "assume changed and refetch".** The `hasChanges()` await is wrapped in `try`/`catch`; the error goes to `ErrorHandler.handle`, the fallback is `changed = true` and the network fetch still runs, so the caller's future never rejects. → `docs/app/state-management/doc.md` § loadWithChangeDetection.
 29. **A log record is projected onto exactly the columns of its target table.** One extra key makes Postgres reject the whole row, so each logger function writes only its table's columns and nests the rest in `error_json`; `request_id` is a `uuid` column, so a client-supplied `X-Request-Id` is accepted only when it parses as a uuid. → `docs/backend/error-handling/doc.md` § Backend Logging Infrastructure & Supabase Tables.
+30. **A `partnerships` row can never be created by a client.** There is no INSERT policy at all — not even a `status = 'pending'` one — so the backend calling `partnership_request` as `service_role` is the only creator and the table's `'accepted'` default is unreachable through PostgREST. → `docs/supabase/rls/doc.md` § Detailed Policy Categorization & Analysis (`partnerships`).
+31. **Partnership membership is immutable on every row and for every caller.** The `partnership_guard_status` trigger rejects any change to `user_id_1` / `user_id_2` instead of carving out an accepted-only or service-role path, because no flow legitimately writes those columns; the unconditional rule is smaller and stronger than a conditional one. → `docs/supabase/rls/doc.md` § Detailed Policy Categorization & Analysis (`partnerships`).
+32. **A member may delete only a `pending` partnership row.** The `DELETE` policy carries `status = 'pending'`, so neither member can cascade away the couple's shared history; withdrawing a request stays available to either member. → `docs/supabase/rls/doc.md` § Detailed Policy Categorization & Analysis (`partnerships`).
+33. **Identity columns are pinned by a trigger, not a `WITH CHECK`.** A policy cannot read the old row (and a same-table subquery recurses), so `users_guard_identity` rejects client changes to `auth_id` / `email` while `postgres` / `service_role` keep the provisioning and verified-flow path. → `docs/supabase/schema/doc.md` § Database Triggers & Automation.
+34. **Every function pins its own ACL in its schema file.** `default_privileges.sql` grants `anon` EXECUTE to functions `postgres` creates after it takes effect, and `REVOKE … FROM PUBLIC` does not remove that named grant, so each function file must revoke `PUBLIC` and `anon` explicitly; apply order is not a security control. → `docs/supabase/database-logic/doc.md` § Non-Obvious Database-Side Behaviors.
+35. **`override_sender_id` stays as a backend-only parameter.** The forgery needed client EXECUTE, which 11.1 revoked; the backend supplies the sender from the JWT-verified profile, so removing the parameter would either reopen client execution or duplicate the RPC's validation in Node. → `docs/features/partnership/doc.md` § Security & Authorization Boundaries.
+36. **A notification receiver comes from the partnership, never from the body.** A sender without an accepted partner fails closed with `AUTH_FAIL_004` instead of having a body `receiverId` honoured, which closes the partnerless spam / wake-up primitive. → `docs/app/notifications/doc.md` § Backend Dispatch.
+37. **The database insert is the authoritative nonce check.** `consumeNonce` inserts into `request_nonces` before writing the in-memory map and treats `23505` as a replay; the map is only a cache of nonces this process has already accepted. → `docs/backend/security/doc.md` § 3. Nonce Store & Replay Prevention.
+38. **The `session_is_live` check fails open on an RPC error.** GoTrue already rejects a deleted session and enforces `not_after` at refresh, so the database check is defence in depth; a database outage must not take authentication down. → `docs/backend/security/doc.md` § 4. JWT Verification & Session Binding.
+39. **The limiter runs before validation on purpose.** Malformed requests still consume a rate-limit slot, so a typo flood is throttled instead of free; the unreachable `/notify/:type` route was deleted rather than reordered because no client calls it. → `docs/backend/api-architecture/doc.md` § 3. Push Notification Endpoints.
+40. **All authenticated mutations are signed, and the boundary is a test.** `/users/wipe`, `/notify/partner` and `/auth/invite` carry `signed(...)` and the client sets `requireSignature: true`; a wipe sends an explicit `{}` because the client hashes the empty string while `express.json()` hands the server `{}`. `signing-boundary.test.js` walks the router so a new route cannot silently join the wrong set. → `docs/backend/security/doc.md` § 1. HMAC-SHA256 Request Signing.
+41. **The recipient guard reuses `API-VALIDATION-004` and allows recipient `pending` rows.** The client string is already generic, so no new code or catalog plumbing is needed; several pending invitations to one recipient are legitimate, while an `accepted` or `cancelled` row makes a new request unacceptable. → `docs/backend/error-handling/doc.md` § 3. Database RPC validation errors (`API-VALIDATION-*`).
 
 ---
 
@@ -216,5 +242,8 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `supabase/test/rpc_error_codes.test.sql` | 10.18 |
 | `Backend/test/requestContext.test.js` | 10.21 |
 | `Flutter/test/partner_invite_email_test.dart` | 15.1 |
+| `supabase/test/rls_partnership_creation.test.sql` | 11.1 |
+| `supabase/test/rls_partnership_cancellation.test.sql` | 11.3 |
+| `Backend/test/signing-boundary.test.js` | 11.12 |
 
 ---

@@ -292,6 +292,9 @@ This document provides a technical specification and analysis of all **Supabase-
 3. **View Security Invoker Policy Resolution:**
    - Views `v_active_partnership` and `v_drive_dashboard` enforce `security_invoker = true`. If a policy on `partnerships` or `drive_items` changes, view output immediately reflects the modified RLS restriction without rebuilding the view definition.
 
+4. **Function ACLs are pinned in each function's schema file:**
+   - `default_privileges.sql` grants `anon` EXECUTE on every function `postgres` creates after it takes effect, and a `REVOKE … FROM PUBLIC` does not remove that named grant. Each function file therefore revokes `PUBLIC` and `anon` itself; apply order is never the control.
+
 ---
 
 ## Implementation Status

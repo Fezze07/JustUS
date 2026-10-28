@@ -130,6 +130,7 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/notify/partner`
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `signed("notify-send")` $\rightarrow$ `validated({ body: notifySchema })`
+- **Rate limiting**: the limiter runs before `validated(...)`, so a malformed request still spends one of the per-minute user slots — deliberate, so a typo flood is throttled instead of free.
 - **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
 - **Receiver authorization**: the receiver is resolved from the partnership, never from the request body — a sender without an accepted partner gets `403 AUTH-FAIL-004`; a body `receiverId` is ignored.
 - **Cancellation Push Partner**: `cancellationRequested` resolves via `getCancellationPartnerId` (uses `partnership_get_cancellation_partner`); `cancellationAccepted` is sent directly by the acceptance endpoint.
