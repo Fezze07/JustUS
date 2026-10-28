@@ -129,9 +129,9 @@ The Flutter client uses a **hybrid architecture** by design:
 
 #### `POST /api/v1/notify/partner`
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `validated({ body: notifySchema })`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `signed("notify-send")` $\rightarrow$ `validated({ body: notifySchema })`
 - **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
-- **Receiver authorization**: the receiver is resolved from the partnership, never from the request body — a sender without an accepted partner gets `403 AUTH-FAIL-004`, and an explicit `receiverId` must match the partner.
+- **Receiver authorization**: the receiver is resolved from the partnership, never from the request body — a sender without an accepted partner gets `403 AUTH-FAIL-004`; a body `receiverId` is ignored.
 - **Cancellation Push Partner**: `cancellationRequested` resolves via `getCancellationPartnerId` (uses `partnership_get_cancellation_partner`); `cancellationAccepted` is sent directly by the acceptance endpoint.
 
 ---
@@ -146,7 +146,8 @@ The Flutter client uses a **hybrid architecture** by design:
 
 #### `POST /api/v1/users/wipe`
 - **Controller**: `wipeUserDataController` ([`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js))
-- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(userRateLimit)`
+- **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(userRateLimit)` $\rightarrow$ `signed("user-wipe")`
+- **Flutter caller**: `ApiService.wipeUserData()` posts an empty JSON object with `requireSignature: true`, so a request without a valid HMAC (or with a replayed nonce) is rejected before the RPC runs.
 - **Database Dependencies**: Invokes `adminSupabase.rpc("debug_wipe_user_data", { p_user_id: userId })`.
 - **Scope — developer-only**: test-data reset tool, not a production account-deletion feature. The only Flutter entry point is the wipe tile inside the `kDebugMode` block (`profile_screen.dart:468`), so a release build cannot reach it; the `debug_` prefix on the RPC is deliberate and documents that intent (10.17, see `docs/fixing-phase-log.md` § Item index). The route itself carries no env gate — a release-build client that called it directly would still be served.
 - **R2 Cleanup**: after the RPC succeeds, `deleteUserR2Objects(userId)` resolves the accepted partner id and deletes all objects under `uploads/{userId}/`, `profile/{userId}/`, `uploads/{partnerId}/`, `profile/{partnerId}/` (`r2.service` `listObjectKeys` + batched `DeleteObjectsCommand`). Uses `SYS-FAIL-001` if R2 cleanup fails (DB rows are already purged; re-running the wipe retries the R2 sweep).

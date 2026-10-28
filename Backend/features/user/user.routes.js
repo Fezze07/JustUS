@@ -9,6 +9,7 @@ const {
 const {
   chain,
   authenticated,
+  signed,
   limited,
 } = require("../../routes/routeHelpers");
 
@@ -24,7 +25,8 @@ router.post(
   "/wipe",
   ...chain(
     authenticated(),
-    limited(userRateLimit)
+    limited(userRateLimit),
+    signed("user-wipe")
   ),
   wipeUserDataController
 );

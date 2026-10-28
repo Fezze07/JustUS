@@ -38,6 +38,10 @@ jest.mock("../middleware/authMiddleware", () => {
   });
 });
 
+jest.mock("../middleware/requireSignedRequest", () =>
+  jest.fn(() => (_req, _res, next) => next())
+);
+
 // The controller is mocked because it talks to Supabase + R2, which have no
 // test double here. The mock is asserted on below so the tests still prove the
 // route actually reaches the handler instead of dying in a middleware.

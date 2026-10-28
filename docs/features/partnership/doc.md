@@ -155,7 +155,7 @@ The partnership feature uses two distinct channels, by design:
 
 | Layer | Component | Capability | Actual Implementation |
 |---|---|---|---|
-| **Flutter Frontend** | `PartnershipRepository.inviteUser()` / `PartnerInviteDialog` | Ask an existing account to connect | HTTP POST to `/api/v1/auth/invite` (email + 6-char code) |
+| **Flutter Frontend** | `PartnershipRepository.inviteUser()` / `PartnerInviteDialog` | Ask an existing account to connect | HTTP POST to `/api/v1/auth/invite` (email + 6-char code), signed |
 | **Flutter Frontend** | `PartnershipRepository.inviteUnregisteredPartner()` / `PartnerInviteEmailDialog` | Invite a partner who has no account yet | HTTP POST to `/api/v1/auth/invite-user` (email only), signed |
 | **Backend API** | `POST /api/v1/auth/invite` | Create the pending pairing request | Validates input, resolves user in DB, invokes RPC `partnership_request`; **no email** |
 | **Backend API** | `POST /api/v1/auth/invite-user` | Create the invitee's Auth account | `adminSupabase.auth.admin.inviteUserByEmail(email, { redirectTo })`; GoTrue sends the "Invite user" email through Supabase Auth SMTP (Resend) |
@@ -299,7 +299,7 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
    - `partnership_cancel_accept(p_partnership_id integer, p_actor_id integer)`: `SECURITY DEFINER`. Validates the row is `cancelled`, `p_actor_id` is a member but not `cancel_requested_by`, and `cancel_expires_at > now()`. Deletes the partnership row (`DELETE FROM partnerships`), which cascades the couple data via existing FK `ON DELETE CASCADE`. Unrelated pending rows are not touched. Invalid/non-member/requester or expired → `API-VALIDATION-012` / SQLSTATE `42501` or `API-VALIDATION-014` / SQLSTATE `P0001`. Backend-only: revoked from `PUBLIC`/`anon`/`authenticated`; granted to `postgres`, `service_role`.
    - `partnership_get_cancellation_partner(p_user_id)`: `SECURITY DEFINER`, backend-only (`postgres`/`service_role`), returns the other member of the `cancelled` row involving `p_user_id`. The Node helper `getCancellationPartnerId()` uses it for the `cancellationRequested` push and for `media-complete` while cancelled; `getPartnerId()` stays accepted-only for upload authorization.
 3. **Backend Middleware Enforcement**:
-   - Endpoint `POST /api/v1/auth/invite` requires `authenticated()` middleware, verifying valid JWT authentication before processing request logic. The backend resolves the recipient and calls `partnership_request` via `service_role`.
+   - Endpoint `POST /api/v1/auth/invite` requires `authenticated()`, `limited(authRateLimit)` and `signed("auth-invite")`; the signature stops a stolen JWT from creating pairing rows or spam requests on the caller's behalf.
    - Endpoint `POST /api/v1/auth/invite-user` requires `authenticated()`, `limited(inviteUserRateLimit)` and `signed("auth-invite-user")`; the signature stops a stolen JWT from being used to spray the "Invite user" email.
 
 ---

@@ -27,7 +27,7 @@ Eight event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `ans
 Feature action (Supabase mutation succeeds)
   └─ unawaited(notifyPartnerOnce(notificationKey, params))      base_repository.dart:163-174
         └─ transient ApiService.notifyPartner()                 api_service.dart:387-399
-              └─ POST /api/v1/notify/partner (JWT + rate limit 12/min)   notify.routes.js:23-31
+              └─ POST /api/v1/notify/partner (JWT + HMAC + rate limit 12/min)   notify.routes.js:24-33
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
                                 └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
@@ -141,7 +141,7 @@ assertDbSuccess(await adminSupabase.from("user_devices").upsert(
 
 - `installation_id` is `UNIQUE` — if an installation id is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
 - `device_type` is inferred from `x-client-user-agent`/`user-agent` when the body omits it.
-- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id")` → `validated({body})` (`auth.routes.js`). This is a **signed** endpoint (unlike notify).
+- Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id")` → `validated({body})` (`auth.routes.js`).
 
 `authRateLimit`: `{ipMax: 20, userMax: 10, window: 60_000 ms}`.
 
@@ -191,13 +191,14 @@ await adminSupabase
 
 ## Endpoint Contract — `POST /api/v1/notify/partner`
 
-### Route (`notify.routes.js:23-31`)
+### Route (`notify.routes.js:24-33`)
 
 ```js
 router.post("/partner",
   ...chain(
     authenticated(),
     limited(notifyRateLimit),               // {ipMax: 30, userMax: 12, window: 60_000 ms}
+    signed("notify-send"),
     validated({ body: notifySchema })
   ),
   sendNotificationController);
@@ -205,7 +206,7 @@ router.post("/partner",
 
 `partner` is the only notification type. An unknown type such as `POST /api/v1/notify/nonexistent` is not routed at all and answers `404 API-NOT_FOUND-001`; there is no `/:type` catch-all. A body `receiverId` is ignored on this route: the receiver always comes from the partnership, and a sender without an accepted partner fails closed with `403 AUTH-FAIL-004`.
 
-Notably the notify route chain has **no `signed()` / `freshNonce()`** — unlike the installation-id route (F-PN10).
+The route is HMAC-signed (`signed("notify-send")`) and the client sets `requireSignature: true` in `ApiService.notifyPartner()`, so a stolen JWT alone cannot dispatch pushes and a captured request cannot be replayed (the nonce is consumed). Fire-and-forget is unaffected: a signing failure is caught by `notifyPartnerOnce` and logged, exactly like any other delivery failure.
 
 ### Validation (`notify.schemas.js`)
 
@@ -222,6 +223,8 @@ notifySchema = z.object({
 | Scenario | HTTP | Error code | Client-side effect |
 |---|---|---|---|
 | Unauthenticated | 401 | `AUTH-FAIL-002` | Silently ignored (fire-and-forget) |
+| Missing/invalid signature | 401 | `SEC-AUTH-002` | Silently ignored (fire-and-forget) |
+| Reused nonce | 403 | `SEC-BLOCK-001` | Silently ignored (fire-and-forget) |
 | Rate limited (13th in window) | 429 | `SEC-BLOCK-001` | Silently ignored |
 | Invalid payload (missing/empty `notificationKey`) | 400 | `API-VALIDATION-001` | Silently ignored |
 | Sender without an accepted partner | 403 | `AUTH-FAIL-004` | Silently ignored |
@@ -457,7 +460,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 - **WHAT**: `_localizeNotification` returns `(title: 'JustUS', body: '')` for unhandled keys (`notification_service.dart:295-296`) and `showRemoteMessage` shows it as-is.
 - **WHERE**: `notification_service.dart:255-256`.
-- **WHEN**: A new key is deployed server-side before the app switch is updated (or a client crafts an arbitrary key — see F-PN10).
+- **WHEN**: A new key is deployed server-side before the app switch is updated (or a client crafts an arbitrary key).
 - **IMPACT**: The user sees a `JustUS` notification with an empty body. No data exposure.
 - **CONFIDENCE**: HIGH.
 
@@ -468,14 +471,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **WHEN**: Every notification on iOS.
 - **IMPACT**: App icon badge sticks at "1" after the first notification, never incrementing or clearing.
 - **CONFIDENCE**: HIGH.
-
-### F-PN10: Notify endpoint carries no request signature (INFO)
-
-- **WHAT**: `POST /api/v1/notify/partner` is protected only by `authenticated()` + rate limit; there is no `signed()`/`freshNonce()` middleware, unlike the installation-id route (`signed("auth-installation-id")`). An authenticated user can send arbitrary `notificationKey` strings (1–80 chars) to their own partner up to the 12/min user cap.
-- **WHERE**: `notify.routes.js:23-31` vs `auth.routes.js:53-62`.
-- **WHY**: fire-and-forget design; the rate limit is the chosen abuse control.
-- **IMPACT**: A partner can be spammed with up to 12 notifications/min with arbitrary keys (unknown keys → empty-body `JustUS`, F-PN7). Costs FCM quota. No session/data risk.
-- **CONFIDENCE**: HIGH (that signing is absent), MEDIUM (that 12/min is a sufficient cap).
 
 ---
 
@@ -494,7 +489,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`device_purge_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
 | JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
-| Request signing on notify endpoint | NOT IMPLEMENTED (F-PN10) |
+| Request signing on notify endpoint | IMPLEMENTED (`signed("notify-send")` + `requireSignature: true`) |
 | Partner resolution via `partnership_get_accepted_partner` RPC | IMPLEMENTED |
 | Server-side localization (server map, it/en) | IMPLEMENTED |
 | FCM multicast with 500-FID batching | IMPLEMENTED |

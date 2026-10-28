@@ -508,7 +508,8 @@ class ApiService {
 
   Future<ResultWrapper<Map<String, dynamic>>> inviteUser(
       Map<String, dynamic> body) async {
-    return _post(ApiRoutes.authInvite, body: body, label: 'Invite User');
+    return _post(ApiRoutes.authInvite,
+        body: body, requireSignature: true, label: 'Invite User');
   }
 
   /// Asks the backend to create the Auth account of a partner who has no JustUs
@@ -581,6 +582,7 @@ class ApiService {
         'notificationKey': notificationKey,
         'params': params,
       },
+      requireSignature: true,
       label: 'Notify Partner',
     );
   }
@@ -610,7 +612,12 @@ class ApiService {
   // -------------------- User Data --------------------
 
   Future<ResultWrapper<Map<String, dynamic>>> wipeUserData() async {
-    return _post(ApiRoutes.userWipe, label: 'Wipe User Data');
+    // An empty body is sent so the signed bytes match what express.json()
+    // gives the server (`{}`), not the empty string a bodiless POST would hash.
+    return _post(ApiRoutes.userWipe,
+        body: const <String, dynamic>{},
+        requireSignature: true,
+        label: 'Wipe User Data');
   }
 
   // -------------------- Cleanup --------------------

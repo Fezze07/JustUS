@@ -310,7 +310,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 
 ### HMAC Relationship
 
-- **Purpose**: High-risk routes (`/auth/installation-id`, `/auth/installation-id-revoke`, `/auth/installation-id-revoke-all`, `/auth/invite-user`, `/media/upload-url`, `/media/complete`, `/media/delete`) require request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks.
+- **Purpose**: Every authenticated mutating route requires request signing via `signed()` / `requireSignedRequest()` middleware to prevent request tampering and replay attacks: `/auth/installation-id`, `/auth/installation-id-revoke`, `/auth/installation-id-revoke-all`, `/auth/invite`, `/auth/invite-user`, `/media/upload-url`, `/media/complete`, `/media/delete`, `/notify/partner`, `/partnership/cancel/accept`, `/users/wipe`. `Backend/test/signing-boundary.test.js` pins the full mutating route table, including the deliberate unsigned exceptions.
 - **Secret Generation**: Created via `crypto.randomBytes(32).toString("hex")` in `generateBindingSecret()`.
 - **Secret Lifecycle**:
   - Generated on backend during `/auth/session-bind`.
@@ -322,7 +322,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
   - If the secret is missing when a `requireSignature: true` authenticated call is prepared, `ApiService._buildHeaders` invokes `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`) to re-run `/auth/session-bind` before signing. Recovery is deduplicated (one in-flight attempt) with a 30s cooldown after a failed attempt.
   - If the secret is present but **stale** (the rotation happened but its response was lost: an 8 s splash timeout or the 10 s `ApiService` timeout fired first), the request is rejected with `SEC-AUTH-002`. Because `authenticateToken` runs before `requireSignedRequest`, that code proves the JWT is still valid, so `ApiService._safeCall` does not treat it as an expired token: it re-runs the same recovery and retries the call **once** with the new secret. The retry happens only when the recovered secret actually differs from the one that was rejected, so a genuinely offline device falls through to the normal 401 handling instead of looping.
   - If the secret still cannot be obtained, the signed call **fails closed** with `AppError(code: 'LOCAL-BINDING-001')`. `_safeCall` returns it as a `GenericError(details: AppError)`, so `ErrorHandler` shows the localized, retry-able message instead of a generic `NetworkError`.
-  - Unsigned routes (e.g. `/auth/session-bind` itself, `/auth/invite`, `/notify`, `/users/wipe`) still send `X-Request-Timestamp` + `X-Request-Nonce` (required by `freshNonce` routes) but intentionally carry no signature.
+  - The only unsigned routes are `/auth/login-risk-check`, `/auth/login-attempt` (pre-auth by necessity) and `/auth/session-bind` (creates the signing secret, protected by `freshNonce`). They still send `X-Request-Timestamp` + `X-Request-Nonce` but carry no signature.
 
 ### Canonical Request Signature Format
 

@@ -134,7 +134,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Backend
 
 ### Controllers & Routes
-- [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js): Defines `POST /api/v1/users/wipe`, guarded by authentication middleware and rate-limiting middleware (`userRateLimit`: max 5 requests per window).
+- [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js): Defines `POST /api/v1/users/wipe`, guarded by authentication (`authenticated()`), rate limiting (`userRateLimit`: max 5 requests per window) and HMAC signing (`signed("user-wipe")`).
 - [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js): Implements `wipeUserDataController`, extracting `userId = req.user.profileId`, executing RPC `debug_wipe_user_data`, then deleting the R2 objects under the user's and their accepted partner's prefixes via `deleteUserR2Objects` (`uploads/{id}/`, `profile/{id}/`).
 - [`mediaWorkflow.service.js`](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Implements signed upload creation (`createPresignedUpload`) and registration (`registerCompletedUpload`). When `kind === 'profile'`, updates `user_profiles.profile_pic_url` directly.
 
@@ -154,7 +154,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 ## Authentication & Authorization
 
 - **Backend Route Protection**: `POST /api/v1/users/wipe`, `POST /api/v1/media/upload-url`, `POST /api/v1/media/complete`, and `POST /api/v1/media/delete` require valid JWT Bearer tokens verified by backend middleware (`authenticated()`).
-- **HMAC Request Signing**: Media endpoints (`upload-url`, `complete`, `delete`) require cryptographic request signatures (`X-Request-Signature`) generated with the session's `binding_secret`.
+- **HMAC Request Signing**: The wipe route and the media endpoints (`upload-url`, `complete`, `delete`) require cryptographic request signatures (`X-Request-Signature`) generated with the session's `binding_secret`; `ApiService.wipeUserData()` sends an empty JSON object so the signed bytes match the server's `{}` body.
 - **RPC Privileges**: Direct execution of `debug_wipe_user_data` from client Supabase SDK is revoked for `anon` and `authenticated` roles. It can only be invoked by the backend via `adminSupabase` (`service_role`).
 
 ---

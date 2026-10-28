@@ -46,6 +46,10 @@ jest.mock("../features/auth/auth.controller", () => ({
   inviteCallbackController: jest.fn((req, res) => res.status(200).send("ok")),
 }));
 
+jest.mock("../features/user/user.controller", () => ({
+  wipeUserDataController: jest.fn((req, res) => res.status(200).json({ success: true })),
+}));
+
 const { adminSupabase, authSupabase, resetRateLimitState } = require("../all_imports");
 const { createApp } = require("../app");
 
@@ -92,6 +96,24 @@ describe("Security Integration Tests", () => {
       partnershipCode: "ABC123",
     };
 
+    const signedInviteHeaders = (nonce) => {
+      const timestamp = Date.now();
+      const { signature } = signRequest({
+        secret: "secret-123",
+        method: "POST",
+        path: "/api/v1/auth/invite",
+        timestamp,
+        nonce,
+        payload: validInvitePayload,
+      });
+
+      return {
+        "x-request-timestamp": timestamp.toString(),
+        "x-request-nonce": nonce,
+        "x-request-signature": signature,
+      };
+    };
+
     test("PASS: Valid token and correct device binding", async () => {
       const token = generateMockJWT(validUserPayload);
       
@@ -125,6 +147,7 @@ describe("Security Integration Tests", () => {
         .post("/api/v1/auth/invite")
         .set("Authorization", `Bearer ${token}`)
         .set("X-Device-Fingerprint", "device-123")
+        .set(signedInviteHeaders("invite-pass-nonce"))
         .send(validInvitePayload);
 
       expect(response.status).toBe(200);
@@ -244,12 +267,27 @@ describe("Security Integration Tests", () => {
           return createQueryBuilder();
         });
 
-        return () =>
-          request(createApp())
+        return () => {
+          const timestamp = Date.now();
+          const nonce = `session-nonce-${timestamp}-${Math.random()}`;
+          const { signature } = signRequest({
+            secret: session.binding_secret,
+            method: "POST",
+            path: "/api/v1/auth/invite",
+            timestamp,
+            nonce,
+            payload: validInvitePayload,
+          });
+
+          return request(createApp())
             .post("/api/v1/auth/invite")
             .set("Authorization", `Bearer ${token}`)
             .set("X-Device-Fingerprint", "device-123")
+            .set("x-request-timestamp", timestamp.toString())
+            .set("x-request-nonce", nonce)
+            .set("x-request-signature", signature)
             .send(validInvitePayload);
+        };
       };
 
       test("PASS: a live session is accepted", async () => {
@@ -462,6 +500,46 @@ describe("Security Integration Tests", () => {
         expect(response.status).toBe(429);
       },
     );
+
+    test("FAIL: POST /api/v1/users/wipe without a signature is rejected", async () => {
+      setupAuthSuccess();
+      const token = generateMockJWT(validUserPayload);
+
+      const response = await request(app)
+        .post("/api/v1/users/wipe")
+        .set("Authorization", `Bearer ${token}`)
+        .send({});
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("SEC-AUTH-002");
+    });
+
+    test("PASS: signed POST /api/v1/users/wipe reaches the controller", async () => {
+      setupAuthSuccess();
+      const token = generateMockJWT(validUserPayload);
+      const timestamp = Date.now();
+      const nonce = "wipe-signed-nonce";
+      const payload = {};
+
+      const { signature } = signRequest({
+        secret: "secret-123",
+        method: "POST",
+        path: "/api/v1/users/wipe",
+        timestamp,
+        nonce,
+        payload,
+      });
+
+      const response = await request(app)
+        .post("/api/v1/users/wipe")
+        .set("Authorization", `Bearer ${token}`)
+        .set("x-request-timestamp", timestamp.toString())
+        .set("x-request-nonce", nonce)
+        .set("x-request-signature", signature)
+        .send(payload);
+
+      expect(response.status).toBe(200);
+    });
   });
 
   describe("Authorization (Capabilities)", () => {

@@ -6,7 +6,7 @@ const {
 } = require("../all_imports");
 
 function requireSignedRequest(namespace) {
-  return async (req, res, next) => {
+  const middleware = async (req, res, next) => {
     try {
       const bindingSecret = req.sessionBinding?.bindingSecret;
       if (!bindingSecret) {
@@ -33,6 +33,11 @@ function requireSignedRequest(namespace) {
       next(err);
     }
   };
+
+  // Read by test/signing-boundary.test.js so the signed/unsigned route table
+  // stays a decision of record rather than a comment.
+  middleware.namespace = namespace;
+  return middleware;
 }
 
 function extractAndValidateHeaders(req) {

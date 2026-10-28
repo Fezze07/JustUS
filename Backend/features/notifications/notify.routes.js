@@ -8,6 +8,7 @@ const { createIpUserRateLimit } = require("../../utils/auth/rateLimitPresets");
 const {
   chain,
   authenticated,
+  signed,
   validated,
   limited,
 } = require("../../routes/routeHelpers");
@@ -25,6 +26,7 @@ router.post(
   ...chain(
     authenticated(),
     limited(notifyRateLimit),
+    signed("notify-send"),
     validated({ body: notifySchema })
   ),
   sendNotificationController

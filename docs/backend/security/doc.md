@@ -52,7 +52,7 @@ The exact execution order of middleware in the application pipeline is determine
   6. Call `consumeNonce` to record nonce usage.
 - **Failure Behavior**: Throws `AppError({ errorKey: "SEC-SIGNATURE-001" })` or `SEC-BLOCK-001` (401/403).
 - **Storage & Expiration**: Session secret stored in PostgreSQL `session_bindings.binding_secret`.
-- **Bypass Possibilities**: Requests on routes not wrapped with `signed(...)` helper skip HMAC verification completely.
+- **Bypass Possibilities**: Requests on routes not wrapped with `signed(...)` skip HMAC verification. Every authenticated mutating route is signed; the only unsigned mutating routes are `/auth/login-risk-check` and `/auth/login-attempt` (pre-auth by necessity) and `/auth/session-bind` (uses `freshNonce` and is the call that creates the signing secret). `Backend/test/signing-boundary.test.js` pins the full mutating route table, including these exceptions, so a new route cannot join the wrong set silently.
 - **Multi-Instance Behavior**: HMAC verification is stateless given the session `bindingSecret` in database/request; works across multi-instance nodes.
 
 ---

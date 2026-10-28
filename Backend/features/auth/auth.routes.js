@@ -134,6 +134,7 @@ router.post(
   ...chain(
     authenticated(),
     limited(authRateLimit),
+    signed("auth-invite"),
     validated({ body: inviteSchema })
   ),
   invitePartnerController

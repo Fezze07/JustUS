@@ -36,6 +36,10 @@ jest.mock("../middleware/authMiddleware", () =>
   })
 );
 
+jest.mock("../middleware/requireSignedRequest", () =>
+  jest.fn(() => (_req, _res, next) => next())
+);
+
 jest.mock("../features/media/r2.service", () => ({
   isConfigured: jest.fn(() => true),
   deleteObjectsByPrefix: jest.fn(async () => 0),
