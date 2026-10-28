@@ -11,7 +11,7 @@ const {
   validated,
   limited,
 } = require("../../routes/routeHelpers");
-const { notifySchema, paramsSchema } = require("./notify.schemas");
+const { notifySchema } = require("./notify.schemas");
 
 const notifyRateLimit = createIpUserRateLimit({
   name: "notify.send",
@@ -20,15 +20,6 @@ const notifyRateLimit = createIpUserRateLimit({
   userMax: 12,
 });
 
-router.post(
-  "/:type",
-  ...chain(
-    authenticated(),
-    limited(notifyRateLimit),
-    validated({ body: notifySchema, params: paramsSchema })
-  ),
-  sendNotificationController
-);
 router.post(
   "/partner",
   ...chain(

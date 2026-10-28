@@ -104,6 +104,19 @@ describe("notify routes", () => {
     );
   });
 
+  test("rejects an unknown notification type instead of dispatching it", async () => {
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/notify/nonexistent")
+      .set("Authorization", "Bearer fake-token")
+      .set("x-test-profile-id", "1004")
+      .send(validPayload());
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("API-NOT_FOUND-001");
+    expect(sendNotificationController).not.toHaveBeenCalled();
+  });
+
   test("rejects a payload with no notificationKey and never calls the controller", async () => {
     const app = createApp();
     const response = await request(app)

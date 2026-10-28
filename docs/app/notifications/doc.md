@@ -27,7 +27,7 @@ Eight event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `ans
 Feature action (Supabase mutation succeeds)
   └─ unawaited(notifyPartnerOnce(notificationKey, params))      base_repository.dart:163-174
         └─ transient ApiService.notifyPartner()                 api_service.dart:387-399
-              └─ POST /api/v1/notify/partner (JWT + rate limit 12/min)   notify.routes.js:33-39
+              └─ POST /api/v1/notify/partner (JWT + rate limit 12/min)   notify.routes.js:23-31
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
                                 └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
@@ -191,7 +191,7 @@ await adminSupabase
 
 ## Endpoint Contract — `POST /api/v1/notify/partner`
 
-### Route (`notify.routes.js:33-40`)
+### Route (`notify.routes.js:23-31`)
 
 ```js
 router.post("/partner",
@@ -203,7 +203,7 @@ router.post("/partner",
   sendNotificationController);
 ```
 
-A second route `POST /api/v1/notify/:type` exists for explicit-`receiverId` sends (same middleware, plus `paramsSchema`). It is not an arbitrary-recipient path: the sender must have an accepted partner and `receiverId` must equal it, otherwise the request fails closed with `403 AUTH-FAIL-004`.
+`partner` is the only notification type. An unknown type such as `POST /api/v1/notify/nonexistent` is not routed at all and answers `404 API-NOT_FOUND-001`; there is no `/:type` catch-all. A body `receiverId` is ignored on this route: the receiver always comes from the partnership, and a sender without an accepted partner fails closed with `403 AUTH-FAIL-004`.
 
 Notably the notify route chain has **no `signed()` / `freshNonce()`** — unlike the installation-id route (F-PN10).
 
@@ -224,7 +224,8 @@ notifySchema = z.object({
 | Unauthenticated | 401 | `AUTH-FAIL-002` | Silently ignored (fire-and-forget) |
 | Rate limited (13th in window) | 429 | `SEC-BLOCK-001` | Silently ignored |
 | Invalid payload (missing/empty `notificationKey`) | 400 | `API-VALIDATION-001` | Silently ignored |
-| Explicit `receiverId` without an accepted partner, or not matching it | 403 | `AUTH-FAIL-004` | Silently ignored |
+| Sender without an accepted partner | 403 | `AUTH-FAIL-004` | Silently ignored |
+| Unknown path (e.g. `/notify/nonexistent`) | 404 | `API-NOT_FOUND-001` | Not called (client only uses `/notify/partner`) |
 | Receiver has no registered device | 200 dispatch, then controller **throws** `DB_NOT_FOUND_001` when `deviceCount === 0` | `DB-NOT-FOUND-001` | Logged only; no retry |
 | FCM not configured (no service account) | 200 | — | Status `skipped_firebase_not_configured`; logged only |
 
@@ -471,7 +472,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 ### F-PN10: Notify endpoint carries no request signature (INFO)
 
 - **WHAT**: `POST /api/v1/notify/partner` is protected only by `authenticated()` + rate limit; there is no `signed()`/`freshNonce()` middleware, unlike the installation-id route (`signed("auth-installation-id")`). An authenticated user can send arbitrary `notificationKey` strings (1–80 chars) to their own partner up to the 12/min user cap.
-- **WHERE**: `notify.routes.js:33-40` vs `auth.routes.js:53-62`.
+- **WHERE**: `notify.routes.js:23-31` vs `auth.routes.js:53-62`.
 - **WHY**: fire-and-forget design; the rate limit is the chosen abuse control.
 - **IMPACT**: A partner can be spammed with up to 12 notifications/min with arbitrary keys (unknown keys → empty-body `JustUS`, F-PN7). Costs FCM quota. No session/data risk.
 - **CONFIDENCE**: HIGH (that signing is absent), MEDIUM (that 12/min is a sufficient cap).

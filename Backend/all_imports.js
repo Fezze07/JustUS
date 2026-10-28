@@ -92,7 +92,6 @@ module.exports = {
   get normalizeRole() { return require('./features/auth/authorization.service').normalizeRole; },
   get notFound() { return require('./utils/http/responseUtils').notFound; },
   get notifySchema() { return require('./features/notifications/notify.schemas').notifySchema; },
-  get paramsSchema() { return require('./features/notifications/notify.schemas').paramsSchema; },
   get presignSchema() { return require('./features/media/media.schemas').presignSchema; },
   get presignUploadController() { return require('./features/media/media.controller').presignUploadController; },
   get recordFailedLogin() { return require('./features/auth/authRisk.service').recordFailedLogin; },

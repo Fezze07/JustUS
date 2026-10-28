@@ -6,11 +6,6 @@ const notifySchema = z.object({
   receiverId: z.number().int().positive().optional(),
 });
 
-const paramsSchema = z.object({
-  type: z.string().optional(),
-});
-
 module.exports = {
   notifySchema,
-  paramsSchema,
 };

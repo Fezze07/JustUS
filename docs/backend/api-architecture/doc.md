@@ -127,7 +127,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 ### 3. Push Notification Endpoints
 
-#### `POST /api/v1/notify/partner` / `POST /api/v1/notify/:type`
+#### `POST /api/v1/notify/partner`
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `validated({ body: notifySchema })`
 - **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
