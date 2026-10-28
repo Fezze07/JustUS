@@ -38,4 +38,6 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."partnership_accept"(integer) TO PUBLIC, "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."partnership_accept"(integer) FROM PUBLIC, "anon";
+
+GRANT EXECUTE ON FUNCTION "public"."partnership_accept"(integer) TO "authenticated", "postgres", "service_role";

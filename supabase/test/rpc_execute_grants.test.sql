@@ -17,14 +17,6 @@
 --   * backend-only RPCs that authenticated users must NOT be able to call;
 --   * the exhaustive set of functions anon can reach. Any function outside that
 --     allowlist fails the test.
---
--- KNOWN DEFECT (logged in todo.md, deliberately not fixed here):
---   logs_cleanup(integer) is granted to PUBLIC, which includes anon. It is
---   not currently exploitable because RLS on the four log tables denies the
---   DELETE for every non-service_role role -- section 5 asserts that
---   compensating control explicitly, so it is documented rather than assumed.
---   It is listed in the anon allowlist below to keep this file green until the
---   grant is narrowed to postgres and service_role.
 -- =============================================================================
 
 BEGIN;
@@ -62,7 +54,6 @@ DECLARE
   v_fn text[] := ARRAY[
     'public.partnership_accept(integer)',
     'public.user_current_id()',
-    'public.partnership_generate_code()',
     'public.partnership_get_accepted_partner(integer)',
     'public.emoji_get_or_create(text)',
     'public.partnership_get_pending_invitations()',
@@ -98,6 +89,7 @@ DECLARE
   v_fn text[] := ARRAY[
     'public.partnership_get_pending_invitations()',
     'public.partnership_get_cancellation()',
+    'public.partnership_get_accepted_partner(integer)',
     'public.partnership_request(text, text, integer)'
   ];
   v_sig text;
@@ -159,12 +151,8 @@ END $$;
 DO $$
 DECLARE
   v_anon_ok text[] := ARRAY[
-    'public.partnership_accept(integer)',
-    'public.logs_cleanup(integer)',          -- KNOWN DEFECT, see todo.md
     'public.user_current_id()',
     'public.drive_change_probe()',
-    'public.partnership_generate_code()',
-    'public.partnership_get_accepted_partner(integer)',
     'public.emoji_get_or_create(text)',
     'public.partnership_is_member(integer)',
     'public.partnership_is_partner(integer)',
@@ -251,14 +239,22 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- E: the compensating control for the known logs_cleanup defect. RLS denies
---    the underlying DELETEs to every non-service_role caller, so the PUBLIC
---    grant cannot currently be used to destroy log data.
---
---    If this section ever starts failing, the PUBLIC grant on
---    logs_cleanup has become a live unauthenticated data-deletion endpoint
---    and must be narrowed immediately.
+-- E: logs_cleanup is backend-only. The grant itself denies every client role;
+--    service_role is the retention driver and must still run the job.
 -- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF has_function_privilege('anon', 'public.logs_cleanup(integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'E failed: anon can EXECUTE logs_cleanup';
+  END IF;
+  IF has_function_privilege('authenticated', 'public.logs_cleanup(integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'E failed: authenticated can EXECUTE logs_cleanup';
+  END IF;
+  IF NOT has_function_privilege('service_role', 'public.logs_cleanup(integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'E failed: service_role cannot EXECUTE logs_cleanup; the retention job would fail';
+  END IF;
+END $$;
+
 INSERT INTO public.logs_api_access (method, path, status_code, created_at) VALUES
   ('GET', '/rpc-grant-old', 200, now() - interval '200 days'),
   ('GET', '/rpc-grant-new', 200, now());
@@ -268,51 +264,6 @@ INSERT INTO public.logs_security_events (type, path, created_at) VALUES
   ('rpc-grant-old', '/rpc-grant-old', now() - interval '200 days');
 INSERT INTO public.logs_notifications (user_id, type, status, created_at) VALUES
   (9201, 'push', 'rpc-grant-old', now() - interval '200 days');
-
--- anon may call the function (that is the known defect) ...
-SET LOCAL ROLE anon;
-DO $$
-BEGIN
-  PERFORM public.logs_cleanup();
-END $$;
-RESET ROLE;
-
--- ... but RLS must have stopped every DELETE.
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.logs_api_access WHERE path = '/rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: anon DELETED from logs_api_access. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.logs_api_errors WHERE path = '/rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: anon DELETED from logs_api_errors. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.logs_security_events WHERE type = 'rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: anon DELETED from logs_security_events. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.logs_notifications WHERE status = 'rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: anon DELETED from logs_notifications. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-END $$;
-
--- The same must hold for a signed-in user, since the PUBLIC grant covers
--- authenticated as well.
-SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000201"}';
-DO $$
-BEGIN
-  PERFORM public.logs_cleanup();
-END $$;
-RESET ROLE;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.logs_api_access WHERE path = '/rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: authenticated DELETED from logs_api_access. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.logs_notifications WHERE status = 'rpc-grant-old') THEN
-    RAISE EXCEPTION 'E failed: authenticated DELETED from logs_notifications. The PUBLIC grant on logs_cleanup is now exploitable; revoke it from PUBLIC.';
-  END IF;
-END $$;
 
 -- service_role, which legitimately needs it, must still be able to run the job.
 SET LOCAL ROLE service_role;
@@ -334,4 +285,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'rpc-execute-grants: passed (A client RPCs, B backend-only RPCs, C exhaustive anon allowlist, D service_role reaches everything, E logs_cleanup RLS backstop)' AS result;
+SELECT 'rpc-execute-grants: passed (A client RPCs, B backend-only RPCs, C exhaustive anon allowlist, D service_role reaches everything, E logs_cleanup backend-only)' AS result;

@@ -19,4 +19,6 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."logs_cleanup"(integer) TO PUBLIC, "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."logs_cleanup"(integer) FROM PUBLIC, "anon", "authenticated";
+
+GRANT EXECUTE ON FUNCTION "public"."logs_cleanup"(integer) TO "postgres", "service_role";

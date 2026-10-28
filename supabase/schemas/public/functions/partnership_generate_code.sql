@@ -20,4 +20,6 @@ BEGIN
 END;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."partnership_generate_code"() TO PUBLIC, "anon", "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."partnership_generate_code"() FROM PUBLIC, "anon", "authenticated";
+
+GRANT EXECUTE ON FUNCTION "public"."partnership_generate_code"() TO "postgres", "service_role";

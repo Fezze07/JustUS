@@ -179,11 +179,11 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 
-1. `partnership_accept(p_partnership_id integer)`: Updates the recipient's `pending` partnership to `'accepted'` and sets `anniversary_date = CURRENT_DATE`; raises `API-VALIDATION-012` / SQLSTATE `42501` when the recipient already holds another `accepted` or `cancelled` partnership.
+1. `partnership_accept(p_partnership_id integer)`: Updates the recipient's `pending` partnership to `'accepted'` and sets `anniversary_date = CURRENT_DATE`; raises `API-VALIDATION-012` / SQLSTATE `42501` when the recipient already holds another `accepted` or `cancelled` partnership. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
 2. `partnership_request(partner_email text, partner_code text, override_sender_id integer)`: `SECURITY INVOKER` SET `search_path = public`. Rejects a sender already in a `pending`, `accepted` or `cancelled` partnership (`API-VALIDATION-004`), so a frozen pair cannot start a new one. Revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
 3. `user_current_id()`: Converts `auth.uid()` (`uuid`) to internal `users.id` (`integer`).
-4. `partnership_generate_code()`: Generates random 6-character uppercase alphanumeric code checking unicity against `user_profiles`.
-5. `partnership_get_accepted_partner(target_user_id integer)`: STABLE function returning single active partner user ID.
+4. `partnership_generate_code()`: Generates random 6-character uppercase alphanumeric code checking unicity against `user_profiles`. Backend-only: revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
+5. `partnership_get_accepted_partner(target_user_id integer)`: STABLE function returning single active partner user ID. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
 6. `emoji_get_or_create(p_emoji_char text)`: Inserts emoji into `emojis` if missing and returns ID.
 7. `partnership_get_names(p_user_id integer)`: `SECURITY DEFINER` returning `{ name1, name2 }` JSON. Executable only by `service_role`.
 8. `partnership_get_pending_invitations()`: `SECURITY DEFINER` SET `search_path = public`. Returns the caller's pending invitations (scoped by `user_current_id()`) exposing only `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received`. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
@@ -192,7 +192,7 @@ All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 11. `partnership_is_partner(other_user_id integer)`: RLS validation helper returning `true` only when the caller and the target share a partnership whose `status = 'accepted'`.
 12. `missyou_send()`: Inserts `missyou` record for caller's active partnership.
 13. `mood_set(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji and attaching the caller's `accepted` partnership id (NULL when unpaired).
-14. `logs_cleanup(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver.
+14. `logs_cleanup(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver. Revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
 15. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, granted to `service_role`.
 16. `util_set_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 17. `util_update_updated_at()`: Trigger function setting `NEW.updated_at = now()`.

@@ -63,6 +63,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **SQL Source:** `supabase/schemas/public/functions/partnership_accept.sql`
 * **Purpose:** Accepts a pending partnership request and establishes the anniversary date.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Revoked from `PUBLIC`, `anon`. Granted to `authenticated`, `postgres`, `service_role`.
 * **Inputs:** `p_partnership_id` (`integer`).
 * **Outputs:** `void`.
 * **Tables Touched:** `public.partnerships` (UPDATE).
@@ -217,6 +218,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **SQL Source:** `supabase/schemas/public/functions/partnership_generate_code.sql`
 * **Purpose:** Generates a random 6-character uppercase alphanumeric code and verifies unicity against `user_profiles`.
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Backend-only. Revoked from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role`; `user_create_from_auth()` reaches it as the function owner, so the sign-up trigger is unaffected.
 * **Outputs:** `text` (e.g. `'A8F3K9'`).
 * **Tables Touched:** `user_profiles` (READ).
 * **Caller:** Internal database helper called by `user_create_from_auth()`.
@@ -227,6 +229,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **SQL Source:** `supabase/schemas/public/functions/logs_cleanup.sql`
 * **Purpose:** Database maintenance. Deletes API access logs, error logs, security events, and notification logs older than `p_days` days (default **90**, matching the Node `LOG_RETENTION_DAYS` window).
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Backend-only. Revoked from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role`.
 * **Inputs:** `p_days` (default `90`); raises an exception when NULL or `< 1`.
 * **Outputs:** `void`.
 * **Tables Touched:** `logs_api_access` (DELETE), `logs_api_errors` (DELETE), `logs_security_events` (DELETE), `logs_notifications` (DELETE).

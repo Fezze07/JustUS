@@ -19,4 +19,6 @@ CREATE OR REPLACE FUNCTION public.partnership_get_accepted_partner (
   LIMIT 1;
 $function$;
 
-GRANT EXECUTE ON FUNCTION "public"."partnership_get_accepted_partner"(integer) TO PUBLIC, "anon", "authenticated", "postgres", "service_role";
+REVOKE ALL ON FUNCTION "public"."partnership_get_accepted_partner"(integer) FROM PUBLIC, "anon";
+
+GRANT EXECUTE ON FUNCTION "public"."partnership_get_accepted_partner"(integer) TO "authenticated", "postgres", "service_role";
