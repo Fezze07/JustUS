@@ -30,7 +30,7 @@ async function acceptPartnershipCancellation({ partnershipId, actorId }) {
   if (row.cancel_expires_at && new Date(row.cancel_expires_at) <= new Date()) {
     try {
       await adminSupabase.rpc("partnership_expire_cancellations");
-    } catch (_) {}
+    } catch (_) { /* best-effort expiry; the request is rejected either way */ }
     throw new AppError({ errorKey: "API_VALIDATION_014" });
   }
 

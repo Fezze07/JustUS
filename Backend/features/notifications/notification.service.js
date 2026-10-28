@@ -151,11 +151,11 @@ async function resolveNotificationTarget(type, body, senderId) {
     throw new AppError({ errorKey: "API_VALIDATION_001", message: "Missing receiver ID" });
   }
 
-  if (partnerId && Number(receiverId) !== Number(partnerId)) {
+  if (!partnerId || Number(receiverId) !== Number(partnerId)) {
     throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Receiver not authorized" });
   }
 
-  return { receiverId, notificationKey, params };
+  return { receiverId: partnerId, notificationKey, params };
 }
 
 async function dispatchNotification({ type, senderId, payload }) {

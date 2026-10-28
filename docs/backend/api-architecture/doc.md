@@ -131,6 +131,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller**: `sendNotificationController` ([`notify.routes.js`](file:///f:/JustUS/Backend/features/notifications/notify.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(notifyRateLimit)` $\rightarrow$ `validated({ body: notifySchema })`
 - **External Dependencies**: Firebase Admin SDK (`messaging.sendEachForMulticast`). Resolves partner Firebase Installation IDs (FIDs) from `user_devices` table and dispatches localized push notification.
+- **Receiver authorization**: the receiver is resolved from the partnership, never from the request body — a sender without an accepted partner gets `403 AUTH-FAIL-004`, and an explicit `receiverId` must match the partner.
 - **Cancellation Push Partner**: `cancellationRequested` resolves via `getCancellationPartnerId` (uses `partnership_get_cancellation_partner`); `cancellationAccepted` is sent directly by the acceptance endpoint.
 
 ---

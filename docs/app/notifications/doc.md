@@ -203,7 +203,7 @@ router.post("/partner",
   sendNotificationController);
 ```
 
-A second route `POST /api/v1/notify/:type` exists for explicit-`receiverId` sends (same middleware, plus `paramsSchema`).
+A second route `POST /api/v1/notify/:type` exists for explicit-`receiverId` sends (same middleware, plus `paramsSchema`). It is not an arbitrary-recipient path: the sender must have an accepted partner and `receiverId` must equal it, otherwise the request fails closed with `403 AUTH-FAIL-004`.
 
 Notably the notify route chain has **no `signed()` / `freshNonce()`** — unlike the installation-id route (F-PN10).
 
@@ -224,6 +224,7 @@ notifySchema = z.object({
 | Unauthenticated | 401 | `AUTH-FAIL-002` | Silently ignored (fire-and-forget) |
 | Rate limited (13th in window) | 429 | `SEC-BLOCK-001` | Silently ignored |
 | Invalid payload (missing/empty `notificationKey`) | 400 | `API-VALIDATION-001` | Silently ignored |
+| Explicit `receiverId` without an accepted partner, or not matching it | 403 | `AUTH-FAIL-004` | Silently ignored |
 | Receiver has no registered device | 200 dispatch, then controller **throws** `DB_NOT_FOUND_001` when `deviceCount === 0` | `DB-NOT-FOUND-001` | Logged only; no retry |
 | FCM not configured (no service account) | 200 | — | Status `skipped_firebase_not_configured`; logged only |
 
@@ -233,10 +234,10 @@ notifySchema = z.object({
 
 `notification.service.js` (orchestration) and `notification.utils.js` (message building + FCM delivery):
 
-1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:129-154`)
+1. **`resolveNotificationTarget(type='partner', body, senderId)`** (`:130-159`)
    - Resolves the receiver through RPC `partnership_get_accepted_partner(target_user_id=senderId)` (`partnershipUtils.js:3-10`) for accepted partnerships.
    - If `getPartnerId` returns null and `notificationKey === 'cancellationRequested'`, falls back to `getCancellationPartnerId(senderId)` via `partnership_get_cancellation_partner`.
-   - `type === 'partner'` → receiver is the active or cancellation partner; otherwise `receiverId` must be supplied and must equal the partner id.
+   - `type === 'partner'` → receiver is the active or cancellation partner; otherwise the sender must have an accepted partner and `receiverId` must equal it. The receiver is taken from the partnership, never from the body, so a partnerless sender is rejected with `AUTH-FAIL-004`.
 
 2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
    - `fetchUserDevices(userId)` (`:30-41`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
@@ -523,7 +524,7 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 
 `Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
-The `sendNotificationController` is fully mocked — no test covers the real dispatch, FCM multicast, retry/backoff, locale grouping or `resolveNotificationTarget`. The payloads in the tests predate the `notificationKey` schema migration and pass only because validation rejects the legacy shape before the controller runs.
+The `sendNotificationController` is fully mocked in the route suite — FCM multicast, retry/backoff and locale grouping have no test. `Backend/test/notification.service.test.js` covers `resolveNotificationTarget`: a partnerless sender is rejected with `403 AUTH-FAIL-004` before any `logs_notifications` row is written, the receiver is taken from the partnership, and a body `receiverId` that differs from the partner is rejected.
 
 `Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it; further send-path cases cover a transient multicast failure being retried once and then delivered, and a `configured: false` response aborting the remaining locale batches.
 

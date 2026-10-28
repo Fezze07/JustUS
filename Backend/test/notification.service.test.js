@@ -37,6 +37,9 @@ const mockQueryBuilder = (table) => {
 };
 
 const mockSendMulticast = jest.fn();
+const mockGetPartnerId = jest.fn();
+const mockGetCancellationPartnerId = jest.fn();
+const mockLogNotification = jest.fn();
 
 jest.mock("../all_imports", () => ({
   adminSupabase: { from: (table) => mockQueryBuilder(table) },
@@ -45,16 +48,25 @@ jest.mock("../all_imports", () => ({
     if (result?.error) throw new Error(result.error.message ?? "db error");
     return result?.data ?? null;
   },
+  getPartnerId: (...args) => mockGetPartnerId(...args),
+  getCancellationPartnerId: (...args) => mockGetCancellationPartnerId(...args),
+  logNotification: (...args) => mockLogNotification(...args),
+  AppError: jest.requireActual("../core/errors/AppError").AppError,
 }));
 
 const {
   deleteInvalidInstallations,
+  dispatchNotification,
+  resolveNotificationTarget,
   sendNotificationToUser,
 } = require("../features/notifications/notification.service");
 
 beforeEach(() => {
   mockDb.rows = [];
   mockSendMulticast.mockReset();
+  mockGetPartnerId.mockReset();
+  mockGetCancellationPartnerId.mockReset();
+  mockLogNotification.mockReset();
 });
 
 describe("deleteInvalidInstallations user scoping", () => {
@@ -82,6 +94,41 @@ describe("deleteInvalidInstallations user scoping", () => {
   test("returns 0 without querying when every installation id is falsy", async () => {
     expect(await deleteInvalidInstallations(1, [])).toBe(0);
     expect(await deleteInvalidInstallations(1, [null, undefined, ""])).toBe(0);
+  });
+});
+
+describe("resolveNotificationTarget receiver authorization", () => {
+  test("rejects a partnerless sender instead of trusting the body receiverId", async () => {
+    mockGetPartnerId.mockResolvedValueOnce(null);
+
+    await expect(
+      dispatchNotification({
+        type: "missyou",
+        senderId: 1,
+        payload: { notificationKey: "missyou", receiverId: 77 },
+      }),
+    ).rejects.toMatchObject({ code: "AUTH-FAIL-004", status: 403 });
+    expect(mockLogNotification).not.toHaveBeenCalled();
+  });
+
+  test("resolves the receiver from the partnership, not from the body", async () => {
+    mockGetPartnerId.mockResolvedValue(42);
+
+    await expect(
+      resolveNotificationTarget(
+        "missyou",
+        { notificationKey: "missyou", receiverId: 42 },
+        1,
+      ),
+    ).resolves.toMatchObject({ receiverId: 42 });
+
+    await expect(
+      resolveNotificationTarget(
+        "missyou",
+        { notificationKey: "missyou", receiverId: 77 },
+        1,
+      ),
+    ).rejects.toMatchObject({ code: "AUTH-FAIL-004" });
   });
 });
 
