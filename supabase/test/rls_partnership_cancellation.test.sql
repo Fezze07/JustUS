@@ -43,8 +43,9 @@
 --
 -- Sections A (request, raw and RPC), B (delete), C (revert), D (cooldown),
 -- E (tamper), G (expiry), K (cancellation read), L (push partner), F
--- (accept by partner), I (double-accept guard and cancelled-sender freeze) and
--- the J mood checks; H (11.1/11.2) belongs to a later item.
+-- (accept by partner), I (double-accept guard, cancelled-sender freeze,
+-- paired/cancelled-recipient refusal) and the J mood checks; H (11.1/11.2)
+-- belongs to a later item.
 --
 -- RLS limits UPDATE to the two members, so a non-member's UPDATE matches zero
 -- rows instead of reaching the trigger; those cases assert the row is
@@ -71,6 +72,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- Fixtures (inserted as superuser, which bypasses RLS)
 --   9101 alice / 9102 bob / 9103 carol / 9104 dave / 9105 erin / 9106 frank
+--   9107 grace (free: no partnership row, used for 11.13)
 --   alice-bob   accepted  (request by user_id_1, then member revert)
 --   carol-dave  accepted  (request by user_id_2, then partner revert)
 --   alice-carol pending   (revert of a non-cancelled row)
@@ -83,7 +85,8 @@ INSERT INTO public.users (id, auth_id, email) VALUES
   (9103, '00000000-0000-0000-0000-000000000103', 'carol@cancellation-test.local'),
   (9104, '00000000-0000-0000-0000-000000000104', 'dave@cancellation-test.local'),
   (9105, '00000000-0000-0000-0000-000000000105', 'erin@cancellation-test.local'),
-  (9106, '00000000-0000-0000-0000-000000000106', 'frank@cancellation-test.local');
+  (9106, '00000000-0000-0000-0000-000000000106', 'frank@cancellation-test.local'),
+  (9107, '00000000-0000-0000-0000-000000000107', 'grace@cancellation-test.local');
 
 INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUES
   (9101, 'Alice', 'CAL101'),
@@ -91,7 +94,8 @@ INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUE
   (9103, 'Carol', 'CAL103'),
   (9104, 'Dave',  'CAL104'),
   (9105, 'Erin',  'CAL105'),
-  (9106, 'Frank', 'CAL106');
+  (9106, 'Frank', 'CAL106'),
+  (9107, 'Grace', 'CAL107');
 
 INSERT INTO public.partnerships (user_id_1, user_id_2, status, cancel_declined_at) VALUES
   (9101, 9102, 'accepted', NULL),
@@ -1283,6 +1287,63 @@ BEGIN
 END $$;
 RESET ROLE;
 
+-- I3. a request naming an already-paired recipient is refused and creates no row (11.13).
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  v_msg text;
+BEGIN
+  BEGIN
+    PERFORM public.partnership_request('alice@cancellation-test.local', 'CAL101', 9107);
+  EXCEPTION WHEN OTHERS THEN
+    v_msg := SQLERRM;
+  END;
+
+  IF v_msg IS NULL OR v_msg NOT LIKE 'API-VALIDATION-004:%' THEN
+    RAISE EXCEPTION 'I3 failed: the paired-recipient request gave %',
+      coalesce(v_msg, 'no error (the request was created)');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships
+              WHERE (user_id_1 = 9107 AND user_id_2 = 9101)
+                 OR (user_id_1 = 9101 AND user_id_2 = 9107)) THEN
+    RAISE EXCEPTION 'I3 failed: the paired recipient created a request';
+  END IF;
+
+  IF (SELECT status FROM public.partnerships
+       WHERE user_id_1 = 9101 AND user_id_2 = 9102) IS DISTINCT FROM 'accepted'
+     OR (SELECT status FROM public.partnerships
+          WHERE user_id_1 = 9101 AND user_id_2 = 9103) IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'I3 failed: the paired recipient couple rows changed';
+  END IF;
+END $$;
+RESET ROLE;
+
+-- I4. a recipient frozen by a cancelled row cannot be invited either.
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  v_msg text;
+BEGIN
+  BEGIN
+    PERFORM public.partnership_request('dave@cancellation-test.local', 'CAL104', 9107);
+  EXCEPTION WHEN OTHERS THEN
+    v_msg := SQLERRM;
+  END;
+
+  IF v_msg IS NULL OR v_msg NOT LIKE 'API-VALIDATION-004:%' THEN
+    RAISE EXCEPTION 'I4 failed: the cancelled-recipient request gave %',
+      coalesce(v_msg, 'no error (the request was created)');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships
+              WHERE (user_id_1 = 9107 AND user_id_2 = 9104)
+                 OR (user_id_1 = 9104 AND user_id_2 = 9107)) THEN
+    RAISE EXCEPTION 'I4 failed: the frozen recipient created a request';
+  END IF;
+END $$;
+RESET ROLE;
+
 -- ---------------------------------------------------------------------------
 -- Final state: alice-bob accepted, alice-carol pending, carol-dave cancelled
 -- with dave still the requester.
@@ -1441,4 +1502,4 @@ END $$;
 
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, I cancelled sender cannot start a new pairing, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, I cancelled sender cannot start a new pairing, I paired/cancelled recipient cannot be invited, final state)' AS result;

@@ -14,6 +14,7 @@
 --
 --   partnership_request        API-VALIDATION-003  caller id not resolvable
 --                              API-VALIDATION-004  sender already partnered
+--                              API-VALIDATION-004  recipient already partnered
 --                              API-VALIDATION-005  email/code do not match
 --                              API-VALIDATION-006  self-invitation
 --   missyou_send               API-VALIDATION-007  no accepted partnership
@@ -83,6 +84,13 @@ SELECT pg_temp.expect_raise(
 SELECT pg_temp.expect_raise(
   'API-VALIDATION-004',
   $q$SELECT public.partnership_request('rpc-codes-target@test.local', 'TGT222', 9162)$q$
+);
+
+-- 004: sender 9160 is free, but recipient 9161 holds accepted 9163 and
+-- cancelled 9164, so the request would be unacceptable.
+SELECT pg_temp.expect_raise(
+  'API-VALIDATION-004',
+  $q$SELECT public.partnership_request('rpc-codes-target@test.local', 'TGT222', 9160)$q$
 );
 
 -- 005: sender 9160 is free but no profile matches that email + code.

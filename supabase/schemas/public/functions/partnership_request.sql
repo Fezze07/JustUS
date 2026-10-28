@@ -40,6 +40,12 @@ BEGIN
     RAISE EXCEPTION 'API-VALIDATION-006: Cannot invite yourself';
   END IF;
 
+  -- A paired or frozen recipient can never accept a new request. Pending is
+  -- excluded: receiving several invitations at once stays legitimate.
+  IF EXISTS (SELECT 1 FROM public.partnerships WHERE (user_id_1 = v_partner_id OR user_id_2 = v_partner_id) AND status IN ('accepted', 'cancelled')) THEN
+    RAISE EXCEPTION 'API-VALIDATION-004: The recipient already has a partnership';
+  END IF;
+
   INSERT INTO public.partnerships (user_id_1, user_id_2, status)
   VALUES (v_current_user_id, v_partner_id, 'pending')
   RETURNING id INTO v_partnership_id;

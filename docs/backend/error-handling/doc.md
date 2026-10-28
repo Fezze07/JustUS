@@ -77,6 +77,8 @@ The Supabase RPCs raise validation failures as Postgres exceptions whose message
 - `-013` — request blocked by the 24-hour cooldown after a partner decline (SQLSTATE `P0001`).
 - `-014` — accept blocked because the request expired (SQLSTATE `P0001`).
 
+`API-VALIDATION-004` is shared by two `partnership_request` guards: the sender already holds a `pending`/`accepted`/`cancelled` row, or the recipient already holds an `accepted`/`cancelled` row. The client string is intentionally generic ("A partnership or request already exists."); the developer note on the raise says which side was refused.
+
 All five constants (`apiValidation010`…`014`) map through `ErrorCodes.userMessage` to the EN/IT `error_apiValidation010`…`014` strings. A code outside the allowlist still reaches the UI as the raw message instead of a localized `userMessage`.
 
 ---
