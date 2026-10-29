@@ -158,7 +158,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
    - All Flutter direct requests pass through Supabase PostgREST with user JWT context, evaluating RLS policies.
 
 2. **Backend Server Layer:**
-   - Operates with `service_role` key to manage `auth_sessions`, `request_nonces`, API audit logs (`logs_api_access`, `logs_api_errors`, `logs_security_events`, `logs_auth_failures`), and execute SECURITY DEFINER procedures (`debug_wipe_user_data`, `partnership_get_names`).
+   - Operates with `service_role` key to manage `auth_sessions`, `request_nonces`, API audit logs (`logs_api_access`, `logs_api_errors`, `logs_security_events`, `logs_auth_failures`), and execute SECURITY DEFINER procedures (`debug_wipe_couple_data`, `partnership_get_names`).
    - Bypasses RLS by design for platform security middleware.
 
 ---

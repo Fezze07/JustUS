@@ -35,7 +35,7 @@ async function deleteUserR2Objects(userId) {
 
 /**
  * Controller per eliminare permanentemente i dati utente.
- * Chiama la funzione RPC 'debug_wipe_user_data' come admin, poi rimuove
+ * Chiama la funzione RPC 'debug_wipe_couple_data' come admin, poi rimuove
  * gli oggetti R2 residui sotto i prefissi dell'utente e del partner.
  */
 const wipeUserDataController = asyncHandler(async (req, res) => {
@@ -48,7 +48,7 @@ const wipeUserDataController = asyncHandler(async (req, res) => {
     });
   }
 
-  const { error } = await adminSupabase.rpc("debug_wipe_user_data", {
+  const { error } = await adminSupabase.rpc("debug_wipe_couple_data", {
     p_user_id: userId,
   });
 

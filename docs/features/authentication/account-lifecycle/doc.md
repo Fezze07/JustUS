@@ -8,7 +8,7 @@ Key architectural boundaries:
 - **Password Management**: `ChangePasswordScreen` re-authenticates the current password, then calls `supabase.auth.updateUser(password:)`; every other session of the account is then revoked with `SignOutScope.others`.
 - **Push Device Identity**: Cross-platform resolution differentiating Firebase Installation IDs (FIDs, Android/iOS/Web) from persistent hardware UUID fingerprints (Windows Desktop), backed by PostgreSQL `user_devices` upserts and a logout-time revocation delete.
 - **Logout Protocol**: Multi-stage cleanup — best-effort installation-id revoke, `FlutterSecureStorage`, `SharedPreferences`, in-memory `ApiService` headers, and Supabase Realtime channels (`RealtimeSyncService`).
-- **Account Wipe**: Debug operation clearing application domain data (`debug_wipe_user_data` procedure, `StorageService.clearAppCache()`, `CacheService.clearAll()`, `emptyAppMediaCaches()`) while maintaining active session authentication.
+- **Account Wipe**: Debug-only per-couple operation clearing application domain data (`debug_wipe_couple_data` procedure, `StorageService.clearAppCache()`, `CacheService.clearAll()`, `emptyAppMediaCaches()`) while maintaining active session authentication and the partnership row.
 
 ---
 
@@ -241,9 +241,9 @@ If the revoke never lands (offline logout, session already expired, app killed m
    - Revokes the device installation id (best-effort), clears storage, invalidates session headers, unsubscribes Realtime channel, and replaces stack with `LoginScreen`.
 4. **Authenticated → Account Wipe → Authenticated**:
    - Triggered via `ProfileState.wipeAppData()` ([profile_state.dart:139](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart#L139)).
-   - Invokes backend `POST /api/v1/user/wipe` (executing PostgreSQL procedure `debug_wipe_user_data`).
+   - Invokes backend `POST /api/v1/user/wipe` (executing PostgreSQL procedure `debug_wipe_couple_data`).
    - Clears local caches via `StorageService.clearAppCache()` + `CacheService.clearAll()` (checkpoints) + `emptyAppMediaCaches()` (media file stores).
-   - **Authentication Impact**: User session and security tokens remain completely active. Only domain data (drive files, moods, game history, miss-you counts) is erased from the database and local storage.
+   - **Authentication Impact**: User session and security tokens remain completely active. Only the accepted couple's domain data (both members' files, moods, game history, miss-you counts, reactions, favorites and notification logs when paired; the caller's own rows when unpaired) is erased from the database and local storage. The `partnerships` row survives.
 
 ---
 
@@ -360,7 +360,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 - **Table `user_devices`**: PostgreSQL table storing `user_id`, `installation_id`, `user_agent`, `device_type`, `last_ip`, `locale`, `session_id` (the `auth.sessions` row that registered the installation id; nullable, no FK — the dead-session sweep reads it). Primary conflict target: `installation_id`. No active/revoked flag: deactivation is a row delete, and the `logs_api_access` / `logs_api_errors` / `logs_security_events` foreign keys are `ON DELETE SET NULL`.
 - **Function `device_purge_dead_sessions`**: SECURITY DEFINER RPC invoked by the retention job, deletes `user_devices` rows whose `session_id` no longer resolves to a live `auth.sessions` row (gone, or past its `not_after`). Backend-only: revoked from PUBLIC/anon/authenticated, granted to postgres and service_role.
-- **Procedure `debug_wipe_user_data`**: Stored procedure executed during account wipe to erase user domain records.
+- **Procedure `debug_wipe_couple_data`**: Stored procedure executed during account wipe to erase user domain records.
 
 ---
 
@@ -378,4 +378,4 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 | Installation ID Unregistration | **IMPLEMENTED** | `AuthState._revokeInstallationId()` → `POST /api/v1/auth/installation-id-revoke` (best-effort, 5 s cap) |
 | Other-Device Push Registration Revocation on Password Write | **IMPLEMENTED** | `AuthState._revokeOtherInstallations()` → `POST /api/v1/auth/installation-id-revoke-all` (best-effort, 5 s cap) |
 | Stale Registration Cleanup (dead-session + age) | **IMPLEMENTED** | `sweepStaleUserDevices` → `device_purge_dead_sessions()` RPC (rows whose session is gone/lapsed die at the next run) + `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback |
-| Account Wipe (Debug Data Erase) | **IMPLEMENTED** | `debug_wipe_user_data` procedure |
+| Account Wipe (Debug Data Erase) | **IMPLEMENTED** | `debug_wipe_couple_data` procedure |

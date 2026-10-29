@@ -114,7 +114,7 @@ END $$;
 DO $$
 DECLARE
   v_fn text[] := ARRAY[
-    'public.debug_wipe_user_data(integer)',
+    'public.debug_wipe_couple_data(integer)',
     'public.partnership_expire_cancellations()',
     'public.partnership_get_cancellation_partner(integer)',
     'public.partnership_cancel_accept(integer, integer)',

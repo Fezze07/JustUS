@@ -74,10 +74,11 @@ Failure (including the 24h cooldown `API-VALIDATION-013`) closes nothing and sta
 ```
 Profile Screen (Debug) → Tap Wipe Data → Confirmation Dialog → User Confirms
   → RealtimeSyncService.suppress() → POST /api/v1/users/wipe
-  → Backend Executes RPC debug_wipe_user_data(userId)
-  → PostgreSQL deletes domain records (drive, moods, bucket, games, missyou)
+  → Backend Executes RPC debug_wipe_couple_data(userId)
+  → PostgreSQL deletes the accepted couple's shared rows and both members'
+    user-scoped rows (an unpaired caller clears only their own user-scoped rows)
   → Backend enumerates & deletes R2 objects under uploads/{userId}/, profile/{userId}/,
-    uploads/{partnerId}/, profile/{partnerId}/ (r2.service deleteObjectsByPrefix)
+    and, when paired, uploads/{partnerId}/, profile/{partnerId}/ (r2.service deleteObjectsByPrefix)
   → StorageService.clearAppCache() → CacheService.clearAll() → emptyAppMediaCaches() → Clear In-Memory Providers
   → RealtimeSyncService.refreshChannel() → Profile Reloaded (Empty State)
 ```
@@ -104,7 +105,7 @@ The Profile & Settings subsystem crosses all architectural layers:
                                                   │
                                                   ▼
                                       [ Supabase PostgreSQL & R2 ]
-                                   (user_profiles / RPC debug_wipe_user_data)
+                                   (user_profiles / RPC debug_wipe_couple_data)
 ```
 
 ---
@@ -135,7 +136,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Controllers & Routes
 - [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js): Defines `POST /api/v1/users/wipe`, guarded by authentication (`authenticated()`), rate limiting (`userRateLimit`: max 5 requests per window) and HMAC signing (`signed("user-wipe")`).
-- [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js): Implements `wipeUserDataController`, extracting `userId = req.user.profileId`, executing RPC `debug_wipe_user_data`, then deleting the R2 objects under the user's and their accepted partner's prefixes via `deleteUserR2Objects` (`uploads/{id}/`, `profile/{id}/`).
+- [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js): Implements `wipeUserDataController`, extracting `userId = req.user.profileId`, executing RPC `debug_wipe_couple_data`, then deleting the R2 objects under the user's and their accepted partner's prefixes via `deleteUserR2Objects` (`uploads/{id}/`, `profile/{id}/`).
 - [`mediaWorkflow.service.js`](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Implements signed upload creation (`createPresignedUpload`) and registration (`registerCompletedUpload`). When `kind === 'profile'`, updates `user_profiles.profile_pic_url` directly.
 
 ---
@@ -147,7 +148,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - `public.user_profiles`: Holds profile attributes (`user_id`, `display_name`, `profile_pic_url`, `partnership_code`, `created_at`, `updated_at`).
 
 ### Stored Procedures & RPCs
-- `debug_wipe_user_data(p_user_id integer)`: Administrative stored procedure executing data deletion. Configured with `SECURITY DEFINER` and restricted execution rights (revoked from `PUBLIC`/`anon`, granted to `postgres`/`service_role` only, invoked by the backend via `adminSupabase`).
+- `debug_wipe_couple_data(p_user_id integer)`: Debug-only administrative stored procedure executing the per-couple data reset. It resolves the caller's `accepted` partnership, deletes that couple's shared rows and both members' user-scoped rows, and keeps the `partnerships` row; a caller with no accepted partnership clears only their own user-scoped rows. Pending/cancelled invitations are not a couple and are left untouched. Configured with `SECURITY DEFINER` and restricted execution rights (revoked from `PUBLIC`/`anon`/`authenticated`, granted to `postgres`/`service_role` only, invoked by the backend via `adminSupabase`).
 
 ---
 
@@ -155,7 +156,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 - **Backend Route Protection**: `POST /api/v1/users/wipe`, `POST /api/v1/media/upload-url`, `POST /api/v1/media/complete`, and `POST /api/v1/media/delete` require valid JWT Bearer tokens verified by backend middleware (`authenticated()`).
 - **HMAC Request Signing**: The wipe route and the media endpoints (`upload-url`, `complete`, `delete`) require cryptographic request signatures (`X-Request-Signature`) generated with the session's `binding_secret`; `ApiService.wipeUserData()` sends an empty JSON object so the signed bytes match the server's `{}` body.
-- **RPC Privileges**: Direct execution of `debug_wipe_user_data` from client Supabase SDK is revoked for `anon` and `authenticated` roles. It can only be invoked by the backend via `adminSupabase` (`service_role`).
+- **RPC Privileges**: Direct execution of `debug_wipe_couple_data` from client Supabase SDK is revoked for `anon` and `authenticated` roles. It can only be invoked by the backend via `adminSupabase` (`service_role`).
 
 ---
 
@@ -231,7 +232,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Edge Cases
 
-1. **Wipe Keeps the Partnership**: `debug_wipe_user_data` deletes the partnership's domain rows (drive, moods, bucket, game, miss-you, reactions, favorites, logs) but does **not** delete the `partnerships` row itself — the couple stays linked and the wipe is recoverable; the partner's in-memory Flutter state refreshes via realtime.
+1. **Per-Couple Wipe Keeps the Partnership**: `debug_wipe_couple_data` is a debug-only, per-couple reset. It resolves the caller's `accepted` partnership and deletes that couple's shared rows (drive, bucket, game questions/answers, miss-you) plus both members' user-scoped rows (moods, reactions, favorites, notification logs, profile pictures), but does **not** delete the `partnerships` row itself — the couple stays linked and the wipe is recoverable; the partner's in-memory Flutter state refreshes via realtime. A caller with no accepted partnership clears only their own user-scoped rows. A `pending` or `cancelled` row is not a couple: its shared rows and the counterpart's data are untouched.
 2. **Offline Language Switch**: Language switching operates entirely locally via `SharedPreferences` and generated ARB assets, working seamlessly without network connectivity.
 
 ---
@@ -243,9 +244,10 @@ The Profile & Settings subsystem crosses all architectural layers:
 | System Layer | Target / Object | Status | Description |
 |---|---|---|---|
 | **Supabase PostgreSQL** | `partnerships` | **SURVIVES** | Partnership row is kept; the wipe only clears its domain rows. |
-| **Supabase PostgreSQL** | `drive_items`, `bucket_items`, `missyou`, `game_questions`, `game_answers` | **DELETED** | Deleted explicitly by `debug_wipe_user_data` (not via partnership cascade). |
-| **Supabase PostgreSQL** | `moods`, `drive_item_reactions`, `favorites` | **DELETED** | Deletes user-authored records. |
-| **Supabase PostgreSQL** | `logs_notifications` | **DELETED** | Deletes user-associated notification log rows. |
+| **Supabase PostgreSQL** | `drive_items`, `bucket_items`, `missyou`, `game_questions`, `game_answers` | **DELETED** | Deleted explicitly by `debug_wipe_couple_data` for the caller's accepted couple (not via partnership cascade). An unpaired caller has no shared rows to clear. |
+| **Supabase PostgreSQL** | `moods`, `drive_item_reactions`, `favorites` | **DELETED** | Deletes both members' user-authored records when paired; only the caller's when unpaired. |
+| **Supabase PostgreSQL** | `logs_notifications` | **DELETED** | Deletes both members' notification log rows when paired; only the caller's when unpaired. |
+| **Supabase PostgreSQL** | `pending` / `cancelled` partnership rows and their shared data | **SURVIVES** | Only an `accepted` partnership is a couple; invitations and frozen cancellations are not wiped. |
 | **Supabase PostgreSQL** | `public.users` / `public.user_profiles` | **SURVIVES** | User account and profile rows are **NOT** deleted (profile picture URL is reset to `NULL`). Auth credentials remain valid. |
 | **Supabase Auth** | `auth.users` / `auth.sessions` | **SURVIVES** | Active auth user and JWT sessions remain active. |
 | **Cloudflare R2** | Physical Storage Files (`uploads/{userId}/`, `profile/{userId}/`, and partner prefixes) | **DELETED** | `wipeUserDataController` enumerates objects by prefix (`r2.service` `listObjectKeys` + batched `DeleteObjectsCommand`) after the DB RPC succeeds. |
@@ -289,7 +291,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js)
   - `POST /wipe`: Rate-limited authenticated endpoint.
 - [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js)
-  - `wipeUserDataController`: Calls Supabase RPC `debug_wipe_user_data`.
+  - `wipeUserDataController`: Calls Supabase RPC `debug_wipe_couple_data`.
 - [`mediaWorkflow.service.js`](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js)
   - `registerCompletedUpload`: Handles `kind === 'profile'` updates to `user_profiles.profile_pic_url`.
 
@@ -299,7 +301,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 - `public.users`: User accounts table.
 - `public.user_profiles`: User profile metadata table (`user_id`, `display_name`, `profile_pic_url`, `partnership_code`).
-- `debug_wipe_user_data`: Stored procedure purging user domain records.
+- `debug_wipe_couple_data`: Stored procedure purging user domain records.
 
 ---
 

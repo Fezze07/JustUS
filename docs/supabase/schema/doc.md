@@ -194,7 +194,7 @@ All 25 PostgreSQL functions in `supabase/schemas/public/functions/`:
 12. `missyou_send()`: Inserts `missyou` record for caller's active partnership.
 13. `mood_set(p_emoji_char text)`: Inserts `moods` record looking up or creating emoji and attaching the caller's `accepted` partnership id (NULL when unpaired).
 14. `logs_cleanup(p_days integer DEFAULT 90)`: `SECURITY INVOKER` maintenance function deleting logs older than `p_days` days (default 90, guarding NULL/`< 1`); not `pg_cron`-scheduled — Node `retentionJob.js` is the single active retention driver. Revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
-15. `debug_wipe_user_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, `anon`; granted to `postgres`, `service_role`.
+15. `debug_wipe_couple_data(p_user_id integer)`: `SECURITY DEFINER` admin procedure. Revoked from `PUBLIC`, `anon`, `authenticated`; granted to `postgres`, `service_role`.
 16. `util_set_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 17. `util_update_updated_at()`: Trigger function setting `NEW.updated_at = now()`.
 18. `drive_change_probe()`: `STABLE SECURITY INVOKER`, returns a single row `{ max_updated_at timestamptz, item_count bigint }` over `drive_items` for the caller's active partnership. Powers the Drive/Favorites revalidation gate: `max_updated_at` detects inserts/updates since the client checkpoint, `item_count` detects server-side deletions (invisible to an `updated_at` cursor). Reading the table directly avoids materializing `v_drive_dashboard` (joins + reaction aggregate) to obtain two scalars. Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.

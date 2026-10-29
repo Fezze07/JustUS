@@ -89,7 +89,7 @@ describe("user routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
-    expect(adminSupabase.rpc).toHaveBeenCalledWith("debug_wipe_user_data", {
+    expect(adminSupabase.rpc).toHaveBeenCalledWith("debug_wipe_couple_data", {
       p_user_id: 42,
     });
   });

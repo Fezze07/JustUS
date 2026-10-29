@@ -152,16 +152,16 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `debug_wipe_user_data(p_user_id integer)`
-* **SQL Source:** `supabase/schemas/public/functions/debug_wipe_user_data.sql`
-* **Purpose:** Developer-only cleanup procedure, invoked from the debug-build profile screen to reset test data. Permanently deletes all partnership-related content and user data for both partners in a relationship. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
+### `debug_wipe_couple_data(p_user_id integer)`
+* **SQL Source:** `supabase/schemas/public/functions/debug_wipe_couple_data.sql`
+* **Purpose:** Developer-only per-couple cleanup procedure, invoked from the debug-build profile screen to reset test data. It resolves the caller's `accepted` partnership and permanently deletes that couple's shared content plus both members' user-scoped data; the `partnerships` row is kept, so the pair stays linked. A caller with no accepted partnership clears only their own user-scoped rows, and `pending`/`cancelled` invitations are left untouched. The `debug_` name prefix is deliberate — this is not a production account-deletion feature (10.17, see `docs/fixing-phase-log.md` § Item index).
 * **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
-  - **Execution Grants:** Revoked from `PUBLIC`, `anon`. Granted strictly to `postgres`, `service_role`.
+  - **Execution Grants:** Revoked from `PUBLIC`, `anon`, `authenticated`. Granted strictly to `postgres`, `service_role`.
 * **Inputs:** `p_user_id` (`integer`).
 * **Outputs:** `void`.
 * **Tables Touched:** `partnerships` (READ), `drive_items` (DELETE), `bucket_items` (DELETE), `game_questions` (DELETE), `game_answers` (DELETE), `missyou` (DELETE), `favorites` (DELETE), `drive_item_reactions` (DELETE), `moods` (DELETE), `user_profiles` (UPDATE), `logs_notifications` (DELETE).
 * **Caller:** Backend `POST /api/v1/users/wipe` (`wipeUserDataController`) via `service_role`; reached from the debug-build profile screen only.
-* **Side Effects:** Massive destructive purge of user & partner files, games, bucket list items, reactions, moods, notifications, and profile details (picture reset to NULL).
+* **Side Effects:** Destructive per-couple purge of the accepted couple's files, games, bucket list items, reactions, moods, notifications, and profile pictures (reset to NULL); the `partnerships` row and both accounts survive.
 
 ---
 
