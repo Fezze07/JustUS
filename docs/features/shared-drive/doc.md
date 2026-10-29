@@ -154,7 +154,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Backend `registerCompletedUpload()`:
      - Verifies storage key contains expected user segment `/${user.profileId}/` to prevent key hijacking.
      - **Profile Picture Flow** (`kind === 'profile'`): Updates `user_profiles.profile_pic_url = filename` for `user_id = user.profileId`.
-     - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then a `cancelled` partnership whose cancellation was requested after the presign). Inserts `name` (R2 key), `original_name` and `partnership_id` into `public.drive_items`, returning the created `item` object.
+     - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then the latest `cancelled` partnership). Inserts `name` (R2 key), `original_name` and `partnership_id` into `public.drive_items`, returning the created `item` object.
 
 6. **Realtime Sync & Partner Notification**
    - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart)
