@@ -38,7 +38,7 @@ jest.mock("../features/media/r2.service", () => ({
 
 jest.mock("../config/db", () => {
   const tablesData = {
-    drive_items: [{ filename: "uploads/active_file.jpg", metadata: null }],
+    drive_items: [{ name: "uploads/active_file.jpg", metadata: null }],
     user_profiles: [{ profile_pic_url: "profile/active_pic.jpg" }],
   };
 
@@ -52,14 +52,14 @@ jest.mock("../config/db", () => {
     lt: jest.fn().mockResolvedValue({ error: null, count: 1 }),
   };
 
+  const driveItemsSelect = jest.fn().mockReturnValue({
+    not: jest.fn().mockResolvedValue({ error: null, data: tablesData.drive_items }),
+  });
+
   // Allow from() to return mock data for drive_items and user_profiles select queries
   const fromMock = jest.fn((tableName) => {
     if (tableName === "drive_items") {
-      return {
-        select: jest.fn().mockReturnValue({
-          not: jest.fn().mockResolvedValue({ error: null, data: tablesData.drive_items }),
-        }),
-      };
+      return { select: driveItemsSelect };
     }
     if (tableName === "user_profiles") {
       return {
@@ -78,10 +78,11 @@ jest.mock("../config/db", () => {
     },
     __queryBuilder: queryBuilder,
     __fromMock: fromMock,
+    __driveItemsSelect: driveItemsSelect,
   };
 });
 
-const { adminSupabase, __queryBuilder, __fromMock } = require("../config/db");
+const { adminSupabase, __queryBuilder, __fromMock, __driveItemsSelect } = require("../config/db");
 const { startRetentionJobs, stopRetentionJobs } = require("../core/jobs/retentionJob");
 const { AbortMultipartUploadCommand } = require("@aws-sdk/client-s3");
 
@@ -135,6 +136,7 @@ describe("retentionJob - all cleanup jobs", () => {
     );
 
     // 5. R2 orphan object sweep test
+    expect(__driveItemsSelect).toHaveBeenCalledWith("name, metadata");
     expect(mockListObjects).toHaveBeenCalledWith("uploads/");
     expect(mockListObjects).toHaveBeenCalledWith("profile/");
     expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/stale_orphan.jpg"]);

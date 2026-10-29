@@ -88,7 +88,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - **Controller**: `deleteMediaController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `capability("can_media_upload")` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `signed("media-delete")` $\rightarrow$ `validated({ body: deleteSchema })`
 - **Request Body**: `{ id }` (positive integer drive item id).
-- **Behavior**: Reads the `drive_items` row; idempotent (row already gone → `200` no-op); rejects `403 AUTH-FAIL-004` unless the caller is `user_id` or `partner_id`; deletes the row first (favorites/reactions cascade), re-asserting ownership in the DELETE predicate; then best-effort R2 object cleanup (`DeleteObjectCommand`) — failures are logged and never block the response, with the orphaned object reclaimed by the retention sweep (`retentionJob.js` `sweepStaleOrphanObjects`, 24 h cutoff).
+- **Behavior**: Reads the `drive_items` row; idempotent (row already gone → `200` no-op); rejects `403 AUTH-FAIL-004` unless the caller is a member of the item's accepted partnership; deletes the row first (favorites/reactions cascade), re-asserting the partnership in the DELETE predicate; then best-effort R2 object cleanup (`DeleteObjectCommand`) — failures are logged and never block the response, with the orphaned object reclaimed by the retention sweep (`retentionJob.js` `sweepStaleOrphanObjects`, 24 h cutoff).
 - **Flutter Consumer**: `DriveRepository.deleteDriveItem(id)` → `ApiService.deleteMediaItem(id)` — replaces the old direct SQL delete; a `DB-NOT_FOUND-001` response is treated as success so optimistic deletes are not resurrected on stale retries.
 
 ---

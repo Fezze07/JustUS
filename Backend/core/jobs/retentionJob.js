@@ -190,13 +190,13 @@ async function fetchReferencedKeys() {
   const driveRows = assertDbSuccess(
     await adminSupabase
       .from("drive_items")
-      .select("filename, metadata")
-      .not("filename", "is", null),
+      .select("name, metadata")
+      .not("name", "is", null),
     "DB_READ_001"
   );
 
   for (const row of driveRows) {
-    if (row.filename) referenced.add(row.filename);
+    if (row.name) referenced.add(row.name);
     const thumb = row.metadata?.thumbnail;
     if (typeof thumb === "string" && thumb) referenced.add(thumb);
   }

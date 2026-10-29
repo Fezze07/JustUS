@@ -56,15 +56,21 @@ jest.mock("../features/media/r2.service", () => ({
 
 jest.mock("../utils/misc/partnershipUtils", () => ({
   getPartnerId: jest.fn(async () => 77),
+  getPartnershipId: jest.fn(async () => 5),
+  isPartnershipMember: jest.fn(async () => true),
 }));
 
 const { adminSupabase, deleteObject, resetRateLimitState } = require("../all_imports");
+const { getPartnershipId, isPartnershipMember } = require("../utils/misc/partnershipUtils");
 const { createApp } = require("../app");
 
 describe("media routes", () => {
   beforeEach(() => {
     adminSupabase.from.mockReset();
     deleteObject.mockClear();
+    getPartnershipId.mockClear();
+    isPartnershipMember.mockReset();
+    isPartnershipMember.mockResolvedValue(true);
     // mediaRateLimit is createIpUserRateLimit({ ipMax: 60, userMax: 40 }) and its
     // buckets are module-level, so without this reset each test starts where the
     // previous one stopped and a later assertion fails with an unrelated 429.
@@ -79,23 +85,25 @@ describe("media routes", () => {
     // getSignedDownloadUrl looks the row up with .single(), not .maybeSingle().
     const driveItemRow = (overrides = {}) => ({
       id: 5,
-      user_id: 42,
-      partner_id: 77,
+      partnership_id: 5,
       ...overrides,
     });
 
+    let driveItemsQuery;
+
     const mockDriveItems = (row) => {
+      driveItemsQuery = createQueryBuilder({
+        single: jest.fn().mockResolvedValue({ data: row, error: null }),
+      });
       adminSupabase.from.mockImplementation((table) => {
         if (table === "drive_items") {
-          return createQueryBuilder({
-            single: jest.fn().mockResolvedValue({ data: row, error: null }),
-          });
+          return driveItemsQuery;
         }
         return createQueryBuilder();
       });
     };
 
-    test("redirects an owned drive item to its signed R2 download URL", async () => {
+    test("redirects a partnered drive item to its signed R2 download URL", async () => {
       mockDriveItems(driveItemRow());
 
       const response = await request(createApp())
@@ -106,12 +114,16 @@ describe("media routes", () => {
       expect(response.headers.location).toBe(
         "https://r2.test.local/download/uploads/42/memory.jpg",
       );
+      expect(driveItemsQuery.select).toHaveBeenCalledWith("partnership_id");
+      expect(driveItemsQuery.eq).toHaveBeenCalledWith("name", "uploads/42/memory.jpg");
+      expect(isPartnershipMember).toHaveBeenCalledWith(5, 42);
     });
 
-    test("denies a download for a caller who is neither owner nor partner", async () => {
-      // The auth mock always returns profileId 42, so a row owned by someone
-      // else with no partner link must be refused.
-      mockDriveItems(driveItemRow({ user_id: 999, partner_id: 888 }));
+    test("denies a download for a caller outside the item partnership", async () => {
+      // The auth mock always returns profileId 42; the row's partnership has
+      // other members, so the membership check must refuse it.
+      mockDriveItems(driveItemRow({ partnership_id: 6 }));
+      isPartnershipMember.mockResolvedValueOnce(false);
 
       const response = await request(createApp())
         .get("/api/v1/media/file")
@@ -199,8 +211,8 @@ describe("media routes", () => {
       single: jest.fn().mockResolvedValue({
         data: {
           id: 10,
-          filename: "uploads/42/test-memory.jpg",
-          partner_id: 77,
+          name: "uploads/42/test-memory.jpg",
+          partnership_id: 5,
         },
         error: null,
       }),
@@ -228,6 +240,16 @@ describe("media routes", () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.item.id).toBe(10);
+    expect(getPartnershipId).toHaveBeenCalledWith(42);
+    expect(driveItemsQuery.insert).toHaveBeenCalledWith({
+      partnership_id: 5,
+      type: "image",
+      name: "uploads/42/test-memory.jpg",
+      original_name: "memory.jpg",
+      mime_type: "image/jpeg",
+      size: 4096,
+      metadata: { source: "backend-signed-url" },
+    });
   });
 
   test("deletes a drive item and its R2 object through the delete endpoint", async () => {
@@ -235,9 +257,8 @@ describe("media routes", () => {
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
           id: 10,
-          user_id: 42,
-          partner_id: 77,
-          filename: "uploads/42/test-memory.jpg",
+          partnership_id: 5,
+          name: "uploads/42/test-memory.jpg",
         },
         error: null,
       }),
@@ -257,12 +278,13 @@ describe("media routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
+    expect(isPartnershipMember).toHaveBeenCalledWith(5, 42);
     expect(driveItemsQuery.select).toHaveBeenCalledWith(
-      "id, user_id, partner_id, filename, metadata"
+      "id, partnership_id, name, metadata"
     );
     expect(driveItemsQuery.delete).toHaveBeenCalledWith();
     expect(driveItemsQuery.eq).toHaveBeenCalledWith("id", 10);
-    expect(driveItemsQuery.or).toHaveBeenCalledWith("user_id.eq.42,partner_id.eq.42");
+    expect(driveItemsQuery.eq).toHaveBeenCalledWith("partnership_id", 5);
     expect(deleteObject).toHaveBeenCalledWith("uploads/42/test-memory.jpg");
 
     const deleteCallIndex = driveItemsQuery.delete.mock.invocationCallOrder[0];
@@ -275,9 +297,8 @@ describe("media routes", () => {
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
           id: 15,
-          user_id: 42,
-          partner_id: 77,
-          filename: "uploads/42/main.jpg",
+          partnership_id: 5,
+          name: "uploads/42/main.jpg",
           metadata: { thumbnail: "uploads/42/thumb.jpg" },
         },
         error: null,
@@ -307,9 +328,8 @@ describe("media routes", () => {
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
           id: 14,
-          user_id: 42,
-          partner_id: 77,
-          filename: "uploads/42/failing.jpg",
+          partnership_id: 5,
+          name: "uploads/42/failing.jpg",
         },
         error: null,
       }),
@@ -334,14 +354,13 @@ describe("media routes", () => {
     expect(driveItemsQuery.delete).toHaveBeenCalled();
   });
 
-  test("deletes the drive item row when the item has no R2 filename", async () => {
+  test("deletes the drive item row when the item has no R2 storage key", async () => {
     const driveItemsQuery = createQueryBuilder({
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
           id: 12,
-          user_id: 42,
-          partner_id: 77,
-          filename: null,
+          partnership_id: 5,
+          name: null,
         },
         error: null,
       }),
@@ -368,13 +387,14 @@ describe("media routes", () => {
       maybeSingle: jest.fn().mockResolvedValue({
         data: {
           id: 13,
-          user_id: 99,
-          partner_id: 100,
-          filename: "uploads/99/foreign.jpg",
+          partnership_id: 6,
+          name: "uploads/99/foreign.jpg",
         },
         error: null,
       }),
     });
+
+    isPartnershipMember.mockResolvedValueOnce(false);
 
     adminSupabase.from.mockImplementation((table) => {
       if (table === "drive_items") {
@@ -391,6 +411,8 @@ describe("media routes", () => {
     expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
     expect(response.body.error.code).toBe("AUTH-FAIL-004");
+    expect(isPartnershipMember).toHaveBeenCalledWith(6, 42);
+    expect(driveItemsQuery.delete).not.toHaveBeenCalled();
     expect(deleteObject).not.toHaveBeenCalled();
   });
 

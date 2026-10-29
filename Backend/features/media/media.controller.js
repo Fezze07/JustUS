@@ -7,6 +7,7 @@ const {
   createPresignedUpload,
   registerCompletedUpload,
   getSignedDownloadUrl,
+  isPartnershipMember,
   logError,
 } = require("../../all_imports");
 
@@ -42,7 +43,7 @@ const redirectToSignedDownloadController = asyncHandler(async (req, res) => {
 const purgeR2Object = async (item, userId) => {
   if (!isConfigured()) return;
 
-  const keys = [item.filename, item.metadata?.thumbnail ?? null].filter(Boolean);
+  const keys = [item.name, item.metadata?.thumbnail ?? null].filter(Boolean);
 
   for (const key of keys) {
     try {
@@ -64,7 +65,7 @@ const deleteMediaController = asyncHandler(async (req, res) => {
 
   const { data: item, error } = await adminSupabase
     .from("drive_items")
-    .select("id, user_id, partner_id, filename, metadata")
+    .select("id, partnership_id, name, metadata")
     .eq("id", id)
     .maybeSingle();
 
@@ -80,7 +81,7 @@ const deleteMediaController = asyncHandler(async (req, res) => {
     return res.json({ success: true, message: "Drive item already deleted" });
   }
 
-  if (item.user_id !== userId && item.partner_id !== userId) {
+  if (!(await isPartnershipMember(item.partnership_id, userId))) {
     throw new AppError({
       errorKey: "AUTH_FAIL_004",
       message: "Forbidden: no access to this media",
@@ -91,7 +92,7 @@ const deleteMediaController = asyncHandler(async (req, res) => {
     .from("drive_items")
     .delete()
     .eq("id", id)
-    .or(`user_id.eq.${userId},partner_id.eq.${userId}`);
+    .eq("partnership_id", item.partnership_id);
 
   if (deleteError) {
     throw new AppError({

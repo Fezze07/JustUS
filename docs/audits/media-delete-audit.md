@@ -11,11 +11,11 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
   → DriveRepository.deleteDriveItem(id) → ApiService.deleteMediaItem(id)
   → POST /api/v1/media/delete { id } (HMAC-signed, capability can_media_upload)
   → Backend deleteMediaController:
-      - Reads drive_items(id, user_id, partner_id, filename) via adminSupabase
+      - Reads drive_items(id, partnership_id, name, metadata) via adminSupabase
       - Idempotent: row already gone → 200 success (no-op)
-      - Rejects 403 if the caller is not user_id/partner_id (AUTH-FAIL-004)
+      - Rejects 403 unless the caller is a member of the item's accepted partnership (AUTH-FAIL-004)
       - Deletes the drive_items row first (favorites/reactions cascade), re-asserting
-        ownership in the DELETE predicate (user_id.eq.X,partner_id.eq.X) — defense in depth
+        the partnership in the DELETE predicate (partnership_id.eq.Y) — defense in depth
       - Best-effort R2 cleanup via purgeR2Object(): failures are logged
         (media.delete.r2_cleanup_failed) and never block the response — an orphaned
         object is reclaimed by the retention sweep (below)
@@ -31,7 +31,7 @@ Client idempotency: `DriveRepository.deleteDriveItem` maps a `DB-NOT_FOUND-001` 
 
 ### Orphan safety net
 
-- `retentionJob.js` runs `sweepStaleOrphanObjects()` every 6 h: lists finalized objects under `uploads/` and `profile/` (via the new `r2.service.listObjects`, which also returns `LastModified`), cross-checks against `drive_items.filename`, `drive_items.metadata.thumbnail`, and `user_profiles.profile_pic_url`, and batch-deletes objects older than 24 h that no DB row references.
+- `retentionJob.js` runs `sweepStaleOrphanObjects()` every 6 h: lists finalized objects under `uploads/` and `profile/` (via the new `r2.service.listObjects`, which also returns `LastModified`), cross-checks against `drive_items.name`, `drive_items.metadata.thumbnail`, and `user_profiles.profile_pic_url`, and batch-deletes objects older than 24 h that no DB row references.
 - A grace window (24 h) protects objects uploaded-but-not-yet-registered (in-flight `/complete`).
 - Incomplete multipart uploads remain handled by `sweepStalMultipartUploads()` (48 h).
 - Backend helpers exposed through `all_imports.js`: `listObjects` (new), `deleteObjects`, `listObjectKeys`.

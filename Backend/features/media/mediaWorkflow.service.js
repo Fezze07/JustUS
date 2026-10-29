@@ -4,8 +4,8 @@ const {
   createUploadUrl,
   createDownloadUrl,
   isConfigured,
-  getPartnerId,
-  getCancellationPartnerId,
+  getPartnershipId,
+  isPartnershipMember,
   AppError,
   assertDbSuccess,
 } = require("../../all_imports");
@@ -72,21 +72,17 @@ async function registerCompletedUpload({ user, payload }) {
     };
   }
 
-  let partnerId = await getPartnerId(user.profileId);
-  if (partnerId == null) {
-    partnerId = await getCancellationPartnerId(user.profileId);
-  }
-  if (partnerId == null) {
+  const partnershipId = await getPartnershipId(user.profileId);
+  if (partnershipId == null) {
     throw new AppError({ errorKey: "API_VALIDATION_001", message: "No partner found" });
   }
   const item = assertDbSuccess(
     await adminSupabase
       .from("drive_items")
       .insert({
-        user_id: user.profileId,
-        partner_id: partnerId,
+        partnership_id: partnershipId,
         type,
-        filename,
+        name: filename,
         original_name: originalName,
         mime_type: mimeType,
         size,
@@ -111,15 +107,15 @@ async function getSignedDownloadUrl({ userId, filename }) {
 
   const { data: media, error } = await adminSupabase
     .from("drive_items")
-    .select("id, user_id, partner_id")
-    .eq("filename", filename)
+    .select("partnership_id")
+    .eq("name", filename)
     .single();
 
   if (error || !media) {
     throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Media not found in database" });
   }
 
-  if (media.user_id !== userId && media.partner_id !== userId) {
+  if (!(await isPartnershipMember(media.partnership_id, userId))) {
     throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Forbidden: No access to this media" });
   }
 

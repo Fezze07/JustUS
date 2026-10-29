@@ -64,7 +64,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
    - [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js): Route handlers `presignUploadController`, `completeUploadController`, and `redirectToSignedDownloadController`.
 
 3. **Database Layer (Supabase / PostgreSQL)**:
-   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `user_id`, `partner_id`, `type`, `filename` (R2 storage key), `original_name`, `mime_type`, `size`, `metadata` (JSONB), `created_at`, `updated_at`.
+   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `file_type_id`, `metadata` (JSONB), `created_at`, `updated_at`.
    - `public.favorites`: Stores user favorites (`user_id`, `item_id`).
    - `public.drive_item_reactions`: Stores emoji reactions (`id`, `item_id`, `user_id`, `emoji_id`).
    - `v_drive_dashboard`: Security invoker database view returning drive items for the calling user's partnership, joined with user favorites (`is_favorite` boolean) and aggregated emoji reactions (`reactions` JSONB array).
@@ -154,7 +154,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Backend `registerCompletedUpload()`:
      - Verifies storage key contains expected user segment `/${user.profileId}/` to prevent key hijacking.
      - **Profile Picture Flow** (`kind === 'profile'`): Updates `user_profiles.profile_pic_url = filename` for `user_id = user.profileId`.
-     - **Drive Item Flow** (`kind === 'drive'`): Fetches partner ID via `getPartnerId()`. Inserts record into `public.drive_items` returning created `item` object.
+     - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then a `cancelled` partnership whose cancellation was requested after the presign). Inserts `name` (R2 key), `original_name` and `partnership_id` into `public.drive_items`, returning the created `item` object.
 
 6. **Realtime Sync & Partner Notification**
    - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart)
@@ -176,11 +176,11 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
   → DriveRepository.deleteDriveItem(id) → ApiService.deleteMediaItem(id)
   → POST /api/v1/media/delete { id } (HMAC-signed, capability can_media_upload)
   → Backend deleteMediaController:
-      - Reads drive_items(id, user_id, partner_id, filename, metadata) via adminSupabase
+      - Reads drive_items(id, partnership_id, name, metadata) via adminSupabase
       - Idempotent: row already gone → 200 no-op (stale retries never resurrect the item)
-      - Rejects 403 if the caller is not user_id/partner_id (AUTH-FAIL-004)
-      - Deletes the drive_items row first (favorites/reactions cascade), re-asserting
-        ownership in the DELETE predicate (defense in depth)
+      - Rejects 403 unless the caller is a member of the item's accepted partnership (AUTH-FAIL-004)
+      - Deletes the drive_items row first (favorites/reactions cascade), re-asserting the
+        partnership in the DELETE predicate (defense in depth)
       - Best-effort R2 cleanup (purgeR2Object): deletes the full-size object and the
         thumbnail (metadata.thumbnail) when present; failures logged, never block the
         response; orphaned objects are reclaimed by retentionJob sweepStaleOrphanObjects
@@ -189,7 +189,7 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 ```
 - Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
 - The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.
-- `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the other member through `partnership_get_cancellation_partner` and inserts the row normally (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
+- `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the cancelled partnership's id via `getPartnershipId()` and inserts the row against it (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
 - The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes, and by the partnership cancellation acceptance endpoint, which sweeps `uploads/<user1>/` and `uploads/<user2>/` for the ex-couple — never `profile/<uid>/`. Failures are logged and the orphan sweep catches leftovers; the database delete is not rolled back.
 
 ---
@@ -238,7 +238,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 - **Download URL Lifetime**: **300 seconds (5 minutes)** (`MEDIA_DOWNLOAD_URL_EXPIRES_SECONDS` in [env.js:39](file:///f:/JustUS/Backend/config/env.js#L39)).
 - **Signed Download Route**: `GET /api/v1/media/download-signed?filename=...`
   - Validates caller authentication.
-  - Queries `public.drive_items` to confirm `media.user_id === userId || media.partner_id === userId`.
+  - Queries `public.drive_items` by `name = filename` and confirms the caller is a member of the item's accepted partnership.
   - Generates S3 `GetObjectCommand` presigned URL and returns an HTTP `302 Redirect` to Cloudflare R2.
 
 ### Disk Caching Architecture (`MediaCacheManager`)
@@ -359,7 +359,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `emoji_get_or_create` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
-| Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.filename` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
+| Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.name` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
 | 15 MB Upload Size Cap | **IMPLEMENTED** | Deliberate 15 MB hard cap on source files: client fast-fail pre-compression (`CompressionService.isWithinSizeLimit`, media_service.dart:46) + backend presign validation on the post-compression `size` (`env.maxUploadBytes`) — intended behavior (todo 5.4), not a defect |
 | Media Thumbnail Generation | **IMPLEMENTED** | Client-side ≤320 px JPEG (`CompressionService.createThumbnail`, `FlutterImageCompress`) generated at upload for image drive items, stored as a `*_thumb.jpg` object in R2 (2nd presigned URL, best-effort) with its key in `drive_items.metadata.thumbnail` (JSONB); grid + favorites render `DriveItem.contentThumb` (tiny file), tap loads the full file. Videos and pre-feature items fall back to full size (todo 5.5) |
 | Audio / PDF Picker Button in UI | **IMPLEMENTED** | Added to media picker sheet via `file_picker` |
