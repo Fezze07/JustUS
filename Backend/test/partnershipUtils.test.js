@@ -9,6 +9,8 @@ jest.mock("../all_imports", () => ({
 const { adminSupabase } = require("../all_imports");
 const {
   getPartnershipId,
+  getPartnershipById,
+  isPartnershipParticipant,
   isPartnershipMember,
 } = require("../utils/misc/partnershipUtils");
 
@@ -24,7 +26,7 @@ const makeBuilder = (result) => {
   return builder;
 };
 
-describe("partnershipUtils media lookups", () => {
+describe("partnershipUtils lookups", () => {
   beforeEach(() => {
     adminSupabase.from.mockReset();
   });
@@ -62,21 +64,71 @@ describe("partnershipUtils media lookups", () => {
     expect(adminSupabase.from).toHaveBeenCalledTimes(2);
   });
 
+  test("getPartnershipById returns the row the cancellation flow needs", async () => {
+    const row = {
+      id: 5,
+      user_id_1: 42,
+      user_id_2: 77,
+      status: "cancelled",
+      cancel_requested_by: 42,
+      cancel_expires_at: "2026-11-01T00:00:00Z",
+    };
+    const query = makeBuilder({ data: row, error: null });
+    adminSupabase.from.mockReturnValue(query);
+
+    await expect(getPartnershipById(5)).resolves.toEqual(row);
+    expect(query.select).toHaveBeenCalledWith(
+      "id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at"
+    );
+    expect(query.eq).toHaveBeenCalledWith("id", 5);
+  });
+
+  test("getPartnershipById returns null for a missing row or a read error", async () => {
+    adminSupabase.from
+      .mockReturnValueOnce(makeBuilder({ data: null, error: null }))
+      .mockReturnValueOnce(
+        makeBuilder({ data: null, error: { message: "db down" } })
+      );
+
+    await expect(getPartnershipById(404)).resolves.toBeNull();
+    await expect(getPartnershipById(5)).resolves.toBeNull();
+  });
+
+  test("isPartnershipParticipant checks both member columns", () => {
+    expect(
+      isPartnershipParticipant({ user_id_1: 42, user_id_2: 77 }, 42)
+    ).toBe(true);
+    expect(
+      isPartnershipParticipant({ user_id_1: 42, user_id_2: 77 }, 77)
+    ).toBe(true);
+    expect(
+      isPartnershipParticipant({ user_id_1: 42, user_id_2: 77 }, 99)
+    ).toBe(false);
+    expect(isPartnershipParticipant(null, 42)).toBe(false);
+  });
+
   test("isPartnershipMember requires an accepted partnership and membership", async () => {
-    const query = makeBuilder({ data: { id: 5 }, error: null });
+    const query = makeBuilder({
+      data: { user_id_1: 42, user_id_2: 77 },
+      error: null,
+    });
     adminSupabase.from.mockReturnValue(query);
 
     await expect(isPartnershipMember(5, 42)).resolves.toBe(true);
+    expect(query.select).toHaveBeenCalledWith("user_id_1, user_id_2");
     expect(query.eq).toHaveBeenCalledWith("id", 5);
     expect(query.eq).toHaveBeenCalledWith("status", "accepted");
-    expect(query.or).toHaveBeenCalledWith("user_id_1.eq.42,user_id_2.eq.42");
+    expect(query.or).not.toHaveBeenCalled();
   });
 
   test("isPartnershipMember rejects a partnership the user does not belong to", async () => {
     adminSupabase.from.mockReturnValue(
-      makeBuilder({ data: null, error: null })
+      makeBuilder({
+        data: { user_id_1: 42, user_id_2: 77 },
+        error: null,
+      })
     );
 
-    await expect(isPartnershipMember(5, 42)).resolves.toBe(false);
+    await expect(isPartnershipMember(5, 99)).resolves.toBe(false);
   });
 });

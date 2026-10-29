@@ -1,4 +1,4 @@
-const { adminSupabase, AppError } = require("../../all_imports");
+const { adminSupabase, AppError, getPartnershipById, isPartnershipParticipant } = require("../../all_imports");
 const { sendNotificationToUser } = require("../notifications/notification.service");
 const { deleteObjectsByPrefix } = require("../media/r2.service");
 
@@ -14,18 +14,34 @@ async function deletePartnershipMedia(user1Id, user2Id) {
   }
 }
 
-async function acceptPartnershipCancellation({ partnershipId, actorId }) {
-  const { data: row, error: loadErr } = await adminSupabase
-    .from("partnerships")
-    .select("id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at")
-    .eq("id", partnershipId)
-    .maybeSingle();
+function throwCancelAcceptError(rpcErr) {
+  const msg = (rpcErr.message || "").toLowerCase();
+  if (msg.includes("api-validation-014")) throw new AppError({ errorKey: "API_VALIDATION_014" });
+  if (msg.includes("api-validation-012")) throw new AppError({ errorKey: "API_VALIDATION_012" });
+  throw rpcErr;
+}
 
-  if (loadErr || !row) throw new AppError({ errorKey: "API_VALIDATION_012" });
+async function notifyCancellationAccepted(requesterId) {
+  if (!requesterId) return;
+  try {
+    await sendNotificationToUser({
+      userId: requesterId,
+      type: "partner",
+      title: "cancellationAccepted",
+      body: "cancellationAccepted",
+    });
+  } catch (e) {
+    console.error("[partnership] Failed to send cancellationAccepted notification", e?.message || e);
+  }
+}
+
+async function acceptPartnershipCancellation({ partnershipId, actorId }) {
+  const row = await getPartnershipById(partnershipId);
+
+  if (!row) throw new AppError({ errorKey: "API_VALIDATION_012" });
 
   if (row.status !== "cancelled") throw new AppError({ errorKey: "API_VALIDATION_012" });
-  const isMember = row.user_id_1 === actorId || row.user_id_2 === actorId;
-  if (!isMember) throw new AppError({ errorKey: "API_VALIDATION_012" });
+  if (!isPartnershipParticipant(row, actorId)) throw new AppError({ errorKey: "API_VALIDATION_012" });
   if (row.cancel_requested_by === actorId) throw new AppError({ errorKey: "API_VALIDATION_012" });
   if (row.cancel_expires_at && new Date(row.cancel_expires_at) <= new Date()) {
     try {
@@ -42,27 +58,10 @@ async function acceptPartnershipCancellation({ partnershipId, actorId }) {
     p_partnership_id: partnershipId,
     p_actor_id: actorId,
   });
-  if (rpcErr) {
-    const msg = (rpcErr.message || "").toLowerCase();
-    if (msg.includes("api-validation-014")) throw new AppError({ errorKey: "API_VALIDATION_014" });
-    if (msg.includes("api-validation-012")) throw new AppError({ errorKey: "API_VALIDATION_012" });
-    throw rpcErr;
-  }
+  if (rpcErr) throwCancelAcceptError(rpcErr);
 
   await deletePartnershipMedia(user1, user2);
-
-  if (requesterId) {
-    try {
-      await sendNotificationToUser({
-        userId: requesterId,
-        type: "partner",
-        title: "cancellationAccepted",
-        body: "cancellationAccepted",
-      });
-    } catch (e) {
-      console.error("[partnership] Failed to send cancellationAccepted notification", e?.message || e);
-    }
-  }
+  await notifyCancellationAccepted(requesterId);
 
   return { success: true };
 }
