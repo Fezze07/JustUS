@@ -105,6 +105,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 ### 3b. Cloudflare R2 Orphaned-Finalized-Object Cleanup
 * **Target Bucket**: Cloudflare R2 `just-us` storage bucket — finalized objects under `uploads/` + `profile/`.
 * **Mechanism**: `sweepStaleOrphanObjects()` lists objects via `r2.service.listObjects` (returns `LastModified`), compares against referenced keys from `drive_items.name`, `drive_items.metadata.thumbnail` (thumbnail objects from the 5.5 pipeline), and `user_profiles.profile_pic_url`, and batch-deletes unreferenced objects (`deleteObjects`) older than the cutoff.
+* **Failure Handling**: a failed referenced-key read is logged as `retention.r2_orphan.failed` with the source (`drive_items` / `user_profiles`) and aborts deletion for that run, so a partial key set can never mark live objects as orphans; R2 listing or deletion failures log the same event with source `r2`.
 * **Execution Schedule**: Runs every 6 hours (`ORPHAN_SWEEP_INTERVAL_MS`).
 * **Cutoff Period**: 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
 * **Grace Window Rationale**: A 24 h cutoff is well above the 300 s presigned-PUT lifetime, so uploads in flight (PUT done, `/complete` pending) are never swept.

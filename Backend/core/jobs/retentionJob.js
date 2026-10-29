@@ -187,13 +187,27 @@ async function sweepExpiredCancellations() {
 async function fetchReferencedKeys() {
   const referenced = new Set();
 
-  const driveRows = assertDbSuccess(
-    await adminSupabase
+  const read = async (source, query) => {
+    try {
+      return assertDbSuccess(await query, "DB_READ_001");
+    } catch (err) {
+      await logError({
+        error: { message: err.message, name: err.name },
+        event: "retention.r2_orphan.failed",
+        source,
+      });
+      return null;
+    }
+  };
+
+  const driveRows = await read(
+    "drive_items",
+    adminSupabase
       .from("drive_items")
       .select("name, metadata")
-      .not("name", "is", null),
-    "DB_READ_001"
+      .not("name", "is", null)
   );
+  if (!driveRows) return null;
 
   for (const row of driveRows) {
     if (row.name) referenced.add(row.name);
@@ -201,13 +215,14 @@ async function fetchReferencedKeys() {
     if (typeof thumb === "string" && thumb) referenced.add(thumb);
   }
 
-  const profileRows = assertDbSuccess(
-    await adminSupabase
+  const profileRows = await read(
+    "user_profiles",
+    adminSupabase
       .from("user_profiles")
       .select("profile_pic_url")
-      .not("profile_pic_url", "is", null),
-    "DB_READ_001"
+      .not("profile_pic_url", "is", null)
   );
+  if (!profileRows) return null;
 
   for (const row of profileRows) {
     if (row.profile_pic_url) referenced.add(row.profile_pic_url);
@@ -222,6 +237,7 @@ async function sweepStaleOrphanObjects() {
 
   try {
     const referenced = await fetchReferencedKeys();
+    if (!referenced) return;
     const cutoff = Date.now() - ORPHAN_MAX_AGE_MS;
     const orphans = [];
     const prefixes = ["uploads/", "profile/"];
@@ -241,7 +257,7 @@ async function sweepStaleOrphanObjects() {
       logInfo("retention.r2_orphans", { deleted: orphans.length });
     }
   } catch (err) {
-    await logError({ error: { message: err.message, name: err.name }, event: "retention.r2_orphans.failed" });
+    await logError({ error: { message: err.message, name: err.name }, event: "retention.r2_orphan.failed", source: "r2" });
   }
 }
 
@@ -290,5 +306,5 @@ async function startRetentionJobs() {
   await initialSweeps;
 }
 
-module.exports = { startRetentionJobs, stopRetentionJobs };
+module.exports = { startRetentionJobs, stopRetentionJobs, fetchReferencedKeys };
 

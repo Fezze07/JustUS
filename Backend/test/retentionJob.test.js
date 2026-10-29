@@ -36,6 +36,11 @@ jest.mock("../features/media/r2.service", () => ({
   isConfigured: jest.fn().mockReturnValue(true),
 }));
 
+jest.mock("../core/logger", () => ({
+  logError: jest.fn().mockResolvedValue(undefined),
+  logInfo: jest.fn(),
+}));
+
 jest.mock("../config/db", () => {
   const tablesData = {
     drive_items: [{ name: "uploads/active_file.jpg", metadata: null }],
@@ -83,7 +88,8 @@ jest.mock("../config/db", () => {
 });
 
 const { adminSupabase, __queryBuilder, __fromMock, __driveItemsSelect } = require("../config/db");
-const { startRetentionJobs, stopRetentionJobs } = require("../core/jobs/retentionJob");
+const { startRetentionJobs, stopRetentionJobs, fetchReferencedKeys } = require("../core/jobs/retentionJob");
+const { logError } = require("../core/logger");
 const { AbortMultipartUploadCommand } = require("@aws-sdk/client-s3");
 
 describe("retentionJob - all cleanup jobs", () => {
@@ -140,6 +146,32 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(mockListObjects).toHaveBeenCalledWith("uploads/");
     expect(mockListObjects).toHaveBeenCalledWith("profile/");
     expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/stale_orphan.jpg"]);
+  });
+
+  test("fetchReferencedKeys includes a seeded drive item key", async () => {
+    const keys = await fetchReferencedKeys();
+
+    expect(keys.has("uploads/active_file.jpg")).toBe(true);
+  });
+
+  test("logs a failed referenced-key source and still runs the multipart sweep", async () => {
+    __driveItemsSelect.mockReturnValueOnce({
+      not: jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: "column drive_items.name does not exist", code: "42703" },
+      }),
+    });
+
+    await startRetentionJobs();
+
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "retention.r2_orphan.failed",
+        source: "drive_items",
+      })
+    );
+    expect(mockS3Send).toHaveBeenCalled();
+    expect(mockDeleteObjects).not.toHaveBeenCalled();
   });
 
   test("ages out unrefreshed rows even when the dead-session prune found none", async () => {
