@@ -188,6 +188,7 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 41. **The recipient guard reuses `API-VALIDATION-004` and allows recipient `pending` rows.** The client string is already generic, so no new code or catalog plumbing is needed; several pending invitations to one recipient are legitimate, while an `accepted` or `cancelled` row makes a new request unacceptable. → `docs/backend/error-handling/doc.md` § 3. Database RPC validation errors (`API-VALIDATION-*`).
 42. **The debug wipe is per-couple, not per-user.** `debug_wipe_couple_data(p_user_id)` resolves the caller's `accepted` partnership, deletes the couple's shared rows and both members' user-scoped rows, and keeps the `partnerships` row so the debug pair stays connected ("Reset everything except account"). A caller with no accepted partnership clears only their own user-scoped rows; `pending`/`cancelled` rows are not a couple and are left untouched. The `debug_` prefix is still deliberate (decision 26). → `docs/features/profile-settings/doc.md` § Edge Cases, `docs/supabase/database-logic/doc.md` § `debug_wipe_couple_data(p_user_id integer)`.
 43. **The mood timestamp and checkpoint come from the server, never the device clock.** `mood_set` returns the inserted `public.moods` row and the client reads `created_at` from it; the `kMoods` checkpoint is the newest `created_at` actually returned. The optimistic entry keeps the previous server timestamp until the response arrives, so an in-flight checkpoint write cannot ingest a future device value, and `_updateMoodsCheckpoint` logs and resets a stored checkpoint that is ahead of the newest returned row (legacy device-clock checkpoints). The guard only runs on a fetch: a legacy future checkpoint can still suppress a cold-start fetch until an update or realtime event triggers one. → `docs/features/mood/doc.md` § Timestamps & Ordering, `docs/supabase/database-logic/doc.md` § `mood_set(p_emoji_char text)`.
+44. **The cancellation-accept endpoint identifies the actor by internal profile id, not the auth UUID.** `partnerships.user_id_1`/`user_id_2` and `partnership_cancel_accept(p_actor_id integer)` use `users.id`, so the controller passes `req.user.profileId`; the Supabase UUID in `req.user.id` belongs only to auth/session concerns. `API_VALIDATION_012` and `API_VALIDATION_014` were added to `ERROR_CODES` so this endpoint returns the same stable codes as the RPC path instead of collapsing both rejections into `SYS-FAIL-001`. → `docs/backend/api-architecture/doc.md` § `POST /api/v1/partnership/cancel/accept`, `docs/features/partnership/doc.md` § Acceptance.
 
 ---
 
@@ -251,5 +252,6 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `Flutter/test/app_routes_test.dart` | 12.4 |
 | `Flutter/test/mood_server_timestamp_test.dart` | 12.5 |
 | `supabase/test/mood_set.test.sql` | 12.5 |
+| `Backend/test/partnership.routes.test.js` | 12.7 |
 
 ---

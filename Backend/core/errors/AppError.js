@@ -29,6 +29,8 @@ const ERROR_CODES = {
   API_VALIDATION_005: { code: "API-VALIDATION-005", status: 400, message: "Invalid partner email or code" },
   API_VALIDATION_006: { code: "API-VALIDATION-006", status: 400, message: "Cannot invite yourself" },
   API_VALIDATION_007: { code: "API-VALIDATION-007", status: 400, message: "No active partnership found" },
+  API_VALIDATION_012: { code: "API-VALIDATION-012", status: 400, message: "Cancellation action not allowed" },
+  API_VALIDATION_014: { code: "API-VALIDATION-014", status: 400, message: "Cancellation request expired" },
   API_NOT_FOUND_001: { code: "API-NOT_FOUND-001", status: 404, message: "Endpoint not found" },
   API_TIMEOUT_001: { code: "API-TIMEOUT-001", status: 504, message: "Request timed out" },
   API_FAIL_001: { code: "API-FAIL-001", status: 500, message: "Unexpected API error" },
