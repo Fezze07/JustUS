@@ -64,7 +64,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
    - [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js): Route handlers `presignUploadController`, `completeUploadController`, and `redirectToSignedDownloadController`.
 
 3. **Database Layer (Supabase / PostgreSQL)**:
-   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `file_type_id`, `metadata` (JSONB), `created_at`, `updated_at`.
+   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `file_type_id`, `metadata` (JSONB), `created_at`, `updated_at`. Do not add `filename` / `user_id` / `partner_id` columns: `name` and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so duplicating them would need a data migration.
    - `public.favorites`: Stores user favorites (`user_id`, `item_id`).
    - `public.drive_item_reactions`: Stores emoji reactions (`id`, `item_id`, `user_id`, `emoji_id`).
    - `v_drive_dashboard`: Security invoker database view returning drive items for the calling user's partnership, joined with user favorites (`is_favorite` boolean) and aggregated emoji reactions (`reactions` JSONB array).

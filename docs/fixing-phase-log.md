@@ -23,6 +23,7 @@
 | 9 | Findings that were never planned | 9.1–9.9 | All fixed. Failed-login reporting plus route idempotency, token and session revocation on logout and password change, server-side password policy, a distinct-email risk cap, a docs reconciliation sweep, and the `user_devices` retention and session-linked prune |
 | 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `partnership_reject` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
 | 11 | Security & privilege | 11.1–11.13 | All fixed. No client INSERT policy on `partnerships`; immutable membership and identity columns; `DELETE` limited to pending rows; `anon`/`PUBLIC` EXECUTE revoked and ACLs pinned in each function file; notification receivers resolved from the partnership; a DB-authoritative nonce check; server-side session-expiry validation; a signed-route boundary pinned by a route-table test; and an invite-recipient guard |
+| 12 | Data integrity, media & routing | 12.1–12.7 | All fixed. Backend migrated to the real `drive_items` contract; the R2 orphan sweep guarded per source; the debug wipe scoped to the accepted couple; named routes resolved by an explicit table; the mood checkpoint taken from the server; the dead `pending_received` path deleted; and cancellation acceptance keyed by profile id |
 
 ---
 
@@ -138,6 +139,13 @@
 | 11.11 | `notify.routes.js` has an unreachable route and a shared rate-limit bucket | Fixed (dead route deleted; `limited()` stays before `validated()`) | 2026-10-28 |
 | 11.12 | Three authenticated mutating routes are unsigned | Fixed (all three signed; signed-route table pinned by a test) | 2026-10-28 |
 | 11.13 | A partnership request can be addressed to an already-paired user | Fixed (recipient guard; `API-VALIDATION-004` reused) | 2026-10-28 |
+| 12.6 | Orphaned `PartnerState` rejection branch is dead code | Fixed (dead `pending_received` path deleted) | 2026-10-12 |
+| 12.1 | The media data contract does not match the schema | Fixed (backend migrated to `name`/`partnership_id`) | 2026-10-29 |
+| 12.2 | The R2 orphan sweep throws on every run | Fixed (per-source guard; aborts before deletion) | 2026-10-29 |
+| 12.3 | The wipe destroys the partner's data and keeps the row | Fixed (`debug_wipe_couple_data` scoped to the accepted couple) | 2026-10-29 |
+| 12.4 | Every named route resolves to `SplashScreen` | Fixed (explicit route table; unknown names return `null`) | 2026-10-29 |
+| 12.5 | The mood checkpoint is written from the device clock | Fixed (`mood_set` returns the server-stamped row) | 2026-10-29 |
+| 12.7 | Cancellation acceptance passes the auth UUID | Fixed (`req.user.profileId`; missing error codes added) | 2026-10-29 |
 
 ---
 
@@ -189,6 +197,8 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 42. **The debug wipe is per-couple, not per-user.** `debug_wipe_couple_data(p_user_id)` resolves the caller's `accepted` partnership, deletes the couple's shared rows and both members' user-scoped rows, and keeps the `partnerships` row so the debug pair stays connected ("Reset everything except account"). A caller with no accepted partnership clears only their own user-scoped rows; `pending`/`cancelled` rows are not a couple and are left untouched. The `debug_` prefix is still deliberate (decision 26). → `docs/features/profile-settings/doc.md` § Edge Cases, `docs/supabase/database-logic/doc.md` § `debug_wipe_couple_data(p_user_id integer)`.
 43. **The mood timestamp and checkpoint come from the server, never the device clock.** `mood_set` returns the inserted `public.moods` row and the client reads `created_at` from it; the `kMoods` checkpoint is the newest `created_at` actually returned. The optimistic entry keeps the previous server timestamp until the response arrives, so an in-flight checkpoint write cannot ingest a future device value, and `_updateMoodsCheckpoint` logs and resets a stored checkpoint that is ahead of the newest returned row (legacy device-clock checkpoints). The guard only runs on a fetch: a legacy future checkpoint can still suppress a cold-start fetch until an update or realtime event triggers one. → `docs/features/mood/doc.md` § Timestamps & Ordering, `docs/supabase/database-logic/doc.md` § `mood_set(p_emoji_char text)`.
 44. **The cancellation-accept endpoint identifies the actor by internal profile id, not the auth UUID.** `partnerships.user_id_1`/`user_id_2` and `partnership_cancel_accept(p_actor_id integer)` use `users.id`, so the controller passes `req.user.profileId`; the Supabase UUID in `req.user.id` belongs only to auth/session concerns. `API_VALIDATION_012` and `API_VALIDATION_014` were added to `ERROR_CODES` so this endpoint returns the same stable codes as the RPC path instead of collapsing both rejections into `SYS-FAIL-001`. → `docs/backend/api-architecture/doc.md` § `POST /api/v1/partnership/cancel/accept`, `docs/features/partnership/doc.md` § Acceptance.
+45. **The backend was migrated to the `drive_items` schema, not the schema to the backend.** `name` (R2 key) and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so adding `filename` / `user_id` / `partner_id` columns would duplicate state and require a data migration. → `docs/features/shared-drive/doc.md` § Architecture & Component Mapping.
+46. **An R2 orphan-sweep read failure aborts the run before any deletion.** Treating an unread key source as empty would mark live objects as orphans; the sweep logs `retention.r2_orphan.failed` per source and skips the delete pass instead. → `docs/backend/infrastructure/doc.md` § Background Maintenance & Retention Jobs.
 
 ---
 
@@ -248,6 +258,7 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `supabase/test/rls_partnership_creation.test.sql` | 11.1 |
 | `supabase/test/rls_partnership_cancellation.test.sql` | 11.3 |
 | `Backend/test/signing-boundary.test.js` | 11.12 |
+| `Backend/test/partnershipUtils.test.js` | 12.1 |
 | `supabase/test/debug_wipe_couple_data.test.sql` | 12.3 |
 | `Flutter/test/app_routes_test.dart` | 12.4 |
 | `Flutter/test/mood_server_timestamp_test.dart` | 12.5 |
