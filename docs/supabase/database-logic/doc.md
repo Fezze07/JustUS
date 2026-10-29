@@ -209,7 +209,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Purpose:** Records user mood state by looking up or dynamically registering the emoji character and attaching the caller's `accepted` partnership id (NULL when unpaired).
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
 * **Inputs:** `p_emoji_char` (`text`).
-* **Outputs:** `void`.
+* **Outputs:** `public.moods` — the inserted row (`id`, `user_id`, `created_at`, `mood_type_id`, `partnership_id`). The client takes the server-generated `created_at` from it.
 * **Tables Touched:** `emojis` (READ, INSERT via `emoji_get_or_create`), `partnerships` (READ), `moods` (INSERT).
 * **Caller:** Flutter Frontend ([mood_repository.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart)).
 

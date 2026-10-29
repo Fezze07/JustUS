@@ -82,13 +82,38 @@ class MoodState extends BaseState with CheckpointMixin {
   int _beginCheckpointToken() => ++_checkpointToken;
 
   Future<void> _updateMoodsCheckpoint({required int epoch, int? token}) async {
+    final timestamps = [
+      ..._timeline.map((entry) => entry.createdAt),
+      _userMoodUpdatedAt,
+      _partnerMoodUpdatedAt,
+    ];
+
+    // Forward-skew guard: a checkpoint written by the old device-clock path
+    // can sit ahead of every server row and suppress fetches forever. The
+    // write below resets it to the newest row actually returned; log that so
+    // the recovery is visible instead of silent.
+    final newest = timestamps
+        .whereType<String>()
+        .map(DateTime.tryParse)
+        .whereType<DateTime>()
+        .fold<DateTime?>(null,
+            (latest, t) => latest == null || t.isAfter(latest) ? t : latest);
+    final stored = await CacheService.getCheckpoint(CacheService.kMoods);
+    final storedAt = stored == null || stored == CacheService.kCheckpointEmpty
+        ? null
+        : DateTime.tryParse(stored);
+    if (newest != null && storedAt != null && storedAt.isAfter(newest)) {
+      AnsiLogger.log(
+        'mood checkpoint $stored is ahead of the newest returned row '
+        '${newest.toUtc().toIso8601String()}; resetting',
+        color: AnsiLogger.yellow,
+        tag: 'MoodState',
+      );
+    }
+
     await saveMaxTimestampCheckpoint(
       checkpointKey: CacheService.kMoods,
-      timestamps: [
-        ..._timeline.map((entry) => entry.createdAt),
-        _userMoodUpdatedAt,
-        _partnerMoodUpdatedAt,
-      ],
+      timestamps: timestamps,
       epoch: epoch,
       writerToken: token,
       currentToken: token == null ? null : _checkpointToken,
@@ -264,8 +289,6 @@ class MoodState extends BaseState with CheckpointMixin {
     final epoch = CacheService.checkpointEpoch;
     final token = _beginCheckpointToken();
     await runSafe(() async {
-      final now = DateTime.now().toUtc().toIso8601String();
-
       // Optimistic update — in-memory only. The cache is never written before
       // the server confirms, so a failed (or killed) update cannot persist a
       // phantom `id:0,userId:0` timeline entry (F-SC14).
@@ -275,13 +298,19 @@ class MoodState extends BaseState with CheckpointMixin {
       final previousTimeline = List<MoodEntry>.from(_timeline);
       final previousTimelineOffset = _timelineOffset;
       _userMood = emoji;
-      _userMoodUpdatedAt = now;
+      // Keep the last server timestamp until the server returns the new row:
+      // these values feed the checkpoint, and a device-clock stamp would
+      // poison it (audit 3.7).
       _recentEmojis = [emoji, ..._recentEmojis.where((e) => e != emoji)];
       const maxTimelineItems = 5;
       _timeline.insert(
           0,
           MoodEntry(
-              id: 0, userId: 0, isMine: true, emoji: emoji, createdAt: now));
+              id: 0,
+              userId: 0,
+              isMine: true,
+              emoji: emoji,
+              createdAt: previousTimestamp ?? ''));
       if (_timeline.length > maxTimelineItems) {
         _timeline.removeLast();
       } else {

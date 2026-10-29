@@ -7,7 +7,11 @@ class MoodRepository extends BaseRepository {
 
   Future<ResultWrapper<MoodEntry>> updateMood(String emojiChar) async {
     return withUser((uid) async {
-      await sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar});
+      // The server stamps `created_at`; the returned row is the only source
+      // for the checkpoint, so a wrong device clock cannot poison it.
+      final row = await sbClient.rpc('mood_set', params: {
+        'p_emoji_char': emojiChar,
+      });
 
       unawaited(notifyPartnerOnce(
         notificationKey: 'moodUpdated',
@@ -18,9 +22,8 @@ class MoodRepository extends BaseRepository {
       ));
 
       return MoodEntry.fromJson({
-        'user_id': uid,
+        ...(row as Map<String, dynamic>),
         'emoji': emojiChar,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
       }, currentUserId: uid);
     });
   }

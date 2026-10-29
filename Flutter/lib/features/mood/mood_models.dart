@@ -27,7 +27,8 @@ class MoodResponse {
   MoodResponse({required this.success, this.emoji, this.createdAt});
 
   factory MoodResponse.fromJson(Map<String, dynamic> json) {
-    // RPC mood_set returns void; fetching mood returns emoji_char from emojis table
+    // Fetching a mood returns emoji_char from the emojis table; mood_set
+    // returns the inserted row and is mapped through MoodEntry.fromJson.
     return MoodResponse(
       success: (json['success'] as bool?) ?? true,
       emoji: (json['emoji_char'] ?? json['emoji']) as String?,

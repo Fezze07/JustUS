@@ -40,7 +40,7 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 2. **Database Layer (Supabase / PostgreSQL)**:
    - `public.emojis`: Dictionary table storing unique emoji character strings (`id` bigint PK, `emoji_char` text UNIQUE).
    - `public.moods`: Historical log of mood entries (`id` integer PK, `user_id` integer FK, `mood_type_id` bigint FK to `emojis.id`, `partnership_id` integer FK to `partnerships.id`, `created_at` timestamptz).
-   - `mood_set(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis` and appends a new entry into `public.moods`, tagged with the caller's `accepted` `partnership_id` (NULL when the caller has none).
+   - `mood_set(p_emoji_char)` RPC: Stored procedure that resolves or inserts the emoji into `public.emojis`, appends a new entry into `public.moods`, tagged with the caller's `accepted` `partnership_id` (NULL when the caller has none), and returns the inserted row including the server-generated `created_at`.
 
 ---
 
@@ -99,8 +99,8 @@ User Action (Select Emoji in Sheet or Custom Input)
                   Database Persistence                    Partner Realtime Sync
           1. Resolves/Inserts public.emojis            1. Supabase Realtime emits
           2. Inserts public.moods row                     INSERT on public.moods
-          3. Returns success response                  2. Partner RealtimeSyncService
-                                                          receives payload
+          3. Returns the persisted row                 2. Partner RealtimeSyncService
+             (server created_at)                         receives payload
                            │                           3. Invokes fetchPartnerMood()
                            │                              & fetchTimeline()
                            │                           4. UI updates on partner device
@@ -121,21 +121,22 @@ User Action (Select Emoji in Sheet or Custom Input)
    - **Duplicate Validation**: Compares selected emoji against `context.read<MoodState>().userMood`. If equal, triggers `ErrorCodes.localMoodDuplicate` ("Hai già impostato questa emoji come mood attuale") and aborts.
 
 2. **Optimistic Local State Update**
-   - File: [mood_state.dart:233-257](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart#L233-L257)
+   - File: [mood_state.dart:288-335](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart#L288-L335)
    - Backs up previous state (`previousMood`, `previousTimestamp`, `previousTimeline`).
-   - Sets `_userMood = emoji` and `_userMoodUpdatedAt = now`.
+   - Sets `_userMood = emoji` and leaves `_userMoodUpdatedAt` at the last server value until the response arrives.
    - Prepends emoji to `_recentEmojis` (deduplicating existing occurrences).
-   - Inserts new `MoodEntry` at index 0 of `_timeline` (capping initial view at 5 items).
-   - Saves updated state asynchronously to `StorageService` (`saveMood`, `saveRecentEmojis`, `saveTimeline`).
+   - Inserts new `MoodEntry` at index 0 of `_timeline` (capping initial view at 5 items) with the previous server timestamp as its placeholder.
+   - Keeps the optimistic state **in memory only**; the cache is written after the server confirms (F-SC14).
    - Calls `notifyListeners()`, refreshing local UI instantly.
 
 3. **Backend & Database RPC Execution**
-   - File: [mood_repository.dart:8-29](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L8-L29)
-   - Invokes `sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar})`.
+   - File: [mood_repository.dart:8-27](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L8-L27)
+   - Invokes `sbClient.rpc('mood_set', params: {'p_emoji_char': emojiChar})`. The RPC returns the inserted `public.moods` row.
    - In PostgreSQL, procedure `mood_set`:
      - Resolves the caller's `accepted` partnership id (`partnerships` where the caller is a member and `status = 'accepted'`), NULL if none.
      - Calls `emoji_get_or_create(p_emoji_char)` to resolve or insert the emoji string in `public.emojis`.
-     - Inserts a row into `public.moods` with `user_id = user_current_id()`, `mood_type_id`, `partnership_id` and `created_at = NOW()`.
+     - Inserts a row into `public.moods` with `user_id = user_current_id()`, `mood_type_id`, `partnership_id` and `created_at = NOW()` (server default), then returns the persisted row.
+   - Maps the returned row through `MoodEntry.fromJson`, taking `created_at` from the server, never from `DateTime.now()`.
    - Fires asynchronous partner push notification request via `notifyPartnerOnce(notificationKey: 'moodUpdated', params: {'emojiChar': emojiChar})`.
 
 4. **Realtime Broadcast & Partner UI Update**
@@ -149,10 +150,10 @@ User Action (Select Emoji in Sheet or Custom Input)
    - Partner's app invokes `fetchPartnerMood()`, `fetchRecentEmojis()`, and `fetchTimeline()`, updating the partner's UI.
 
 5. **Failure Rollback**
-   - File: [mood_state.dart:271-280](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart#L271-L280)
+   - File: [mood_state.dart:340-352](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart#L340-L352)
    - If the RPC network call fails, `result.isError` evaluates to `true`.
-   - `MoodState` restores `_userMood`, `_userMoodUpdatedAt`, and `_timeline` to their pre-tap values.
-   - Reverts `StorageService` values and calls `notifyListeners()`.
+   - `MoodState` restores `_userMood`, `_userMoodUpdatedAt`, `_recentEmojis`, and `_timeline` to their pre-tap values.
+   - The cache was never written optimistically, so it already reflects the pre-update state; `notifyListeners()` repaints.
 
 ---
 
@@ -189,7 +190,9 @@ User Action (Select Emoji in Sheet or Custom Input)
 ## Operational Mechanics & Behaviors
 
 ### 1. Timestamps & Ordering
-- Timestamps are generated by PostgreSQL (`created_at DEFAULT NOW()`) or UTC ISO8601 strings.
+- `public.moods.created_at` is generated by PostgreSQL (`DEFAULT NOW()`); `mood_set` returns the persisted row and the client takes `created_at` from it. The device clock never stamps a mood row or its checkpoint.
+- The `CacheService.kMoods` checkpoint is the newest `created_at` actually returned by the server, so a device clock that runs ahead cannot suppress future fetches.
+- **Forward-skew guard**: if a response's newest `created_at` is behind the stored checkpoint (for example a legacy checkpoint written by the old device-clock path), `MoodState._updateMoodsCheckpoint` logs the regression and resets the checkpoint to the returned timestamp.
 - All queries sort entries explicitly using `.order('created_at', ascending: false)`.
 
 ### 2. Duplicate Behavior
@@ -201,9 +204,9 @@ User Action (Select Emoji in Sheet or Custom Input)
 
 ### 4. Caching & Checkpoint Behavior
 - Implements `CheckpointMixin` with key `CacheService.kMoods`.
-- `_hasMoodChanges()` checks `MoodRepository.hasNewMoods()`, which queries `public.moods` for `created_at > cached_checkpoint_timestamp`.
+- `_hasMoodChanges()` checks `MoodRepository.hasNewMoods()`, which compares the server's newest `public.moods.created_at` with the cached checkpoint (strictly newer -> fetch).
 - If no new rows exist, loads data from local `StorageService` (`getMood`, `getRecentEmojis`, `getTimeline`).
-- If new rows exist, fetches network data and updates the max timestamp checkpoint.
+- If new rows exist, fetches network data and updates the max timestamp checkpoint from the newest returned row.
 
 ---
 
