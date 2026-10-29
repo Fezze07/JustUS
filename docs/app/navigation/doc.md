@@ -2,14 +2,14 @@
 
 ## Overview
 
-The JustUS Flutter app uses **imperative, widget-driven navigation**: plain `Navigator.push` / `pushReplacement` / `pushAndRemoveUntil` with inline `MaterialPageRoute` builders. There is **no routing package** (no `go_router`, `auto_route`, `uni_links`, or `app_links` in `pubspec.yaml` dependencies), no `onGenerateRoute`, no `onGenerateInitialRoutes`, and no centralized navigation service.
+The JustUS Flutter app uses **imperative navigation by name**: `MaterialApp.onGenerateRoute` maps the `AppRoutes` constants to screens, and call sites use `Navigator.pushNamed` / `pushReplacementNamed` / `pushNamedAndRemoveUntil`. There is **no routing package** (`go_router`, `auto_route`) and no `Router`/`onGenerateInitialRoutes`; the route table in `main.dart` is the single source of named destinations. Unknown names return `null`; Flutter's built-in deep-link routing is disabled, so auth callbacks are handled by Supabase instead of the Navigator.
 
-Navigation **decision logic** (which screen to show after login/register/startup) is duplicating in four widget files (`SplashScreen`, `LoginScreen`, `RegisterScreen`, `PartnerScreen`), plus `LogoutUtils`. Runtime partnership loss adds a reverse redirect in `MainShell` and `PartnerState`. No `AuthState`/`PartnerState` provider performs forward navigation - the state layer stops at exposing `isLoggedIn` / `hasPartner`, and the widgets react to those getters synchronously after awaited actions. The only state-layer navigation is the cancellation reverse teleport in `PartnerState` (through the global navigator key).
+The post-authentication decision (which screen to show after startup, login or password reset) is centralized in `AuthNavigationUtils.determinePostAuthRouteName` / `determinePostAuthDestination`, which return one of `AppRoutes.mainShell`, `AppRoutes.partner` or `AppRoutes.login`. Runtime partnership loss adds a reverse redirect in `MainShell` and `PartnerState`. No `AuthState`/`PartnerState` provider performs forward navigation - the state layer stops at exposing `isLoggedIn` / `hasPartner`, and the callers navigate after awaiting them. The only state-layer navigation is the cancellation reverse teleport in `PartnerState` (through the global navigator key) and the password-recovery push in `AuthState`.
 
 The navigation graph consists of exactly two "shells":
 
 - **Auth shell**: `LoginScreen` / `RegisterScreen` / `SplashScreen` / `PartnerScreen`.
-- **App shell**: `MainShell` with a 7-tab `IndexedStack`, exclusively reached with `MainShell(key: MainShell.shellKey)` (a global `static` key shared by 3 call sites).
+- **App shell**: `MainShell` with a 7-tab `IndexedStack`; it publishes `MainShellScope` so descendants call `MainShell.of(context)?.switchToTab(...)`.
 
 Everything else (`LocalizationScreen`, `ChangePasswordScreen`, `ProfileScreen` pushed from the home menu, `DriveItemScreen`) is pushed **on top** of `MainShell` or `PartnerScreen` and has a back affordance (`VPHeader.onBack`/`Navigator.pop`).
 
@@ -19,15 +19,15 @@ Everything else (`LocalizationScreen`, `ChangePasswordScreen`, `ProfileScreen` p
 
 | Mechanism | Used for | Evidence |
 |---|---|---|
-| `MaterialApp.home` | `home: SplashScreen()` | `main.dart:135` |
-| `routes:` map (named) | `/login`, `/register`, `/homepage`, `/partner`, `/localization`, `/change-password` | `main.dart:136-143` |
-| `pushNamed` | `/localization` (profile_screen.dart:270), `/change-password` (profile_screen.dart:327), `/login` (error_handler.dart:262) | |
-| `push` + `MaterialPageRoute` | Login->Register; HomepageMenu->ProfileScreen; Drive->DriveItemScreen; Favorites->DriveItemScreen | login_screen.dart:33, homepage_screen.dart:167, drive_screen.dart:290, favorites_screen.dart:100 |
-| `pushReplacement` + `MaterialPageRoute` | Splash->{MainShell,PartnerScreen,Login}; Login->{MainShell,PartnerScreen}; PartnerScreen->MainShell (2 sites) | splash_screen.dart:37-40, login_screen.dart:108, partner_screen.dart:113,358 |
-| `pushReplacementNamed` | Profile cancellation request -> PartnerScreen; PartnerScreen restore/decline -> MainShell; PartnerScreen accept -> stays (cancellation branch) | profile_screen.dart (cancellation request), partner_screen.dart (restore/decline) |
-| `pushAndRemoveUntil((r)=>false)` | Register->PartnerScreen; Logout->LoginScreen; Reauth->LoginScreen; runtime partnership loss->PartnerScreen (`MainShell`/`PartnerState`, through the global navigator) | register_screen.dart:107, logout_utils.dart:43, error_handler.dart:262, main_shell.dart:130-147, partner_state.dart:_teleportIfEnded |
-| `pop` | Back buttons, dialogs, register->login footer | register_screen.dart:34, profile_screen.dart:134, etc. |
-| Static `GlobalKey<MainShellState>` | Cross-tab jumps from content screens | main_shell.dart:5, homepage_screen.dart:193/369/471/530 |
+| `MaterialApp.home` | `home: SplashScreen()` | `main.dart` |
+| `MaterialApp.onGenerateRoute` | `AppRoutes` table: `/`, `/login`, `/register`, `/reset-password`, `/change-password`, `/localization`, `/partner`, `/main`, `/drive/item` (integer argument) | `main.dart` `generateAppRoute` |
+| `pushNamed` | `/register`, `/reset-password` (password-recovery event), `/localization`, `/change-password`, `/drive/item` | login_screen.dart, auth_state.dart, profile_screen.dart, drive_screen.dart, favorites_screen.dart |
+| `pushReplacementNamed` | Splash/Login/ResetPassword -> post-auth destination; Profile cancellation request -> PartnerScreen; PartnerScreen restore/decline -> MainShell | splash_screen.dart, login_screen.dart, reset_password_screen.dart, profile_screen.dart, partner_screen.dart |
+| `pushNamedAndRemoveUntil` | Logout -> LoginScreen; reauth -> LoginScreen; runtime partnership loss -> PartnerScreen (`MainShell`/`PartnerState`, through the global navigator) | logout_utils.dart, error_handler.dart, main_shell.dart, partner_state.dart |
+| `pop` | Back buttons, dialogs, register->login footer | register_screen.dart, profile_screen.dart, etc. |
+| `MainShell.of(context)` | Cross-tab jumps from content screens (`MainShellScope`) | main_shell.dart, homepage_screen.dart |
+
+Every screen push is by name; the only `MaterialPageRoute` in `lib/` is the one `generateAppRoute` returns. Unknown names return `null`.
 
 `MaterialApp.navigatorKey` is `ErrorHandler.navigatorKey` (error_handler.dart:27) - used by `ErrorHandler` and `CaptchaService` to navigate/show dialogs without a widget context, and by `PartnerState` for the cancellation reverse teleport above pushed routes.
 
@@ -39,9 +39,9 @@ Everything else (`LocalizationScreen`, `ChangePasswordScreen`, `ProfileScreen` p
 
 1. `main()` -> `runZonedGuarded` -> ensures binding, `dotenv`, `StorageService.init`, `SupabaseService.initialize`, optional Firebase, `NotificationService.init`, `LanguageProvider.loadSavedLocale`.
 2. `runApp(JustUsApp(...))` -> `MultiProvider` (11 eager states) -> `RealtimeSyncScope` -> `Selector2` -> `MaterialApp`.
-3. `MaterialApp.empty: home: SplashScreen()`. **Every app start begins at `SplashScreen`**; `initState` fires `unawaited(_checkAuth())`.
+3. `MaterialApp`: `home: SplashScreen()`, `navigatorKey: ErrorHandler.navigatorKey`, `onGenerateRoute: generateAppRoute`. **Every app start begins at `SplashScreen`**; `initState` fires `unawaited(_checkAuth())`.
 
-No `onGenerateInitialRoutes`, no deep-link startup handling, and no `FirebaseMessaging` "getInitialMessage" consumption at startup (only local-notification `getNotificationAppLaunchDetails`, and its payload goes to the unlistened `onNotificationTap` stream - see Notification-driven navigation).
+There is no `onGenerateInitialRoutes`; a cold-start deep link would be resolved by the default initial-route algorithm, but Flutter's built-in deep-link routing is disabled on Android (`flutter_deeplinking_enabled=false`) so the Supabase SDK's `app_links` listener consumes auth callbacks instead of the Navigator. No `FirebaseMessaging` "getInitialMessage" consumption exists at startup (only local-notification `getNotificationAppLaunchDetails`, and its payload goes to the unlistened `onNotificationTap` stream - see Notification-driven navigation).
 
 ---
 
@@ -54,9 +54,9 @@ initState -> unawaited(_checkAuth())
 _checkAuth:
   try { await authState.init().timeout(8s) } catch { log only }
   if !mounted return
-  destination = await AuthNavigationUtils.determinePostAuthDestination(context)
+  destination = await AuthNavigationUtils.determinePostAuthRouteName(context)
   if !mounted return
-  pushReplacement destination
+  pushReplacementNamed(destination)
 ```
 
 Observations:
@@ -65,7 +65,7 @@ Observations:
 - `_checkAuth()` wraps only `init()` in a `try/catch`: an initialization error (slow session-bind, lost connection) is **logged and then routed by the same post-auth decision as the happy path**. The catch does **not** force `LoginScreen`; the session state decides. A user whose local session is still valid keeps it (the runtime symptom of the old forced-login was a slow `/auth/session-bind` timing out at 8 s while the JWT was still good).
 - The 8 s cap does not cancel the in-flight `init()`: the abandoned future still completes, and a later `session-bind` response is still stored.
 - `fetchPartnership()` failures are handled by `runSafe` -> `ErrorHandler` (snackbar/dialog), **and `partner` stays null** -> the splash **navigates to `PartnerScreen` even when a partnership actually exists**. This is a navigation decision based on failed data. `PartnerScreen` self-heals: it shows the existing-partner card (its own `ProfileState` load) whose tap goes to `MainShell`.
-- Uses inline `MaterialPageRoute`, ignoring the declared `/homepage` and `/partner` named routes.
+- Navigates by name: `AuthNavigationUtils.determinePostAuthRouteName` returns `AppRoutes.mainShell`, `AppRoutes.partner` or `AppRoutes.login`, and the splash calls `pushReplacementNamed`.
 
 ### Failed session restoration behavior (reconstruction)
 
@@ -77,17 +77,18 @@ Observations:
 
 ## Session-based routing
 
-The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is reimplemented at **five** sites:
+The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is centralized in `AuthNavigationUtils` and used by every forward auth flow:
 
 | Site | Condition | Destination | Evidence |
 |---|---|---|---|
-| SplashScreen._checkAuth | isLoggedIn && partner!=null / isLoggedIn && partner==null / !isLoggedIn | MainShell / PartnerScreen / LoginScreen | splash_screen.dart:30-40 |
-| LoginScreen onPressed | login() success && hasPartner | MainShell / PartnerScreen | login_screen.dart:105-115 |
-| RegisterScreen onPressed | register() success | confirm-email dialog -> pop,pop -> Login (email verification mandatory) | register_screen.dart:96-130 |
-| PartnerScreen accept invitation | acceptInvitation success | MainShell | partner_screen.dart:358-363 |
-| PartnerScreen existing-partner card tap | partner != null | MainShell | partner_screen.dart:113-118 |
+| SplashScreen._checkAuth | `init()` completes, then `determinePostAuthRouteName` | MainShell / PartnerScreen / LoginScreen via `pushReplacementNamed` | splash_screen.dart |
+| LoginScreen onPressed | `login()` success, then `determinePostAuthRouteName` | MainShell / PartnerScreen via `pushReplacementNamed` | login_screen.dart |
+| ResetPasswordScreen onPressed | `updatePasswordNew()` success, then `determinePostAuthRouteName` | MainShell / PartnerScreen / LoginScreen via `pushReplacementNamed` | reset_password_screen.dart |
+| PartnerScreen accept invitation | acceptInvitation success | MainShell via `pushReplacementNamed` | partner_screen.dart |
+| PartnerScreen existing-partner card tap | partner != null | MainShell via `pushReplacementNamed` | partner_screen.dart |
+| RegisterScreen onPressed | register() success | confirm-email dialog -> pop,pop -> Login (email verification mandatory) | register_screen.dart |
 
-Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty` (auth_state.dart:61) and `AuthState.hasPartner => _partnerId != null` (auth_state.dart:62). Requirement: **an authenticated user without partnership goes to `PartnerScreen`; with partnership goes to `MainShell`.** This holds on all five sites only if the underlying data succeeded.
+Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty` (auth_state.dart:61) and `AuthState.hasPartner => _partnerId != null` (auth_state.dart:62). Requirement: **an authenticated user without partnership goes to `PartnerScreen`; with partnership goes to `MainShell`.** This holds on every site only if the underlying data succeeded.
 
 **Covered at runtime**: a partnership that stops being active (cancellation requested, accepted and deleted, or otherwise removed) makes `AuthState.hasPartner` false. `MainShell` watches that getter and replaces the stack with `PartnerScreen` through `ErrorHandler.navigatorKey`; `PartnerState` also teleports when a known cancellation resolves to no partner, which covers pushed routes where the shell is offstage. Forward one-shot decisions remain as described above.
 
@@ -97,9 +98,9 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 
 `login_screen.dart`:
 
-- Footer `VPAuthLink` -> `Navigator.push(RegisterScreen)` (line 33). Return path: `RegisterScreen` footer pops back (register_screen.dart:34); the confirm-email dialog pops twice (line 125-126).
+- Footer `VPAuthLink` -> `Navigator.pushNamed(AppRoutes.register)` (line 33). Return path: `RegisterScreen` footer pops back (register_screen.dart:34); the confirm-email dialog pops twice (line 125-126).
 - "Forgot Password" `TextButton` has an **empty `onPressed: () {}`** (line 68) - no forgot-password flow or navigation.
-- On successful `AuthState.login(...)`: `hasPartner` decides `pushReplacement(MainShell|PartnerScreen)` (lines 108-115). Uses inline route, NOT the `/homepage`/`/partner` names.
+- On successful `AuthState.login(...)`: `AuthNavigationUtils.determinePostAuthRouteName` decides `AppRoutes.mainShell` or `AppRoutes.partner` (lines 108-115) and the screen calls `pushReplacementNamed`.
 - `LoginScreen` never re-runs `AuthState.init()`; it relies on `login()` doing full bootstrap (profile fetch + session sync + device token). When the screen is reached via the **reauth dialog** while `AuthState` is still logged in, `login()` re-runs cleanly (init-like steps are idempotent).
 - No "already logged in" redirect: visiting `/login` while authenticated is possible via the reauth dialog; nothing bounces authed users away.
 
@@ -119,11 +120,11 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 `partner_screen.dart`:
 
 - `initState` post-frame: `ProfileState.loadProfile()`, `fetchSentInvitations()`, `fetchReceivedInvitations()` (lines 25-29).
-- **Existing-partner card** tap -> `pushReplacement(MainShell)` (line 113-118). This is the self-heal path for users miss-routed by a failed splash `fetchPartnership`.
+- **Existing-partner card** tap -> `pushReplacementNamed(AppRoutes.mainShell)` (line 113-118). This is the self-heal path for users miss-routed by a failed splash `fetchPartnership`.
 - **Add-partner card** -> `DialogUtils.showPartnerInvite(context)` (line 129) - a dialog, no route.
-- **Invitation accept** (line 344-368): `AuthState.acceptInvitation` -> `fetchPartnership` -> `ProfileState.loadProfile(force:true)` -> `pushReplacement(MainShell)`. On failure shows snackbar, stays.
+- **Invitation accept** (line 344-368): `AuthState.acceptInvitation` -> `fetchPartnership` -> `ProfileState.loadProfile(force:true)` -> `pushReplacementNamed(AppRoutes.mainShell)`. On failure shows snackbar, stays.
 - **Invitation reject** (line 370-371): direct state call, no navigation.
-- **Cancellation cards**: while `PartnerState.cancellation != null`, the normal pairing content is hidden. The requester sees the waiting card; `Restore partnership` calls `revertCancellation` -> refresh -> `pushReplacementNamed(MainShell)`. The partner sees the reusable `InvitationTile`; decline follows the same restore path, while accept confirms, calls the signed endpoint, shows the ended copy and stays on `PartnerScreen` (now empty, ready for a new pairing). The requester never sees the accept action.
+- **Cancellation cards**: while `PartnerState.cancellation != null`, the normal pairing content is hidden. The requester sees the waiting card; `Restore partnership` calls `revertCancellation` -> refresh -> `pushReplacementNamed(AppRoutes.mainShell)`. The partner sees the reusable `InvitationTile`; decline follows the same restore path, while accept confirms, calls the signed endpoint, shows the ended copy and stays on `PartnerScreen` (now empty, ready for a new pairing). The requester never sees the accept action.
 - **Logout** is available in the footer on every `PartnerScreen` state, including while cancelled.
 
 ---
@@ -132,12 +133,12 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 
 `main_shell.dart`:
 
-- `static final GlobalKey<MainShellState> shellKey` (line 5). Constructed at 3 sites with the **same** key: the `/homepage` named route (main.dart:139), splash pushReplacement (splash_screen.dart:37), login pushReplacement (login_screen.dart:112).
+- `MainShellScope` (an `InheritedWidget`) exposes the live `MainShellState`; `MainShell.of(context)` reads it. No global `GlobalKey` is used.
 - `_currentIndex` (0-6) + `TabIndexNotifier` + `Set<int> _builtPages = {0}`.
-- `switchToTab(int index)` (line 18): marks built, notifies notifier, setState. Used by content screens via `MainShell.shellKey.currentState?.switchToTab`.
+- `switchToTab(int index)` (line 18): marks built, notifies notifier, setState. Used by content screens via `MainShell.of(context)?.switchToTab`.
 - Build: `Stack[ Padding(bottom:110) > IndexedStack(index:_currentIndex, children: List.generate(7,...)), Positioned HomeBottomNav ]`.
 - Tab mapping (line 24-34): 0 Homepage (const, no notifier), 1 Game, 2 Mood, 3 BucketList, 4 Drive, 5 Favorites (each `TabScreen(tabIndex, tabNotifier)`), 6 Profile (const, no notifier).
-- **System back**: no `PopScope`/`PopScope` handling. `MainShell` is the root route after `pushReplacement`, so Android back at tab 0 exits the app; at other tabs, back **switches nothing** (the OS back is not wired to tab switching, unlike typical bottom-nav apps).
+- **System back**: no `PopScope`/`PopScope` handling. `MainShell` is the root route after `pushReplacementNamed`, so Android back at tab 0 exits the app; at other tabs, back **switches nothing** (the OS back is not wired to tab switching, unlike typical bottom-nav apps).
 
 ---
 
@@ -161,32 +162,28 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 
 ## Named routes and route arguments
 
-Declared routes (main.dart:136-143): `/login`, `/register`, `/homepage`, `/partner`, `/localization`, `/change-password`.
+Declared in `AppRoutes` and mapped by `generateAppRoute` (main.dart): `/` (splash), `/login`, `/register`, `/reset-password`, `/change-password`, `/localization`, `/partner`, `/main` (MainShell), `/drive/item`.
 
-Actually used (grep of `pushNamed`):
+`/drive/item` is the only route with an argument: `generateAppRoute` accepts an `int` (or a string that parses to one) and builds `DriveItemScreen(itemId:)`; a missing or non-numeric argument leaves the route unrecognised (`null`). All other screens take zero-argument `const` constructors and read their data from providers.
 
-- `/localization` - profile_screen.dart:270.
-- `/change-password` - profile_screen.dart:327.
-- `/login` - error_handler.dart:262 (reauth dialog).
-
-**Route arguments: none.** All route builders take zero-argument `const` constructors; nothing reads `ModalRoute.settings.arguments`. Feature screens that need data receive it through provider singletons, not route args. (e.g. `DriveItemScreen(itemId:)` uses the **widget constructor parameter**, set inline in the `MaterialPageRoute` builder at drive_screen.dart:290-295 - a constructor arg, not a route argument.)
+Unknown names return `null`. A programmatic `pushNamed` of an unknown name is a developer error and Flutter reports the missing generator; an unknown cold-start deep link falls back to the home route.
 
 ---
 
 ## Redirects
 
-- **No centralized redirects.** Flutter's `onGenerateRoute`/`onGenerateInitialRoutes` are unused; there are no auth-guard wrappers, no `redirect:` equivalents, no named-route redirects.
-- Redirection is performed imperatively inside the four auth/partner screens as described above. If a screen is entered with the wrong auth state, nothing redirects it:
-  - Authenticated user reaching `/login` (via reauth) stays on LoginScreen.
-  - Unauthenticated/non-partner user has no public path into `/homepage` or `/partner` (they are unreachable by name anyway).
+- **No auth-guard/router redirect layer.** `AuthNavigationUtils` centralizes the forward post-auth decision; each caller performs the navigation by name.
+- A screen entered with the wrong auth state is not auto-redirected:
+  - An authenticated user reaching `/login` (via the reauth dialog) stays on `LoginScreen`.
+  - `/main` and `/partner` are reachable by name; nothing guards them.
 
 ---
 
 ## Deep links / Android App Links
 
-- **Custom Scheme & HTTPS App Links**: L'app supporta la ricezione di URL sia via schema personalizzato `justus://auth/callback` che via Android App Links (HTTPS) `https://justus.serverfede.eu/auth/callback` configurati in `AndroidManifest.xml` con `android:autoVerify="true"`.
-- `main.dart` gestisce l'arrivo dei link tramite `onGenerateRoute`, instanziando `SplashScreen` e lasciando la gestione dei parametri URL del callback all'SDK di Supabase Auth (`onAuthStateChange`).
-- Nessun pacchetto di routing esterno (`go_router`, `uni_links`) è utilizzato per la navigazione interna dai deep link.
+- **Custom Scheme & HTTPS App Links**: the app receives URLs through the custom scheme `justus://auth/callback` and the Android App Link (HTTPS) `https://justus.serverfede.eu/auth/callback`, both declared in `AndroidManifest.xml` (`android:autoVerify="true"`).
+- Flutter's built-in deep-link routing is disabled (`flutter_deeplinking_enabled=false`), so the Navigator never pushes `/callback` as an app route. `supabase_flutter` owns the callback through its `app_links` listener and emits the corresponding auth events; `AuthState` listens for `passwordRecovery` and pushes `AppRoutes.resetPassword`.
+- No external routing package (`go_router`, `uni_links`) is used for deep-link navigation.
 
 ---
 
@@ -218,15 +215,15 @@ Two mechanisms:
 
 ## Partnership-driven navigation
 
-- Forward: accept invitation or tap existing-partner card on `PartnerScreen` -> `pushReplacement(MainShell)` (partner_screen.dart:113,358). The cancellation request from Profile is also forward: `pushReplacementNamed(PartnerScreen)` after `partnership_request_cancel` succeeds; restore/decline later replaces it with `MainShell`.
+- Forward: accept invitation or tap existing-partner card on `PartnerScreen` -> `pushReplacementNamed(AppRoutes.mainShell)` (partner_screen.dart). The cancellation request from Profile is also forward: `pushReplacementNamed(AppRoutes.partner)` after `partnership_request_cancel` succeeds; restore/decline later replaces it with `AppRoutes.mainShell`.
 - Reverse: a `partnerships` realtime event refreshes `PartnerState` + `AuthState`; once the pair stops being active (cancellation requested or row deleted) `AuthState.hasPartner` turns false. `MainShell.build` schedules a `pushNamedAndRemoveUntil(AppRoutes.partner)` through `ErrorHandler.navigatorKey`; `PartnerState` performs the same redirect (`_teleportIfEnded`, after both reads) when a known cancellation resolves to no partner, so it also works above pushed routes such as `ProfileScreen`. No dialog is shown. `PartnerScreen` then renders the cancellation card from `PartnerState.cancellation` (requester sees the waiting card; the partner can accept or decline). Revert, decline and lazy expiry restore the accepted pair and no redirect fires.
-- Homepage cross-tab jumps use `MainShell.shellKey.currentState?.switchToTab(2|3|5)` (homepage_screen.dart:193/369/471/530) - a child content screen reaching into its parent shell through a global static key (inappropriate layer, Findings).
+- Homepage cross-tab jumps use `MainShell.of(context)?.switchToTab(2|3|5)` (homepage_screen.dart) through `MainShellScope`.
 
 ---
 
 ## Logout navigation
 
-- Single official path: `ProfileScreen._logout()` (profile_screen.dart:59-62) -> `LogoutUtils.showLogoutDialog` -> `LogoutUtils.performLogout` (logout_utils.dart:39-48): `await AuthState.logout()` then `pushAndRemoveUntil(LoginScreen, (r)=>false)` - clears the whole stack.
+- Single official path: `ProfileScreen._logout()` (profile_screen.dart:59-62) -> `LogoutUtils.showLogoutDialog` -> `LogoutUtils.performLogout` (logout_utils.dart:39-48): `await AuthState.logout()` then `pushNamedAndRemoveUntil(AppRoutes.login, (r)=>false)` - clears the whole stack.
 - Mandatory-force-update may indirectly send the user to the store via `launchUrl`, but does not log out.
 - Session-expiry "logout" (see Authentication-driven navigation) also navigates: the 401 maps to the reauth dialog, which redirects to `LoginScreen`.
 
@@ -270,17 +267,11 @@ Two mechanisms:
 
 ---
 
-## Centralized vs duplicated navigation
+## Centralized navigation
 
-**Duplicated.** The destination-decision logic ("logged-in-with-partner -> MainShell") exists in four widgets plus helpers:
+**Centralized forward decision, imperative call sites.** `AuthNavigationUtils.determinePostAuthRouteName` is the single source of truth for the post-auth destination and is used by `SplashScreen`, `LoginScreen` and `ResetPasswordScreen`. `PartnerScreen` navigates directly to `AppRoutes.mainShell` on accept / existing-partner because the partnership is already known there. The reverse redirect lives in `MainShell` (`hasPartner == false`) and `PartnerState._teleportIfEnded` (cancellation teleport through the global navigator).
 
-- splash_screen.dart:30-40 (decision + navigate),
-- login_screen.dart:105-115 (decision + navigate) - reads `AuthState.hasPartner` instead of re-fetching,
-- register_screen.dart:105-111 (decision + navigate),
-- partner_screen.dart:113-118 and 358-363 (navigate only, no decision),
-- main_shell.dart:130-147 (runtime `hasPartner == false` -> PartnerScreen) and partner_state.dart `_teleportIfEnded` (cancellation teleport through the global navigator).
-
-There is no `NavigationService`, no router, and no single function like `navigateToDestination(authState)`. Consequences: the decision is re-evaluated from *different* data sources (`partnerState.partner` vs `AuthState.hasPartner` vs `ProfileState.partnerProfile`), so the same logical state can produce different routes depending on which call site happens to have fresh data. (A splash `fetchPartnership` failure and a login `hasPartner` false can both strand legitimately-paired users on `PartnerScreen`.)
+There is no `NavigationService` and no router. The decision reads `AuthState.hasPartner` and `PartnerState.partner` after `fetchPartnership`, so a failed fetch can still strand a legitimately paired user on `PartnerScreen`; the existing-partner card is the self-heal path.
 
 ---
 
@@ -293,10 +284,10 @@ There is no `NavigationService`, no router, and no single function like `navigat
 | Component | Status |
 |---|---|
 | Root `MaterialApp` + navigator key | IMPLEMENTED |
-| Named routes | REMOVED (single imperative routing style) |
-| Route arguments | NOT IMPLEMENTED |
+| Named routes | IMPLEMENTED (`AppRoutes` + `MaterialApp.onGenerateRoute`) |
+| Route arguments | IMPLEMENTED (`/drive/item` takes an integer) |
 | Redirects | IMPLEMENTED (`AuthNavigationUtils` centralized post-auth decision) |
-| Deep links / App links | IMPLEMENTED (`justus://` custom scheme + Android App Links) |
+| Deep links / App links | IMPLEMENTED (`justus://` custom scheme + Android App Links; Supabase `app_links`, Flutter's built-in handler disabled) |
 | Notification-driven navigation | IMPLEMENTED (`NotificationService.onNotificationTap` -> `MainShell`) |
 | Launch-from-notification navigation | IMPLEMENTED (`getNotificationAppLaunchDetails` + `getInitialMessage`) |
 | Session-expiry redirect | IMPLEMENTED (401 -> reauth dialog -> `/login`) |
@@ -314,8 +305,8 @@ There is no `NavigationService`, no router, and no single function like `navigat
 
 ## Notes
 
-- All main destination screens are pushed with inline `MaterialPageRoute` - a single consistent routing style across the app.
-- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog` and the cancellation reverse teleport in `PartnerState` (both use `ErrorHandler.navigatorKey`). Feature state classes otherwise never navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
+- All main destination screens are pushed by name; the only `MaterialPageRoute` in `lib/` is the one `generateAppRoute` returns.
+- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog`, the cancellation reverse teleport in `PartnerState`, and the password-recovery push in `AuthState` (all use `ErrorHandler.navigatorKey`). Feature state classes otherwise never navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
 - `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile (Managed-mode) dialog - a second core-layer consumer of the global navigator.
-- No widget/route tests exist for any navigation scenario (no golden/route tests in `Flutter/test/`).
+- `Flutter/test/app_routes_test.dart` covers the route table: a known name builds its real screen, an unknown name returns `null`, and `/drive/item` requires an integer argument.
 - Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", use `MainShellScope.of(context)` for tab switching, and subscribe to `onNotificationTap` to apply content navigation.

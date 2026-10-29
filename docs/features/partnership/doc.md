@@ -276,12 +276,13 @@ When the refresh proves that a known cancellation is gone because the partner ac
 App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:22-41](file:///f:/JustUS/Flutter/lib/features/auth/screens/splash_screen.dart#L22-L41)):
 
 1. App launches and calls `AuthState.init()` (capped at 8 s; a timeout or initialization error is logged only and does not change the destination).
-2. `AuthNavigationUtils.determinePostAuthDestination` checks `AuthState.isLoggedIn`:
-   - `false` -> Navigate to `LoginScreen`.
+2. `AuthNavigationUtils.determinePostAuthRouteName` checks `AuthState.isLoggedIn`:
+   - `false` -> `AppRoutes.login`.
    - `true` -> Execute `PartnerState.fetchPartnership()`.
 3. Checks `PartnerState.partner`:
-   - `partner != null` (Accepted partnership exists) -> Navigate to `MainShell`.
-   - `partner == null` (No active partnership) -> Navigate to `PartnerScreen`.
+   - `partner != null` (Accepted partnership exists) -> `AppRoutes.mainShell`.
+   - `partner == null` (No active partnership) -> `AppRoutes.partner`.
+4. `SplashScreen` calls `Navigator.pushReplacementNamed` with the returned name.
 
 ---
 

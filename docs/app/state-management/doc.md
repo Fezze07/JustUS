@@ -205,7 +205,7 @@ Callers: `HomepageState.init` (homepage_state.dart:26-34), `MoodState.initHome`/
 
 | Trigger | Mechanism | Affected states |
 |---|---|---|
-| App start / splash | `AuthState.init` (splash_screen.dart:22-25); homepage then fires 4 parallel inits (homepage_screen.dart:79-84) | auth, partner (fetchPartnership via `determinePostAuthDestination`, splash_screen.dart:32-33), homepage, mood, profile, bucket |
+| App start / splash | `AuthState.init` (splash_screen.dart:22-25); homepage then fires 4 parallel inits (homepage_screen.dart:79-84) | auth, partner (fetchPartnership via `determinePostAuthRouteName`, splash_screen.dart:32-33), homepage, mood, profile, bucket |
 | Tab activation | `TabScreenMixin._tryLoadData` → `loadData()` (tab_screen.dart:56-61) | game, mood, bucket, drive, favorites |
 | Pull-to-refresh | `loadData(force: true)` clears checkpoints first (game_screen.dart, mood_screen.dart:24-26, homepage_screen.dart:66-72, profile loadProfile(force)) | all |
 | Realtime insert/update/delete | per-feature handlers debounced 120-150ms → state methods (`lib/core/realtime/handlers/`) | mood, partnership (partner+auth), homepage (missyou), bucket, game, drive |

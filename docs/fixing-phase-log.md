@@ -247,5 +247,6 @@ Non-obvious choices that were made during the phase. Each one now lives in its o
 | `supabase/test/rls_partnership_cancellation.test.sql` | 11.3 |
 | `Backend/test/signing-boundary.test.js` | 11.12 |
 | `supabase/test/debug_wipe_couple_data.test.sql` | 12.3 |
+| `Flutter/test/app_routes_test.dart` | 12.4 |
 
 ---

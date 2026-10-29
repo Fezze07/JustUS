@@ -65,7 +65,7 @@ MultiProvider(
         themeMode / locale / supportedLocales / localizationsDelegates,
         theme: AppTheme.light, darkTheme: AppTheme.dark,
         home: SplashScreen(),
-        routes: {/login, /register, /homepage, /partner, /localization, /change-password},
+        onGenerateRoute: generateAppRoute, // AppRoutes -> screen table
       )))
 )
 ```
@@ -81,11 +81,11 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 - `initState()` -> `unawaited(_checkAuth())`.
 - `_checkAuth()`:
   1. `await authState.init().timeout(8s)` - full session bootstrap (see Session Initialization).
-  2. Destination is resolved by `AuthNavigationUtils.determinePostAuthDestination` (logged in + partner present -> `MainShell(key: MainShell.shellKey)`; logged in + no partner -> `PartnerScreen`; not logged in -> `LoginScreen`; all `Navigator.pushReplacement` with inline `MaterialPageRoute`, NOT the named routes).
+  2. Destination is resolved by `AuthNavigationUtils.determinePostAuthRouteName` (logged in + partner present -> `AppRoutes.mainShell`; logged in + no partner -> `AppRoutes.partner`; not logged in -> `AppRoutes.login`), then `Navigator.pushReplacementNamed`.
 
 `LoginScreen` (`lib/features/auth/screens/login_screen.dart`) performs its own session bootstrap after a successful `AuthState.login(...)` and navigates to `MainShell`/`PartnerScreen` accordingly (same decision: `AuthState.hasPartner`).
 
-`RegisterScreen` (`lib/features/auth/screens/register_screen.dart`): on success, if already logged in (auto-confirmed account) -> `pushAndRemoveUntil(PartnerScreen)`; else shows a "confirm your email" dialog and returns to Login.
+`RegisterScreen` (`lib/features/auth/screens/register_screen.dart`): on success it shows a "confirm your email" dialog and returns to Login (email verification is mandatory).
 
 ### What blocks navigation
 
@@ -226,14 +226,14 @@ gotrue's internal `_pendingRefreshes` map makes both sources share a single netw
 ## Navigation & Screen Hierarchy
 
 - **Root navigator key**: `ErrorHandler.navigatorKey` (global static). `CaptchaService` and the reauth dialog rely on it.
-- **Named routes** exist (`/login`, `/register`, `/homepage`, `/partner`, `/localization`, `/change-password`) but startup and auth flows use inline `MaterialPageRoute` pushes. Only `/localization` and `/change-password` are commonly reached via name; the error reauth dialog uses `pushNamedAndRemoveUntil('/login', ...)`.
-- **`/homepage` route** and the two startup `pushReplacement`s all construct `MainShell(key: MainShell.shellKey)` - one shared static `GlobalKey<MainShellState>` across three code sites (see Findings).
+- **Named routes** are the only route mechanism: `AppRoutes` declares the names and `generateAppRoute` maps them to screens (`/login`, `/register`, `/reset-password`, `/change-password`, `/localization`, `/partner`, `/main`, `/drive/item`, `/`). Startup, login and reset-password resolve the destination through `AuthNavigationUtils` and push it by name; the reauth dialog uses `pushNamedAndRemoveUntil('/login', ...)`. Unknown names return `null`.
+- **`MainShell`** is reached by the `/main` name; it publishes `MainShellScope`, and descendants switch tabs with `MainShell.of(context)?.switchToTab(...)`.
 
 ### MainShell - 7-tab IndexedStack
 
 `lib/features/home/screens/main_shell.dart`:
 
-- `static GlobalKey<MainShellState> shellKey` + `switchToTab(index)` - cross-tab deep navigation from feature screens (homepage "Mood"/"List"/"Favorites" buttons call `MainShell.shellKey.currentState?.switchToTab(...)` at homepage_screen.dart lines 193/369/471/530).
+- `MainShellScope` (an `InheritedWidget`) exposes the live state; `MainShell.of(context)?.switchToTab(index)` handles cross-tab deep navigation from feature screens (homepage "Mood"/"List"/"Favorites" buttons).
 - `IndexedStack` inside a `Padding(bottom: 110)`; the floating bottom nav (`HomeBottomNav`) overlays.
 - **Lazy building**: `_builtPages` starts `{0}` and only pages already visited are materialized (`List.generate(7, ...)` yields `SizedBox.shrink()` for unvisited). Tab order: Home(0) always, Games(1), Mood(2), List(3), Drive(4), Favorites(5), Profile(6).
 - `TabIndexNotifier` shared with tab screens.
@@ -421,7 +421,7 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F1: Global mutable state scattered across static fields
 
-**Evidence**: `ApiService.onSessionExpired` (static, set by `AuthState.init()`); `ApiService._cachedDeviceFingerprint` / `_cachedRequestBindingSecret` (static, mutated from `StorageService.saveRequestBindingSecret` and `ApiService._buildHeaders`); `ErrorHandler.navigatorKey` (static GlobalKey); `MainShell.shellKey` (static GlobalKey).
+**Evidence**: `ApiService.onSessionExpired` (static, set by `AuthState.init()`); `ApiService._cachedDeviceFingerprint` / `_cachedRequestBindingSecret` (static, mutated from `StorageService.saveRequestBindingSecret` and `ApiService._buildHeaders`); `ErrorHandler.navigatorKey` (static GlobalKey).
 
 **What**: Multiple singletons hold mutable state via static fields rather than being injected. The `onSessionExpired` callback is a static `Function?` that is overwritten every time `AuthState.init()` runs.
 
@@ -438,16 +438,6 @@ Three components register as `WidgetsBindingObserver`:
 **Impact**: No functional impact currently (the wipe flow works via `refreshChannel()`), but the dead API is misleading for future developers who may call `resume()` expecting it to restore event processing.
 
 **Confidence**: HIGH.
-
-### F5: Shared `GlobalKey<MainShellState>` used across three independent code paths
-
-**Evidence**: `MainShell.shellKey` is a `static final GlobalKey` at main_shell.dart:5. It is used in: (a) the `/homepage` named route (main.dart), (b) `SplashScreen._checkAuth` (splash_screen.dart:37), (c) `LoginScreen` (login_screen.dart:112). In all three cases: `MainShell(key: MainShell.shellKey, ...)`.
-
-**What**: `GlobalKey` requires that only one instance with that key is mounted in the widget tree at any time. If the `/homepage` named route were ever pushed while another `MainShell` was already mounted (e.g. via named-route-based navigation), a "Multiple widgets used the same GlobalKey" error would occur. Currently, `SplashScreen` and `LoginScreen` use `pushReplacement` (removing the previous route), so the risk is low.
-
-**Impact**: Low risk under current navigation patterns. However, mixing named routes and direct MaterialPageRoute pushes to the same widget with a GlobalKey is fragile.
-
-**Confidence**: HIGH (the global key is verified at main_shell.dart:5, splash_screen.dart:37, login_screen.dart:112, main.dart routes map).
 
 ### F6: Eager provider creation defeats lazy tab architecture
 

@@ -137,8 +137,8 @@ Flutter UI (LoginScreen)
    │
    └── 11. Navigation Routing
             │
-            ├── If hasPartner == true  -> Navigator.pushReplacement(MainShell)
-            └── If hasPartner == false -> Navigator.pushReplacement(PartnerScreen)
+            ├── If hasPartner == true  -> Navigator.pushReplacementNamed(AppRoutes.mainShell)
+            └── If hasPartner == false -> Navigator.pushReplacementNamed(AppRoutes.partner)
 ```
 
 ### Detailed Component Steps
@@ -192,7 +192,7 @@ Flutter UI (LoginScreen)
 9. **Navigation Routing**
    - File: [login_screen.dart](file:///f:/JustUS/Flutter/lib/features/auth/screens/login_screen.dart#L105-L116)
    - Checks `AuthState.hasPartner` (`_partnerId != null`):
-     - `true`: Replaces stack with `MainShell(key: MainShell.shellKey)`.
+     - `true`: Replaces stack with `AppRoutes.mainShell` (`MainShell`).
      - `false`: Replaces stack with `PartnerScreen()`.
 
 ---

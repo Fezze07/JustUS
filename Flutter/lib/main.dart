@@ -85,6 +85,34 @@ void main() {
   ));
 }
 
+Route<dynamic>? generateAppRoute(RouteSettings settings) {
+  final routes = <String, WidgetBuilder>{
+    AppRoutes.splash: (_) => const SplashScreen(),
+    AppRoutes.login: (_) => const LoginScreen(),
+    AppRoutes.register: (_) => const RegisterScreen(),
+    AppRoutes.resetPassword: (_) => const ResetPasswordScreen(),
+    AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
+    AppRoutes.localization: (_) => const LocalizationScreen(),
+    AppRoutes.partner: (_) => const PartnerScreen(),
+    AppRoutes.mainShell: (_) => const MainShell(),
+  };
+
+  WidgetBuilder? builder = routes[settings.name];
+  if (settings.name == AppRoutes.driveItem) {
+    final id = settings.arguments is int
+        ? settings.arguments as int
+        : int.tryParse(settings.arguments?.toString() ?? '');
+    if (id != null) builder = (_) => DriveItemScreen(itemId: id);
+  }
+
+  if (builder == null) return null;
+
+  return MaterialPageRoute(
+    builder: builder,
+    settings: settings,
+  );
+}
+
 class JustUsApp extends StatelessWidget {
   final LanguageProvider languageProvider;
   final ThemeProvider themeProvider;
@@ -143,31 +171,7 @@ class JustUsApp extends StatelessWidget {
                 child: child ?? const SizedBox.shrink(),
               ),
               home: const SplashScreen(),
-              onGenerateRoute: (settings) {
-                final routes = <String, WidgetBuilder>{
-                  AppRoutes.splash: (_) => const SplashScreen(),
-                  AppRoutes.login: (_) => const LoginScreen(),
-                  AppRoutes.register: (_) => const RegisterScreen(),
-                  AppRoutes.resetPassword: (_) => const ResetPasswordScreen(),
-                  AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
-                  AppRoutes.localization: (_) => const LocalizationScreen(),
-                  AppRoutes.partner: (_) => const PartnerScreen(),
-                  AppRoutes.mainShell: (_) => const MainShell(),
-                };
-
-                WidgetBuilder? builder = routes[settings.name];
-                if (settings.name == AppRoutes.driveItem) {
-                  final id = settings.arguments is int
-                      ? settings.arguments as int
-                      : int.tryParse(settings.arguments?.toString() ?? '');
-                  if (id != null) builder = (_) => DriveItemScreen(itemId: id);
-                }
-
-                return MaterialPageRoute(
-                  builder: builder ?? ((_) => const SplashScreen()),
-                  settings: settings,
-                );
-              },
+              onGenerateRoute: generateAppRoute,
             );
           },
         ),
