@@ -8,7 +8,7 @@
 // therefore loadEnv() -> dotenv) into this module registry. Doing it at module
 // scope rather than inside a test keeps it order-independent, and it is the real
 // version of "does the backend module graph even load?" - merely requiring
-// all_imports proves nothing, because every one of its 138 entries is a lazy
+// all_imports proves nothing, because every one of its entries is a lazy
 // getter that is never evaluated.
 const { env } = require("../all_imports");
 

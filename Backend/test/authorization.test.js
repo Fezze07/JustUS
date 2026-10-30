@@ -8,7 +8,7 @@ const {
 // authorization.service decides what every authenticated caller may do.
 // authenticateToken stamps its output on req.user, and authorizeCapabilities
 // reads it on each gated route, so these functions sit directly on the path
-// between a role in the database and access to the media/AI APIs.
+// between a role in the database and access to the media APIs.
 
 describe("normalizeRole", () => {
   test.each(["user", "premium", "moderator", "system", "guest"])(

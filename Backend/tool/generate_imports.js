@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TARGET_DIRS = ['core', 'config', 'controllers', 'middleware', 'services', 'utils', 'features'];
+const TARGET_DIRS = ['core', 'config', 'middleware', 'services', 'utils', 'features'];
 const EXCLUDE_FILES = ['all_imports.js', 'app.js', 'index.js'];
 const OUTPUT_FILE = 'all_imports.js';
 
