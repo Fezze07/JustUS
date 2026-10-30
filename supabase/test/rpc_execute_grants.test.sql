@@ -119,7 +119,6 @@ DECLARE
     'public.partnership_get_cancellation_partner(integer)',
     'public.partnership_cancel_accept(integer, integer)',
     'public.partnership_request(text, text, integer)',
-    'public.partnership_get_names(integer)',
     'public.user_create_from_auth()',
     'public.device_purge_dead_sessions()',
     'public.session_is_live(uuid)',

@@ -165,19 +165,6 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
-### `partnership_get_names(p_user_id integer)`
-* **SQL Source:** `supabase/schemas/public/functions/partnership_get_names.sql`
-* **Purpose:** Retrieves the display names of both members of an active accepted partnership.
-* **Security Context:** `SECURITY DEFINER`, `SET search_path TO 'public'`
-  - **Execution Grants:** Revoked from `PUBLIC`. Granted strictly to `postgres`, `service_role`.
-* **Inputs:** `p_user_id` (`integer`).
-* **Outputs:** `jsonb` (`{ "name1": "...", "name2": "..." }`).
-* **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
-* **Caller:** No current application caller. It is granted only to `postgres`/`service_role`; the removed AI question flow was its last consumer. Game option labels are now resolved client-side from the partnership/display-name data via `resolvePlayerName`.
-* **Failure Behavior:** If no active accepted partnership is found, returns fallback object `{ "name1": "Partner 1", "name2": "Partner 2" }`.
-
----
-
 ### `partnership_get_pending_invitations()`
 * **SQL Source:** `supabase/schemas/public/functions/partnership_get_pending_invitations.sql`
 * **Purpose:** Returns the caller's pending partnership invitations (both sent and received) without exposing another user's full `users`/`user_profiles` row.
