@@ -11,6 +11,7 @@ const partnershipRoutes = require("../features/partnership/partnership.routes");
 
 const router = express.Router();
 
+// Routes mount on literals; the only shared path table was deleted because nothing read it.
 router.use("/", pingRoutes);
 router.use("/auth", authRoutes);
 router.use("/app-version", versionRoutes);

@@ -1,7 +1,6 @@
 const {
   adminSupabase,
   logSecurity,
-  API_V1_PATHS,
   buildClientContext,
   generateBindingSecret,
   sha256,
@@ -59,7 +58,7 @@ async function recordFailedLogin({ email, deviceFingerprint, ipAddress, reason: 
   if (state.strikeLevel > 0) {
     await logSecurity({
       type: "login_anomaly",
-      path: API_V1_PATHS.authLoginAttempt,
+      path: "/api/v1/auth/login-attempt",
       ip_address: ipAddress ?? null,
       retry_after_seconds: state.blockedUntil > Date.now()
           ? Math.ceil((state.blockedUntil - Date.now()) / 1000)
@@ -122,7 +121,7 @@ async function trackSession(params) {
     for (const anomaly of anomalies) {
       await logSecurity({
         type: anomaly,
-        path: API_V1_PATHS.authSessionBind,
+        path: "/api/v1/auth/session-bind",
         user_id: userId,
       });
     }
