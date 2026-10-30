@@ -24,6 +24,7 @@
 | 10 | Verified defects found in the docs sweep | 10.1–10.5, 10.8–10.21 | 18 fixed, 10.17 closed as *not a defect* (the `debug_` prefix is deliberate). Fingerprint survives logout, media cache cleared on logout, per-process state documented for a single-instance deployment, nonce replay closed by the database `UNIQUE` constraint, log area-split and record fixes, an FCM-less login registers no push identifier, an inclusive drive cursor, a `partnership_reject` RPC, machine-readable RPC error codes, and log records projected onto their table columns |
 | 11 | Security & privilege | 11.1–11.13 | All fixed. No client INSERT policy on `partnerships`; immutable membership and identity columns; `DELETE` limited to pending rows; `anon`/`PUBLIC` EXECUTE revoked and ACLs pinned in each function file; notification receivers resolved from the partnership; a DB-authoritative nonce check; server-side session-expiry validation; a signed-route boundary pinned by a route-table test; and an invite-recipient guard |
 | 12 | Data integrity, media & routing | 12.1–12.7 | All fixed. Backend migrated to the real `drive_items` contract; the R2 orphan sweep guarded per source; the debug wipe scoped to the accepted couple; named routes resolved by an explicit table; the mood checkpoint taken from the server; the dead `pending_received` path deleted; and cancellation acceptance keyed by profile id |
+| 13 | Test safety net, docs & the verification backlog | 13.1–13.7 | All fixed. Tracked test suite and a portable runner; root `test` delegates to `validate`; retention and wipe docs corrected; live docs sweep; the lost specialist backlog triaged into 16.16–16.19 (the CI row is 8.8) |
 
 ---
 
@@ -146,6 +147,13 @@
 | 12.4 | Every named route resolves to `SplashScreen` | Fixed (explicit route table; unknown names return `null`) | 2026-10-29 |
 | 12.5 | The mood checkpoint is written from the device clock | Fixed (`mood_set` returns the server-stamped row) | 2026-10-29 |
 | 12.7 | Cancellation acceptance passes the auth UUID | Fixed (`req.user.profileId`; missing error codes added) | 2026-10-29 |
+| 13.1 | `test/` and `scripts/` are git-ignored | Fixed (tracked suite and `scripts/`; `.env.test` placeholders) | 2026-10-01 |
+| 13.3 | `test-all.sh` hard-codes a Windows launcher | Fixed (`run()` dispatches natively; `cmd.exe` only for WSL) | 2026-10-14 |
+| 13.4 | Retention audits assert a dead orphan sweep is working | Fixed (docs clarification; via 12.1/12.2) | 2026-10-29 |
+| 13.5 | `partnership/doc.md` inverts the wipe's partnership effect | Fixed (docs clarification; no code change) | 2026-10-29 |
+| 13.2 | Root `npm test` is still the npm-init stub | Fixed (`test` delegates to `validate`) | 2026-10-30 |
+| 13.6 | Batched documentation drift (~60 rows) | Fixed (docs clarification; no code change) | 2026-10-30 |
+| 13.7 | Verification backlog — five specialist-pass findings | Fixed (triage only; four rows promoted to 16.16–16.19, CI row = 8.8) | 2026-10-30 |
 
 ---
 
