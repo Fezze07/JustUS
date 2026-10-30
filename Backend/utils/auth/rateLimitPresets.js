@@ -10,11 +10,6 @@ function createIpUserRateLimit({ name, message, ipMax, userMax, windowMs = DEFAU
   return createCompositeRateLimit({ name, message, rules });
 }
 
-function createIpOnlyRateLimit(opts) {
-  return createIpUserRateLimit(opts);
-}
-
 module.exports = {
   createIpUserRateLimit,
-  createIpOnlyRateLimit,
 };

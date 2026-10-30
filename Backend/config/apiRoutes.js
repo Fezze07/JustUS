@@ -1,11 +1,6 @@
 const API_PREFIX = "/api";
 const API_V1_PREFIX = `${API_PREFIX}/v1`;
 
-const CALLBACK_ROUTES = {
-  auth: "/auth/callback",
-  invite: "/auth/invite-callback",
-};
-
 const API_V1_PATHS = {
   root: API_V1_PREFIX,
   ping: `${API_V1_PREFIX}/ping`,
@@ -31,6 +26,5 @@ const API_V1_PATHS = {
 module.exports = {
   API_PREFIX,
   API_V1_PREFIX,
-  CALLBACK_ROUTES,
   API_V1_PATHS,
 };

@@ -105,28 +105,6 @@ async function sendNotificationToUser({ userId, type, title, data = {} }) {
   };
 }
 
-async function sendNotificationToUsers({ userIds, type, title, body, data = {} }) {
-  const uniqueUserIds = [...new Set(userIds.filter(Boolean).map(Number))];
-
-  const settled = await Promise.allSettled(
-    uniqueUserIds.map(userId =>
-      sendNotificationToUser({ userId, type, title, body, data })
-    )
-  );
-
-  const results = settled.map(r =>
-    r.status === "fulfilled"
-      ? r.value
-      : { success: false, delivered: 0, failed: 0, invalidInstallationsRemoved: 0, deviceCount: 0 }
-  );
-
-  return {
-    success: true,
-    recipients: uniqueUserIds.length,
-    results,
-  };
-}
-
 async function resolveNotificationTarget(type, body, senderId) {
   if (!senderId) {
     throw new AppError({ errorKey: "AUTH_FAIL_001", message: "Sender profile not found" });
@@ -189,7 +167,6 @@ module.exports = {
   resolveNotificationTarget,
   getReceiverInstallationId,
   sendNotificationToUser,
-  sendNotificationToUsers,
   fetchUserDevices,
   deleteInvalidInstallations,
   normalizeDataPayload,
