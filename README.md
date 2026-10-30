@@ -160,7 +160,7 @@ Reference documentation lives in [`docs/`](docs/) and is kept in sync with the c
 - `docs/features/` — one document per feature (auth, mood, miss-you, game, shared drive, bucket list, partnership, profile & settings)
 - `docs/supabase/` — schema and RLS documentation
 - `docs/audits/` — secrets, email, media-delete, data-retention, distributed-state and dead-code audits
-- `docs/fixing-phase-log.md` — closed bug-fixing phase: every defect found, the decisions taken and the tests added
+- `docs/fixing-phase-log.md` — closed bug-fixing phase: every defect found and the decisions taken
 
 ---
 
