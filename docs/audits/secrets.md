@@ -23,7 +23,6 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 * **File**: [`.env`](file:///f:/JustUS/.env)
 * **Type of Secret**:
   - `SUPABASE_SERVICE_ROLE_KEY` (Supabase Admin Service Role JWT)
-  - `OPENROUTER_API_KEY` (AI OpenRouter API Key)
   - `R2_SECRET_ACCESS_KEY` (Cloudflare R2 Storage Secret Access Key)
   - `SUPABASE_ANON_KEY` (Supabase Anonymous JWT)
 * **Appears Live**: **YES** (Valid, live administrative and cloud credentials).
@@ -31,10 +30,9 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 * **Exposure Impact**:
   - `SUPABASE_SERVICE_ROLE_KEY` bypasses all Row Level Security (RLS) policies in Supabase, granting full database read/write/delete access.
   - `R2_SECRET_ACCESS_KEY` grants full read/write access to Cloudflare R2 storage buckets (`just-us`).
-  - `OPENROUTER_API_KEY` enables uninhibited AI model API usage billed to the account.
 * **Recommended Remediation**:
   - Never store production credentials on local developer disk unencrypted.
-  - Rotate all active keys (`SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `R2_SECRET_ACCESS_KEY`) immediately if this machine or workspace environment is shared or accessible.
+  - Rotate all active keys (`SUPABASE_SERVICE_ROLE_KEY`, `R2_SECRET_ACCESS_KEY`) immediately if this machine or workspace environment is shared or accessible.
   - Ensure secret rotation mechanisms exist in deployment pipelines (e.g. GitHub Actions Secrets / Vercel / Railway / Docker secrets).
 
 ---
@@ -60,7 +58,7 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 ### 3. Test Environment File (`.env.test`)
 
 * **File**: [`.env.test`](file:///f:/JustUS/.env.test)
-* **Type of Secret**: Mock/Test environment variables (`SUPABASE_SERVICE_ROLE_KEY=test-service-role-key`, `OPENROUTER_API_KEY=test-openrouter-key`, `R2_SECRET_ACCESS_KEY=test-secret-key`).
+* **Type of Secret**: Mock/Test environment variables (`SUPABASE_SERVICE_ROLE_KEY=test-service-role-key`, `R2_SECRET_ACCESS_KEY=test-secret-key`).
 * **Appears Live**: **NO** (Contains dummy mock strings).
 * **Tracked by Git**: **NO** (Explicitly ignored by `.env.*` in `.gitignore`, though `.env.example` is explicitly allowed via `!.env.example`).
 * **Exposure Impact**: None (Mock data).
@@ -118,7 +116,7 @@ key.properties
 
 | File Path | Secret Type | Live? | Git Tracked? | Exposure Impact | Recommended Remediation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `.env` | Supabase Service Role JWT, OpenRouter API Key, R2 Secret Key | **YES** | **NO** | Critical if local env compromised | Store in secure secret vault; rotate keys periodically |
+| `.env` | Supabase Service Role JWT, R2 Secret Key | **YES** | **NO** | Critical if local env compromised | Store in secure secret vault; rotate keys periodically |
 | `.env.test` | Mock credentials | **NO** | **NO** | None | Keep placeholders clean |
 | `Flutter/lib/firebase_options.dart` | Firebase Client API Key | **YES** | **YES** | Low-Medium (Public client key) | Restrict API keys via Google Cloud Console & App Check |
 | `Flutter/android/app/google-services.json` | Firebase Android Config & API Key | **YES** | **YES** | Low-Medium (Public client key) | Enforce Firebase RLS rules and package restriction |

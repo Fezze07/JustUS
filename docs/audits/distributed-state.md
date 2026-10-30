@@ -64,29 +64,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 
 ---
 
-### 5. AI Token Quota Manager (`quotaService.js`)
-
-* **File**: [`Backend/core/infra/quotaService.js`](file:///f:/JustUS/Backend/core/infra/quotaService.js#L3)
-* **Data Structure**: `const aiDailyUsage = new Map();`
-* **Purpose**: Enforces daily per-user token limits (`env.aiDailyTokenLimit = 4000`) for AI prompt operations.
-* **Lifecycle & Expiration**: Keys structured as `${userId}:${YYYY-MM-DD}`. Can be reset via `resetQuotaState()`.
-* **Persistence Layer**: **NONE** (100% in-memory).
-* **Process Restart Behavior**: Daily usage counts reset to 0 upon process restart.
-* **Multi-Instance Behavior**: **UNSAFE (HIGH)**. A user can consume up to N times their daily quota (where N is the number of backend instances), incurring unexpected LLM API costs on OpenRouter.
-* **Failure Mode**: Financial exhaustion / API quota bypass across multiple backend nodes.
-
----
-
-### 6. AI Circuit Breaker (`circuitBreaker.js`)
-
-* **File**: [`Backend/core/infra/circuitBreaker.js`](file:///f:/JustUS/Backend/core/infra/circuitBreaker.js#L3)
-* **Data Structure**: `const circuits = new Map();`
-* **Purpose**: Monitors OpenRouter API failures; opens the circuit for a cooldown period (`env.aiCircuitBreakerCooldownMs = 60s`) when failures exceed threshold (`env.aiCircuitBreakerThreshold = 5`).
-* **Lifecycle & Expiration**: Resets failures on success; opens circuit for 60 seconds on threshold breach.
-* **Persistence Layer**: **NONE** (100% in-memory).
-* **Process Restart Behavior**: Resets circuit state to healthy on restart.
-* **Multi-Instance Behavior**: **PARTIALLY INCOMPLETE**. If upstream OpenRouter experiences an outage, Instance A will open its circuit, but Instance B will continue attempting failed API requests until it independently encounters 5 failures.
-* **Failure Mode**: Increased downstream latency and redundant failed API calls across un-synchronized instances during upstream outages.
+> **Removed 2026-10-09 (`3145a9a`):** the AI token quota manager (`quotaService.js`) and circuit breaker (`circuitBreaker.js`) were deleted with the AI stack. They are no longer in-memory mechanisms of this backend.
 
 ---
 
@@ -98,8 +76,6 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 | **Composite Rate Limiter** | `middleware/rateLimit.js` | 100% In-Memory | **UNSAFE** | Rate limits & IP bans bypassed completely across multi-node cluster |
 | **Login Risk & Strikes** | `features/auth/authRisk.service.js` | 100% In-Memory | **UNSAFE** | Brute-force credential stuffing bypass |
 | **Idempotency Cache** | `core/infra/idempotencyStore.js` | 100% In-Memory | **UNSAFE** | Duplicate processing on retried requests routed to different nodes |
-| **AI Daily Quota** | `core/infra/quotaService.js` | 100% In-Memory | **UNSAFE** | Users can exceed daily token budget N-fold across N instances |
-| **AI Circuit Breaker** | `core/infra/circuitBreaker.js` | 100% In-Memory | **PARTIALLY INCOMPLETE** | Delayed failure propagation during third-party API outages |
 
 ---
 
@@ -110,10 +86,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 To make the backend multi-instance ready, safe for horizontal scaling, and resilient against process crashes:
 
 1. **Redis / KeyDB Integration**:
-   - Replace in-memory `Map` structures in `rateLimit.js`, `authRisk.service.js`, `quotaService.js`, and `idempotencyStore.js` with an external distributed key-value store (e.g. Redis / Upstash Redis / Valkey).
-   - Use atomic operations (`INCRBY`, `EXPIRE`, `SETNX`) for rate limiting and token quota tracking.
+   - Replace in-memory `Map` structures in `rateLimit.js`, `authRisk.service.js`, and `idempotencyStore.js` with an external distributed key-value store (e.g. Redis / Upstash Redis / Valkey).
+   - Use atomic operations (`INCRBY`, `EXPIRE`, `SETNX`) for rate limiting.
 
 2. **Atomic Nonce Reservation** (**implemented 2026-10-11 — no shared store needed**): `nonceStore.js` inserts into `request_nonces` first and treats the DB `UNIQUE (nonce)` violation (`23505`) as a replay, so the atomicity no longer depends on the memory check.
-
-3. **Distributed Circuit Breaker**:
-   - Store circuit state in Redis or broadcast circuit status changes via Pub/Sub so all backend instances immediately halt requests when an upstream provider fails.
