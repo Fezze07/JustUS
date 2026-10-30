@@ -37,22 +37,22 @@ describe("normalizeRole", () => {
 
 describe("normalizeCapabilities", () => {
   test("passes an array through, trimming and dropping blanks", () => {
-    expect(normalizeCapabilities([" can_profile_update ", "", "  ", "can_media_upload"])).toEqual([
-      "can_profile_update",
+    expect(normalizeCapabilities([" can_upload_large ", "", "  ", "can_media_upload"])).toEqual([
+      "can_upload_large",
       "can_media_upload",
     ]);
   });
 
   test("splits a comma-separated string", () => {
-    expect(normalizeCapabilities("can_profile_update, can_media_upload")).toEqual([
-      "can_profile_update",
+    expect(normalizeCapabilities("can_upload_large, can_media_upload")).toEqual([
+      "can_upload_large",
       "can_media_upload",
     ]);
   });
 
   test("drops empty segments from a string", () => {
-    expect(normalizeCapabilities("can_profile_update,,  ,can_media_upload")).toEqual([
-      "can_profile_update",
+    expect(normalizeCapabilities("can_upload_large,,  ,can_media_upload")).toEqual([
+      "can_upload_large",
       "can_media_upload",
     ]);
   });
@@ -68,7 +68,7 @@ describe("normalizeCapabilities", () => {
 describe("resolveCapabilities", () => {
   test("gives a role its defaults when there are no custom capabilities", () => {
     expect(resolveCapabilities("premium", [])).toEqual(
-      expect.arrayContaining(["can_upload_large", "can_profile_update", "can_media_upload"])
+      expect.arrayContaining(["can_upload_large", "can_media_upload"])
     );
   });
 
@@ -76,11 +76,20 @@ describe("resolveCapabilities", () => {
     expect(resolveCapabilities("guest", [])).toEqual([]);
   });
 
+  test.each(["can_profile_update", "can_moderate_content", "can_system_access"])(
+    "does not grant the unenforced capability %s to any role",
+    (capability) => {
+      for (const role of ["guest", "user", "premium", "moderator", "system"]) {
+        expect(resolveCapabilities(role, [])).not.toContain(capability);
+      }
+    }
+  );
+
   test("merges custom capabilities on top of the role defaults", () => {
-    const resolved = resolveCapabilities("user", ["can_moderate_content"]);
+    const resolved = resolveCapabilities("user", ["can_upload_large"]);
 
     expect(resolved).toEqual(
-      expect.arrayContaining(["can_profile_update", "can_media_upload", "can_moderate_content"])
+      expect.arrayContaining(["can_media_upload", "can_upload_large"])
     );
   });
 
@@ -101,7 +110,7 @@ describe("resolveCapabilities", () => {
 
 describe("hasCapability", () => {
   test("finds a granted capability", () => {
-    expect(hasCapability(["can_profile_update", "can_media_upload"], "can_media_upload")).toBe(true);
+    expect(hasCapability(["can_upload_large", "can_media_upload"], "can_media_upload")).toBe(true);
   });
 
   test("does not match by prefix or substring", () => {

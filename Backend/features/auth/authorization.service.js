@@ -1,24 +1,14 @@
 const roleCapabilities = {
   guest: [],
-  user: [
-    "can_media_upload",
-    "can_profile_update"
-  ],
+  user: ["can_media_upload"],
   premium: [
     "can_media_upload",
-    "can_profile_update",
     "can_upload_large",
   ],
-  moderator: [
-    "can_media_upload",
-    "can_profile_update",
-    "can_moderate_content",
-  ],
+  moderator: ["can_media_upload"],
   system: [
     "can_media_upload",
-    "can_profile_update",
     "can_upload_large",
-    "can_system_access",
   ],
 };
 
