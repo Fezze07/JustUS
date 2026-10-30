@@ -264,17 +264,83 @@ void main() {
           reason: 'paging must resume after the 4 cached entries');
       expect(state.timeline.map((e) => e.id), [1, 2, 3, 4, 5, 6, 7, 8]);
     });
+
+    test('a full refetch keeps the older pages instead of collapsing to 4',
+        () async {
+      var refetched = false;
+      final repo = _PagedMoodRepository(
+        pageSize: 4,
+        emojiFor: (id) => refetched && id <= 4 ? 'fresh$id' : 'e$id',
+      );
+      final state = MoodState(repository: repo);
+
+      await state.fetchTimeline(epoch: CacheService.checkpointEpoch);
+      await state.loadMoreTimeline();
+      await pumpEventQueue();
+      await state.loadMoreTimeline();
+      await pumpEventQueue();
+      expect(state.timeline.map((e) => e.id),
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+      // A full refetch (init, pull-to-refresh, partner activity) returns the
+      // first page again; the 8 older entries must survive.
+      refetched = true;
+      await state.fetchTimeline(epoch: CacheService.checkpointEpoch);
+
+      expect(state.timeline.map((e) => e.id),
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(state.timeline.first.emoji, 'fresh1',
+          reason: 'the fresh page leads the merged history');
+      expect((await StorageService.getTimeline()).map((e) => e.id),
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          reason: 'the cache must hold the merged list, not just the page');
+
+      await state.loadMoreTimeline();
+      await pumpEventQueue();
+      expect(repo.offsets.last, 12,
+          reason: 'paging resumes after the merged history');
+      expect(state.timeline.map((e) => e.id),
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    });
+
+    test('a refetch with only the first page loaded replaces it', () async {
+      await StorageService.saveTimeline(
+          [entry(1), entry(2), entry(3), entry(4)]);
+      final repo = _PagedMoodRepository(pageSize: 4, idBase: 100);
+      final state = MoodState(repository: repo);
+      await state.initMoodScreen();
+      expect(state.timeline.map((e) => e.id), [1, 2, 3, 4],
+          reason: 'precondition: the cached first page is loaded');
+
+      await state.fetchTimeline(epoch: CacheService.checkpointEpoch);
+
+      expect(state.timeline.map((e) => e.id), [100, 101, 102, 103],
+          reason: 'a shifted first page must not merge with the stale page');
+      expect((await StorageService.getTimeline()).map((e) => e.id),
+          [100, 101, 102, 103]);
+
+      await state.loadMoreTimeline();
+      await pumpEventQueue();
+      expect(repo.offsets.last, 4,
+          reason: 'paging resumes right after the replaced page');
+    });
   });
 }
 
 /// Serves deterministic, page-sized timeline slices and records the offsets it
 /// was asked for, so pagination can be asserted without a live backend.
 class _PagedMoodRepository extends MoodRepository {
-  _PagedMoodRepository({required this.pageSize});
+  _PagedMoodRepository({
+    required this.pageSize,
+    this.emojiFor,
+    this.idBase = 1,
+  });
 
   /// Required rather than defaulted: every test states the page size it is
   /// asserting against instead of silently relying on a default.
   final int pageSize;
+  final String Function(int id)? emojiFor;
+  final int idBase;
   final List<int> offsets = <int>[];
 
   @override
@@ -282,12 +348,14 @@ class _PagedMoodRepository extends MoodRepository {
       {int limit = 4, int offset = 0}) async {
     offsets.add(offset);
     final slice = <MoodEntry>[
-      for (var i = offset + 1; i <= offset + pageSize; i++)
+      for (var i = idBase + offset; i < idBase + offset + pageSize; i++)
         MoodEntry(
           id: i,
           userId: 42,
-          emoji: 'e$i',
-          createdAt: DateTime.utc(2026, 5, i).toIso8601String(),
+          emoji: emojiFor?.call(i) ?? 'e$i',
+          // Newest first, like the server's `created_at DESC` ordering.
+          createdAt:
+              DateTime.utc(2027).subtract(Duration(days: i)).toIso8601String(),
         ),
     ];
     return Success<List<MoodEntry>>(slice);

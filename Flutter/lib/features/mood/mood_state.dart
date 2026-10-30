@@ -218,14 +218,36 @@ class MoodState extends BaseState with CheckpointMixin {
       final result = await _repo.fetchTimeline();
       await result.handleAsync(
         onSuccess: (value) async {
-          // Copy: `_timeline` is mutated in place by the optimistic path
-          // (`_timeline.insert(0, …)`) and by `loadMoreTimeline`
-          // (`_timeline.addAll(…)`). Aliasing the repository's list — which may
-          // be unmodifiable/const — made those two crash at runtime.
-          _timeline = List<MoodEntry>.from(value);
+          // Merge the fresh first page with the pages already loaded instead
+          // of replacing them: a full refetch (init, pull-to-refresh, partner
+          // activity) used to truncate the history the user had scrolled back
+          // to, both in memory and in the cache. Build a new list: it is
+          // mutated in place by the optimistic path and `loadMoreTimeline`,
+          // and aliasing the repository's (possibly const) list crashed them.
+          final fresh = List<MoodEntry>.from(value);
+          // Merge only when the user has pages below the first one: a cached
+          // page can be shifted by rows added since it was written, and
+          // merging it would leave a hole the offset cannot page past. A short
+          // page is the whole server timeline, so nothing older can survive.
+          if (fresh.length < 4 || _timeline.length <= fresh.length) {
+            _timeline = fresh;
+          } else {
+            final freshIds = fresh.map((entry) => entry.id).toSet();
+            final cutoff = DateTime.tryParse(fresh.last.createdAt);
+            _timeline = [
+              ...fresh,
+              ..._timeline.where((entry) =>
+                  entry.id != 0 &&
+                  !freshIds.contains(entry.id) &&
+                  (cutoff == null ||
+                      (DateTime.tryParse(entry.createdAt)
+                              ?.isBefore(cutoff) ??
+                          false))),
+            ];
+          }
           _timelineOffset = _timeline.length;
-          _hasMoreTimeline = value.length >= 4;
-          await StorageService.saveTimeline(value);
+          _hasMoreTimeline = fresh.length >= 4;
+          await StorageService.saveTimeline(_timeline);
           await _updateMoodsCheckpoint(epoch: epoch, token: writeToken);
           notifyListeners();
         },
