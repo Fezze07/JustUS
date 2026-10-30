@@ -235,9 +235,11 @@ class _DriveItemScreenState extends State<DriveItemScreen>
         backgroundColor: context.palette.backdrop,
         foregroundColor: context.palette.contentPrimary,
         actions: [
-          Selector<DriveState, bool>(
-            selector: (_, s) => s.singleItem?.isFavorite == 1,
-            builder: (context, isFav, _) {
+          Selector<DriveState, DriveItem?>(
+            selector: (_, s) => s.singleItem,
+            builder: (context, item, _) {
+              if (item == null) return const SizedBox.shrink();
+              final isFav = item.isFavorite == 1;
               final driveState = context.read<DriveState>();
               return Row(
                 children: [
@@ -273,7 +275,20 @@ class _DriveItemScreenState extends State<DriveItemScreen>
         selector: (_, s) => s.singleItem,
         builder: (context, item, _) {
           if (item == null) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delete_outline,
+                      size: 80, color: context.palette.neutralText),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    context.loc.drive_deleted,
+                    style: TextStyle(color: context.palette.contentPrimary),
+                  ),
+                ],
+              ),
+            );
           }
 
           return Column(

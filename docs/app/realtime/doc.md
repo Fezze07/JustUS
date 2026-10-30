@@ -341,7 +341,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ### drive_items / drive_item_reactions
 
-- **Flow**: `isRelevantDrive` → dedup → 150 ms debounce → **full** `DriveState.refreshFromRealtime()`: re-fetch entire `v_drive_dashboard`, sort by `created_at`, rebuild favorites, refresh `_singleItem` if open, `saveDriveItems` to cache, update `chk_drive_items`. (`RefetchRealtimeHandler` instance)
+- **Flow**: `isRelevantDrive` → dedup → 150 ms debounce → **full** `DriveState.refreshFromRealtime()`: re-fetch entire `v_drive_dashboard`, sort by `created_at`, rebuild favorites, `saveDriveItems` to cache, update `chk_drive_items`. The open detail item is derived from the same list by its selected id, so it follows a refresh (or disappears when its row is gone). (`RefetchRealtimeHandler` instance)
 - Guarded by `_isSyncing` — concurrent refreshes are skipped, not queued.
 - **Deletion**: DELETE events arrive on the same channel (all events) → debounced full refetch → deleted items disappear from cache. Outside Realtime, `DriveState.syncDriveItems` detects deletions via a server row-count vs. cached-length comparison that triggers a full **replacing** refetch (storage doc F-SC7); a same-count swap (insert + delete between refreshes) is recovered only by Realtime/polling.
 

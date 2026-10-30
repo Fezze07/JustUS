@@ -12,14 +12,21 @@ class DriveState extends BaseState with CheckpointMixin {
   final DriveRepository _repo;
 
   List<DriveItem> _driveItems = [];
-  DriveItem? _singleItem;
+  int? _selectedItemId;
   bool _isUploading = false;
   bool _isSyncing = false;
   List<DriveItem> _favoriteItems = [];
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
 
   List<DriveItem> get driveItems => _driveItems;
-  DriveItem? get singleItem => _singleItem;
+  DriveItem? get singleItem {
+    final id = _selectedItemId;
+    if (id == null) return null;
+    for (final item in _driveItems) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
   bool get isUploading => _isUploading;
   List<DriveItem> get favoriteItems => _favoriteItems;
 
@@ -240,11 +247,6 @@ class DriveState extends BaseState with CheckpointMixin {
         _driveItems = value
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         _rebuildFavorites();
-        if (_singleItem != null) {
-          final index =
-              _driveItems.indexWhere((item) => item.id == _singleItem!.id);
-          _singleItem = index == -1 ? null : _driveItems[index];
-        }
         await _persistDriveCache();
         _invalidateProbe();
         await _updateDriveCheckpointFromItems(epoch: epoch);
@@ -268,10 +270,12 @@ class DriveState extends BaseState with CheckpointMixin {
   // Load single item into detail view
   // ---------------------------------------------------------------------------
   void loadSingleItem(int itemId) {
-    _singleItem = _driveItems.firstWhere(
-      (item) => item.id == itemId,
-      orElse: () => _driveItems.first,
-    );
+    _selectedItemId = _driveItems
+        .firstWhere(
+          (item) => item.id == itemId,
+          orElse: () => _driveItems.first,
+        )
+        .id;
     notifyListeners();
   }
 
@@ -360,11 +364,6 @@ class DriveState extends BaseState with CheckpointMixin {
           _rebuildFavorites();
           await _persistDriveCache();
           _invalidateProbe();
-          if (_singleItem?.id == itemId) {
-            _singleItem = _singleItem!.copyWith(
-              reactions: [..._singleItem!.reactions, emoji],
-            );
-          }
           setMessage(LanguageHelper.appLoc.drive_reactionAdded);
         },
       );
@@ -386,7 +385,6 @@ class DriveState extends BaseState with CheckpointMixin {
     _rebuildFavorites();
     await _persistDriveCache();
     _invalidateProbe();
-    if (_singleItem?.id == itemId) _singleItem = updatedItem;
     notifyListeners();
 
     await runSafe(() async {
@@ -397,7 +395,6 @@ class DriveState extends BaseState with CheckpointMixin {
         _rebuildFavorites();
         await _persistDriveCache();
         _invalidateProbe();
-        if (_singleItem?.id == itemId) _singleItem = item;
         throw result;
       }
 
@@ -412,7 +409,7 @@ class DriveState extends BaseState with CheckpointMixin {
   void clear() {
     _driveItems = [];
     _rebuildFavorites();
-    _singleItem = null;
+    _selectedItemId = null;
     // The memoized probe is user-scoped: never let it survive a logout or a
     // partnership switch.
     _invalidateProbe();

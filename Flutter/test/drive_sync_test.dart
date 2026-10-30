@@ -59,7 +59,8 @@ class _FakeDriveRepository extends DriveRepository {
   }
 }
 
-DriveItem _item(int id, String name, String updatedAt) {
+DriveItem _item(int id, String name, String updatedAt,
+    {List<String> reactions = const []}) {
   return DriveItem.fromJson({
     'id': id,
     'name': name,
@@ -67,6 +68,7 @@ DriveItem _item(int id, String name, String updatedAt) {
     'created_at': '2026-01-01T00:00:00.000Z',
     'updated_at': updatedAt,
     'is_favorite': 0,
+    'reactions': reactions,
   });
 }
 
@@ -219,6 +221,46 @@ void main() {
     expect(deleted, isFalse);
     expect(state.driveItems.map((i) => i.id), [1],
         reason: 'the optimistic removal must be rolled back on failure');
+
+    state.clear();
+  });
+
+  test('the open detail item follows the grid through sync and vanishes with it',
+      () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..incrementalResult = [
+        _item(1, 'a.png', '2026-02-02T00:00:00.000Z', reactions: ['❤️'])
+      ];
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-31T00:00:00.000Z'),
+    ]);
+    await CacheService.saveCheckpoint(
+        CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+    state.loadSingleItem(1);
+    expect(state.singleItem?.reactions, isEmpty);
+
+    // A partner reaction arrives through the incremental merge.
+    await state.syncDriveItems();
+
+    expect(state.singleItem, same(state.driveItems.single),
+        reason: 'the detail item must be derived from the grid list, not a copy');
+    expect(state.singleItem?.reactions, ['❤️']);
+
+    // A partner delete arrives through the full realtime refresh.
+    repo
+      ..serverCount = 0
+      ..fullSnapshot = [];
+    await state.refreshFromRealtime();
+
+    expect(state.driveItems, isEmpty);
+    expect(state.singleItem, isNull,
+        reason: 'a vanished row must clear the detail view');
 
     state.clear();
   });

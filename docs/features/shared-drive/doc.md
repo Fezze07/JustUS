@@ -185,8 +185,9 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
         thumbnail (metadata.thumbnail) when present; failures logged, never block the
         response; orphaned objects are reclaimed by retentionJob sweepStaleOrphanObjects
         (24 h cutoff, which also references metadata.thumbnail keys)
-  → Success → DriveState sets `message` to `drive_deleted` and returns `true`, so `DriveItemScreen` drains it with `showPendingMessage()` and only then pops the confirm dialog and itself; failure → `false`, the local list is restored, and the screen stays open with the error toast (drive_state.dart:263-283)
+  → Success → DriveState sets `message` to `drive_deleted` and returns `true`, so `DriveItemScreen` drains it with `showPendingMessage()` and only then pops the confirm dialog and itself; failure → `false`, the local list is restored, and the screen stays open with the error toast (drive_state.dart:326-347)
 ```
+- The detail screen's item is derived from the grid list by the selected id; if the row disappears while the screen is open (for example a partner delete arriving through the realtime refresh), the body renders the deleted state instead of a spinner.
 - Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
 - The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.
 - `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the cancelled partnership's id via `getPartnershipId()` and inserts the row against it (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
