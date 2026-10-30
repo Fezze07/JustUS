@@ -12,9 +12,6 @@
 #   It dispatches through `run()` below, so the same script works on WSL,
 #   Git Bash, Linux and macOS.
 #
-#   Windows paths are converted for docker compose (which needs a native path
-#   when invoked from WSL), but only when WSL is actually the environment.
-#
 # READINESS
 #   Runs parallel checks across Backend, Flutter, Duplication, and SQL tests.
 #
@@ -26,7 +23,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.test.yml"
 
 # -----------------------------------------------------------------------------
 # Environment detection
@@ -34,12 +30,6 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.test.yml"
 IS_WSL=0
 if [ -r /proc/version ] && grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
   IS_WSL=1
-fi
-
-# Native (Windows) path for the compose file, but only where needed.
-COMPOSE_ARG="$COMPOSE_FILE"
-if [ "$IS_WSL" = "1" ] && command -v wslpath >/dev/null 2>&1; then
-  COMPOSE_ARG="$(wslpath -w "$COMPOSE_FILE")"
 fi
 
 # -----------------------------------------------------------------------------
@@ -59,12 +49,6 @@ run() {
 log()  { printf '%s\n' "$*"; }
 warn() { printf '  ! %s\n' "$*" >&2; }
 err()  { printf '  x %s\n' "$*" >&2; }
-
-has() { command -v "$1" >/dev/null 2>&1; }
-
-compose() {
-  run docker compose -f "$COMPOSE_ARG" "$@"
-}
 
 export ENV=test
 export NODE_ENV=test

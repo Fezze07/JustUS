@@ -120,7 +120,7 @@ The repository includes an isolated test setup for both backend and Flutter code
 Test environment highlights:
 - `ENV=test` / `NODE_ENV=test` support via the root `.env.test`
 - mocked Supabase / R2 boundaries for backend route tests
-- optional Docker stack in `scripts/docker-compose.test.yml`; `npm run validate` can run the backend Jest suite in a `node:20-alpine` container (skipped automatically when Docker is unavailable)
+- backend Jest suite runs on the host via `npx jest` (no Docker required)
 - Flutter unit/widget tests under `Flutter/test/`
 - Supabase RLS/SQL tests under `supabase/test/` (run via `scripts/run-sql-tests.sh`, skipped without a database URL)
 - reports/logs from a failed run are preserved under `Backend/test/logs/`
