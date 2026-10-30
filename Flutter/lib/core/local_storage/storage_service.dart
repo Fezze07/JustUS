@@ -206,15 +206,6 @@ class StorageService {
     return await _secureStorage.read(key: _keyRefreshToken);
   }
 
-  // Backward compatibility - deprecated, use saveAccessToken
-  static Future<void> saveToken(String token) async {
-    await saveAccessToken(token);
-  }
-
-  static Future<String?> getToken() async {
-    return getAccessToken();
-  }
-
   // -------------------- Device Binding --------------------
 
   static Future<String> getOrCreateDeviceFingerprint() async {

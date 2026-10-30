@@ -171,12 +171,6 @@ class MoodState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<void> loadPartnerMoodFromCache() async {
-    final mood = await StorageService.getMood('partner');
-    _partnerMood = mood ?? '😐';
-    notifyListeners();
-  }
-
   Future<void> fetchMyMood() async {
     await runSafe(() async {
       final result = await _repo.fetchMyMood();

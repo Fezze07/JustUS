@@ -64,11 +64,6 @@ class CompressionService {
     return file;
   }
 
-  /// Audio: returns original file.
-  static Future<File> compressAudio(File file) async {
-    return file;
-  }
-
   /// Validates file size before upload (15 MB hard limit)
   static bool isWithinSizeLimit(File file) {
     return file.lengthSync() <= 15 * 1024 * 1024;

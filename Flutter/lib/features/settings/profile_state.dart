@@ -18,7 +18,6 @@ class ProfileState extends BaseState {
 
   User? _userProfile;
   User? _partnerProfile;
-  String? _localProfileImagePath;
   bool _isUploading = false;
   DateTime? _lastFetch;
   DateTime? _anniversaryDate;
@@ -29,7 +28,6 @@ class ProfileState extends BaseState {
 
   User? get userProfile => _userProfile;
   User? get partnerProfile => _partnerProfile;
-  String? get localProfileImagePath => _localProfileImagePath;
   bool get isUploading => _isUploading;
   DateTime? get anniversaryDate => _anniversaryDate;
   int? get profilePicVersion => _profilePicVersion;
@@ -118,11 +116,6 @@ class ProfileState extends BaseState {
     });
   }
 
-  void setLocalProfileImage(String path) {
-    _localProfileImagePath = path;
-    notifyListeners();
-  }
-
   Future<void> uploadProfilePhoto(String filePath) async {
     _isUploading = true;
     notifyListeners();
@@ -143,7 +136,6 @@ class ProfileState extends BaseState {
         }
         setMessage(LanguageHelper.appLoc.profile_saved);
       });
-      _localProfileImagePath = null;
     }, showLoading: false);
 
     _isUploading = false;
@@ -182,7 +174,6 @@ class ProfileState extends BaseState {
   void clear() {
     _userProfile = null;
     _partnerProfile = null;
-    _localProfileImagePath = null;
     _isUploading = false;
     _lastFetch = null;
     _anniversaryDate = null;

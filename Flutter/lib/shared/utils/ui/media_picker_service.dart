@@ -7,10 +7,6 @@ import 'package:justus/all_imports.dart';
 class MediaPickerService {
   static final _picker = ImagePicker();
 
-  static Future<XFile?> pickImageFromSource(ImageSource source) async {
-    return await _picker.pickImage(source: source);
-  }
-
   static Future<XFile?> pickFileWith(FileType type,
       {List<String>? allowedExtensions}) async {
     try {

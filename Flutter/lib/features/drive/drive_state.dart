@@ -276,15 +276,6 @@ class DriveState extends BaseState with CheckpointMixin {
   }
 
   // ---------------------------------------------------------------------------
-  // Get a fresh signed download URL via the Edge Function
-  // ---------------------------------------------------------------------------
-  Future<String?> getSignedUrl(String filename) async {
-    final result = await _repo.getMediaDownloadUrl(filename);
-
-    return result.valueOrNull;
-  }
-
-  // ---------------------------------------------------------------------------
   // Upload: compress → R2 → Supabase metadata (NO direct backend upload)
   // ---------------------------------------------------------------------------
   Future<void> addFileItemR2({

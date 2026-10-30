@@ -46,7 +46,6 @@ The utilities covered include:
 
 * **Responsibility**: Wraps `image_picker` package to provide simple camera and gallery selection helpers and a pre-styled modal bottom sheet.
 * **API**:
-  - `static Future<XFile?> pickImageFromSource(ImageSource source)`
   - `static Future<XFile?> showPickerSheet(BuildContext context, {double? maxWidth, double? maxHeight})`
 * **Dependencies**: `image_picker`, `file_picker`, `flutter/material.dart`, `VPSheet`, `VpWidgets`, `context.palette`, `context.loc`.
 * **Callers**: Used in `DriveScreen` ([`drive_screen.dart:35`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L35)) and `ProfileScreen` ([`profile_screen.dart:46`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L46), passing `maxWidth`/`maxHeight` of 512).
@@ -135,17 +134,14 @@ The utilities covered include:
 
 ### 8. Supabase Query Extensions
 
-* **Responsibility**: Extension methods on Supabase Postgrest query builders (`PostgrestFilterBuilder` and `PostgrestTransformBuilder`) to simplify conditional filtering (`maybeFilterIn`, `maybeEq`, `maybeGt`) and typed result conversions (`toList`, `toSingle`).
+* **Responsibility**: Extension methods on Supabase Postgrest query builders (`PostgrestFilterBuilder` and `PostgrestTransformBuilder`) to simplify conditional filtering (`maybeFilterIn`) and typed result conversions (`toList`).
 * **API**:
   - `PostgrestFilterBuilder<T> maybeFilterIn(String column, List<Object> values)`
-  - `PostgrestFilterBuilder<T> maybeEq(String column, Object? value)`
-  - `PostgrestFilterBuilder<T> maybeGt(String column, Object? value)`
   - `Future<List<Map<String, dynamic>>> toList()`
-  - `Future<Map<String, dynamic>?> toSingle()`
 * **Dependencies**: `supabase_flutter` (`PostgrestFilterBuilder`, `PostgrestTransformBuilder`).
-* **Callers**: `MoodRepository` (`maybeFilterIn`), `GameRepository` (`maybeEq`), `PartnershipRepository` (`toList`), `DriveRepository` (`toList`), `BucketRepository` (`toList`).
-* **Expected Usage**: Avoid appending query clauses when parameter values are empty or null, and streamline casting Postgrest response lists to `List<Map<String, dynamic>>`.
-* **Error Behavior**: `maybeSingle()` returns `null` if no record is found. `toList()` casts dynamic list results to `List<Map<String, dynamic>>` which may throw a `TypeError` if database output structure differs.
+* **Callers**: `MoodRepository` (`maybeFilterIn`), `DriveRepository` (`toList`), `BucketRepository` (`toList`).
+* **Expected Usage**: Avoid appending query clauses when the value list is empty, and streamline casting Postgrest response lists to `List<Map<String, dynamic>>`.
+* **Error Behavior**: `toList()` casts dynamic list results to `List<Map<String, dynamic>>` which may throw a `TypeError` if database output structure differs.
 * **Lifecycle Assumptions**: Extensions operate directly on active Postgrest query builder instances.
 
 ---
@@ -251,7 +247,7 @@ The utilities covered include:
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |
 | **DialogUtils** | `shared/utils/ui/dialog_utils.dart` | IMPLEMENTED | Clean wrapper around error and invite dialogs. |
 | **ResultWrapper & Extensions** | `core/network/result_wrapper.dart`, `shared/utils/extensions/result_extensions.dart` | IMPLEMENTED | Robust functional error handling pattern used throughout repositories. |
-| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | IMPLEMENTED | Provides clean query building helpers (`maybeFilterIn`, `maybeEq`); unused dead code removed under 7.3. |
+| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | IMPLEMENTED | Provides query building helpers (`maybeFilterIn`, `toList`); unused helpers removed under 7.3 and 14.8. |
 | **AppDateUtils** | `shared/utils/date/app_date_utils.dart` | IMPLEMENTED | Pure static helpers; some date formatting remains duplicated in feature screens. |
 | **TabScreen / TabScreenMixin** | `shared/widgets/tab_screen.dart` | IMPLEMENTED | Consistently used across all primary app tabs for activation-based loading. |
 | **AnsiLogger** | `core/utils/ansi_logger.dart` | IMPLEMENTED | Widely used across network, auth, and realtime components; disabled in release builds. |

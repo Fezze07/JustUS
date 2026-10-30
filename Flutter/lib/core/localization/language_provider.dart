@@ -9,7 +9,6 @@ class LanguageProvider extends ChangeNotifier {
 
   Locale get locale => _locale;
   bool get isLoaded => _isLoaded;
-  AppLanguage get currentLanguage => LanguageHelper.languageForLocale(_locale);
   List<AppLanguage> get supportedLanguages => LanguageHelper.supportedLanguages;
 
   Future<void> loadSavedLocale() async {

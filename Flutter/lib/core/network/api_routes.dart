@@ -3,12 +3,9 @@ class ApiRoutes {
 
   static const String apiPrefix = '/api/v1';
 
-  static const String root = apiPrefix;
-  static const String ping = '$apiPrefix/ping';
   static const String appVersion = '$apiPrefix/app-version';
 
   static const String authCallbackPath = '/auth/callback';
-  static const String inviteCallbackPath = '/auth/invite-callback';
   static const String authInstallationId = '$apiPrefix/auth/installation-id';
   static const String authInstallationIdRevoke =
       '$apiPrefix/auth/installation-id-revoke';

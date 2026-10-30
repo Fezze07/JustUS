@@ -93,12 +93,6 @@ class DriveRepository extends BaseRepository {
         haystack.contains('drive_change_probe');
   }
 
-  Future<ResultWrapper<String?>> getMediaDownloadUrl(String filename) async {
-    return tryCall(() async {
-      return _mediaService.getDownloadUrl(filename);
-    });
-  }
-
   Future<ResultWrapper<DriveItem>> uploadDriveItemToR2({
     required String filePath,
     required MediaType type,

@@ -30,8 +30,6 @@ class PartnershipResponse {
     this.userIdB,
   });
 
-  bool hasAcceptedPartner() => partner != null && status == 'accepted';
-
   factory PartnershipResponse.fromJson(Map<String, dynamic> json) {
     // Parse from v_active_partnership view format
     User? partner;
@@ -131,6 +129,5 @@ class PartnershipInvitation {
     );
   }
 
-  bool get isPending => status == 'pending';
   String get username => partnerDisplayName ?? 'Partner';
 }

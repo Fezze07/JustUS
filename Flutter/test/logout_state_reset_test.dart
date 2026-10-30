@@ -340,7 +340,6 @@ void main() {
 
     expect(profile.userProfile, isNull);
     expect(profile.partnerProfile, isNull);
-    expect(profile.localProfileImagePath, isNull);
     expect(profile.anniversaryDate, isNull);
     expect(profile.isUploading, isFalse);
   });

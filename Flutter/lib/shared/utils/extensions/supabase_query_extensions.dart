@@ -9,14 +9,6 @@ extension SupabaseQueryExtensions<T> on PostgrestFilterBuilder<T> {
     return inFilter(column, values);
   }
 
-  PostgrestFilterBuilder<T> maybeEq(
-    String column,
-    Object? value,
-  ) {
-    if (value == null) return this;
-    return eq(column, value);
-  }
-
 }
 
 extension SupabaseQueryTransformer<T> on PostgrestTransformBuilder<T> {
