@@ -2,10 +2,6 @@
   "name": "justus",
   "version": "1.0.0",
   "description": "![JustUs](JustUs.png)",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
   "scripts": {
     "test": "npm run validate",
     "scan:duplicates": "npm run scan:duplicates:global",
