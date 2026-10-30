@@ -807,10 +807,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get error_authFail002 => 'Sessione non valida. Effettua il login.';
 
   @override
-  String get error_authFail003 =>
-      'La sessione è stata revocata. Accedi nuovamente.';
-
-  @override
   String get error_authFail004 => 'Accesso non consentito.';
 
   @override
@@ -835,9 +831,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get error_dbNotFound001 => 'Risorsa non trovata.';
-
-  @override
-  String get error_dbTimeout001 => 'Il server è lento. Riprova tra poco.';
 
   @override
   String get error_apiValidation001 => 'I dati inseriti non sono validi.';
@@ -901,10 +894,17 @@ class AppLocalizationsIt extends AppLocalizations {
   String get error_secBlock002 => 'Accesso temporaneamente bloccato.';
 
   @override
-  String get error_secPermission001 => 'Accesso negato.';
+  String get error_secAuth001 => 'Autorizzazione di sicurezza non riuscita.';
+
+  @override
+  String get error_secAuth002 =>
+      'Sessione non valida. Effettua di nuovo il login.';
 
   @override
   String get error_sysFail001 => 'Errore interno del server.';
+
+  @override
+  String get error_sysTimeout001 => 'Il server ha impiegato troppo. Riprova.';
 
   @override
   String get error_localNetworkError => 'Nessuna connessione a Internet.';

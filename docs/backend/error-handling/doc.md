@@ -53,6 +53,7 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 ### 1. Backend `AppError` ([`AppError.js`](file:///f:/JustUS/Backend/core/errors/AppError.js))
 - Extends native JavaScript `Error`.
 - Structured Error Codes following format `<AREA>-<TYPE>-<ID>` (e.g. `AUTH-FAIL-001`, `DB-WRITE-001`, `SEC-BLOCK-001`).
+- A cross-side Jest test (`Backend/test/error-codes-drift.test.js`) fails when an `ERROR_CODES` entry has no Flutter `userMessage` case or EN/IT ARB string, and when Flutter handles a server code outside the backend catalog or the RPC allowlist.
 - **Severity Mapping**:
   - `status >= 500` $\rightarrow$ `HIGH`
   - `status === 429` $\rightarrow$ `MEDIUM`
@@ -63,7 +64,7 @@ The complete lifecycle of an error from occurrence to logging and user presentat
 - Factory `AppError.fromJson(json)` parses backend JSON error envelope.
 - Factories `.network()` (code `LOCAL-NET-001`) and `.timeout()` (code `LOCAL-TIMEOUT-001`) build local transport errors; `ErrorHandler.toAppError(error)` normalizes every thrown value or repository result into an `AppError`: a `GenericError` carrying an `AppError` in `details` returns that `AppError` (how a repository-preserved code survives the wrapper), a bare `NetworkError` / `SocketException` / `HttpException` maps to `AppError.network()`, and a `TimeoutException` to `AppError.timeout()`.
 - Method `userMessage(loc)` maps error code to localized string via `ErrorCodes.userMessage(code, loc)`.
-- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `003`, `006`, and the synthetic client code `"401"` (`ErrorCodes.httpUnauthorized`, raised when a token refresh fails). The client synthetic code `AUTH-FAIL-CRED` is deliberately **not** included.
+- Flag `requiresReauth`: True for `AUTH-FAIL-001`, `002`, `006`, and the synthetic client code `"401"` (`ErrorCodes.httpUnauthorized`, raised when a token refresh fails). The client synthetic code `AUTH-FAIL-CRED` is deliberately **not** included.
 - Auth mapping: a Supabase `AuthException` raised during **login/registration** is caught in `AuthState.login`/`register` and rethrown as `AppError(AUTH-FAIL-CRED)`; the same code covers the "no user/session" outcomes. A generic `AuthException` reaching `ErrorHandler._toAppError` (token/session validation) still maps to `AUTH-FAIL-001`.
 - Flag `isCritical`: True if `requiresReauth` or `SEC-BLOCK-001` / `SEC-BLOCK-002`.
 

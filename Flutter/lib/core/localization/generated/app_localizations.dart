@@ -1622,12 +1622,6 @@ abstract class AppLocalizations {
   /// **'Sessione non valida. Effettua il login.'**
   String get error_authFail002;
 
-  /// No description provided for @error_authFail003.
-  ///
-  /// In it, this message translates to:
-  /// **'La sessione è stata revocata. Accedi nuovamente.'**
-  String get error_authFail003;
-
   /// No description provided for @error_authFail004.
   ///
   /// In it, this message translates to:
@@ -1675,12 +1669,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Risorsa non trovata.'**
   String get error_dbNotFound001;
-
-  /// No description provided for @error_dbTimeout001.
-  ///
-  /// In it, this message translates to:
-  /// **'Il server è lento. Riprova tra poco.'**
-  String get error_dbTimeout001;
 
   /// No description provided for @error_apiValidation001.
   ///
@@ -1784,17 +1772,29 @@ abstract class AppLocalizations {
   /// **'Accesso temporaneamente bloccato.'**
   String get error_secBlock002;
 
-  /// No description provided for @error_secPermission001.
+  /// No description provided for @error_secAuth001.
   ///
   /// In it, this message translates to:
-  /// **'Accesso negato.'**
-  String get error_secPermission001;
+  /// **'Autorizzazione di sicurezza non riuscita.'**
+  String get error_secAuth001;
+
+  /// No description provided for @error_secAuth002.
+  ///
+  /// In it, this message translates to:
+  /// **'Sessione non valida. Effettua di nuovo il login.'**
+  String get error_secAuth002;
 
   /// No description provided for @error_sysFail001.
   ///
   /// In it, this message translates to:
   /// **'Errore interno del server.'**
   String get error_sysFail001;
+
+  /// No description provided for @error_sysTimeout001.
+  ///
+  /// In it, this message translates to:
+  /// **'Il server ha impiegato troppo. Riprova.'**
+  String get error_sysTimeout001;
 
   /// No description provided for @error_localNetworkError.
   ///

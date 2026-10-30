@@ -342,7 +342,6 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 |---|---|---|---|
 | `AUTH_FAIL_001` | 401 | Invalid / expired Supabase token, token lifetime exceeds policy, or server-side session past `auth.sessions.not_after` | Triggers client refresh attempt |
 | `AUTH_FAIL_002` | 401 | Missing Bearer token in Authorization header | Aborts request |
-| `AUTH_FAIL_003` | 401 | Not emitted by the current backend; a deleted session is rejected by GoTrue and surfaces as `AUTH_FAIL_001` | — |
 | `AUTH_FAIL_004` | 401 | Token role claims !== `'authenticated'` | Aborts request |
 | `AUTH_FAIL_005` | 401 | User profile not found in `public.users` table | Aborts request |
 | `AUTH_FAIL_006` | 401 | Device Fingerprint or User-Agent binding mismatch | Forces re-login |

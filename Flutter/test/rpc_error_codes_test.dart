@@ -105,4 +105,26 @@ void main() {
       expect((result as GenericError<void>).details, isNull);
     });
   });
+
+  group('requiresReauth', () {
+    test('only session codes trigger re-login', () {
+      for (final code in const [
+        ErrorCodes.authFail001,
+        ErrorCodes.authFail002,
+        ErrorCodes.authFail006,
+        ErrorCodes.httpUnauthorized,
+      ]) {
+        expect(ErrorCodes.requiresReauth(code), isTrue);
+      }
+
+      for (final code in const [
+        'AUTH-FAIL-003',
+        ErrorCodes.secAuth001,
+        ErrorCodes.secAuth002,
+        ErrorCodes.sysTimeout001,
+      ]) {
+        expect(ErrorCodes.requiresReauth(code), isFalse);
+      }
+    });
+  });
 }

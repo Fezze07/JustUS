@@ -11,7 +11,6 @@ class ErrorCodes {
   static const String authFail001 =
       'AUTH-FAIL-001'; // Token scaduto / non valido
   static const String authFail002 = 'AUTH-FAIL-002'; // Bearer token mancante
-  static const String authFail003 = 'AUTH-FAIL-003'; // Sessione revocata
   static const String authFail004 = 'AUTH-FAIL-004'; // Ruolo non valido
   static const String authFail005 = 'AUTH-FAIL-005'; // Profilo non trovato
   static const String authFail006 = 'AUTH-FAIL-006'; // Device mismatch
@@ -25,7 +24,6 @@ class ErrorCodes {
   static const String dbRead001 = 'DB-READ-001';
   static const String dbWrite001 = 'DB-WRITE-001';
   static const String dbNotFound001 = 'DB-NOT_FOUND-001';
-  static const String dbTimeout001 = 'DB-TIMEOUT-001';
 
   // API
   static const String apiValidation001 = 'API-VALIDATION-001';
@@ -47,12 +45,12 @@ class ErrorCodes {
   // SEC
   static const String secBlock001 = 'SEC-BLOCK-001'; // Rate limit / blocco
   static const String secBlock002 = 'SEC-BLOCK-002'; // Login bloccato
+  static const String secAuth001 = 'SEC-AUTH-001'; // Autorizzazione negata
   static const String secAuth002 = 'SEC-AUTH-002'; // Firma richiesta non valida
-  static const String secPermission001 =
-      'SEC-PERMISSION-001'; // Origine non consentita
 
   // SYS
   static const String sysFail001 = 'SYS-FAIL-001'; // Errore interno generico
+  static const String sysTimeout001 = 'SYS-TIMEOUT-001'; // Timeout interno
 
   // HTTP
   static const String httpUnauthorized = '401';
@@ -107,8 +105,6 @@ class ErrorCodes {
         return loc.error_authFail001;
       case authFail002:
         return loc.error_authFail002;
-      case authFail003:
-        return loc.error_authFail003;
       case authFail004:
         return loc.error_authFail004;
       case authFail005:
@@ -125,8 +121,6 @@ class ErrorCodes {
         return loc.error_dbWrite001;
       case dbNotFound001:
         return loc.error_dbNotFound001;
-      case dbTimeout001:
-        return loc.error_dbTimeout001;
       case apiValidation001:
         return loc.error_apiValidation001;
       case apiValidation002:
@@ -163,10 +157,14 @@ class ErrorCodes {
         return loc.error_secBlock001;
       case secBlock002:
         return loc.error_secBlock002;
-      case secPermission001:
-        return loc.error_secPermission001;
+      case secAuth001:
+        return loc.error_secAuth001;
+      case secAuth002:
+        return loc.error_secAuth002;
       case sysFail001:
         return loc.error_sysFail001;
+      case sysTimeout001:
+        return loc.error_sysTimeout001;
       case localNetworkError:
         return loc.error_localNetworkError;
       case localTimeout001:
@@ -191,7 +189,6 @@ class ErrorCodes {
   static bool requiresReauth(String code) {
     return code == authFail001 ||
         code == authFail002 ||
-        code == authFail003 ||
         code == authFail006 ||
         code == httpUnauthorized;
   }
