@@ -4,8 +4,6 @@
 
 import 'package:justus/all_imports.dart';
 
-abstract class BucketModels {}
-
 class BucketItem {
   final int id;
   final String text;

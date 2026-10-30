@@ -2,8 +2,6 @@
 // JustUs App - Version Control Models
 // =============================================================================
 
-abstract class VersionModels {}
-
 class AppVersionResponse {
   final String version;
   final int build;

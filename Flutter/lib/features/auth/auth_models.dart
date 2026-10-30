@@ -2,8 +2,6 @@
 // JustUs App - Auth Models
 // =============================================================================
 
-abstract class AuthModels {}
-
 class User {
   final int id;
   final String? email;

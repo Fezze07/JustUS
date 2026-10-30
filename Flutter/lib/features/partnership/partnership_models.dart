@@ -4,8 +4,6 @@
 
 import 'package:justus/all_imports.dart';
 
-abstract class PartnershipModels {}
-
 /// Represents the full partnership view returned by v_active_partnership.
 /// The view returns: partnership_id, status, anniversary_date,
 /// partner_id, partner_display_name, partner_profile_pic_url.

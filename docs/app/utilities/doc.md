@@ -159,7 +159,7 @@ The utilities covered include:
   - `static DateTime? tryParse(String? dateString)`
   - `static String formatToYMD(DateTime date)`
 * **Dependencies**: Standard Dart library (`DateTime`).
-* **Callers**: `PartnershipRepository`, `PartnershipModels`, `MoodScreen`, `HomepageScreen`.
+* **Callers**: `PartnershipRepository`, `partnership_models.dart`, `MoodScreen`, `HomepageScreen`.
 * **Expected Usage**: Date string parsing and calculating days elapsed for anniversary counters or daily streaks.
 * **Error Behavior**: `tryParse` returns `null` for null or empty strings, or invalid ISO date strings.
 * **Lifecycle Assumptions**: Pure stateless utility functions.

@@ -2,8 +2,6 @@
 // JustUs App - Mood Models
 // =============================================================================
 
-abstract class MoodModels {}
-
 class MissYouResponse {
   final bool success;
   final int total;

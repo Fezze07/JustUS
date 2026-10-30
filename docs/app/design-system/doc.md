@@ -2,7 +2,7 @@
 
 ## Overview
 
-The design system ("Violet Punk") lives in `Flutter/lib/shared/design_system/` and is exported through the barrel `design_system.dart`, which re-exports `vp_widgets.dart` plus its satellite components (`error_dialog.dart`, `vp_sheet.dart`, `vp_circle_button.dart`, `vp_filter_chip.dart`; the image/avatar components now live in `lib/shared/widgets/` because they depend on `ApiService`).
+The design system ("Violet Punk") lives in `Flutter/lib/shared/design_system/` and is exported through the barrel `design_system.dart`, which re-exports `vp_widgets.dart` plus its satellite components (`error_dialog.dart`, `vp_sheet.dart`, `vp_filter_chip.dart`; the image/avatar components now live in `lib/shared/widgets/` because they depend on `ApiService`).
 
 `vp_widgets.dart` is the **core file** and hosts 13 components plus the `VpWidgets` static helper class. The satellite files each host one component.
 
@@ -208,16 +208,7 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **A11y**: action announces as a button; there is no tap-disabled-state guard (`onActionTap` is passed straight to `GestureDetector`).
 - **Usage**: mood, profile, others (9 refs).
 
-### VPSegmentedControl - `vp_widgets.dart:546-629`
-
-- **Purpose**: pill segmented selector (icon + label per option).
-- **API**: `VPSegmentedControl<T>({required List<VPSegmentedControlOption<T>> options, required T value, required ValueChanged<T> onChanged})`; option `{value, label, IconData icon}`.
-- **Visual**: `surfaceSunken` pill track with `border`, selected segment filled `primary` with `onPrimary` icon/text, unselected `contentTertiary`/`contentSecondary`.
-- **A11y**: each option is `Semantics(button: true, selected: isSelected, label: option.label)`; the selected option ignores taps.
-- **Theme/Loc**: theme-aware; labels pre-localized.
-- **Status**: defined but unused anywhere in `lib/` - dead component candidate.
-
-### VPDialog - `vp_widgets.dart:631-651`
+### VPDialog - `vp_widgets.dart:546-566`
 
 - **Purpose**: the app's only `AlertDialog` wrapper — the single dialog component.
 - **API**: `{required String title, required Widget content, List<Widget>? actions}`.
@@ -241,15 +232,6 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **Behavior**: centered `Row`; neutral 14px text (`contentTertiary`) + `TextButton` with `accentPurple` bold action.
 - **A11y**: text separate from button (screen readers read both); no location hint.
 - **Usage**: login:29, register:30.
-
-### VPCircleButton - `vp_circle_button.dart`
-
-- **Purpose**: circular icon button (40px default).
-- **API**: `{required IconData icon, required Color color, required VoidCallback onTap, bool isFill=false, double size=24, bool hasShadow=true, String? tooltip}`.
-- **Behavior**: `InkWell` (radius `AppRadius.pill`) on a frosted container (`overlay` fill, `border` border, `AppDims.circleButton` 40x40), `Icon` with optional `fill:1.0` and matching-color glow shadow.
-- **A11y**: `Semantics(button: true, label: tooltip)` + `InkWell` button semantics; when `tooltip` is non-null the button is wrapped in a `Tooltip`.
-- **Theme**: theme-aware (`overlay`/`border`).
-- **Usage**: drive_screen back button, drive media action controls.
 
 ### VPFilterChip - `vp_filter_chip.dart`
 
@@ -324,10 +306,8 @@ needs a blocking scrim must build it itself from `context.palette.scrim` + a
 | VPCard | 3 files | underused (most screens use raw Container) |
 | VPScaffold | 9 screens | bypassed by 4 screens (splash, drive, drive item, auth) |
 | VPSectionHeader | 4 files | - |
-| VPSegmentedControl | 0 call sites | dead component |
 | VPDialog | 11 files (sole `AlertDialog` constructor) | - |
 | VPAuthLayout / VPAuthLink | login + register | - |
-| VPCircleButton | drive back button + drive media action controls | - |
 | VPFilterChip | drive | - |
 | InvitationTile | partner invitations + cancellation request card | - |
 | VPSheet | emoji picker, media picker service, drive reactions | - |
@@ -357,7 +337,7 @@ needs a blocking scrim must build it itself from `context.palette.scrim` + a
 | Light-mode support | IMPLEMENTED (`AppPalette.light` theme extension + adaptive components) |
 | Theme preference persistence | IMPLEMENTED (`ThemeProvider.storageKey`, restored pre-`runApp`, setting tile in ProfileScreen) |
 | Homepage alignment to DS | IMPLEMENTED (`home*` palette tokens, theme font, `VPUserAvatar` avatars) |
-| Dead component cleanup | DONE (VPLoadingButton, VPLoadingOverlay, VPMiniAvatar, PartnerUserTile, PartnerRequestTile, onlineIndicator are no longer part of the system; `VPSegmentedControl` is defined but unused) |
+| Dead component cleanup | DONE (VPLoadingButton, VPLoadingOverlay, VPMiniAvatar, PartnerUserTile, PartnerRequestTile, onlineIndicator, VPSegmentedControl and VPCircleButton are no longer part of the system) |
 | Unified bottom sheet | IMPLEMENTED (`VPSheet` in 3 call sites) |
 | Color/radius tokenization | IMPLEMENTED for colors (`app_palette.dart` is the only `Colors.*`/`Color(0x…)` site) and radii (`AppRadius`); spacing migration partial |
 

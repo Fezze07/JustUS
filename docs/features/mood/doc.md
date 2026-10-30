@@ -13,7 +13,7 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          FLUTTER FRONTEND LAYER                         │
-│  MoodScreen • EmojiPickerSheet • EmojiPickerWidget • MoodState           │
+│  MoodScreen • EmojiPickerSheet • MoodState                             │
 │  MoodRepository • RealtimeSyncService • HomepageScreen                  │
 └────────────────────┬───────────────────────────────▲────────────────────┘
                      │                               │

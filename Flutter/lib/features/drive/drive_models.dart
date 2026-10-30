@@ -2,8 +2,6 @@
 // JustUs App - Drive Models
 // =============================================================================
 
-abstract class DriveModels {}
-
 /// Result of the single-round-trip revalidation probe
 /// (`public.drive_change_probe()`).
 ///
