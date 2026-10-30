@@ -224,12 +224,12 @@ notifySchema = z.object({
 |---|---|---|---|
 | Unauthenticated | 401 | `AUTH-FAIL-002` | Silently ignored (fire-and-forget) |
 | Missing/invalid signature | 401 | `SEC-AUTH-002` | Silently ignored (fire-and-forget) |
-| Reused nonce | 403 | `SEC-BLOCK-001` | Silently ignored (fire-and-forget) |
+| Reused nonce | 429 | `SEC-BLOCK-001` | Silently ignored (fire-and-forget) |
 | Rate limited (13th in window) | 429 | `SEC-BLOCK-001` | Silently ignored |
 | Invalid payload (missing/empty `notificationKey`) | 400 | `API-VALIDATION-001` | Silently ignored |
 | Sender without an accepted partner | 403 | `AUTH-FAIL-004` | Silently ignored |
 | Unknown path (e.g. `/notify/nonexistent`) | 404 | `API-NOT_FOUND-001` | Not called (client only uses `/notify/partner`) |
-| Receiver has no registered device | 200 dispatch, then controller **throws** `DB_NOT_FOUND_001` when `deviceCount === 0` | `DB-NOT-FOUND-001` | Logged only; no retry |
+| Receiver has no registered device | 404 | `DB-NOT_FOUND-001` | Logged only; no retry |
 | FCM not configured (no service account) | 200 | — | Status `skipped_firebase_not_configured`; logged only |
 
 ---
@@ -538,7 +538,7 @@ No tests reference `NotificationService`, `onNotificationTap`, `showRemoteMessag
 
 - **Fire-and-forget**: every repository notification is `unawaited(notifyPartnerOnce(...))` and creates a transient `ApiService` (`base_repository.dart:167`). Failures are logged with `AnsiLogger` only; there is no retry, queue, or offline-outbox. Mutation visibility is instead guaranteed by Supabase Realtime echoes.
 - **iOS push certificates**: the OS FCM flow (background-killed) requires APNs credentials configured in Firebase; they are assumed by the backend config and not verifiable from code.
-- **`user_devices` live schema**: contains `locale`, `updated_at` and `session_id` columns, which are missing from the schema-reference skill (`supabase-schema/SKILL.md`) — that table predates these columns. The live `information_schema` is authoritative.
+- **`user_devices` schema**: `supabase/schemas/public/tables/user_devices.sql` is the source of truth; it contains the `locale`, `updated_at` and `session_id` columns.
 - **Cross-doc references**:
   - Navigation **F-N5**: notification taps never navigate (this section and `navigation/doc.md:332-338`).
   - Storage **F-SC4** (resolved): `app_language_code` is preserved across logout (`StorageService.clearAll()` re-persists it), so notification localization keeps working after re-login.

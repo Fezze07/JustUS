@@ -14,7 +14,7 @@ The Shared Bucket List allows both partners in an active JustUS partnership to m
 
 ### 2.1 Table: `bucket_items`
 
-Source: `supabase-schema/SKILL.md`
+Source: [bucket_items.sql](file:///f:/JustUS/supabase/schemas/public/tables/bucket_items.sql)
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|

@@ -183,7 +183,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 - Page size: 4 items.
 - `loadMoreTimeline()` increments `_timelineOffset` and appends next batch of 4 items using `.range(offset, offset + limit - 1)`.
 - Renders entry timestamp formatted as `d MMMM` (e.g., "11 Settembre") and `HH:mm` (e.g., "20:45").
-- Displays color-coded borders: `AppColors.primary` for user's own entries (`isMine: true`), `Colors.pinkAccent` for partner's entries (`isMine: false`).
+- Displays color-coded borders: `context.palette.primary` for user's own entries (`isMine: true`), `context.palette.accentPink` for partner's entries (`isMine: false`).
 
 ---
 

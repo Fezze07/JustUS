@@ -345,8 +345,8 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 ## Theme Initialization
 
 - `ThemeProvider` (`lib/core/theme/theme_provider.dart`): `ThemeMode _mode = ThemeMode.dark`, `loadSavedMode()`, `toggle()`, `setThemeMode()`.
-- `AppTheme` (`lib/core/theme/app_theme.dart`): Material 3 light/dark, seed color `AppColors.primary` (#7F13EC), Google Fonts Plus Jakarta Sans, styled AppBar/Card/Input/FilledButton/Dialog.
-- `AppColors` (`lib/core/theme/app_colors.dart`): "Violet-Punk" palette (primary `0xFF7F13EC`, neon aqua/purple/blue/green/pink, `deepViolet`, `punkPurple`, `cardDark`, etc.).
+- `AppTheme` (`lib/core/theme/app_theme.dart`): Material 3 light/dark, seed color `AppPalette.brandPrimary` (#7F13EC), Google Fonts Plus Jakarta Sans, styled AppBar/Card/Input/FilledButton/Dialog.
+- `AppPalette` (`lib/core/theme/app_palette.dart`): "Violet-Punk" palette (brandPrimary `0xFF7F13EC`, brand accent neon aqua/purple/blue/green/pink, dark tokens `canvas`, `surface`, `surfaceSunken`, `surfaceGroup`, etc.).
 - **Persistence**: the mode is stored under `ThemeProvider.storageKey` (`app_theme_mode`) in `SharedPreferences` and read back by `loadSavedMode()` before `runApp` (like `LanguageProvider.loadSavedLocale()`), so a restart restores the selection with no first-frame flash. `StorageService.clearAll()` preserves the key across logout/wipe, since it is device-level rather than account-level. Settings tiles on `ProfileScreen` allow toggling themes.
 
 ---

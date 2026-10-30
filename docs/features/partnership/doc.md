@@ -142,7 +142,7 @@ Each user profile automatically receives a unique **Partnership Code** upon regi
 - **Length**: Exactly 6 characters ([auth.schemas.js:25](file:///f:/JustUS/Backend/features/auth/auth.schemas.js#L25)).
 - **Allowed Characters**: Upper-case alphanumeric strings (e.g., `ABC123`).
 - **Generation**: Created automatically inside database trigger `user_create_from_auth()` on user profile creation.
-- **Uniqueness**: Enforced at the database schema level by a `UNIQUE` constraint on `user_profiles.partnership_code` ([supabase-schema](file:///f:/JustUS/.agents/skills/supabase-schema/SKILL.md#L150)).
+- **Uniqueness**: Enforced at the database schema level by a `UNIQUE` constraint on `user_profiles.partnership_code` ([user_profiles.sql:8](file:///f:/JustUS/supabase/schemas/public/tables/user_profiles.sql#L8)).
 - **Expiration & Reuse**: The code is static and tied permanently to the `user_profiles` record. It does not expire and cannot be changed or reused by another user.
 - **Brute-Force Resistance**:
   - A partnership code alone is insufficient to send a request.

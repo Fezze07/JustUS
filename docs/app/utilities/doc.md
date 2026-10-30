@@ -48,7 +48,7 @@ The utilities covered include:
 * **API**:
   - `static Future<XFile?> pickImageFromSource(ImageSource source)`
   - `static Future<XFile?> showPickerSheet(BuildContext context, {double? maxWidth, double? maxHeight})`
-* **Dependencies**: `image_picker`, `flutter/material.dart`, `google_fonts`, `AppColors`, `LocalizationExtensions`.
+* **Dependencies**: `image_picker`, `file_picker`, `flutter/material.dart`, `VPSheet`, `VpWidgets`, `context.palette`, `context.loc`.
 * **Callers**: Used in `DriveScreen` ([`drive_screen.dart:35`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L35)) and `ProfileScreen` ([`profile_screen.dart:46`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L46), passing `maxWidth`/`maxHeight` of 512).
 * **Expected Usage**: Prompt users with camera/gallery choice for uploading assets (e.g. drive items or profile pictures).
 * **Error Behavior**: Returns `null` if the user cancels or if camera/gallery access fails/denied without internal exception handling.
@@ -62,7 +62,7 @@ The utilities covered include:
 * **API**:
   - `static void showLogoutDialog(BuildContext context, VoidCallback onConfirm)`
   - `static Future<void> performLogout(BuildContext context)`
-* **Dependencies**: `flutter/material.dart`, `provider`, `AuthState`, `LoginScreen`, `AppColors`.
+* **Dependencies**: `flutter/material.dart`, `provider`, `AuthState`, `LoginScreen`, `VPDialog`, `context.loc`.
 * **Callers**: `ProfileScreen` ([`profile_screen.dart:60`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L60)) and `PartnerScreen` ([`partner_screen.dart:168`](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart#L168)).
 * **Expected Usage**: Call `showLogoutDialog` on UI logout tap, passing `() => LogoutUtils.performLogout(context)` as `onConfirm`.
 * **Error Behavior**: Assumes `authState.logout()` succeeds gracefully.
@@ -91,10 +91,10 @@ The utilities covered include:
 * **API**:
   - `static void showSnackBar(BuildContext? context, String message, {bool isError = false, Color? backgroundColor})`
   - `static void handle(Object error, {BuildContext? context, StackTrace? stackTrace, bool showUI = true})`
-* **Dependencies**: `flutter/material.dart`, `flutter/scheduler.dart` (`schedulerPhase` build guard), `flutter/foundation.dart` (`kDebugMode`), `AppColors`/`AppRadius`, `context.loc`.
+* **Dependencies**: `flutter/material.dart`, `flutter/scheduler.dart` (`schedulerPhase` build guard), `flutter/foundation.dart` (`kDebugMode`), `context.palette`/`AppRadius`, `context.loc`.
 * **Callers**: every non-blocking feedback site — `ProfileScreen`, `LocalizationScreen`, `PartnerInviteDialog`, `PartnerScreen`, `HomepageScreen`, `RegisterScreen`, `LoginScreen`, `ChangePasswordScreen`, `ResetPasswordScreen`, `UpdateService`.
 * **Expected Usage**: Show ephemeral success/info notifications, or non-dismissible debug error toasts.
-* **Error Behavior**: `isError = true` paints `AppColors.dangerSurface`; otherwise `AppColors.surfaceElevated`, or `backgroundColor` when supplied. In `kDebugMode` with `isError = true` the toast persists until the user dismisses it; every other case auto-removes after 4 seconds.
+* **Error Behavior**: `isError = true` paints `context.palette.dangerSurface`; otherwise `context.palette.surfaceElevated`, or `backgroundColor` when supplied. In `kDebugMode` with `isError = true` the toast persists until the user dismisses it; every other case auto-removes after 4 seconds.
 * **Lifecycle Assumptions**: A previously shown toast is removed before a new one is inserted. Because the overlay lives on the root Navigator, a toast survives the pop of the route that raised it; if the caller's context is already unmounted, the call falls back to `navigatorKey.currentContext`. This replaces the old per-`Scaffold` `ScaffoldMessenger` path, including its `await route.completed` Hero-tag workaround.
 
 ---

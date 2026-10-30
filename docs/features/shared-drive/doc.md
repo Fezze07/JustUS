@@ -259,7 +259,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 
 ### Revalidation Probe
 
-- RPC: `public.drive_change_probe()` ([drive_change_probe.sql](file:///f:/JustUS/Supabase/schemas/public/functions/drive_change_probe.sql)) — `STABLE SECURITY INVOKER`, returns a single row `{max_updated_at, item_count}`.
+- RPC: `public.drive_change_probe()` ([drive_change_probe.sql](file:///f:/JustUS/supabase/schemas/public/functions/drive_change_probe.sql)) — `STABLE SECURITY INVOKER`, returns a single row `{max_updated_at, item_count}`.
 - It reads `drive_items` directly (not `v_drive_dashboard`), so the revalidation no longer materializes the view (joins over `drive_file_types`, `favorites` and the `drive_item_reactions` aggregate) only to learn two scalars. The partnership filter and RLS are the same as the view's.
 - Grants: `authenticated`, `postgres`, `service_role`; `PUBLIC` is revoked, so the function is not callable by `anon`.
 - Why both signals: `updated_at > checkpoint` sees inserts/updates but is blind to deletions, so the row count is what catches them.

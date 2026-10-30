@@ -77,7 +77,7 @@ Flutter UI (RegisterScreen)
      - `captchaToken`: token from Turnstile
 
 5. **Database Trigger & Profile Provisioning**
-   - Documentation: [supabase-triggers](file:///f:/JustUS/.agents/skills/supabase-triggers/SKILL.md#L16-L20) & [supabase-functions](file:///f:/JustUS/.agents/skills/supabase-functions/SKILL.md#L51-L55)
+   - Documentation: [users.sql](file:///f:/JustUS/supabase/schemas/auth/tables/users.sql#L1) & [user_create_from_auth.sql](file:///f:/JustUS/supabase/schemas/public/functions/user_create_from_auth.sql)
    - Table: `auth.users`
    - Trigger Event: `AFTER INSERT` calling `user_create_from_auth()`
    - Operation: Atomically creates public user records:
@@ -251,7 +251,7 @@ Cloudflare Turnstile protection is implemented in the Flutter frontend using the
   - `onTokenReceived` closes the dialog and returns the token string; `onError` (non-retryable), `onTimeout`, cancel, or a 30-second overall deadline close it and return `null`.
 - **Token Transit**: Passed in `sbClient.auth.signInWithPassword(captchaToken:)` and `sbClient.auth.signUp(captchaToken:)`.
 - **Verification Owner**: Supabase Auth only. The Turnstile token is **single-use**, so it is consumed exclusively by Supabase Auth's native Turnstile integration (requires the secret key in the Supabase Auth dashboard).
-- **Backend Service**: **REMOVED.** The former dead client [`turnstileService.js`](file:///f:/JustUS/Backend/services/turnstileService.js) and its config (`TURNSTILE_SECRET_KEY`, `env.turnstileEnabled`) were deleted — it was never wired to any route/middleware, and verifying on the Node backend would conflict with the single-use token already consumed by Supabase Auth.
+- **Backend Service**: **REMOVED.** The former dead client `services/turnstileService.js` and its config (`TURNSTILE_SECRET_KEY`, `env.turnstileEnabled`) were deleted — it was never wired to any route/middleware, and verifying on the Node backend would conflict with the single-use token already consumed by Supabase Auth.
 
 ---
 
@@ -311,11 +311,11 @@ The `ip-email` rule counts how many *different* emails one IP presents per windo
 |---|---|---|---|---|
 | Invalid Email Format | Flutter UI | `Validators.validateEmail` | N/A | Form error SnackBar |
 | Invalid Password Format | Flutter UI | `Validators.validatePassword` | N/A | Form error SnackBar |
-| Missing Turnstile Config | Flutter Client | `CaptchaService` | `API_VALIDATION_001` | SnackBar error |
-| Turnstile Cancel / Timeout | Flutter Client | `CaptchaService` | `LOCAL_UNKNOWN` | SnackBar ("Captcha failed") |
-| Risk Blocked (Brute-force) | Backend Node API | `checkLoginRiskController` | `SEC_BLOCK_002` | SnackBar ("Troppi tentativi di login. Riprova tra poco.") |
-| Invalid Credentials | Supabase Auth | `AuthException` (caught in `AuthState.login`) | `AUTH_FAIL_CRED` | Form error SnackBar (no dialog, no redirect) |
-| Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB_NOT_FOUND_001` | SnackBar (`error_dbNotFound001`) |
+| Missing Turnstile Config | Flutter Client | `CaptchaService` | `API-VALIDATION-001` | SnackBar error |
+| Turnstile Cancel / Timeout | Flutter Client | `CaptchaService` | `LOCAL-UNKNOWN` | SnackBar ("Captcha failed") |
+| Risk Blocked (Brute-force) | Backend Node API | `checkLoginRiskController` | `SEC-BLOCK-002` | SnackBar ("Troppi tentativi di login. Riprova tra poco.") |
+| Invalid Credentials | Supabase Auth | `AuthException` (caught in `AuthState.login`) | `AUTH-FAIL-CRED` | Form error SnackBar (no dialog, no redirect) |
+| Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB-NOT_FOUND-001` | SnackBar (`error_dbNotFound001`) |
 | Backend Sync Network Error | Node API / Http | `NetworkError` | N/A | Silent log / SnackBar |
 
 ---
