@@ -55,6 +55,7 @@ module.exports = {
   get ERROR_CODES() { return require('./core/errors/AppError').ERROR_CODES; },
   get errorHandler() { return require('./middleware/errorHandler'); },
   get fail() { return require('./utils/http/responseUtils').fail; },
+  get fetchReferencedKeys() { return require('./core/jobs/retentionJob').fetchReferencedKeys; },
   get fetchUserDevices() { return require('./features/notifications/notification.service').fetchUserDevices; },
   get fileQuerySchema() { return require('./features/media/media.schemas').fileQuerySchema; },
   get generateBindingSecret() { return require('./services/requestSigningService').generateBindingSecret; },

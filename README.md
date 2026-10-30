@@ -110,7 +110,7 @@ The repository includes an isolated test setup for both backend and Flutter code
   ```
 - Full local runner (backend lint + circular-dependency + syntax + tests, `jscpd` duplication scan, `flutter analyze` + hardcoded-string check + Flutter tests):
   ```bash
-  npm run validate          # bash ./scripts/test-all.sh
+  npm run validate          # bash ./scripts/test-all.sh (`npm test` at the root delegates to it)
   ```
 - Duplication scan only:
   ```bash
