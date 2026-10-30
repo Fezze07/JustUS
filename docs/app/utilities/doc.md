@@ -247,7 +247,7 @@ The utilities covered include:
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |
 | **DialogUtils** | `shared/utils/ui/dialog_utils.dart` | IMPLEMENTED | Clean wrapper around error and invite dialogs. |
 | **ResultWrapper & Extensions** | `core/network/result_wrapper.dart`, `shared/utils/extensions/result_extensions.dart` | IMPLEMENTED | Robust functional error handling pattern used throughout repositories. |
-| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | IMPLEMENTED | Provides query building helpers (`maybeFilterIn`, `toList`); unused helpers removed under 7.3 and 14.8. |
+| **Supabase Query Extensions** | `shared/utils/extensions/supabase_query_extensions.dart` | IMPLEMENTED | Provides query building helpers (`maybeFilterIn`, `toList`); unused helpers removed under 7.3 and 14.8 (see `docs/fixing-phase-log.md` § Item index). |
 | **AppDateUtils** | `shared/utils/date/app_date_utils.dart` | IMPLEMENTED | Pure static helpers; some date formatting remains duplicated in feature screens. |
 | **TabScreen / TabScreenMixin** | `shared/widgets/tab_screen.dart` | IMPLEMENTED | Consistently used across all primary app tabs for activation-based loading. |
 | **AnsiLogger** | `core/utils/ansi_logger.dart` | IMPLEMENTED | Widely used across network, auth, and realtime components; disabled in release builds. |

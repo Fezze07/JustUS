@@ -25,6 +25,7 @@
 | 11 | Security & privilege | 11.1–11.13 | All fixed. No client INSERT policy on `partnerships`; immutable membership and identity columns; `DELETE` limited to pending rows; `anon`/`PUBLIC` EXECUTE revoked and ACLs pinned in each function file; notification receivers resolved from the partnership; a DB-authoritative nonce check; server-side session-expiry validation; a signed-route boundary pinned by a route-table test; and an invite-recipient guard |
 | 12 | Data integrity, media & routing | 12.1–12.7 | All fixed. Backend migrated to the real `drive_items` contract; the R2 orphan sweep guarded per source; the debug wipe scoped to the accepted couple; named routes resolved by an explicit table; the mood checkpoint taken from the server; the dead `pending_received` path deleted; and cancellation acceptance keyed by profile id |
 | 13 | Test safety net, docs & the verification backlog | 13.1–13.7 | All fixed. Tracked test suite and a portable runner; root `test` delegates to `validate`; retention and wipe docs corrected; live docs sweep; the lost specialist backlog triaged into 16.16–16.19 (the CI row is 8.8) |
+| 14 | Post-AI-removal dead code & simplification | 14.1–14.12 | All fixed. Dead exports, files, capabilities and error codes removed; orphaned RPC and compose plumbing deleted; 36 orphan l10n keys pruned; AI audit docs corrected |
 
 ---
 
@@ -154,6 +155,18 @@
 | 13.2 | Root `npm test` is still the npm-init stub | Fixed (`test` delegates to `validate`) | 2026-10-30 |
 | 13.6 | Batched documentation drift (~60 rows) | Fixed (docs clarification; no code change) | 2026-10-30 |
 | 13.7 | Verification backlog — five specialist-pass findings | Fixed (triage only; four rows promoted to 16.16–16.19, CI row = 8.8) | 2026-10-30 |
+| 14.1 | Five dead Backend exports and an orphaned schema | Fixed (exports and `user.schemas.js` deleted; barrel regenerated) | 2026-10-30 |
+| 14.2 | Stale AI config and comments in Backend tests and tooling | Fixed (dead Jest ignores and stale AI comments removed) | 2026-10-30 |
+| 14.3 | `API_V1_PATHS` carries 17 unused keys | Fixed (`apiRoutes.js` deleted; two logged paths inlined) | 2026-10-30 |
+| 14.4 | Dead compose plumbing and an orphaned compose file | Fixed (dead plumbing and compose file deleted) | 2026-10-30 |
+| 14.5 | Orphaned `partnership_get_names` RPC and AI env residue | Fixed (RPC dropped from schema and remote DB; template key removed) | 2026-10-30 |
+| 14.6 | Root `package.json` stale metadata | Fixed (`main` and `directories` deleted) | 2026-10-30 |
+| 14.7 | Two dead Flutter files, an unused widget and marker classes | Fixed (files, widget and marker classes deleted) | 2026-10-30 |
+| 14.8 | 13 dead Flutter methods and getters across 10 files | Fixed (13 symbols plus adjacent orphans deleted) | 2026-10-30 |
+| 14.9 | 36 orphan l10n keys in both ARB catalogs | Fixed (36 orphan keys deleted; localizations regenerated) | 2026-10-30 |
+| 14.10 | Three capabilities granted but enforced nowhere | Fixed (three unenforced capabilities deleted) | 2026-10-30 |
+| 14.11 | Dead backend error codes with unreachable Flutter handlers | Fixed (four dead codes deleted; cross-side drift test added) | 2026-10-30 |
+| 14.12 | AI-removal documentation drift | Fixed (docs clarification; no code change) | 2026-10-30 |
 
 ---
 
