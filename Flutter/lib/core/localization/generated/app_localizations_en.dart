@@ -12,9 +12,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'JustUs';
 
   @override
-  String get example => 'Example';
-
-  @override
   String get settingsTitle => 'Settings';
 
   @override
@@ -31,12 +28,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get currentLanguageLabel => 'Current language';
-
-  @override
-  String get italianLanguage => 'Italian';
-
-  @override
-  String get englishLanguage => 'English';
 
   @override
   String get languageSavedMessage => 'Language updated';
@@ -75,9 +66,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get common_retry => 'Retry';
 
   @override
-  String get common_add => 'Add';
-
-  @override
   String get common_delete => 'Delete';
 
   @override
@@ -88,9 +76,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get common_back => 'Back';
-
-  @override
-  String get common_more => 'More';
 
   @override
   String get common_showPassword => 'Show password';
@@ -148,9 +133,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get auth_passwordTitle => 'Password';
-
-  @override
-  String get auth_passwordHint => '••••••••';
 
   @override
   String get auth_forgotPassword => 'Forgot Password?';
@@ -242,20 +224,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Missing security configuration (Site Key).';
 
   @override
-  String get auth_captchaFailed => 'Captcha failed';
-
-  @override
-  String get auth_loginNoUserData => 'Login failed: no user data';
-
-  @override
-  String get auth_registerUserNotCreated =>
-      'Registration failed: user not created';
-
-  @override
-  String get auth_tooManyLoginAttempts =>
-      'Too many login attempts. Try again shortly.';
-
-  @override
   String get auth_validationEmailRequired => 'Email is required';
 
   @override
@@ -301,28 +269,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get home_updateStatus => 'Update Status';
 
   @override
-  String get home_quickActions => 'QUICK ACTIONS';
-
-  @override
   String get home_viewAll => 'View All';
-
-  @override
-  String get home_moodTitle => 'Mood';
-
-  @override
-  String get home_moodSubtitle => 'Share how you feel';
-
-  @override
-  String get home_gamesTitle => 'Games';
-
-  @override
-  String get home_gamesSubtitle => 'Play a relationship quiz';
-
-  @override
-  String get home_photosTitle => 'Photos';
-
-  @override
-  String get home_photosSubtitle => 'Our Shared Gallery';
 
   @override
   String get home_bucketListTitle => 'Bucket List';
@@ -334,9 +281,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get home_nudgeTitle => 'Miss you...';
-
-  @override
-  String get home_nudgeSubtitle => 'Say it with a click';
 
   @override
   String get home_missYouSent => 'Miss you sent!';
@@ -351,25 +295,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings_notificationsSubtitle => 'Activity & neural reminders';
 
   @override
-  String get settings_darkModeTitle => 'Dark Mode';
-
-  @override
-  String get settings_darkModeSubtitle => 'Violet-punk optimized';
-
-  @override
-  String get settings_appearanceSection => 'APPEARANCE';
-
-  @override
   String get settings_themeTitle => 'Theme';
 
   @override
   String get settings_themeSubtitle => 'Light or dark, saved automatically';
-
-  @override
-  String get settings_themeLight => 'Light';
-
-  @override
-  String get settings_themeDark => 'Dark';
 
   @override
   String get profile_connected => 'CONNECTED';
@@ -438,9 +367,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profile_displayNameTitle => 'Display name';
-
-  @override
-  String get profile_displayNameSubtitle => 'How you appear to your partner';
 
   @override
   String get profile_displayNameEmpty => 'Name can\'t be empty';
@@ -576,13 +502,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Partnership ended. All shared data was deleted.';
 
   @override
-  String get partner_requestButton => 'Request';
-
-  @override
   String get drive_title => 'Our Memories';
-
-  @override
-  String get drive_subtitle => 'VIOLET ARCHIVE';
 
   @override
   String get drive_select => 'SELECT';
@@ -721,9 +641,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bucket_title => 'Our Bucket List';
 
   @override
-  String get bucket_emptyAll => 'No goals in the bucket list.\nAdd one!';
-
-  @override
   String get bucket_emptyCategory => 'No goals in this category.';
 
   @override
@@ -764,9 +681,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mood_enterSingleEmoji => 'Enter a single emoji';
-
-  @override
-  String get mood_emojiHint => 'Enter an emoji...';
 
   @override
   String get mood_duplicateTechnicalMessage =>
@@ -876,34 +790,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get error_reauthAction => 'Login again';
-
-  @override
-  String get error_unknownApi => 'Unknown API error';
-
-  @override
-  String get error_noDataReturned => 'No data returned';
-
-  @override
-  String get error_malformedResponse => 'Malformed error response';
-
-  @override
-  String get error_networkUnavailable => 'Network unavailable';
-
-  @override
-  String get error_operationTimedOut => 'Operation timed out';
-
-  @override
-  String get error_sessionExpiredLoginAgain =>
-      'Session expired. Please login again.';
-
-  @override
-  String get error_requestTimeout =>
-      'Request timed out. Check your connection.';
-
-  @override
-  String error_connection(String message) {
-    return 'Connection error: $message';
-  }
 
   @override
   String get error_authFail001 => 'Session expired. Please login again.';

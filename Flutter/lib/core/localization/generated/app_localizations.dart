@@ -104,12 +104,6 @@ abstract class AppLocalizations {
   /// **'JustUs'**
   String get appTitle;
 
-  /// Chiave dimostrativa per l'uso context.loc.example.
-  ///
-  /// In it, this message translates to:
-  /// **'Esempio'**
-  String get example;
-
   /// Titolo della schermata impostazioni.
   ///
   /// In it, this message translates to:
@@ -145,18 +139,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Lingua corrente'**
   String get currentLanguageLabel;
-
-  /// Nome della lingua italiana.
-  ///
-  /// In it, this message translates to:
-  /// **'Italiano'**
-  String get italianLanguage;
-
-  /// Nome della lingua inglese.
-  ///
-  /// In it, this message translates to:
-  /// **'Inglese'**
-  String get englishLanguage;
 
   /// Messaggio snackbar dopo il cambio lingua.
   ///
@@ -230,12 +212,6 @@ abstract class AppLocalizations {
   /// **'Riprova'**
   String get common_retry;
 
-  /// No description provided for @common_add.
-  ///
-  /// In it, this message translates to:
-  /// **'Aggiungi'**
-  String get common_add;
-
   /// No description provided for @common_delete.
   ///
   /// In it, this message translates to:
@@ -259,12 +235,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Indietro'**
   String get common_back;
-
-  /// No description provided for @common_more.
-  ///
-  /// In it, this message translates to:
-  /// **'Altro'**
-  String get common_more;
 
   /// No description provided for @common_showPassword.
   ///
@@ -379,12 +349,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Password'**
   String get auth_passwordTitle;
-
-  /// No description provided for @auth_passwordHint.
-  ///
-  /// In it, this message translates to:
-  /// **'••••••••'**
-  String get auth_passwordHint;
 
   /// No description provided for @auth_forgotPassword.
   ///
@@ -554,30 +518,6 @@ abstract class AppLocalizations {
   /// **'Configurazione di sicurezza mancante (Site Key).'**
   String get auth_captchaMissingConfig;
 
-  /// No description provided for @auth_captchaFailed.
-  ///
-  /// In it, this message translates to:
-  /// **'Verifica captcha non riuscita'**
-  String get auth_captchaFailed;
-
-  /// No description provided for @auth_loginNoUserData.
-  ///
-  /// In it, this message translates to:
-  /// **'Login fallito: dati utente mancanti'**
-  String get auth_loginNoUserData;
-
-  /// No description provided for @auth_registerUserNotCreated.
-  ///
-  /// In it, this message translates to:
-  /// **'Registrazione fallita: utente non creato'**
-  String get auth_registerUserNotCreated;
-
-  /// No description provided for @auth_tooManyLoginAttempts.
-  ///
-  /// In it, this message translates to:
-  /// **'Troppi tentativi di login. Riprova tra poco.'**
-  String get auth_tooManyLoginAttempts;
-
   /// No description provided for @auth_validationEmailRequired.
   ///
   /// In it, this message translates to:
@@ -656,53 +596,11 @@ abstract class AppLocalizations {
   /// **'Aggiorna stato'**
   String get home_updateStatus;
 
-  /// No description provided for @home_quickActions.
-  ///
-  /// In it, this message translates to:
-  /// **'AZIONI RAPIDE'**
-  String get home_quickActions;
-
   /// No description provided for @home_viewAll.
   ///
   /// In it, this message translates to:
   /// **'Vedi tutto'**
   String get home_viewAll;
-
-  /// No description provided for @home_moodTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Mood'**
-  String get home_moodTitle;
-
-  /// No description provided for @home_moodSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Condividi come ti senti'**
-  String get home_moodSubtitle;
-
-  /// No description provided for @home_gamesTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Giochi'**
-  String get home_gamesTitle;
-
-  /// No description provided for @home_gamesSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Gioca a un quiz di coppia'**
-  String get home_gamesSubtitle;
-
-  /// No description provided for @home_photosTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Foto'**
-  String get home_photosTitle;
-
-  /// No description provided for @home_photosSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'La nostra galleria condivisa'**
-  String get home_photosSubtitle;
 
   /// No description provided for @home_bucketListTitle.
   ///
@@ -721,12 +619,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Mi manchi...'**
   String get home_nudgeTitle;
-
-  /// No description provided for @home_nudgeSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Dillo con un click'**
-  String get home_nudgeSubtitle;
 
   /// No description provided for @home_missYouSent.
   ///
@@ -752,24 +644,6 @@ abstract class AppLocalizations {
   /// **'Attività e promemoria neurali'**
   String get settings_notificationsSubtitle;
 
-  /// No description provided for @settings_darkModeTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Modalità scura'**
-  String get settings_darkModeTitle;
-
-  /// No description provided for @settings_darkModeSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Ottimizzata violet-punk'**
-  String get settings_darkModeSubtitle;
-
-  /// No description provided for @settings_appearanceSection.
-  ///
-  /// In it, this message translates to:
-  /// **'ASPETTO'**
-  String get settings_appearanceSection;
-
   /// No description provided for @settings_themeTitle.
   ///
   /// In it, this message translates to:
@@ -781,18 +655,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Chiaro o scuro, salvato automaticamente'**
   String get settings_themeSubtitle;
-
-  /// No description provided for @settings_themeLight.
-  ///
-  /// In it, this message translates to:
-  /// **'Chiaro'**
-  String get settings_themeLight;
-
-  /// No description provided for @settings_themeDark.
-  ///
-  /// In it, this message translates to:
-  /// **'Scuro'**
-  String get settings_themeDark;
 
   /// No description provided for @profile_connected.
   ///
@@ -925,12 +787,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Nome visualizzato'**
   String get profile_displayNameTitle;
-
-  /// No description provided for @profile_displayNameSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Come appari al tuo partner'**
-  String get profile_displayNameSubtitle;
 
   /// No description provided for @profile_displayNameEmpty.
   ///
@@ -1178,23 +1034,11 @@ abstract class AppLocalizations {
   /// **'Partnership interrotta. Tutti i dati condivisi sono stati eliminati.'**
   String get partner_cancellationEnded;
 
-  /// No description provided for @partner_requestButton.
-  ///
-  /// In it, this message translates to:
-  /// **'Richiedi'**
-  String get partner_requestButton;
-
   /// No description provided for @drive_title.
   ///
   /// In it, this message translates to:
   /// **'I nostri ricordi'**
   String get drive_title;
-
-  /// No description provided for @drive_subtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'ARCHIVIO VIOLA'**
-  String get drive_subtitle;
 
   /// No description provided for @drive_select.
   ///
@@ -1466,12 +1310,6 @@ abstract class AppLocalizations {
   /// **'I nostri sogni'**
   String get bucket_title;
 
-  /// No description provided for @bucket_emptyAll.
-  ///
-  /// In it, this message translates to:
-  /// **'Nessun obiettivo creato ancora...\nAggiungine uno!'**
-  String get bucket_emptyAll;
-
   /// No description provided for @bucket_emptyCategory.
   ///
   /// In it, this message translates to:
@@ -1555,12 +1393,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Inserisci una sola emoji'**
   String get mood_enterSingleEmoji;
-
-  /// No description provided for @mood_emojiHint.
-  ///
-  /// In it, this message translates to:
-  /// **'Inserisci un\'emoji...'**
-  String get mood_emojiHint;
 
   /// No description provided for @mood_duplicateTechnicalMessage.
   ///
@@ -1777,54 +1609,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Accedi di nuovo'**
   String get error_reauthAction;
-
-  /// No description provided for @error_unknownApi.
-  ///
-  /// In it, this message translates to:
-  /// **'Errore API sconosciuto'**
-  String get error_unknownApi;
-
-  /// No description provided for @error_noDataReturned.
-  ///
-  /// In it, this message translates to:
-  /// **'Nessun dato restituito'**
-  String get error_noDataReturned;
-
-  /// No description provided for @error_malformedResponse.
-  ///
-  /// In it, this message translates to:
-  /// **'Risposta di errore non valida'**
-  String get error_malformedResponse;
-
-  /// No description provided for @error_networkUnavailable.
-  ///
-  /// In it, this message translates to:
-  /// **'Rete non disponibile'**
-  String get error_networkUnavailable;
-
-  /// No description provided for @error_operationTimedOut.
-  ///
-  /// In it, this message translates to:
-  /// **'Operazione scaduta'**
-  String get error_operationTimedOut;
-
-  /// No description provided for @error_sessionExpiredLoginAgain.
-  ///
-  /// In it, this message translates to:
-  /// **'Sessione scaduta. Effettua di nuovo il login.'**
-  String get error_sessionExpiredLoginAgain;
-
-  /// No description provided for @error_requestTimeout.
-  ///
-  /// In it, this message translates to:
-  /// **'Richiesta scaduta (timeout). Controlla la connessione.'**
-  String get error_requestTimeout;
-
-  /// No description provided for @error_connection.
-  ///
-  /// In it, this message translates to:
-  /// **'Errore di connessione: {message}'**
-  String error_connection(String message);
 
   /// No description provided for @error_authFail001.
   ///

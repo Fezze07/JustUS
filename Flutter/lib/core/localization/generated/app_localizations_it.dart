@@ -12,9 +12,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get appTitle => 'JustUs';
 
   @override
-  String get example => 'Esempio';
-
-  @override
   String get settingsTitle => 'Impostazioni';
 
   @override
@@ -31,12 +28,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get currentLanguageLabel => 'Lingua corrente';
-
-  @override
-  String get italianLanguage => 'Italiano';
-
-  @override
-  String get englishLanguage => 'Inglese';
 
   @override
   String get languageSavedMessage => 'Lingua aggiornata';
@@ -75,9 +66,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get common_retry => 'Riprova';
 
   @override
-  String get common_add => 'Aggiungi';
-
-  @override
   String get common_delete => 'Elimina';
 
   @override
@@ -88,9 +76,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get common_back => 'Indietro';
-
-  @override
-  String get common_more => 'Altro';
 
   @override
   String get common_showPassword => 'Mostra password';
@@ -149,9 +134,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get auth_passwordTitle => 'Password';
-
-  @override
-  String get auth_passwordHint => '••••••••';
 
   @override
   String get auth_forgotPassword => 'Password dimenticata?';
@@ -244,20 +226,6 @@ class AppLocalizationsIt extends AppLocalizations {
       'Configurazione di sicurezza mancante (Site Key).';
 
   @override
-  String get auth_captchaFailed => 'Verifica captcha non riuscita';
-
-  @override
-  String get auth_loginNoUserData => 'Login fallito: dati utente mancanti';
-
-  @override
-  String get auth_registerUserNotCreated =>
-      'Registrazione fallita: utente non creato';
-
-  @override
-  String get auth_tooManyLoginAttempts =>
-      'Troppi tentativi di login. Riprova tra poco.';
-
-  @override
   String get auth_validationEmailRequired => 'L\'email è obbligatoria';
 
   @override
@@ -302,28 +270,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_updateStatus => 'Aggiorna stato';
 
   @override
-  String get home_quickActions => 'AZIONI RAPIDE';
-
-  @override
   String get home_viewAll => 'Vedi tutto';
-
-  @override
-  String get home_moodTitle => 'Mood';
-
-  @override
-  String get home_moodSubtitle => 'Condividi come ti senti';
-
-  @override
-  String get home_gamesTitle => 'Giochi';
-
-  @override
-  String get home_gamesSubtitle => 'Gioca a un quiz di coppia';
-
-  @override
-  String get home_photosTitle => 'Foto';
-
-  @override
-  String get home_photosSubtitle => 'La nostra galleria condivisa';
 
   @override
   String get home_bucketListTitle => 'Sogni da vivere';
@@ -335,9 +282,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get home_nudgeTitle => 'Mi manchi...';
-
-  @override
-  String get home_nudgeSubtitle => 'Dillo con un click';
 
   @override
   String get home_missYouSent => 'Mi manchi inviato!';
@@ -353,26 +297,11 @@ class AppLocalizationsIt extends AppLocalizations {
   String get settings_notificationsSubtitle => 'Attività e promemoria neurali';
 
   @override
-  String get settings_darkModeTitle => 'Modalità scura';
-
-  @override
-  String get settings_darkModeSubtitle => 'Ottimizzata violet-punk';
-
-  @override
-  String get settings_appearanceSection => 'ASPETTO';
-
-  @override
   String get settings_themeTitle => 'Tema';
 
   @override
   String get settings_themeSubtitle =>
       'Chiaro o scuro, salvato automaticamente';
-
-  @override
-  String get settings_themeLight => 'Chiaro';
-
-  @override
-  String get settings_themeDark => 'Scuro';
 
   @override
   String get profile_connected => 'CONNESSI';
@@ -444,9 +373,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get profile_displayNameTitle => 'Nome visualizzato';
-
-  @override
-  String get profile_displayNameSubtitle => 'Come appari al tuo partner';
 
   @override
   String get profile_displayNameEmpty => 'Il nome non può essere vuoto';
@@ -582,13 +508,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Partnership interrotta. Tutti i dati condivisi sono stati eliminati.';
 
   @override
-  String get partner_requestButton => 'Richiedi';
-
-  @override
   String get drive_title => 'I nostri ricordi';
-
-  @override
-  String get drive_subtitle => 'ARCHIVIO VIOLA';
 
   @override
   String get drive_select => 'SELEZIONA';
@@ -727,10 +647,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_title => 'I nostri sogni';
 
   @override
-  String get bucket_emptyAll =>
-      'Nessun obiettivo creato ancora...\nAggiungine uno!';
-
-  @override
   String get bucket_emptyCategory => 'Nessun obiettivo in questa categoria.';
 
   @override
@@ -771,9 +687,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get mood_enterSingleEmoji => 'Inserisci una sola emoji';
-
-  @override
-  String get mood_emojiHint => 'Inserisci un\'emoji...';
 
   @override
   String get mood_duplicateTechnicalMessage =>
@@ -885,34 +798,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get error_reauthAction => 'Accedi di nuovo';
-
-  @override
-  String get error_unknownApi => 'Errore API sconosciuto';
-
-  @override
-  String get error_noDataReturned => 'Nessun dato restituito';
-
-  @override
-  String get error_malformedResponse => 'Risposta di errore non valida';
-
-  @override
-  String get error_networkUnavailable => 'Rete non disponibile';
-
-  @override
-  String get error_operationTimedOut => 'Operazione scaduta';
-
-  @override
-  String get error_sessionExpiredLoginAgain =>
-      'Sessione scaduta. Effettua di nuovo il login.';
-
-  @override
-  String get error_requestTimeout =>
-      'Richiesta scaduta (timeout). Controlla la connessione.';
-
-  @override
-  String error_connection(String message) {
-    return 'Errore di connessione: $message';
-  }
 
   @override
   String get error_authFail001 =>

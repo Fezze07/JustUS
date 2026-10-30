@@ -4,10 +4,6 @@
   "@appTitle": {
     "description": "Nome dell'app mostrato dal sistema."
   },
-  "example": "Esempio",
-  "@example": {
-    "description": "Chiave dimostrativa per l'uso context.loc.example."
-  },
   "settingsTitle": "Impostazioni",
   "@settingsTitle": {
     "description": "Titolo della schermata impostazioni."
@@ -32,14 +28,6 @@
   "@currentLanguageLabel": {
     "description": "Etichetta della lingua attualmente selezionata."
   },
-  "italianLanguage": "Italiano",
-  "@italianLanguage": {
-    "description": "Nome della lingua italiana."
-  },
-  "englishLanguage": "Inglese",
-  "@englishLanguage": {
-    "description": "Nome della lingua inglese."
-  },
   "languageSavedMessage": "Lingua aggiornata",
   "@languageSavedMessage": {
     "description": "Messaggio snackbar dopo il cambio lingua."
@@ -61,12 +49,10 @@
   "common_save": "Salva",
   "common_close": "Chiudi",
   "common_retry": "Riprova",
-  "common_add": "Aggiungi",
   "common_delete": "Elimina",
   "common_file": "File",
   "common_audio": "Audio",
   "common_back": "Indietro",
-  "common_more": "Altro",
   "common_showPassword": "Mostra password",
   "common_hidePassword": "Nascondi password",
   "nav_home": "Home",
@@ -86,7 +72,6 @@
   "auth_registerEmailHint": "mario@example.com",
   "auth_passwordLabel": "PASSWORD",
   "auth_passwordTitle": "Password",
-  "auth_passwordHint": "••••••••",
   "auth_forgotPassword": "Password dimenticata?",
   "auth_loginButton": "Accedi",
   "auth_registerTitle": "Unisciti a JustUS",
@@ -115,10 +100,6 @@
   "auth_captchaTitle": "Verifica di sicurezza",
   "auth_captchaMessage": "JustUs sta verificando che tu sia un umano...",
   "auth_captchaMissingConfig": "Configurazione di sicurezza mancante (Site Key).",
-  "auth_captchaFailed": "Verifica captcha non riuscita",
-  "auth_loginNoUserData": "Login fallito: dati utente mancanti",
-  "auth_registerUserNotCreated": "Registrazione fallita: utente non creato",
-  "auth_tooManyLoginAttempts": "Troppi tentativi di login. Riprova tra poco.",
   "auth_validationEmailRequired": "L'email è obbligatoria",
   "auth_validationEmailInvalid": "Inserisci un'email valida",
   "auth_validationPasswordRequired": "La password è obbligatoria",
@@ -132,14 +113,7 @@
   "home_daysTogether": "GIORNI INSIEME",
   "home_currentMoodTitle": "IL NOSTRO MOOD ATTUALE",
   "home_updateStatus": "Aggiorna stato",
-  "home_quickActions": "AZIONI RAPIDE",
   "home_viewAll": "Vedi tutto",
-  "home_moodTitle": "Mood",
-  "home_moodSubtitle": "Condividi come ti senti",
-  "home_gamesTitle": "Giochi",
-  "home_gamesSubtitle": "Gioca a un quiz di coppia",
-  "home_photosTitle": "Foto",
-  "home_photosSubtitle": "La nostra galleria condivisa",
   "home_bucketListTitle": "Sogni da vivere",
   "home_bucketListSubtitleDynamic": "{count} attività in sospeso",
   "@home_bucketListSubtitleDynamic": {
@@ -150,18 +124,12 @@
     }
   },
   "home_nudgeTitle": "Mi manchi...",
-  "home_nudgeSubtitle": "Dillo con un click",
   "home_missYouSent": "Mi manchi inviato!",
   "home_missYouTooFast": "Aspetta un attimo prima di inviare di nuovo",
   "settings_notificationsTitle": "Notifiche",
   "settings_notificationsSubtitle": "Attività e promemoria neurali",
-  "settings_darkModeTitle": "Modalità scura",
-  "settings_darkModeSubtitle": "Ottimizzata violet-punk",
-  "settings_appearanceSection": "ASPETTO",
   "settings_themeTitle": "Tema",
   "settings_themeSubtitle": "Chiaro o scuro, salvato automaticamente",
-  "settings_themeLight": "Chiaro",
-  "settings_themeDark": "Scuro",
   "profile_connected": "CONNESSI",
   "profile_coreConnectionSection": "CONNESSIONE",
   "profile_debugUtilitiesSection": "UTILITY DEBUG",
@@ -184,7 +152,6 @@
   "profile_cancelRequestSent": "Cancellazione richiesta",
   "profile_identitySection": "IDENTITÀ",
   "profile_displayNameTitle": "Nome visualizzato",
-  "profile_displayNameSubtitle": "Come appari al tuo partner",
   "profile_displayNameEmpty": "Il nome non può essere vuoto",
   "profile_saved": "Salvato!",
   "profile_photoUploading": "Caricamento foto profilo...",
@@ -240,9 +207,7 @@
   "partner_cancellationEndTitle": "Interrompi la partnership",
   "partner_cancellationEndContent": "Tutti i dati condivisi verranno eliminati. L'azione è definitiva.",
   "partner_cancellationEnded": "Partnership interrotta. Tutti i dati condivisi sono stati eliminati.",
-  "partner_requestButton": "Richiedi",
   "drive_title": "I nostri ricordi",
-  "drive_subtitle": "ARCHIVIO VIOLA",
   "drive_select": "SELEZIONA",
   "drive_filterAll": "Tutti",
   "drive_filterPhotos": "Foto",
@@ -288,7 +253,6 @@
   "bucket_categoryLabel": "Categoria:",
   "bucket_add": "Aggiungi",
   "bucket_title": "I nostri sogni",
-  "bucket_emptyAll": "Nessun obiettivo creato ancora...\nAggiungine uno!",
   "bucket_emptyCategory": "Nessun obiettivo in questa categoria.",
   "bucket_enterText": "Inserisci del testo",
   "bucket_added": "Obiettivo aggiunto!",
@@ -303,7 +267,6 @@
   "mood_sheetTitle": "Scegli il tuo Mood",
   "mood_enterEmoji": "Inserisci un'emoji",
   "mood_enterSingleEmoji": "Inserisci una sola emoji",
-  "mood_emojiHint": "Inserisci un'emoji...",
   "mood_duplicateTechnicalMessage": "Utente ha tentato di reinserire il mood corrente.",
   "mood_updated": "Mood aggiornato!",
   "mood_noneSet": "Nessun mood settato",
@@ -340,14 +303,6 @@
   "error_codePrefix": "Codice:",
   "error_reauthTitle": "Sessione scaduta",
   "error_reauthAction": "Accedi di nuovo",
-  "error_unknownApi": "Errore API sconosciuto",
-  "error_noDataReturned": "Nessun dato restituito",
-  "error_malformedResponse": "Risposta di errore non valida",
-  "error_networkUnavailable": "Rete non disponibile",
-  "error_operationTimedOut": "Operazione scaduta",
-  "error_sessionExpiredLoginAgain": "Sessione scaduta. Effettua di nuovo il login.",
-  "error_requestTimeout": "Richiesta scaduta (timeout). Controlla la connessione.",
-  "error_connection": "Errore di connessione: {message}",
   "error_authFail001": "Sessione scaduta. Effettua di nuovo il login.",
   "error_authFail002": "Sessione non valida. Effettua il login.",
   "error_authFail003": "La sessione è stata revocata. Accedi nuovamente.",
@@ -431,13 +386,6 @@
   "@bucket_createdOn": {
     "placeholders": {
       "date": {
-        "type": "String"
-      }
-    }
-  },
-  "@error_connection": {
-    "placeholders": {
-      "message": {
         "type": "String"
       }
     }
