@@ -26,6 +26,7 @@
 | 12 | Data integrity, media & routing | 12.1–12.7 | All fixed. Backend migrated to the real `drive_items` contract; the R2 orphan sweep guarded per source; the debug wipe scoped to the accepted couple; named routes resolved by an explicit table; the mood checkpoint taken from the server; the dead `pending_received` path deleted; and cancellation acceptance keyed by profile id |
 | 13 | Test safety net, docs & the verification backlog | 13.1–13.7 | All fixed. Tracked test suite and a portable runner; root `test` delegates to `validate`; retention and wipe docs corrected; live docs sweep; the lost specialist backlog triaged into 16.16–16.19 (the CI row is 8.8) |
 | 14 | Post-AI-removal dead code & simplification | 14.1–14.12 | All fixed. Dead exports, files, capabilities and error codes removed; orphaned RPC and compose plumbing deleted; 36 orphan l10n keys pruned; AI audit docs corrected |
+| 15 | Partner email invite + session-bind resilience | 15.1–15.2 | All fixed. Account-only invite by email for partners without an account; a stale session-binding secret self-heals instead of forcing a login |
 
 ---
 
@@ -167,6 +168,8 @@
 | 14.10 | Three capabilities granted but enforced nowhere | Fixed (three unenforced capabilities deleted) | 2026-10-30 |
 | 14.11 | Dead backend error codes with unreachable Flutter handlers | Fixed (four dead codes deleted; cross-side drift test added) | 2026-10-30 |
 | 14.12 | AI-removal documentation drift | Fixed (docs clarification; no code change) | 2026-10-30 |
+| 15.1 | Partner email invite for users without an account | Fixed (signed `/auth/invite-user` → GoTrue hosted invite; `409` when the address exists) | 2026-10-12 |
+| 15.2 | A slow or lost `/auth/session-bind` forces a login | Fixed (splash routes by session state; stale binding secret re-binds and retries once) | 2026-10-14 |
 
 ---
 
@@ -219,3 +222,4 @@ Non-obvious constraints that still bind the code. Each one now lives in its owni
 43. **The cancellation-accept endpoint identifies the actor by internal profile id, not the auth UUID.** `partnerships.user_id_1`/`user_id_2` and `partnership_cancel_accept(p_actor_id integer)` use `users.id`, so the controller must pass `req.user.profileId`; the Supabase UUID in `req.user.id` belongs only to auth/session concerns. → `docs/backend/api-architecture/doc.md` § `POST /api/v1/partnership/cancel/accept`, `docs/features/partnership/doc.md` § Acceptance.
 44. **The backend was migrated to the `drive_items` schema, not the schema to the backend.** `name` (R2 key) and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so adding `filename` / `user_id` / `partner_id` columns would duplicate state and require a data migration. → `docs/features/shared-drive/doc.md` § Architecture & Component Mapping.
 45. **An R2 orphan-sweep read failure aborts the run before any deletion.** Treating an unread key source as empty would mark live objects as orphans; the sweep logs `retention.r2_orphan.failed` per source and skips the delete pass instead. → `docs/backend/infrastructure/doc.md` § Background Maintenance & Retention Jobs.
+46. **The binding secret rotates on every session-bind and is never reused; a lost response is healed by the client.** The server cannot know whether the previous secret reached the client, so reusing it would weaken the rotation; `_safeCall` treats `SEC-AUTH-002` as a stale secret, re-binds and retries once with the new one. → `docs/features/authentication/session-token-security/doc.md` § Binding Secret & HMAC Request Signing (Secret Lifecycle, Client-side Recovery).
