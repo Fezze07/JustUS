@@ -15,7 +15,7 @@ The system operates in three OS presentation modes:
 1. **Server-side** (`notification.utils.js`): the per-device `locale` stored in `user_devices` selects localized title/body from a `LOCALIZATIONS[locale]` map.
 2. **Client-side** (`notification_service.dart`): in foreground, the `notificationKey` is resolved against `LanguageHelper.appLoc` (ARB strings), so the notification text follows the in-app language preference.
 
-The client path wins in foreground; the server path matters only for the system-tray background/killed rendering (F-PN6).
+The client path wins in foreground; the server path matters only for the system-tray background/killed rendering.
 
 Eleven event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`, `cancellationRequested`, `cancellationDeclined`, `cancellationAccepted`. Each is sent fire-and-forget after a successful Supabase mutation via `unawaited(notifyPartnerOnce(...))`.
 
@@ -33,12 +33,12 @@ Feature action (Supabase mutation succeeds)
                                 └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
                                       └─ sendNotificationToUser(receiverId, type, key, params)  service:59-105
                                             ├─ fetchUserDevices → isDeliverableDevice filter   service:30-41,22-28
-                                            ├─ group fids by device.locale ('en' default)      utils:190-200
-                                            ├─ per-locale batch ≤ 500 fids                     utils:248-268
+                                            ├─ group fids by device.locale ('en' default)      utils:214-224
+                                            ├─ per-locale batch ≤ 500 fids                     utils:272-293
                                             │     └─ sendMulticastNotification(buildFcmMessage)  fcm-key.js
-                                            │           - localizes title/body (LOCALIZATIONS) utils:31-174
+                                            │           - localizes title/body (LOCALIZATIONS) utils:32-132
                                             │           - android: priority high, apns: priority 10
-                                            │           - retry up to 3x (500ms * attempt)      utils:202-218
+                                            │           - retry up to 3x (500ms * attempt)      utils:226-241
                                             └─ deleteInvalidInstallations(userId, post-delivery)  service:43-57,92
                                                   └─ logs_notifications + notification.delivery_summary
 Receiver device (FCM delivery):
@@ -125,7 +125,7 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 | App startup with a session | `auth_state.dart` | `_registerInstallationId()` | Skips desktop entirely |
 | Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
 | FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn` | Re-registers the new FID |
-| App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; updates `locale` |
+| App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; sends the app locale, not the system locale |
 | **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Deletes the row; see below |
 
 ### Backend upsert — `POST /api/v1/auth/installation-id`
@@ -245,14 +245,14 @@ notifySchema = z.object({
 
 2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
    - `fetchUserDevices(userId)` (`:30-41`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
-   - FIDs grouped by `device.locale || 'en'` in `groupByLocale` (`notification.utils.js:190-200`) — per-locale messages.
-   - Delivery in batches of `FCM_BATCH_SIZE = 500` via `deliverToBatches` (`notification.utils.js:248-268`).
-   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`sendBatchWithRetry`, `notification.utils.js:202-218`).
+   - FIDs grouped by `device.locale || 'en'` in `groupByLocale` (`notification.utils.js:214-224`) — per-locale messages.
+   - Delivery in batches of `FCM_BATCH_SIZE = 500` via `deliverToBatches` (`notification.utils.js:272-293`).
+   - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`sendBatchWithRetry`, `notification.utils.js:226-241`).
    - `configured` flag from the FCM response; if Firebase admin is not initialized the loop aborts with status `skipped_firebase_not_configured`.
    - Post-send: `deleteInvalidInstallations(userId, ...)` removes the caller's rows whose installation id returned an invalid-FCM error (`:43-57`).
 
-3. **`buildFcmMessage(...)`** (`notification.utils.js:128-174`)
-   - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (`notification.utils.js:31-126`, fallback locale `'en'`).
+3. **`buildFcmMessage(...)`** (`notification.utils.js:153-198`)
+   - `localizeNotificationText(notificationKey, params, locale)` via the server `LOCALIZATIONS` map (`notification.utils.js:32-132`, fallback locale `'en'`).
    - Output: FCM multicast message containing:
      - `notification: {title, body}` — used by the OS for background/killed rendering.
      - `data` — `{type, title, body, source: 'justus-backend', notificationId, notificationKey, params, senderId}`.
@@ -368,22 +368,22 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 
 ## Localization
 
-### Pass 1 — Server (`notification.utils.js:31-174`)
+### Pass 1 — Server (`notification.utils.js:32-151`)
 
-`LOCALIZATIONS = { it: {...}, en: {...} }` with one entry per notification key plus a `default` entry. The per-device `user_devices.locale` (fallback `'en'` for null/unknown) selects the language; `params` are merged into the template (`p.partnerName`, `p.emojiChar`).
+`LOCALIZATIONS = { it: {...}, en: {...} }` with one entry per notification key plus a `default` entry. The per-device `user_devices.locale` (fallback `'en'` for null/unknown) selects the language; `params` are merged into the template (`p.partnerName`, `p.emojiChar`). The registered locale is the app's chosen language, not the OS locale. English is the deliberate server fallback for legacy rows whose `locale` is null or unsupported; every registration now writes `'it'` or `'en'`, so those rows switch to the app locale on their next startup/login/resume.
 
 ### Pass 2 — Client (`notification_service.dart:178-304`)
 
 `LanguageHelper` holds a static `appLoc`, initialized from the saved `app_language_code` pref or the system locale; `_localizeNotification` maps the key to an ARB getter. Client fallback locale is `it` (`language_helper.dart:27`).
 
-### Fallback asymmetry
+### Fallbacks
 
 | Path | Known key | Unknown key | Unknown locale |
 |---|---|---|---|
-| Server | localized string | `lang.default` → `'Hai una nuova notifica'` / `'You have a new notification'` | English (`LOCALIZATIONS[locale] ? locale : 'en'`, `notification.utils.js:120`) |
+| Server | localized string | `lang.default` → `'Hai una nuova notifica'` / `'You have a new notification'` | English (`LOCALIZATIONS[locale] ? locale : DEFAULT_LOCALE`, `notification.utils.js:135-151`) |
 | Client | ARB string | server `data['title']/['body']`, else `(title: 'JustUS', body: '')` | `it` |
 
-Consequence: a key deployed server-side but not yet in the client switch shows the server-localized text in foreground (client ARB wins once the key is added); the Norwegian/unknown-locale device gets English while the app UI falls back to Italian (F-PN6).
+Consequence: a key deployed server-side but not yet in the client switch shows the server-localized text in foreground (client ARB wins once the key is added). The fallback locales still differ on purpose: the app UI is Italian by default, while the server's English fallback only covers legacy rows (`locale` null/unsupported) until their next registration, when the client writes the app locale.
 
 ### Params sent but unused
 
@@ -440,14 +440,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **IMPACT**: Currently zero (the stream has no consumers anyway — F-N5 navigation). Relevant if tap-driven navigation is ever added.
 - **CONFIDENCE**: LOW — depends on plugin intent-detection internals; not device-verified.
 
-### F-PN6: Default-locale asymmetry between server and client (INFO)
-
-- **WHAT**: The server falls back to `'en'` for unknown/empty `device.locale` (`notification.utils.js:120`); the client falls back to `it` for unknown `app_language_code` (`language_helper.dart:27`).
-- **WHERE**: `notification.utils.js:120`, `language_helper.dart:27`.
-- **WHEN**: Legacy rows with `locale = null`, or a locale not in `{it, en}`.
-- **IMPACT**: Background system-tray text in English while foreground/in-app strings are Italian (or vice-versa). Minor.
-- **CONFIDENCE**: HIGH.
-
 ---
 
 ## Implementation Status
@@ -496,13 +488,13 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 
 `Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
-The `sendNotificationController` is fully mocked in the route suite — FCM multicast, retry/backoff and locale grouping have no test. `Backend/test/notification.service.test.js` covers `resolveNotificationTarget`: a partnerless sender is rejected with `403 AUTH-FAIL-004` before any `logs_notifications` row is written, the receiver is taken from the partnership, and a body `receiverId` that differs from the partner is rejected.
+The `sendNotificationController` is fully mocked in the route suite — FCM multicast and retry/backoff have no test. `Backend/test/notification.service.test.js` covers the locale fallback (unknown/missing device locale → English) and `resolveNotificationTarget`: a partnerless sender is rejected with `403 AUTH-FAIL-004` before any `logs_notifications` row is written, the receiver is taken from the partnership, and a body `receiverId` that differs from the partner is rejected.
 
 `Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it; further send-path cases cover a transient multicast failure being retried once and then delivered, and a `configured: false` response aborting the remaining locale batches.
 
 ### Flutter
 
-`Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not.
+`Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not; it also asserts the posted locale is the app locale when it differs from the system locale.
 
 `Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
 

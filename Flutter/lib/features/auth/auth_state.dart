@@ -201,7 +201,7 @@ class AuthState extends BaseState
       if (installationId.isEmpty || !isLoggedIn) return;
       await _authRepo.updateInstallationId(
         installationId,
-        locale: ui.PlatformDispatcher.instance.locale.languageCode,
+        locale: await LanguageHelper.currentLocaleCode(),
       );
     });
 
@@ -221,19 +221,18 @@ class AuthState extends BaseState
   @override
   void didChangeLocales(List<ui.Locale>? locales) {
     if (isLoggedIn && locales != null && locales.isNotEmpty) {
-      unawaited(_syncDeviceLocale(locales.first));
+      unawaited(_syncDeviceLocale());
     }
   }
 
   @override
   Future<void> flush() => _syncDeviceLocale();
 
-  Future<void> _syncDeviceLocale([ui.Locale? locale]) async {
+  Future<void> _syncDeviceLocale() async {
     if (_isSyncingLocale) return;
     _isSyncingLocale = true;
     try {
-      final currentLocale =
-          (locale ?? ui.PlatformDispatcher.instance.locale).languageCode;
+      final currentLocale = await LanguageHelper.currentLocaleCode();
       if (currentLocale == _lastSyncedLocale) return;
 
       final result = await _registerInstallationId(locale: currentLocale);
@@ -267,7 +266,7 @@ class AuthState extends BaseState
     try {
       return await _authRepo.updateInstallationId(
         installationId,
-        locale: locale ?? ui.PlatformDispatcher.instance.locale.languageCode,
+        locale: locale ?? await LanguageHelper.currentLocaleCode(),
       );
     } catch (e) {
       AnsiLogger.error('updateInstallationId error: $e', tag: 'AuthState');

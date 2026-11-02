@@ -1,6 +1,7 @@
 const { sendMulticastNotification, logInfo, serializeError } = require("../../all_imports");
 
 const FCM_BATCH_SIZE = 500;
+const DEFAULT_LOCALE = "en";
 const INVALID_FID_CODES = new Set([
   "messaging/invalid-recipient",
   "messaging/installation-id-not-registered",
@@ -131,7 +132,7 @@ const LOCALIZATIONS = {
   },
 };
 
-function localizeNotificationText(key, paramsInput = {}, locale = "en") {
+function localizeNotificationText(key, paramsInput = {}, locale = DEFAULT_LOCALE) {
   let params = paramsInput;
   if (typeof params === "string") {
     try {
@@ -141,7 +142,7 @@ function localizeNotificationText(key, paramsInput = {}, locale = "en") {
     }
   }
 
-  const langCode = LOCALIZATIONS[locale] ? locale : "en";
+  const langCode = LOCALIZATIONS[locale] ? locale : DEFAULT_LOCALE;
   const lang = LOCALIZATIONS[langCode];
 
   const localizedFn = lang[key] || lang.default;
@@ -149,7 +150,7 @@ function localizeNotificationText(key, paramsInput = {}, locale = "en") {
 }
 
 // fids = Firebase Installation IDs; sendEachForMulticast requires this exact field
-function buildFcmMessage({ fids, type, title, data, locale = "en" }) {
+function buildFcmMessage({ fids, type, title, data, locale = DEFAULT_LOCALE }) {
   const notificationKey = data?.notificationKey || title;
   const localized = localizeNotificationText(notificationKey, data?.params, locale);
 
@@ -213,7 +214,7 @@ function collectInvalidFids(batchFids, responses = []) {
 function groupByLocale(devices) {
   const devicesByLocale = {};
   for (const device of devices) {
-    const locale = device.locale || "en";
+    const locale = device.locale || DEFAULT_LOCALE;
     if (!devicesByLocale[locale]) {
       devicesByLocale[locale] = [];
     }

@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +18,7 @@ const String _kInstallationId =
 
 class _RecordingAuthRepository extends AuthRepository {
   final List<String> registeredInstallationIds = [];
+  final List<String> registeredLocales = [];
 
   static final sb.Session _session = sb.Session(
     accessToken: 'access-token',
@@ -56,6 +59,7 @@ class _RecordingAuthRepository extends AuthRepository {
   Future<ResultWrapper<void>> updateInstallationId(String installationId,
       {String? locale}) async {
     registeredInstallationIds.add(installationId);
+    registeredLocales.add(locale ?? '');
     return const Success(null);
   }
 }
@@ -91,6 +95,7 @@ void main() {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    LanguageHelper.setAppLocale(LanguageHelper.fallbackLocale);
     InstallationIdService.installationIdOverride = () async => _kInstallationId;
   });
 
@@ -116,5 +121,17 @@ void main() {
 
     expect(await state.login('user@example.com', 'password'), isTrue);
     expect(repo.registeredInstallationIds, isEmpty);
+  });
+
+  test('registration posts the app locale, not the system locale', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final systemLocale = ui.PlatformDispatcher.instance.locale.languageCode;
+    final appLocale = systemLocale == 'it' ? 'en' : 'it';
+    LanguageHelper.setAppLocale(ui.Locale(appLocale));
+    final repo = _RecordingAuthRepository();
+    final state = _stateWith(repo);
+
+    expect(await state.login('user@example.com', 'password'), isTrue);
+    expect(repo.registeredLocales, [appLocale]);
   });
 }

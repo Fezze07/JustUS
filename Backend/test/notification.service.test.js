@@ -270,6 +270,43 @@ describe("sendNotificationToUser targets installation ids", () => {
   });
 });
 
+describe("notification locale fallback", () => {
+  test("unknown or missing device locales fall back to English", async () => {
+    mockSendMulticast.mockResolvedValue({
+      configured: true,
+      successCount: 1,
+      failureCount: 0,
+      responses: [{ success: true }],
+    });
+
+    await deliverToBatches({
+      userId: 1,
+      type: "partner",
+      title: "Hi",
+      data: { notificationKey: "missyou", params: { partnerName: "Alex" } },
+      devices: [
+        {
+          installation_id: "fid-null-0001",
+          device_type: "android",
+          locale: null,
+        },
+        {
+          installation_id: "fid-fr-0001",
+          device_type: "android",
+          locale: "fr",
+        },
+      ],
+    });
+
+    const messages = mockSendMulticast.mock.calls.map(([message]) => message);
+    expect(messages).toHaveLength(2);
+    for (const message of messages) {
+      expect(message.notification.title).toBe("Miss You");
+      expect(message.notification.body).toBe("Alex misses you");
+    }
+  });
+});
+
 describe("buildFcmMessage APNS payload", () => {
   test("sends no badge so the iOS icon cannot stick at a stale count", async () => {
     mockSendMulticast.mockResolvedValueOnce({

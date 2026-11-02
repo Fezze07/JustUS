@@ -204,8 +204,8 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Notifications / Events
 
-- Device token registration (`updateInstallationId`) occurs at boot and login, passing the current device locale (`languageCode`).
-- Changing device locale at runtime triggers `didChangeLocales` in `AuthState` to re-sync the locale with `user_devices`.
+- Device token registration (`updateInstallationId`) occurs at boot, login, and on the debounced resume/locale-change sync, and always sends the **app** locale (`LanguageHelper.currentLocaleCode()`), not the OS locale.
+- A system locale change (`didChangeLocales`) triggers the same sync, which no-ops while the app locale is unchanged; an app language change reaches `user_devices` on the next resume/startup/login. Legacy rows with a null/unknown `locale` keep the server's English fallback until then.
 - The cancellation request sends one fire-and-forget `cancellationRequested` push to the partner after the RPC succeeds; the backend resolves the target through `partnership_get_cancellation_partner` because the row is already `cancelled`.
 
 ---
