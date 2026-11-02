@@ -70,6 +70,7 @@ Your privacy is our priority.
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.x, Dart SDK `>=3.0.0 <4.0.0`)
 - [Node.js](https://nodejs.org/) (v20.19+ / v22 LTS)
 - A [Supabase](https://supabase.com/) project (PostgreSQL + Auth + Realtime) with the schema from `supabase/schemas/**` applied
+- [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) 3.0.0 (hosted database commands use `--remote`; non-interactive writes need `--yes`)
 - A private [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) bucket
 - A Firebase service-account JSON for FCM (push notifications)
 

@@ -233,7 +233,7 @@ Password requirements and their enforcement locations were empirically verified 
 3. **Supabase Auth**
    - Handles password storage and hash generation (bcrypt). GoTrue natively evaluates password strength: the linked project is configured with `minimum_password_length = 8` and `password_requirements = "lower_upper_letters_digits_symbols"`, so a registration or password change missing an uppercase letter, a lowercase letter, a digit or a symbol is rejected server-side with a `WeakPasswordError`. This is the authoritative check — a request that bypasses Flutter still hits it.
    - The Flutter regexes are a stricter subset: their symbol class (`[!@#\$%^&*(),.?":{}|<>]`) is smaller than GoTrue's (any non-alphanumeric character), so the client only ever rejects passwords the server would also reject.
-   - Both settings are tracked in `supabase/config.toml` (lines 181/184) and verified against the linked project with `supabase config diff`.
+   - Both settings are tracked in `supabase/config.toml` (`minimum_password_length` and `password_requirements`) and verified against the linked project.
 
 ---
 

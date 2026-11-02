@@ -6,7 +6,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 > [!NOTE]
 > **Authoritative Remote Database Schema Synchronized**
-> The full database schema has been dumped directly from the live Supabase database instance into `supabase/schema/remote_schema.sql` and exported declaratively to `supabase/schemas/public/` (via `npx supabase db pull --declarative`). All objects, data types, constraints, functions, triggers, and RLS policies documented herein are **100% verified against real database SQL definitions**.
+> The full database schema has been dumped directly from the live Supabase database instance into `supabase/schema/remote_schema.sql` and exported declaratively to `supabase/schemas/public/`. All objects, data types, constraints, functions, triggers, and RLS policies documented herein are **100% verified against real database SQL definitions**.
 
 ---
 
