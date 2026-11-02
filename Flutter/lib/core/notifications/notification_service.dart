@@ -46,11 +46,7 @@ class NotificationService {
             defaultTargetPlatform == TargetPlatform.iOS)) {
       try {
         await FirebaseMessaging.instance
-            .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+            .setForegroundNotificationPresentationOptions();
       } catch (_) {}
 
       // Handle notification launch payload (N7)

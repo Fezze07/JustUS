@@ -56,7 +56,7 @@ Receiver device (FCM delivery):
 | Platform | FID source | `device_type` stored | Foreground rendering | Background/killed rendering | Push functional? |
 |---|---|---|---|---|---|
 | Android | `FirebaseMessaging.instance.register()` → `onRegistered` | `android` | ✅ `flutter_local_notifications` on channel `justus_channel` | ✅ OS system tray (`default_notification_channel_id=justus_channel`) | **Yes** |
-| iOS | `FirebaseMessaging.instance.register()` → `onRegistered` | `ios` | ✅ `flutter_local_notifications` (Darwin) — double-presentation risk (F-PN1) | ✅ OS system tray | **Yes** (minor issues) |
+| iOS | `FirebaseMessaging.instance.register()` → `onRegistered` | `ios` | ✅ `flutter_local_notifications` (Darwin) — sole foreground renderer (FCM presentation off) | ✅ OS system tray | **Yes** (minor issues) |
 | Web | `FirebaseMessaging.instance.register()` → `onRegistered` | `web` | ❌ early return on `kIsWeb` (`notification_service.dart:146`) | ❌ no service worker | **No** (F-PN2) |
 | Windows | persistent UUID fingerprint | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
 | macOS | `''` (empty string) | — (never registered) | Plugin configured, never triggered by FCM | No FCM | **No** |
@@ -81,7 +81,7 @@ Receiver device (FCM delivery):
 3. Resolve ARB string via `_localizeNotification(key, params)`; an unknown key falls back to the server-localized `data['title']`/`data['body']`.
 4. Render with `_notifications.show(id: _notificationId(message), payload: jsonEncode(data))`.
 
-On iOS the OS may additionally present the notification itself (F-PN1).
+On iOS the OS presentation is disabled (`alert: false, badge: false, sound: false`), so only the app's local notification renders in the foreground.
 
 ### Background / Killed (app not in focus)
 
@@ -303,11 +303,11 @@ notifySchema = z.object({
 
 ### `NotificationService.init()` (`notification_service.dart:33-76`)
 
-1. `_requestRemoteNotificationPermission()` (`:301-313`): `FirebaseMessaging.instance.requestPermission()` on web/Android/iOS only.
+1. `_requestRemoteNotificationPermission()` (`:343-355`): `FirebaseMessaging.instance.requestPermission()` on web/Android/iOS only.
 2. `initLocalNotifications()`.
-3. `setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true)` for Android/iOS non-web (`:40-47`) — this is iOS foreground-presentation relevant (F-PN1).
-4. Launch payload detection: `getNotificationAppLaunchDetails()` → if `didNotificationLaunchApp`, push the payload to `_onNotificationTapController` after a 500 ms delay (`:50-64`).
-5. Foreground handler registered once: `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (`:67-75`).
+3. `setForegroundNotificationPresentationOptions()` with the API defaults (`alert/badge/sound: false`) for Android/iOS non-web (`:44-50`) — on iOS the FCM foreground presentation is suppressed so the app's local notification is the only renderer.
+4. Launch payload detection: `getNotificationAppLaunchDetails()` → if `didNotificationLaunchApp`, push the payload to `_onNotificationTapController` after a 500 ms delay (`:52-68`).
+5. Foreground handler registered once: `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (`:94-102`).
 
 ### `initLocalNotifications({isBackground})` (`:83-141`)
 
@@ -414,15 +414,6 @@ The server generates `notificationId` per dispatch (`Date.now()-random`), so nea
 
 Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-N` (navigation doc), storage `F-SC`, realtime `F-RT`, state-management `F-SM`, design-system `F-DS`.
 
-### F-PN1: iOS foreground may present the notification twice (MEDIUM)
-
-- **WHAT**: On iOS, `setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true)` asks the OS to present notification-type messages while the app is foreground; the `onMessage` handler **also** posts a distinct local notification via `flutter_local_notifications`. The device can show two alerts for one event.
-- **WHERE**: `notification_service.dart:40-47` (presentation options), `:67-75` (onMessage → `showRemoteMessage`), `:306-345` (`showNotification`).
-- **WHY**: firebase_messaging v16.6 uses a `UNUserNotificationCenter` delegate that presents foreground messages according to those options; the app's own flutter_local_notifications render is independent of it.
-- **WHEN**: Every foreground FCM delivery on iOS (the backend always includes the `notification` field).
-- **IMPACT**: Duplicate banners/badges in foreground on iOS. Cosmetic; not yet observed in testing.
-- **CONFIDENCE**: MEDIUM — documented plugin behavior; not device-verified.
-
 ### F-PN2: Web push is non-functional (LOW)
 
 - **WHAT**: `supportsFcm` includes web and the FID is registered, but rendering is a no-op (`initLocalNotifications` and `showRemoteMessage` both early-return on `kIsWeb`) and **no service worker** (`firebase-messaging-sw.js`) exists in `web/`, which the web SDK needs to obtain an installation id.
@@ -482,7 +473,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Invalid installation id cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `installation_id`) |
 | `notification` field for OS system-tray rendering | IMPLEMENTED |
 | Client-side ARB localization (11 keys) | IMPLEMENTED (unknown keys fall back to the server text; emoji param unused for `moodUpdated`) |
-| Foreground local-notification rendering | IMPLEMENTED (iOS double-presentation risk — F-PN1) |
+| Foreground local-notification rendering | IMPLEMENTED (iOS foreground renders only the local notification) |
 | Stable notification IDs (hash of server `notificationId`) | IMPLEMENTED |
 | Notification tap → destination navigation | IMPLEMENTED (`onNotificationTap` listener in `MainShellState`) |
 | `getNotificationAppLaunchDetails` payload consumption | IMPLEMENTED (read at launch, routes via `onNotificationTap`) |
@@ -515,7 +506,7 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 
 `Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
 
-**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
+**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS foreground presentation (code-reviewed, not device-verified), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
 
 ---
 
