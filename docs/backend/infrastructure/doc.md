@@ -55,7 +55,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Interval**: Every 24 hours (`LOG_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000`).
 - **Logic**: Calculates cutoff date (`Date.now() - LOG_RETENTION_DAYS * 86,400,000`). Executes `DELETE FROM <table> WHERE created_at < cutoff`.
 
-### 3. R2 Incomplete Multipart Upload Abort (`sweepStalMultipartUploads`)
+### 3. R2 Incomplete Multipart Upload Abort (`sweepStaleMultipartUploads`)
 - **Target**: Cloudflare R2 bucket (`env.r2BucketName`).
 - **Interval**: Every 6 hours (`MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Threshold**: Aborts uploads initiated more than 48 hours ago (`MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000`).

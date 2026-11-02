@@ -33,7 +33,7 @@ Client idempotency: `DriveRepository.deleteDriveItem` maps a `DB-NOT_FOUND-001` 
 
 - `retentionJob.js` runs `sweepStaleOrphanObjects()` every 6 h: lists finalized objects under `uploads/` and `profile/` (via the new `r2.service.listObjects`, which also returns `LastModified`), cross-checks against `drive_items.name`, `drive_items.metadata.thumbnail`, and `user_profiles.profile_pic_url`, and batch-deletes objects older than 24 h that no DB row references.
 - A grace window (24 h) protects objects uploaded-but-not-yet-registered (in-flight `/complete`).
-- Incomplete multipart uploads remain handled by `sweepStalMultipartUploads()` (48 h).
+- Incomplete multipart uploads remain handled by `sweepStaleMultipartUploads()` (48 h).
 - Backend helpers exposed through `all_imports.js`: `listObjects` (new), `deleteObjects`, `listObjectKeys`.
 
 ## Findings

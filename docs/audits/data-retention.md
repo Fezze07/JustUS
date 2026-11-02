@@ -16,7 +16,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 | **PostgreSQL `logs_cleanup(p_days)`** | `logs_api_access`<br>`logs_api_errors`<br>`logs_security_events`<br>`logs_notifications` | Stored procedure (`logs_cleanup.sql`), not cron-scheduled | **90 days default** (`p_days integer DEFAULT 90`; null/`< 1` rejected) | **MANUAL / INACTIVE CRON** | **NONE (Aligned 2026-09-23)** |
 | **Node.js Nonce Sweep** | `request_nonces` | Every 6h via `retentionJob.js` (`sweepExpiredNonces`) | Expired timestamp (`lt("expires_at", now)`) | **ACTIVE** | None |
 | **Node.js In-Memory Nonce Sweep** | `consumedNonces` Map | Every 10 min via `_sweepExpiredNonces()` | Expired timestamp | **ACTIVE** | None (Dual-layer) |
-| **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStalMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
+| **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStaleMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Node.js R2 Orphaned-Object Sweep** | Cloudflare R2 finalized objects under `uploads/` + `profile/` not referenced by `drive_items.name` / `drive_items.metadata.thumbnail` / `user_profiles.profile_pic_url` | Every 6h via `retentionJob.js` (`sweepStaleOrphanObjects`) | **24 hours** (`ORPHAN_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Node.js Partnership Cancellation Sweep** | `public.partnerships` rows with `status = 'cancelled'` | Every 6h via `retentionJob.js` (`sweepExpiredCancellations`) + lazily on `partnership_get_cancellation` | `cancel_expires_at <= now()` (7 days from the request) | **ACTIVE** | Reverts to `accepted`, clears the cancel fields, keeps `cancel_declined_at`; no push |
 | **Flutter Media Cache** | Local R2 image/video files | Automated via `MediaCacheManager` (`flutter_cache_manager`) | **30 days** (`stalePeriod`) / **300 objects** | **ACTIVE** | None |
@@ -95,7 +95,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 ### 3. Cloudflare R2 Stale Multipart Upload Cleanup
 * **Target Bucket**: Cloudflare R2 `just-us` storage bucket.
-* **Mechanism**: `sweepStalMultipartUploads()` using AWS S3 SDK (`ListMultipartUploadsCommand` and `AbortMultipartUploadCommand`).
+* **Mechanism**: `sweepStaleMultipartUploads()` using AWS S3 SDK (`ListMultipartUploadsCommand` and `AbortMultipartUploadCommand`).
 * **Execution Schedule**: Runs every 6 hours (`MULTIPART_SWEEP_INTERVAL_MS`).
 * **Cutoff Period**: 48 hours (`MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000`).
 * **Effectiveness**: **ACTIVE & NECESSARY**. Prevents abandoned or interrupted chunked file uploads from consuming storage quota indefinitely.

@@ -132,7 +132,7 @@ function buildR2Client() {
   });
 }
 
-async function sweepStalMultipartUploads() {
+async function sweepStaleMultipartUploads() {
   const client = buildR2Client();
   if (!client) return; // R2 not configured — skip silently
 
@@ -280,7 +280,7 @@ async function startRetentionJobs() {
     sweepExpiredNonces(),
     sweepOldLogs(),
     sweepStaleUserDevices(),
-    sweepStalMultipartUploads(),
+    sweepStaleMultipartUploads(),
     sweepStaleOrphanObjects(),
     sweepExpiredCancellations(),
   ]);
@@ -289,7 +289,7 @@ async function startRetentionJobs() {
     setInterval(sweepExpiredNonces, NONCE_SWEEP_INTERVAL_MS),
     setInterval(sweepOldLogs, LOG_SWEEP_INTERVAL_MS),
     setInterval(sweepStaleUserDevices, USER_DEVICE_SWEEP_INTERVAL_MS),
-    setInterval(sweepStalMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS),
+    setInterval(sweepStaleMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS),
     setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS),
     setInterval(sweepExpiredCancellations, CANCEL_SWEEP_INTERVAL_MS),
   ];
