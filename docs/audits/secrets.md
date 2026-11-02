@@ -11,7 +11,7 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 | Category | Finding Summary | Risk Level |
 | :--- | :--- | :--- |
 | **Firebase Web/Mobile API Keys in Git** | `firebase_options.dart`, `google_services.json`, and `GoogleService-Info.plist` contain live Firebase Client API Keys tracked in Git | **MEDIUM** (Client Keys) |
-| **Git Tracking Controls** | `.gitignore` properly excludes `.env`, `.env.*` (except `.env.example`), `secrets/`, and `*.key`/`*.pem` | **LOW / PASS** |
+| **Git Tracking Controls** | `.gitignore` properly excludes `.env`, `.env.*` (except `.env.example` and `.env.test`), `secrets/`, and `*.key`/`*.pem` | **LOW / PASS** |
 | **Test Configuration** | `.env.test` is tracked in Git, but contains safe dummy test placeholders | **LOW / PASS** |
 
 ---
@@ -42,7 +42,7 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 * **Files**:
   - [`Flutter/lib/firebase_options.dart`](file:///f:/JustUS/Flutter/lib/firebase_options.dart#L44-L85)
   - [`Flutter/android/app/google-services.json`](file:///f:/JustUS/Flutter/android/app/google-services.json#L18)
-  - [`Flutter/ios/Runner/GoogleService-Info.plist`](file:///f:/JustUS/Flutter/macos/Runner/GoogleService-Info.plist)
+  - [`Flutter/ios/Runner/GoogleService-Info.plist`](file:///f:/JustUS/Flutter/ios/Runner/GoogleService-Info.plist)
 * **Type of Secret**: Firebase API Keys (`apiKey`), App IDs (`appId`), Messaging Sender ID (`messagingSenderId`).
 * **Appears Live**: **YES** (Live Google Firebase project credentials for `justus-9888d`).
 * **Tracked by Git**: **YES** (Tracked in Git repository).
@@ -60,7 +60,7 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 * **File**: [`.env.test`](file:///f:/JustUS/.env.test)
 * **Type of Secret**: Mock/Test environment variables (`SUPABASE_SERVICE_ROLE_KEY=test-service-role-key`, `R2_SECRET_ACCESS_KEY=test-secret-key`).
 * **Appears Live**: **NO** (Contains dummy mock strings).
-* **Tracked by Git**: **NO** (Explicitly ignored by `.env.*` in `.gitignore`, though `.env.example` is explicitly allowed via `!.env.example`).
+* **Tracked by Git**: **YES** (tracked since 13.1; explicitly re-allowed by `!.env.test` after the `.env.*` rule, and contains only dummy placeholders).
 * **Exposure Impact**: None (Mock data).
 * **Recommended Remediation**: Maintain `.env.test` with non-sensitive dummy placeholders only.
 
@@ -78,13 +78,20 @@ This audit evaluates the JustUS repository for accidentally committed secrets, h
 
 ## Gitignore Rules Audit
 
-An evaluation of [`.gitignore`](file:///f:/JustUS/.gitignore) confirms that sensitive file patterns are properly covered:
+An evaluation of [`.gitignore`](file:///f:/JustUS/.gitignore) confirms that sensitive file patterns are properly covered (current excerpt):
 
 ```gitignore
-# ENV files
+#Backend
+Backend/node_modules/
+Backend/secrets/
+Backend/ecosystem.config.js
+Backend/versions/
+
+#ENV files
 .env
 .env.*
 !.env.example
+!.env.test
 
 # Secrets and Credentials
 *.key
@@ -117,7 +124,7 @@ key.properties
 | File Path | Secret Type | Live? | Git Tracked? | Exposure Impact | Recommended Remediation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `.env` | Supabase Service Role JWT, R2 Secret Key | **YES** | **NO** | Critical if local env compromised | Store in secure secret vault; rotate keys periodically |
-| `.env.test` | Mock credentials | **NO** | **NO** | None | Keep placeholders clean |
+| `.env.test` | Mock credentials | **NO** | **YES** | None | Keep placeholders clean |
 | `Flutter/lib/firebase_options.dart` | Firebase Client API Key | **YES** | **YES** | Low-Medium (Public client key) | Restrict API keys via Google Cloud Console & App Check |
 | `Flutter/android/app/google-services.json` | Firebase Android Config & API Key | **YES** | **YES** | Low-Medium (Public client key) | Enforce Firebase RLS rules and package restriction |
 | `Flutter/lib/core/network/api_config.dart` | Dev & Prod Hostnames (config defaults) | **YES** | **YES** | Low | Override per build via `--dart-define` (`JUSTUS_DEV/PROD_SERVER_ORIGIN`) |
