@@ -41,6 +41,15 @@ class CompressionService {
     return File(result.path);
   }
 
+  /// Extracts the first video frame and downsizes it through the same
+  /// ≤320 px JPEG thumbnail pipeline used for images.
+  static Future<File> createVideoThumbnail(File file) async {
+    final framePath =
+        await LightCompressor().getVideoThumbnail(file.path, quality: 90);
+
+    return createThumbnail(File(framePath));
+  }
+
   /// Compresses a video using medium H.264 quality.
   static Future<File> compressVideo(File file) async {
     final result = await LightCompressor().compressVideo(

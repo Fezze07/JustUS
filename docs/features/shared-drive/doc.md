@@ -54,8 +54,8 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
    - [favorites_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/favorites_screen.dart): Filtered view rendering media items marked as favorite by the current user.
    - [drive_state.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart): State manager handling incremental sync, cache loading, optimistic deletions/favorites, reactions, and R2 upload triggers.
    - [drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart): Interacts with `v_drive_dashboard` view, Supabase database, and `MediaService`.
-   - [media_service.dart](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart): Orchestrates MIME validation, pre-compression size checks, media compression, presigned URL acquisition, direct HTTP PUT to Cloudflare R2, thumbnail generation/upload for image items, and backend upload completion.
-   - [compression_service.dart](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart): Performs image compression (~80% quality JPEG), video compression (MediumQuality), and low-res thumbnail generation (~320 px JPEG).
+   - [media_service.dart](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart): Orchestrates MIME validation, pre-compression size checks, media compression, presigned URL acquisition, direct HTTP PUT to Cloudflare R2, thumbnail generation/upload for image and video items, and backend upload completion.
+   - [compression_service.dart](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart): Performs image compression (~80% quality JPEG), video compression (MediumQuality), video first-frame extraction, and low-res thumbnail generation (~320 px JPEG).
    - [media_cache_manager.dart](file:///f:/JustUS/Flutter/lib/core/media/media_cache_manager.dart): Custom `CacheManager` intercepting R2 storage keys, acquiring fresh signed URLs from backend, and caching media files locally on disk for up to 30 days.
 
 2. **Node.js / Express API**:
@@ -96,7 +96,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
       │                                (Direct R2 Upload)      │                      │                    │
       │ <─ HTTP 200 OK ────────────────────────────────────────│                      │                    │
       │                             │                          │                      │                    │
-      │ ── 5b. PUT Thumbnail JPEG (image) ─────────────────────>│                      │                    │
+      │ ── 5b. PUT Thumbnail JPEG (image/video) ─────────────────>│                      │                    │
       │    (2nd presigned URL, best-effort)                    │                      │                    │
       │ ── 6. POST /complete-upload ──>                        │                      │                    │
       │                             │ ── Insert drive_items ─────────────────────────>│                    │
@@ -120,7 +120,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - **Step B: Size Guard BEFORE Compression (Fast-Fail)**: Checks `CompressionService.isWithinSizeLimit(file)`. If the original uncompressed file exceeds 15 MB (`15 * 1024 * 1024` bytes), it throws `Exception('File exceeds 15 MB limit before compression')` immediately.
    - **Step C: Compression Execution**:
      - `MediaType.image`: Compressed via `FlutterImageCompress.compressAndGetFile(quality: 80)` to ~80% quality JPEG.
-     - `MediaType.video`: Compressed via `VideoCompress.compressVideo(quality: VideoQuality.MediumQuality)`.
+     - `MediaType.video`: Compressed via `LightCompressor.compressVideo(videoQuality: VideoQuality.medium)`.
      - `MediaType.audio` / `MediaType.file`: No compression applied (returns original file).
    - **Step D: Final Size & Filename Extraction**: `finalSize = await compressed.length()`. Extracts `originalName` from file path.
 
@@ -141,15 +141,15 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Bypasses Node.js backend server memory for heavy file transfers.
    - Verifies response `statusCode == 200`.
 
-4b. **Thumbnail Generation & Upload (image drive items, best-effort)**
-   - File: [compression_service.dart:25-38](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L25-L38) & [media_service.dart:96-126](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L96-L126)
-   - For `type == image` drive uploads (`skipRegistration == false`), `CompressionService.createThumbnail` produces a small (≤320 px, ~70% quality) JPEG.
+4b. **Thumbnail Generation & Upload (image and video drive items, best-effort)**
+   - File: [compression_service.dart:25-52](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L25-L52) & [media_service.dart:102-111](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L102-L111)
+   - For image and video drive uploads (`skipRegistration == false`), `CompressionService.createThumbnail` produces a small (≤320 px, ~70% quality) JPEG. Videos first extract their first frame with `LightCompressor.getVideoThumbnail` (`CompressionService.createVideoThumbnail`), then run the same image thumbnail pipeline.
    - A second `POST /media/upload-url` (existing endpoint, `thumb.jpg` filename) yields a fresh presigned URL; the thumb is PUT to R2 under the same `uploads/{userId}/...` prefix.
    - Any presign/PUT failure is logged and results in **no thumbnail** (never fails the main upload).
    - The thumbnail storage key is passed in `metadata.thumbnail` to `/complete-upload` and stored in `drive_items.metadata` (JSONB) — no new column.
 
 5. **Backend Database Registration**
-   - File: [media_service.dart:97-125](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L97-L125) & [mediaWorkflow.service.js:43-100](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L43-L100)
+   - File: [media_service.dart:113-127](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L113-L127) & [mediaWorkflow.service.js:43-100](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L43-L100)
    - Flutter sends `POST /api/v1/media/complete-upload` containing `{ kind, type, filename, originalName, mimeType, size, metadata }`.
    - Backend `registerCompletedUpload()`:
      - Verifies storage key contains expected user segment `/${user.profileId}/` to prevent key hijacking.
@@ -200,9 +200,9 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 | Media Type | Supported MIME Types | Client Compression | Gallery Rendering | Full-Screen Viewer Widget |
 |---|---|---|---|---|
 | **Image** | `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `FlutterImageCompress` (~80% quality JPEG) | `CachedNetworkImage` via `MediaCacheManager` | `InteractiveViewer` + `ProtectedNetworkImage` |
-| **Video** | `video/mp4`, `video/quicktime`, `video/x-msvideo` | `VideoCompress` (`MediumQuality`) | `CachedNetworkImage` with Play Icon overlay | `VideoPlayerController.networkUrl` |
-| **Audio** | `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/wav` | None (Original file) | N/A (UI picker unexposed) | `AudioPlayer` (`audioplayers` package) |
-| **PDF / File**| `application/pdf`, `application/octet-stream` | None (Original file) | `Icon(Icons.insert_drive_file)` | Generic File Icon + Filename text |
+| **Video** | `video/mp4`, `video/quicktime`, `video/x-msvideo` | `LightCompressor` (`MediumQuality`) | First-frame thumbnail (`metadata.thumbnail`) via `CachedNetworkImage` with Play Icon overlay; type placeholder if missing | `VideoPlayerController.networkUrl` |
+| **Audio** | `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/wav` | None (Original file) | Static `Icons.audiotrack` (payload only in the viewer) | `AudioPlayer` (`audioplayers` package) |
+| **PDF / File**| `application/pdf`, `application/octet-stream` | None (Original file) | Static `Icons.picture_as_pdf` (payload only in the viewer) | Generic File Icon + Filename text |
 
 ---
 
@@ -211,15 +211,15 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 ### Exact Sequence of Execution
 
 ```
-[1] MIME Validation  ──>  [2] Size Guard (<=15MB)  ──>  [3] Compression  ──>  [4] Thumbnail (image)  ──>  [5] Presign + PUT main  ──>  [6] PUT thumbnail  ──>  [7] Complete
+[1] MIME Validation  ──>  [2] Size Guard (<=15MB)  ──>  [3] Compression  ──>  [4] Thumbnail (image/video)  ──>  [5] Presign + PUT main  ──>  [6] PUT thumbnail  ──>  [7] Complete
 ```
 
 1. **MIME Validation**: Executed first in `MediaService.uploadMedia()` ([media_service.dart:39-43](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L39-L43)). Infers MIME from extension and checks against allowed MIME map.
 2. **Size Guard**: Executed second in `MediaService.uploadMedia()` ([media_service.dart:46-48](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46-L48)). Calls `CompressionService.isWithinSizeLimit(file)`.
 3. **Compression**: Executed third in `MediaService.uploadMedia()` ([media_service.dart:52-59](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L52-L59)). Compresses images/videos.
-4. **Thumbnail**: For image drive items, `CompressionService.createThumbnail` produces a ≤320 px JPEG ([compression_service.dart:32](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L32)).
+4. **Thumbnail**: For image and video drive items, `CompressionService.createThumbnail` produces a ≤320 px JPEG ([compression_service.dart:32](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L32)); videos extract their first frame first with `LightCompressor.getVideoThumbnail`.
 5. **Upload**: Presign + PUT of the compressed main file ([media_service.dart:65-95](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L65-L95)).
-6. **Thumbnail Upload**: Second presign + PUT of the thumbnail (best-effort, image items only).
+6. **Thumbnail Upload**: Second presign + PUT of the thumbnail (best-effort, image and video items).
 7. **Complete**: `POST /media/complete-upload` registers the `drive_items` row (metadata includes `thumbnail` when present).
 
 ### 15 MB Size Limit (intended behavior)
@@ -313,7 +313,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 
 Profile picture uploads share the underlying R2 storage pipeline with the Shared Drive:
 
-- File: [media_service.dart:134-144](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L134-L144)
+- File: [media_service.dart:149-159](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L149-L159)
 - Invokes `uploadMedia()` with `type = MediaType.image`, `customFolder = 'profile'`, and `skipRegistration = true`.
 - Object Key: `profile/{userId}/{timestamp}-{uuid}-{basename}.jpg`.
 - Backend Completion: `registerCompletedUpload()` detects `kind === 'profile'`, skips `drive_items` table insertion, and updates `user_profiles.profile_pic_url = filename`.
@@ -324,22 +324,13 @@ Profile picture uploads share the underlying R2 storage pipeline with the Shared
 
 During reverse-engineering analysis, the following technical findings were identified:
 
-### 1. LIMITATION: Videos and legacy items still load full-size files in the grid
+### 1. INFORMATION: Audio and PDF uploads exposed; grid renders static type icons
 
-* **WHAT**: Image uploads now get a small thumbnail (todo 5.5), but video grid cells still fetch the full MP4 (poster-frame preview), and items uploaded before the thumbnail pipeline have no thumbnail and load the full-size image in the grid.
-* **WHERE**: [drive_screen.dart:317-333](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L317-L333), [drive_grid_item.dart:67-113](file:///f:/JustUS/Flutter/lib/features/drive/widgets/drive_grid_item.dart#L67-L113)
-* **WHY**: No video poster-frame extraction and no backfill of thumbnails for pre-existing items.
-* **WHEN**: Rendering the gallery grid on slow networks.
-* **IMPACT**: Slower grid rendering and higher data consumption for video and legacy image tiles.
-* **CONFIDENCE**: **HIGH**
-
-### 2. INFORMATION: Audio and PDF uploads exposed; non-image tiles render a generic placeholder
-
-* **WHAT**: The drive bottom sheet now exposes "Audio" and "Document (PDF)" pickers via `file_picker`, so audio/PDF files can be uploaded through the same R2 presigned flow. `MediaService` treats `MediaType.audio`/`MediaType.file` as already-compressed (no re-compression). In the grid, audio and PDF items still render the generic image placeholder until tapped; the actual payload is only loaded in `DriveItemScreen` (audio is playable with `audioplayers`, PDFs display as a file card).
-* **WHERE**: [media_picker_service.dart:89-105](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L89-L105), [drive_screen.dart:317-333](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L317-L333)
-* **WHY**: Grid cells use a single image surface (`CachedNetworkImage`); no per-type tile builder exists for audio/PDF.
+* **WHAT**: The drive bottom sheet now exposes "Audio" and "Document (PDF)" pickers via `file_picker`, so audio/PDF files can be uploaded through the same R2 presigned flow. `MediaService` treats `MediaType.audio`/`MediaType.file` as already-compressed (no re-compression). In the grid, audio and PDF items render static icons (`Icons.audiotrack` / `Icons.picture_as_pdf`) and never download the payload; the actual payload is only loaded in `DriveItemScreen` (audio is playable with `audioplayers`, PDFs display as a file card).
+* **WHERE**: [media_picker_service.dart:89-105](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L89-L105), [drive_screen.dart:298-332](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L298-L332), [drive_grid_item.dart:70-121](file:///f:/JustUS/Flutter/lib/features/drive/widgets/drive_grid_item.dart#L70-L121)
+* **WHY**: Gallery tiles deliberately avoid downloading non-image payloads; a dedicated preview would need a generated waveform or PDF thumbnail.
 * **WHEN**: Browsing the grid after uploading audio or a PDF.
-* **IMPACT**: Audio/PDF items still consume a grid cell with a generic icon; acceptable for a media gallery, but a dedicated tile (e.g. waveform/PDF preview) would better signal the type.
+* **IMPACT**: Audio/PDF items consume a grid cell with a type icon; acceptable for a media gallery, but a dedicated tile (e.g. waveform/PDF preview) would better signal the type.
 * **CONFIDENCE**: **HIGH**
 
 ---
@@ -350,7 +341,7 @@ During reverse-engineering analysis, the following technical findings were ident
 |---|---|---|
 | Camera / Gallery / Audio / PDF Bottom Sheet | **IMPLEMENTED** | `MediaPickerService`: `image_picker` (camera/gallery) + `file_picker` (audio/PDF) |
 | Image Upload & Compression | **IMPLEMENTED** | `FlutterImageCompress` (~80% quality JPEG) |
-| Video Upload & Compression | **IMPLEMENTED** | `VideoCompress` (`MediumQuality`) |
+| Video Upload & Compression | **IMPLEMENTED** | `LightCompressor` (`VideoQuality.medium`) |
 | Audio & Document Upload API | **IMPLEMENTED** | Supported in `MediaService` & Backend API; now reachable from the bottom sheet via `file_picker` |
 | Cloudflare R2 Presigned PUT URLs | **IMPLEMENTED** | S3 `PutObjectCommand` (300s lifetime) |
 | Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/download-signed` (300s lifetime) |
@@ -362,5 +353,5 @@ During reverse-engineering analysis, the following technical findings were ident
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
 | Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.name` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
 | 15 MB Upload Size Cap | **IMPLEMENTED** | Deliberate 15 MB hard cap on source files: client fast-fail pre-compression (`CompressionService.isWithinSizeLimit`, media_service.dart:46) + backend presign validation on the post-compression `size` (`env.maxUploadBytes`) — intended behavior (todo 5.4), not a defect |
-| Media Thumbnail Generation | **IMPLEMENTED** | Client-side ≤320 px JPEG (`CompressionService.createThumbnail`, `FlutterImageCompress`) generated at upload for image drive items, stored as a `*_thumb.jpg` object in R2 (2nd presigned URL, best-effort) with its key in `drive_items.metadata.thumbnail` (JSONB); grid + favorites render `DriveItem.contentThumb` (tiny file), tap loads the full file. Videos and pre-feature items fall back to full size (todo 5.5) |
+| Media Thumbnail Generation | **IMPLEMENTED** | Client-side ≤320 px JPEG (`CompressionService.createThumbnail`, `FlutterImageCompress`) generated at upload for image and video drive items (videos extract their first frame with `LightCompressor.getVideoThumbnail` first), stored as a `*_thumb.jpg` object in R2 (2nd presigned URL, best-effort) with its key in `drive_items.metadata.thumbnail` (JSONB); grid + favorites render `DriveItem.contentThumb` and show a type placeholder when it is missing — never the full-size object. Tap loads the full file |
 | Audio / PDF Picker Button in UI | **IMPLEMENTED** | Added to media picker sheet via `file_picker` |

@@ -2,11 +2,8 @@
 // DriveGridItem - Grid item for drive photos/videos
 // =============================================================================
 
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 
 import 'package:justus/all_imports.dart';
 
@@ -71,14 +68,20 @@ class DriveGridItem extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
-    final mediaUrl = ApiService.resolveProtectedMediaUrl(item.contentThumb);
-
     switch (item.type) {
       case 'image':
+      case 'video':
+        final mediaUrl = ApiService.resolveProtectedMediaUrl(item.contentThumb);
+
         if (mediaUrl == null) {
           return Container(
             color: context.palette.neutralMuted,
-            child: Icon(Icons.broken_image, color: context.palette.contentTertiary),
+            child: Icon(
+              item.type == 'video'
+                  ? Icons.play_circle_outline
+                  : Icons.image_not_supported,
+              color: context.palette.contentTertiary,
+            ),
           );
         }
 
@@ -89,108 +92,32 @@ class DriveGridItem extends StatelessWidget {
           placeholder: (_, __) => Container(
             color: context.palette.neutralMuted,
             child: Center(
-              child: CircularProgressIndicator(color: context.palette.accentBlue),
+              child:
+                  CircularProgressIndicator(color: context.palette.accentBlue),
             ),
           ),
           errorWidget: (_, __, ___) => Container(
             color: context.palette.neutralMuted,
-            child: Icon(Icons.broken_image, color: context.palette.contentTertiary),
+            child: Icon(Icons.broken_image,
+                color: context.palette.contentTertiary),
           ),
         );
-      case 'video':
-        return mediaUrl == null
-            ? Container(
-                color: context.palette.neutralMuted,
-                child: Icon(Icons.broken_image, color: context.palette.contentTertiary),
-              )
-            : _VideoThumbnail(url: mediaUrl);
       case 'audio':
         return Container(
           color: context.palette.infoSurface,
           child: Center(
-            child: Icon(Icons.audiotrack,
-                size: 48, color: context.palette.info),
+            child:
+                Icon(Icons.audiotrack, size: 48, color: context.palette.info),
           ),
         );
       default:
         return Container(
           color: context.palette.neutralMuted,
           child: Center(
-            child: Icon(Icons.insert_drive_file,
+            child: Icon(Icons.picture_as_pdf,
                 size: 48, color: context.palette.contentTertiary),
           ),
         );
     }
-  }
-}
-
-class _VideoThumbnail extends StatefulWidget {
-  final String url;
-  const _VideoThumbnail({required this.url});
-
-  @override
-  State<_VideoThumbnail> createState() => _VideoThumbnailState();
-}
-
-class _VideoThumbnailState extends State<_VideoThumbnail> {
-  late VideoPlayerController _controller;
-  bool _initialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.url),
-      httpHeaders: ApiService.authHeaders,
-    );
-    unawaited(_initializeController());
-  }
-
-  Future<void> _initializeController() async {
-    try {
-      await _controller.initialize();
-      if (mounted) {
-        setState(() => _initialized = true);
-      }
-    } catch (e) {
-      AnsiLogger.error('Error initializing video: $e', tag: 'VideoThumbnail');
-    }
-  }
-
-  @override
-  void dispose() {
-    unawaited(_controller.dispose());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_initialized) {
-      return Container(
-        color: context.palette.neutralStrong,
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        FittedBox(
-          fit: BoxFit.cover,
-          child: SizedBox(
-            width: _controller.value.size.width,
-            height: _controller.value.size.height,
-            child: VideoPlayer(_controller),
-          ),
-        ),
-        Container(
-          color: context.palette.shadowSoft,
-          child: Center(
-            child: Icon(Icons.play_circle_outline,
-                size: 40, color: context.palette.contentSecondary),
-          ),
-        ),
-      ],
-    );
   }
 }

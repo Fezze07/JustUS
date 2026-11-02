@@ -99,11 +99,13 @@ class MediaService {
         );
       }
 
-      // 5b. Thumbnail generation + upload (image drive items, best-effort)
+      // 5b. Thumbnail generation + upload (image/video drive items, best-effort)
       String? thumbnailKey;
-      if (!skipRegistration && type == MediaType.image) {
+      if (!skipRegistration &&
+          (type == MediaType.image || type == MediaType.video)) {
         thumbnailKey = await _uploadThumbnail(
-          source: file,
+          source: type == MediaType.video ? compressed : file,
+          type: type,
           customFolder: customFolder,
         );
       }
@@ -161,10 +163,13 @@ class MediaService {
   /// failure (best-effort: a failed thumbnail never fails the main upload).
   Future<String?> _uploadThumbnail({
     required File source,
+    required MediaType type,
     String? customFolder,
   }) async {
     try {
-      final thumbnail = await CompressionService.createThumbnail(source);
+      final thumbnail = type == MediaType.video
+          ? await CompressionService.createVideoThumbnail(source)
+          : await CompressionService.createThumbnail(source);
       final thumbSize = await thumbnail.length();
 
       final presignResult = await _api.createMediaUploadUrl({

@@ -277,25 +277,7 @@ class _DriveScreenState extends State<DriveScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // CachedNetworkImage via MediaCacheManager: R2 filename → signed URL → cached locally
-            CachedNetworkImage(
-              imageUrl: item.contentThumb,
-              cacheManager: MediaCacheManager(),
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                color: context.palette.surfaceElevated,
-                child: Center(
-                  child:
-                      Icon(Icons.image, color: context.palette.contentHint, size: 24),
-                ),
-              ),
-              errorWidget: (context, url, error) => Container(
-                color: context.palette.surfaceElevated,
-                child: Center(
-                  child: Icon(Icons.broken_image, color: context.palette.contentHint),
-                ),
-              ),
-            ),
+            _buildGridContent(context, item),
 
             // Video indicator overlay
             if (item.type.toLowerCase().contains('video') ||
@@ -309,6 +291,54 @@ class _DriveScreenState extends State<DriveScreen>
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGridContent(BuildContext context, DriveItem item) {
+    final type = item.type.toLowerCase();
+
+    if (type == 'image' || type == 'video') {
+      final thumb = item.contentThumb;
+      if (thumb == null) {
+        return _gridPlaceholder(
+          context,
+          type == 'video'
+              ? Icons.play_circle_outline
+              : Icons.image_not_supported,
+        );
+      }
+
+      // CachedNetworkImage via MediaCacheManager: R2 filename → signed URL → cached locally
+      return CachedNetworkImage(
+        imageUrl: thumb,
+        cacheManager: MediaCacheManager(),
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: context.palette.surfaceElevated,
+          child: Center(
+            child:
+                Icon(Icons.image, color: context.palette.contentHint, size: 24),
+          ),
+        ),
+        errorWidget: (context, url, error) => _gridPlaceholder(
+          context,
+          Icons.broken_image,
+        ),
+      );
+    }
+
+    return _gridPlaceholder(
+      context,
+      type == 'audio' ? Icons.audiotrack : Icons.picture_as_pdf,
+    );
+  }
+
+  Widget _gridPlaceholder(BuildContext context, IconData icon) {
+    return Container(
+      color: context.palette.surfaceElevated,
+      child: Center(
+        child: Icon(icon, color: context.palette.contentHint, size: 24),
       ),
     );
   }
