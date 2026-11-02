@@ -17,7 +17,7 @@ The system operates in three OS presentation modes:
 
 The client path wins in foreground; the server path matters only for the system-tray background/killed rendering (F-PN6).
 
-Eight event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`. Each is sent fire-and-forget after a successful Supabase mutation via `unawaited(notifyPartnerOnce(...))`.
+Eleven event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`, `cancellationRequested`, `cancellationDeclined`, `cancellationAccepted`. Each is sent fire-and-forget after a successful Supabase mutation via `unawaited(notifyPartnerOnce(...))`.
 
 ---
 
@@ -78,7 +78,7 @@ Receiver device (FCM delivery):
 
 1. Read `message.data['notificationKey']` (e.g. `moodUpdated`).
 2. Decode `message.data['params']` (JSON string → `Map<String, dynamic>`).
-3. Resolve ARB string via `_localizeNotification(key, params)`.
+3. Resolve ARB string via `_localizeNotification(key, params)`; an unknown key falls back to the server-localized `data['title']`/`data['body']`.
 4. Render with `_notifications.show(id: _notificationId(message), payload: jsonEncode(data))`.
 
 On iOS the OS may additionally present the notification itself (F-PN1).
@@ -315,19 +315,19 @@ notifySchema = z.object({
 - `_notifications.initialize(onDidReceiveNotificationResponse: (r) => _onNotificationTapController.add(r.payload))`.
 - Android: `requestNotificationsPermission()` + create channel `justus_channel` / `'JustUs Notifications'` / `importance: Importance.high` — only when NOT in a background isolate (`:119-141`).
 
-### `showRemoteMessage(message, {isBackground})` (`:178-228`)
+### `showRemoteMessage(message, {isBackground})` (`:178-200`)
 
 1. `kIsWeb` → no-op.
 2. Load locale from `SharedPreferences` (`LanguageHelper.storageKey = 'app_language_code'`), else `initFromSystemLocale()`.
-3. If `notificationKey` present → `_localizeNotification(key, params)`.
-4. Else fall back to `data['title']/['body']` or `message.notification`; if neither present → silently return (notification not shown).
+3. `resolveNotificationContent(message)`: if `notificationKey` is present → `_localizeNotification(key, params)`; an unknown key falls back to `data['title']/['body']`, then to `(title: 'JustUS', body: '')`.
+4. If there is no key, fall back to `data['title']/['body']` or `message.notification`; if either text is missing → silently return (notification not shown).
 5. `_notifications.show(id: _notificationId(message), payload: jsonEncode(message.data))`.
 
-### `_localizeNotification` (`:230-298`)
+### `_localizeNotification` (`:236-304`)
 
-Switch over the 11 keys resolving ARB getters (e.g. `loc.notif_missyou_body(partnerName)`). Defaults for missing params: `partnerName = 'Your partner'`, `emojiChar = '❤️'`. Unknown key → `(title: 'JustUS', body: '')` (F-PN7).
+Switch over the 11 keys resolving ARB getters (e.g. `loc.notif_missyou_body(partnerName)`). Defaults for missing params: `partnerName = 'Your partner'`, `emojiChar = '❤️'`. Unknown key → `null`, so the caller uses the server title/body.
 
-### `showNotification` (`:300-339`)
+### `showNotification` (`:306-345`)
 
 Channel `justus_channel`, `importance: high`, `priority: high` (Android); Darwin present-all options; Linux/Windows details.
 
@@ -371,7 +371,7 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 
 `LOCALIZATIONS = { it: {...}, en: {...} }` with one entry per notification key plus a `default` entry. The per-device `user_devices.locale` (fallback `'en'` for null/unknown) selects the language; `params` are merged into the template (`p.partnerName`, `p.emojiChar`).
 
-### Pass 2 — Client (`notification_service.dart:178-298`)
+### Pass 2 — Client (`notification_service.dart:178-304`)
 
 `LanguageHelper` holds a static `appLoc`, initialized from the saved `app_language_code` pref or the system locale; `_localizeNotification` maps the key to an ARB getter. Client fallback locale is `it` (`language_helper.dart:27`).
 
@@ -380,9 +380,9 @@ Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never nav
 | Path | Known key | Unknown key | Unknown locale |
 |---|---|---|---|
 | Server | localized string | `lang.default` → `'Hai una nuova notifica'` / `'You have a new notification'` | English (`LOCALIZATIONS[locale] ? locale : 'en'`, `notification.utils.js:120`) |
-| Client | ARB string | `(title: 'JustUS', body: '')` — shown with empty body (F-PN7) | `it` |
+| Client | ARB string | server `data['title']/['body']`, else `(title: 'JustUS', body: '')` | `it` |
 
-Consequence: a key deployed server-side but not yet in the client switch shows an empty-body `JustUS` notification in foreground (F-PN7), and the Norwegian/unknown-locale device gets English while the app UI falls back to Italian (F-PN6).
+Consequence: a key deployed server-side but not yet in the client switch shows the server-localized text in foreground (client ARB wins once the key is added); the Norwegian/unknown-locale device gets English while the app UI falls back to Italian (F-PN6).
 
 ### Params sent but unused
 
@@ -393,7 +393,7 @@ Consequence: a key deployed server-side but not yet in the client switch shows a
 
 ## Stable IDs & Deduplication
 
-### Notification ID (`notification_service.dart:326-335`)
+### Notification ID (`notification_service.dart:373-382`)
 
 ```dart
 final raw = (message.data['notificationId'] ?? message.messageId)?.toString();
@@ -416,7 +416,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 ### F-PN1: iOS foreground may present the notification twice (MEDIUM)
 
 - **WHAT**: On iOS, `setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true)` asks the OS to present notification-type messages while the app is foreground; the `onMessage` handler **also** posts a distinct local notification via `flutter_local_notifications`. The device can show two alerts for one event.
-- **WHERE**: `notification_service.dart:40-47` (presentation options), `:67-75` (onMessage → `showRemoteMessage`), `:260-299` (`showNotification`).
+- **WHERE**: `notification_service.dart:40-47` (presentation options), `:67-75` (onMessage → `showRemoteMessage`), `:306-345` (`showNotification`).
 - **WHY**: firebase_messaging v16.6 uses a `UNUserNotificationCenter` delegate that presents foreground messages according to those options; the app's own flutter_local_notifications render is independent of it.
 - **WHEN**: Every foreground FCM delivery on iOS (the backend always includes the `notification` field).
 - **IMPACT**: Duplicate banners/badges in foreground on iOS. Cosmetic; not yet observed in testing.
@@ -456,14 +456,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **IMPACT**: Background system-tray text in English while foreground/in-app strings are Italian (or vice-versa). Minor.
 - **CONFIDENCE**: HIGH.
 
-### F-PN7: Unknown `notificationKey` shows an empty-body notification (LOW)
-
-- **WHAT**: `_localizeNotification` returns `(title: 'JustUS', body: '')` for unhandled keys (`notification_service.dart:295-296`) and `showRemoteMessage` shows it as-is.
-- **WHERE**: `notification_service.dart:255-256`.
-- **WHEN**: A new key is deployed server-side before the app switch is updated (or a client crafts an arbitrary key).
-- **IMPACT**: The user sees a `JustUS` notification with an empty body. No data exposure.
-- **CONFIDENCE**: HIGH.
-
 ### F-PN9: iOS badge is hardcoded to 1 and never cleared (LOW)
 
 - **WHAT**: `buildFcmMessage` sets `aps.badge: 1` (`notification.utils.js:162`) — *set*, not increment, per notification. No `clearBadge`/`setBadge(0)` exists on app foreground.
@@ -496,7 +488,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | FCM retry (3 attempts, backoff) | IMPLEMENTED |
 | Invalid installation id cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `installation_id`) |
 | `notification` field for OS system-tray rendering | IMPLEMENTED |
-| Client-side ARB localization (8 keys) | IMPLEMENTED (unknown-key gap — F-PN7; emoji param unused for `moodUpdated`) |
+| Client-side ARB localization (11 keys) | IMPLEMENTED (unknown keys fall back to the server text; emoji param unused for `moodUpdated`) |
 | Foreground local-notification rendering | IMPLEMENTED (iOS double-presentation risk — F-PN1) |
 | Stable notification IDs (hash of server `notificationId`) | IMPLEMENTED |
 | Notification tap → destination navigation | IMPLEMENTED (`onNotificationTap` listener in `MainShellState`) |
@@ -528,9 +520,9 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 
 `Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not.
 
-No tests reference `NotificationService`, `onNotificationTap`, `showRemoteMessage`, `_localizeNotification`, or `_notificationId` (grep of `test/`).
+`Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
 
-**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2).
+**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS double-presentation (F-PN1), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
 
 ---
 

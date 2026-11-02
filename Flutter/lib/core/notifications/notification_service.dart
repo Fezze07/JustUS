@@ -187,8 +187,24 @@ class NotificationService {
     // Load the user's saved locale (N1)
     await LanguageHelper.currentLocaleCode();
 
-    String title;
-    String body;
+    final content = resolveNotificationContent(message);
+    if (content == null) return;
+
+    await showNotification(
+      id: _notificationId(message),
+      title: content.title,
+      body: content.body,
+      payload: jsonEncode(message.data),
+    );
+  }
+
+  @visibleForTesting
+  ({String title, String body})? resolveNotificationContent(
+      RemoteMessage message) {
+    final rawTitle =
+        (message.data['title'] ?? message.notification?.title)?.toString();
+    final rawBody =
+        (message.data['body'] ?? message.notification?.body)?.toString();
 
     final notificationKey = message.data['notificationKey'] as String?;
     if (notificationKey != null && notificationKey.isNotEmpty) {
@@ -202,32 +218,22 @@ class NotificationService {
         } catch (_) {}
       }
       final localized = _localizeNotification(notificationKey, params);
-      title = localized.title;
-      body = localized.body;
-    } else {
-      final rawTitle =
-          (message.data['title'] ?? message.notification?.title)?.toString();
-      final rawBody =
-          (message.data['body'] ?? message.notification?.body)?.toString();
-      if (rawTitle == null ||
-          rawTitle.isEmpty ||
-          rawBody == null ||
-          rawBody.isEmpty) {
-        return;
-      }
-      title = rawTitle;
-      body = rawBody;
+      if (localized != null) return localized;
+
+      // Unknown key: the server already localized the text.
+      return (title: rawTitle ?? 'JustUS', body: rawBody ?? '');
     }
 
-    await showNotification(
-      id: _notificationId(message),
-      title: title,
-      body: body,
-      payload: jsonEncode(message.data),
-    );
+    if (rawTitle == null ||
+        rawTitle.isEmpty ||
+        rawBody == null ||
+        rawBody.isEmpty) {
+      return null;
+    }
+    return (title: rawTitle, body: rawBody);
   }
 
-  ({String title, String body}) _localizeNotification(
+  ({String title, String body})? _localizeNotification(
       String key, Map<String, dynamic> params) {
     if (!LanguageHelper.isLocaleInitialized) {
       LanguageHelper.initFromSystemLocale();
@@ -293,7 +299,7 @@ class NotificationService {
           body: loc.notif_cancellationAccepted_body(partnerName)
         );
       default:
-        return (title: 'JustUS', body: '');
+        return null;
     }
   }
 

@@ -319,8 +319,8 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
 
 ### Localization of notification text
 
-- `showRemoteMessage` reads the saved locale (`SharedPreferences` via `LanguageHelper.storageKey`) else the system locale, then localizes by `data['notificationKey']` among 8 keys (`requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`); fallback -> raw `title`/`body`, or (if both absent) **silently returns without showing**.
-- Unknown `notificationKey` fallback -> `(title: 'JustUS', body: '')` - an empty-body notification.
+- `showRemoteMessage` reads the saved locale (`SharedPreferences` via `LanguageHelper.storageKey`) else the system locale, then localizes by `data['notificationKey']` among 11 keys (`requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`, `cancellationRequested`, `cancellationDeclined`, `cancellationAccepted`); without a key, fallback -> raw `title`/`body`, or (if either is absent) **silently returns without showing**.
+- Unknown `notificationKey` -> the server-localized `data['title']`/`data['body']`, then `(title: 'JustUS', body: '')` only if the server text is missing.
 - Stable notification IDs: `data['notificationId']` or `messageId` hashed (djb2); otherwise an incrementing in-process counter.
 
 ### Push send path (outbound)

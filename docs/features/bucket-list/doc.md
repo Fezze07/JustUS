@@ -279,7 +279,7 @@ Trigger: on add item only (`bucket_repository.dart:49`).
 - Key: `bucketItemAdded`, param: `partnerName` (current user's stored username).
 - `notifyPartnerOnce` → backend `/api/v1/notify` → FCM to partner (unawaited).
 
-Content (Flutter `notification_service.dart:250`):
+Content (Flutter `notification_service.dart:281`):
 - Title IT: "Nuovo desiderio nella bucket list"
 - Body IT: "{partnerName} ha aggiunto qualcosa"
 - Item text not included in notification.
