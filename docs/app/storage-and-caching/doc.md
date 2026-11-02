@@ -230,25 +230,13 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ### F-SC15: `StorageService.prefs` async getter reinitializes if `_prefs` is null
 
-**Evidence**: `StorageService.prefs` (`:64–68`) — `_prefs ??= await SharedPreferences.getInstance()`. If `init()` was never called (should not happen in production, but could in tests or edge cases), `_prefs` is null and the async getter re-initializes lazily.
+**Evidence**: `StorageService.prefs` (`:82–86`) — `_prefs ??= await SharedPreferences.getInstance()`. If `init()` was never called (should not happen in production, but could in tests or edge cases), `_prefs` is null and the async getter re-initializes lazily.
 
-**What**: This is a safety net, not a bug. However, `prefsSync` (`:59–62`) asserts and throws in debug mode if `_prefs == null`. Code paths using `prefsSync` (none in production — all code uses `await prefs`) would crash. In practice, `main()` calls `init()` before any other code runs.
+**What**: This is a safety net, not a bug. However, `prefsSync` (`:77–80`) asserts and throws in debug mode if `_prefs == null`. Code paths using `prefsSync` (none in production — all code uses `await prefs`) would crash. In practice, `main()` calls `init()` before any other code runs.
 
-**Impact**: No production impact. Test infrastructure relies on `SharedPreferences.setMockInitialValues({})` in test setup, which pre-populates the singleton — but `StorageService.resetForTest()` at `:70–72` is defined but **never called** from tests (tests use `SharedPreferences.setMockInitialValues` instead). F-SC16
+**Impact**: No production impact. Test infrastructure calls `StorageService.resetForTest()` in `setUp` alongside `SharedPreferences.setMockInitialValues({})`, so the lazy getter is exercised with a fresh singleton.
 
 **Confidence**: HIGH (no production issue)
-
----
-
-### F-SC16: `StorageService.resetForTest()` is defined but never called
-
-**Evidence**: `resetForTest()` at `storage_service.dart:70–72` sets `_prefs = null`. Grep confirms it is never called from any test file. Tests use `SharedPreferences.setMockInitialValues({})` at the test `setUp` instead, which pre-populates the singleton before `StorageService.prefs` is ever accessed.
-
-**What**: Dead test utility.
-
-**Impact**: No functional impact. Tests work correctly because `SharedPreferences` mock is set up first.
-
-**Confidence**: HIGH
 
 ---
 
