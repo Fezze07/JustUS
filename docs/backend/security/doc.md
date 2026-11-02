@@ -48,7 +48,7 @@ The exact execution order of middleware in the application pipeline is determine
   2. Verify `req.sessionBinding.bindingSecret` exists (populated by `authenticateToken`).
   3. Validate timestamp skew (`Math.abs(now - timestamp) <= env.requestSigningMaxSkewMs` [default 300,000ms / 5 min]).
   4. Compute expected HMAC: `HMAC-SHA256(secret, `${METHOD}.${path}.${timestamp}.${nonce}.${sha256(body)}`)`.
-  5. String equality comparison (`expectedSignature === signature`).
+  5. Reject a signature that is not 64 lowercase hex characters, then compare the expected and supplied HMACs in constant time (`crypto.timingSafeEqual`).
   6. Call `consumeNonce` to record nonce usage.
 - **Failure Behavior**: Throws `SEC-AUTH-002` (401: missing session binding/headers, expired timestamp, invalid signature), `API-VALIDATION-001` (400: non-numeric timestamp) or `SEC-BLOCK-001` (429: replayed nonce).
 - **Storage & Expiration**: Session secret stored in PostgreSQL `session_bindings.binding_secret`.

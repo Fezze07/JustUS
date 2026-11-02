@@ -391,7 +391,11 @@ describe("Security Integration Tests", () => {
       expect(response.status).toBe(200);
     });
 
-    test("FAIL: Invalid HMAC signature", async () => {
+    test.each([
+      ["wrong-length", "invalid-signature"],
+      ["non-hex", "z".repeat(64)],
+      ["valid-length but wrong", "0".repeat(64)],
+    ])("FAIL: %s signature is rejected", async (_case, signature) => {
       setupAuthSuccess();
       const token = generateMockJWT(validUserPayload);
 
@@ -400,7 +404,7 @@ describe("Security Integration Tests", () => {
         .set("Authorization", `Bearer ${token}`)
         .set("x-request-timestamp", Date.now().toString())
         .set("x-request-nonce", "nonce-1")
-        .set("x-request-signature", "invalid-signature")
+        .set("x-request-signature", signature)
         .send({ id: 1 });
 
       expect(response.status).toBe(401);

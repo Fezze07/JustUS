@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const {
   env,
   consumeNonce,
@@ -64,6 +65,10 @@ function validateTimestamp(timestamp) {
 }
 
 function verifySignature(req, { timestamp, nonce, signature }, secret) {
+  if (!/^[0-9a-f]{64}$/.test(signature)) {
+    throw new AppError({ errorKey: "SEC_AUTH_002", message: "Invalid request signature" });
+  }
+
   const { signature: expectedSignature } = signRequest({
     secret,
     method: req.method,
@@ -73,7 +78,12 @@ function verifySignature(req, { timestamp, nonce, signature }, secret) {
     payload: req.body,
   });
 
-  if (expectedSignature !== signature) {
+  const matches = crypto.timingSafeEqual(
+    Buffer.from(expectedSignature, "hex"),
+    Buffer.from(signature, "hex")
+  );
+
+  if (!matches) {
     throw new AppError({ errorKey: "SEC_AUTH_002", message: "Invalid request signature" });
   }
 }
