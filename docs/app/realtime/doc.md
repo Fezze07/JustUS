@@ -270,11 +270,14 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 ---
 
-## Wipe Suppression (`RealtimeSyncService.suppress`/`resume`/`refreshChannel`, `profile_screen.dart:152-167`)
+## Wipe Suppression (`RealtimeSyncService.suppress`/`resume`/`refreshChannel`, `profile_screen.dart:145-161`)
 
 - `suppress()` sets `RealtimeSyncSession.suppressProcessing = true` and clears the game-event FIFO buffer + mood batch; every handler checks the flag **before** dedup/filtering (so nothing is marked seen during the wipe).
 - `resume(refresh: true)` clears the flag and runs `_refreshAll()`.
-- The app-data wipe flow (`profile_screen.dart:152-167`) calls `suppress()` → `wipeAppData()` → **`refreshChannel()`** (never `resume()`). `refreshChannel()` → `unsubscribe()` → `subscribe(refreshAfterSubscribe: true)`. Since `subscribe()` resets `suppressProcessing = false` and grants `refreshAfterSubscribe`, the full refresh post-wipe resets suppression. Events arriving during the wipe are not marked seen and are re-delivered on the fresh channel — **no events are lost by suppression**.
+- The app-data wipe flow (`profile_screen.dart:145-161`) calls `suppress()` → `wipeAppData()`, then branches:
+  - **Success**: clears the provider states and calls **`refreshChannel()`** (never `resume()`). `refreshChannel()` → `unsubscribe()` → `subscribe(refreshAfterSubscribe: true)`. Since `subscribe()` also resets `suppressProcessing = false` and grants `refreshAfterSubscribe`, the post-wipe full refresh resets suppression.
+  - **Failure**: the app calls `resume(refresh: true)`, so `suppressProcessing` is cleared and all states are refreshed immediately; processing does not wait for a foreground/reconnect or a later `subscribe()`.
+  - Events arriving during the wipe are not marked seen and are re-delivered on the fresh channel or the `resume()` refresh — **no events are lost by suppression**.
 
 ---
 
@@ -369,15 +372,15 @@ Events are dropped in normal operation in three ways:
 
 **Backstops that recover dropped events** (eventual sync):
 - Polling fallback `_refreshAll()` every 15 s while Realtime is degraded.
-- `resume()` → reconnect + `_refreshAll`.
-- `refreshAfterSubscribe` full refresh after lifecycle resume / `refreshChannel`.
+- `resume()` → clear suppression + `_refreshAll`.
+- `refreshAfterSubscribe` full refresh after lifecycle resume / `refreshChannel` (resubscribe).
 - Cold-start `loadWithChangeDetection` per feature (checkpoint-based).
 
 Because every handler converges to *server current state* on refetch, dropped intermediate events are eventually reflected — hence **eventual synchronization is achieved** even though per-event delivery is not lossless.
 
 ### Eventual synchronization — YES
 
-Convergence is guaranteed (given connectivity) by the combination of: 15 s polling fallback, resume → resubscribe + `_refreshAll`, subscribe-success refreshes, and checkpoint-gated cold-start refetches. The worst-case staleness bound is ~15 s when Realtime is down, ~0 s when healthy (game-answer bursts are fully lossless).
+Convergence is guaranteed (given connectivity) by the combination of: 15 s polling fallback, `refreshChannel()` → resubscribe + `_refreshAll`, subscribe-success refreshes, and checkpoint-gated cold-start refetches. The worst-case staleness bound is ~15 s when Realtime is down, ~0 s when healthy (game-answer bursts are fully lossless).
 
 ### Correct account isolation — YES
 

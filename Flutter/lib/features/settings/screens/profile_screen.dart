@@ -147,7 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       rt.suppress();
 
       final success = await context.read<ProfileState>().wipeAppData();
-      if (success && mounted) {
+      if (!success) {
+        rt.resume();
+      } else if (mounted) {
         context.read<GameState>().clear();
         context.read<BucketState>().clear();
         context.read<DriveState>().clear();

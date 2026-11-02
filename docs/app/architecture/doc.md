@@ -293,7 +293,7 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
 - **Reconnection**: exponential backoff 1s -> 60s (`1 << clamp(0..7)`, base 3s for close code 1002, jitter up to +/-25%), max 20 attempts (in `RealtimeSyncConnection._reconnectAttempt`), de-duplicated by the `_subscribing` guard and a generation counter (`realtime_connection.dart`) such that stale channel callbacks are ignored.
 - **Polling fallback** (`realtime_connection.dart`): after 3 consecutive failures, `activatePollingFallback()` starts `Timer.periodic(15s)` -> `_refreshAll()` (7 table queries), deactivated on a successful subscribe or on `configure`.
 - **Lifecycle** (`realtime_connection.dart` `didChangeAppLifecycleState`): resumed -> 300ms debounce then `scheduleReconnect(refreshAfterSubscribe: true)`; paused/hidden/detached -> `unsubscribe()`; inactive -> no-op. `_foreground` guards all subscribe paths.
-- `suppress()` sets `RealtimeSyncSession.suppressProcessing = true` and clears the game-event FIFO buffer and the mood batch (used by the Profile data-wipe); `resume()` exists but **is never called** (suppression is actually reset by the next `subscribe()`); `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after wipe).
+- `suppress()` sets `RealtimeSyncSession.suppressProcessing = true` and clears the game-event FIFO buffer and the mood batch (used by the Profile data-wipe); `resume()` clears the flag and runs `_refreshAll()`, and is called when the wipe fails; `refreshChannel()` forces an unsubscribe/resubscribe with refresh (used after a successful wipe).
 
 ---
 
@@ -428,16 +428,6 @@ Three components register as `WidgetsBindingObserver`:
 **Impact**: Makes unit testing harder (state bleeds between tests unless manually cleared). The coupling between `StorageService` and `ApiService` via static mutation (`setCachedRequestBindingSecret`) creates a hidden bidirectional dependency.
 
 **Confidence**: HIGH (verified at auth_state.dart:179, api_service.dart:19-23, api_service.dart:46-55).
-
-### F3: `RealtimeSyncService.resume()` is never called
-
-**Evidence**: `resume()` is declared at realtime_sync_service.dart. `suppress()` is called only at profile_screen.dart:95 (after data wipe). No call to `resume()` exists anywhere in the codebase (grep confirmed).
-
-**What**: After `suppress()` is called during a data wipe, event processing is re-enabled by the subsequent `subscribe()` call inside `refreshChannel()` (`RealtimeSyncConnection`), which resets `RealtimeSyncSession.suppressProcessing = false`. The public `resume()` method is dead code.
-
-**Impact**: No functional impact currently (the wipe flow works via `refreshChannel()`), but the dead API is misleading for future developers who may call `resume()` expecting it to restore event processing.
-
-**Confidence**: HIGH.
 
 ### F6: Eager provider creation defeats lazy tab architecture
 

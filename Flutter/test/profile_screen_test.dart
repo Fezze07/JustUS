@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,12 +46,23 @@ class _FakeAuthState extends AuthState {
 }
 
 class _FakeProfileState extends ProfileState {
+  bool wipeResult = true;
+  int wipeCalls = 0;
+
   @override
   User? get userProfile => User(id: 1, displayName: 'Me');
 
   @override
   Future<void> loadProfile({bool force = false}) async {}
+
+  @override
+  Future<bool> wipeAppData() async {
+    wipeCalls += 1;
+    return wipeResult;
+  }
 }
+
+class _MockRealtimeSyncService extends Mock implements RealtimeSyncService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +78,8 @@ void main() {
     WidgetTester tester, {
     required bool hasPartner,
     ResultWrapper<void>? requestResult,
+    _FakeProfileState? profileState,
+    _MockRealtimeSyncService? realtime,
   }) async {
     final repository = _FakePartnerRepository(
       requestResult: requestResult ?? const Success<void>(null),
@@ -76,11 +90,18 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<ProfileState>.value(
-              value: _FakeProfileState()),
+              value: profileState ?? _FakeProfileState()),
           ChangeNotifierProvider<AuthState>.value(
               value: _FakeAuthState(hasPartnerValue: hasPartner)),
           ChangeNotifierProvider<PartnerState>.value(value: partnerState),
           ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+          Provider<RealtimeSyncService>.value(
+              value: realtime ?? _MockRealtimeSyncService()),
+          ChangeNotifierProvider<GameState>.value(value: GameState()),
+          ChangeNotifierProvider<BucketState>.value(value: BucketState()),
+          ChangeNotifierProvider<DriveState>.value(value: DriveState()),
+          ChangeNotifierProvider<MoodState>.value(value: MoodState()),
+          ChangeNotifierProvider<HomepageState>.value(value: HomepageState()),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -102,6 +123,14 @@ void main() {
 
   Future<void> tapCancellationButton(WidgetTester tester) async {
     final button = find.text('RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP');
+    await tester.scrollUntilVisible(button, 400,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapWipeButton(WidgetTester tester) async {
+    final button = find.text('Cancella dati app');
     await tester.scrollUntilVisible(button, 400,
         scrollable: find.byType(Scrollable).first);
     await tester.tap(button);
@@ -166,5 +195,53 @@ void main() {
     expect(repository.requests, 1);
     expect(find.text('partner-route'), findsNothing);
     expect(find.textContaining('API-VALIDATION-013'), findsOneWidget);
+  });
+
+  testWidgets('a failed wipe resumes realtime processing', (tester) async {
+    final profile = _FakeProfileState()..wipeResult = false;
+    final realtime = _MockRealtimeSyncService();
+    when(() => realtime.suppress()).thenReturn(null);
+    when(() => realtime.resume(refresh: any(named: 'refresh')))
+        .thenReturn(null);
+    when(() => realtime.refreshChannel()).thenAnswer((_) async {});
+
+    await pumpProfile(
+      tester,
+      hasPartner: true,
+      profileState: profile,
+      realtime: realtime,
+    );
+    await tapWipeButton(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'CANCELLA TUTTO'));
+    await tester.pumpAndSettle();
+
+    expect(profile.wipeCalls, 1);
+    verify(() => realtime.suppress()).called(1);
+    verify(() => realtime.resume()).called(1);
+    verifyNever(() => realtime.refreshChannel());
+  });
+
+  testWidgets('a successful wipe still refreshes the channel', (tester) async {
+    final profile = _FakeProfileState()..wipeResult = true;
+    final realtime = _MockRealtimeSyncService();
+    when(() => realtime.suppress()).thenReturn(null);
+    when(() => realtime.resume(refresh: any(named: 'refresh')))
+        .thenReturn(null);
+    when(() => realtime.refreshChannel()).thenAnswer((_) async {});
+
+    await pumpProfile(
+      tester,
+      hasPartner: true,
+      profileState: profile,
+      realtime: realtime,
+    );
+    await tapWipeButton(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'CANCELLA TUTTO'));
+    await tester.pumpAndSettle();
+
+    expect(profile.wipeCalls, 1);
+    verify(() => realtime.suppress()).called(1);
+    verify(() => realtime.refreshChannel()).called(1);
+    verifyNever(() => realtime.resume(refresh: any(named: 'refresh')));
   });
 }

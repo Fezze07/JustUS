@@ -81,6 +81,7 @@ Profile Screen (Debug) → Tap Wipe Data → Confirmation Dialog → User Confir
     and, when paired, uploads/{partnerId}/, profile/{partnerId}/ (r2.service deleteObjectsByPrefix)
   → StorageService.clearAppCache() → CacheService.clearAll() → emptyAppMediaCaches() → Clear In-Memory Providers
   → RealtimeSyncService.refreshChannel() → Profile Reloaded (Empty State)
+  → On failure: RealtimeSyncService.resume() → processing restored + full state refresh
 ```
 
 ---
@@ -198,7 +199,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 - **Profile Edit Propagation**: `user_profiles` is part of the `supabase_realtime` publication; `RefetchRealtimeHandler` (150 ms debounce, update-only) reacts to self/partner `UPDATE`s by clearing the partnership cache and refreshing `ProfileState.loadProfile(force: true)` + `PartnerState.refreshFromRealtime()` + `AuthState.refreshPartnershipFromRealtime()`. Display name/profile pic changes appear on the partner device without re-entering the screen.
 - **Account Wipe Suppression**: Prior to executing account wipe, `ProfileScreen` calls `RealtimeSyncService.suppress()` to prevent incoming database change events from triggering state re-syncs mid-deletion.
-- **Post-Wipe Refresh**: Once wipe completes, `RealtimeSyncService.refreshChannel()` re-establishes the WebSocket sync channel.
+- **Post-Wipe Refresh**: On success, `RealtimeSyncService.refreshChannel()` re-establishes the WebSocket sync channel. If the wipe fails, `RealtimeSyncService.resume()` clears the suppression flag and runs a full state refresh, so realtime processing resumes without waiting for a foreground/reconnect.
 
 ---
 
@@ -267,7 +268,7 @@ The Profile & Settings subsystem crosses all architectural layers:
   - `_pickProfilePhoto()`: Opens `MediaPickerService` bottom sheet (camera + gallery) capped at 512x512.
   - `_showTextEditDialog()`: Generic localized edit dialog (TextField, validation, max length 60).
   - `_editDisplayName()`: Opens the edit dialog and calls `ProfileState.updateDisplayName`.
-  - `_showWipeConfirmation()`: Displays wipe dialog, suppresses realtime sync, invokes wipe, clears provider states.
+  - `_showWipeConfirmation()`: Displays wipe dialog, suppresses realtime sync, invokes wipe, then either refreshes the channel (success) or resumes realtime processing (failure), clearing provider states only on success.
   - `_logout()`: Invokes `LogoutUtils.showLogoutDialog()`.
 - [`localization_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/localization_screen.dart)
   - `_LanguageTile`: Renders language option and calls `LanguageProvider.setLanguageCode()`.
