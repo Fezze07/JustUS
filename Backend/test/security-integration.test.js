@@ -236,6 +236,79 @@ describe("Security Integration Tests", () => {
       expect(response.body.error.code).toBe("AUTH-FAIL-006");
     });
 
+    test("FAIL: Session binding lookup error fails closed", async () => {
+      const token = generateMockJWT(validUserPayload);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1" } },
+        error: null,
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockProfile, error: null }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: null,
+              error: { message: "session_bindings unavailable" },
+            }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      const response = await request(app)
+        .post("/api/v1/auth/invite")
+        .set("Authorization", `Bearer ${token}`)
+        .set("X-Device-Fingerprint", "device-123")
+        .send(validInvitePayload);
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe("DB-READ-001");
+    });
+
+    test("FAIL: Missing device fingerprint with a bound session", async () => {
+      const token = generateMockJWT(validUserPayload);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1" } },
+        error: null,
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockProfile, error: null }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: {
+                session_id: "session-123",
+                device_fingerprint_hash: "27bb7491278d5a3730469518b6264ddc70f665f98a0045c119f08c59bc0c07ff",
+                binding_secret: "secret-123",
+              },
+              error: null,
+            }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      const response = await request(app)
+        .post("/api/v1/auth/invite")
+        .set("Authorization", `Bearer ${token}`)
+        .send(validInvitePayload);
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("AUTH-FAIL-006");
+    });
+
     describe("server-side session state", () => {
       const baseSession = {
         session_id: "session-123",

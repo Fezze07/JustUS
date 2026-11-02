@@ -4,6 +4,7 @@ const {
   authSupabase,
   logAuthFailure,
   AppError,
+  assertDbSuccess,
   buildClientContext,
   hmacSha256,
   resolveCapabilities,
@@ -169,16 +170,15 @@ async function fetchUserProfile(authId) {
  * @returns {Promise<object|null>} I dati della sessione o null.
  */
 async function fetchSessionBinding(verified, profile, clientContext) {
-  try {
-    const { data } = await adminSupabase
+  const data = assertDbSuccess(
+    await adminSupabase
       .from("session_bindings")
       .select("session_id, device_fingerprint_hash, binding_secret")
       .eq("session_id", verified.claims.session_id ?? `${profile.id}:${clientContext.deviceFingerprintHash}`)
-      .maybeSingle();
-    return data ?? null;
-  } catch (_) {
-    return null;
-  }
+      .maybeSingle(),
+    "DB_READ_001"
+  );
+  return data ?? null;
 }
 
 /**

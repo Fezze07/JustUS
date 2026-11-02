@@ -265,25 +265,22 @@ JustUS enforces strict session binding to ensure stolen JWT tokens cannot be use
 
 ### Bound Parameters Specification
 
-| Parameter | Header / Source | Generation / Format | Storage (`auth_sessions`) | Validation Action |
+| Parameter | Header / Source | Generation / Format | Storage (`session_bindings`) | Validation Action |
 |---|---|---|---|---|
-| Device Fingerprint | `X-Device-Fingerprint` | Client UUID stored in secure storage | `device_fingerprint_hash` (SHA-256) | Strict match (`AUTH_FAIL_006`) |
-| Client User-Agent | `X-Client-User-Agent` | `justus/flutter/{platform}` | `user_agent_hash` (SHA-256) | Strict match (`AUTH_FAIL_006`) |
-| Soft IP Range | Request IP (`req.ip`) | IPv4 `/24` or IPv6 first 4 segments | `ip_range` | Soft check (Logs `ip_range_changed`) |
-| Behavior Pattern | HTTP Headers | Hash of fingerprint, UA, IP range, language & headers | `request_profile_hash` | Monitored during session sync |
+| Device Fingerprint | `X-Device-Fingerprint` | Client UUID stored in secure storage | `device_fingerprint_hash` (SHA-256) | Required and strictly matched (`AUTH_FAIL_006`) |
+
+Only the device fingerprint is enforced. `buildClientContext` still computes user-agent, IP-range and header hashes, but `session.utils.js` does not compare them.
 
 ### Validation Implementation
 
-- File: [session.utils.js:9-39](file:///f:/JustUS/Backend/features/auth/session.utils.js#L9-L39)
+- File: [session.utils.js:9-21](file:///f:/JustUS/Backend/features/auth/session.utils.js#L9-L21)
 ```javascript
 function validateSessionBinding(sessionBinding, clientContext) {
-  checkRevocation(sessionBinding);
   checkDeviceFingerprint(sessionBinding, clientContext);
-  checkUserAgent(sessionBinding, clientContext);
 }
 ```
-- If `device_fingerprint_hash` or `user_agent_hash` differs from the active request context, backend throws `AppError(AUTH_FAIL_006)` ("Client binding mismatch. Please login again.").
-- Soft IP range changes do **not** block the user. If the client moves between networks (e.g. WiFi to LTE), `isIpRangeChanged` evaluates to `true`, and backend logs a security audit event (`ip_range_changed`).
+- When the binding row has a `device_fingerprint_hash`, a missing `X-Device-Fingerprint` header or a different SHA-256 hash throws `AppError(AUTH_FAIL_006)` ("Device binding mismatch").
+- A genuinely absent binding row skips the check, which keeps the first `/auth/session-bind` call working.
 
 ---
 
@@ -345,7 +342,7 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 | `AUTH_FAIL_002` | 401 | Missing Bearer token in Authorization header | Aborts request |
 | `AUTH_FAIL_004` | 401 | Token role claims !== `'authenticated'` | Aborts request |
 | `AUTH_FAIL_005` | 401 | User profile not found in `public.users` table | Aborts request |
-| `AUTH_FAIL_006` | 401 | Device Fingerprint or User-Agent binding mismatch | Forces re-login |
+| `AUTH_FAIL_006` | 401 | Device fingerprint missing or mismatched | Forces re-login |
 | `SEC_AUTH_002` | 401 | Missing, expired, or invalid HMAC request signature (including a secret the backend rotated while the client still held the old one) | Rejects signed request; the client re-binds the session and retries once |
 | `SEC_BLOCK_001` | 400/403 | Replay attack detected (request nonce already consumed) | Rejects request |
 
@@ -353,7 +350,7 @@ Signature = HMAC-SHA256(bindingSecret, CanonicalString)
 
 ## Security Properties
 
-1. **Anti-Token Hijacking**: Stolen JWTs cannot be used on an attacker's device without matching both `X-Device-Fingerprint` and `X-Client-User-Agent` hashes stored in `auth_sessions`.
+1. **Anti-Token Hijacking**: Stolen JWTs cannot be used on an attacker's device without matching the `X-Device-Fingerprint` hash stored in `session_bindings`.
 2. **Replay & Tamper Protection**: Signed API routes enforce a 5-minute timestamp skew window (`REQUEST_SIGNING_MAX_SKEW_MS`) and consume single-use nonces reserved atomically in the PostgreSQL `request_nonces` table (`consumeNonce`), with an in-memory cache as a fast path.
 
 ---
@@ -366,8 +363,8 @@ None currently identified.
 
 ## Edge Cases
 
-1. **Device Fingerprint Loss**: The fingerprint lives in `FlutterSecureStorage` and deliberately **survives logout** — `StorageService.clearAll()` (`:453`) re-persists `_keyDeviceFingerprint` after `_secureStorage.deleteAll()`, so a logout/login cycle keeps the same `X-Device-Fingerprint` and never resets the backend strike key or session binding (F-SC1). It regenerates only when app data is cleared or the app is reinstalled; subsequent API calls then send a new `X-Device-Fingerprint`, triggering `AUTH_FAIL_006` ("Client binding mismatch") and forcing the user to log in again.
-2. **IP Address Mobility**: Moving between cellular and Wi-Fi changes `req.ip`. Because `isIpRangeChanged()` only logs a security event rather than throwing an exception, user sessions remain active without disruption.
+1. **Device Fingerprint Loss**: The fingerprint lives in `FlutterSecureStorage` and deliberately **survives logout** — `StorageService.clearAll()` (`:453`) re-persists `_keyDeviceFingerprint` after `_secureStorage.deleteAll()`, so a logout/login cycle keeps the same `X-Device-Fingerprint` and never resets the backend strike key or session binding (F-SC1). It regenerates only when app data is cleared or the app is reinstalled; subsequent API calls then send a new `X-Device-Fingerprint`, triggering `AUTH_FAIL_006` ("Device binding mismatch") and forcing the user to log in again.
+2. **IP Address Mobility**: Moving between cellular and Wi-Fi does not affect the binding: only the device fingerprint is compared, and `ipToSoftRange()` is not used by the session-binding check.
 
 ---
 
@@ -381,7 +378,7 @@ None currently identified.
 
 ### Backend Node.js
 - [authMiddleware.js](file:///f:/JustUS/Backend/middleware/authMiddleware.js): `authenticateToken()`, `verifyToken()`, profile resolution, session binding validation.
-- [session.utils.js](file:///f:/JustUS/Backend/features/auth/session.utils.js): `validateSessionBinding()`, `checkDeviceFingerprint()`, `checkUserAgent()`, `isIpRangeChanged()`.
+- [session.utils.js](file:///f:/JustUS/Backend/features/auth/session.utils.js): `validateSessionBinding()`, `checkDeviceFingerprint()`.
 - [requestFingerprintService.js](file:///f:/JustUS/Backend/services/requestFingerprintService.js): `buildClientContext()`, `ipToSoftRange()`.
 - [requestSigningService.js](file:///f:/JustUS/Backend/services/requestSigningService.js): `generateBindingSecret()`, `signRequest()`.
 - [requireSignedRequest.js](file:///f:/JustUS/Backend/middleware/requireSignedRequest.js): HMAC signature verification and nonce consumption.
@@ -408,8 +405,6 @@ None currently identified.
 | Token Refresh (SDK-mediated) | **IMPLEMENTED** | `Supabase.refreshSession()` owns refresh; the backend `/auth/refresh` proxy no longer exists. One path, one rotation |
 | Other-Session Revocation on Password Write | **IMPLEMENTED** | `signOut(scope: others)` + `POST /api/v1/auth/installation-id-revoke-all` after `updateUser(password:)`; current session and its push registration kept, both revokes best-effort (5 s cap) |
 | Token Lifetime Policy Enforcement | **IMPLEMENTED** | Checked in `tokenUtils.js` |
-| Strict Device Fingerprint Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
-| Strict User-Agent Binding | **IMPLEMENTED** | `AUTH_FAIL_006` on mismatch |
-| Soft IP Range Monitoring | **IMPLEMENTED** | Logs `ip_range_changed` event |
+| Strict Device Fingerprint Binding | **IMPLEMENTED** | Missing header or mismatch → `AUTH_FAIL_006` |
 | Session Synchronization (`/session-bind`) | **IMPLEMENTED** | `session_bindings` table upsert |
 | HMAC Request Signing & Binding Secret | **IMPLEMENTED** | `requireSignedRequest` middleware |

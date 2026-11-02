@@ -11,9 +11,10 @@ function validateSessionBinding(sessionBinding, clientContext) {
 }
 
 function checkDeviceFingerprint(sessionBinding, clientContext) {
+  if (!sessionBinding?.device_fingerprint_hash) return;
+
   if (
-    sessionBinding?.device_fingerprint_hash &&
-    clientContext.deviceFingerprint &&
+    !clientContext.deviceFingerprint ||
     sessionBinding.device_fingerprint_hash !== clientContext.deviceFingerprintHash
   ) {
     throw new AppError({ errorKey: "AUTH_FAIL_006" });
