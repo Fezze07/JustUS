@@ -27,6 +27,7 @@
 | 13 | Test safety net, docs & the verification backlog | 13.1–13.7 | All fixed. Tracked test suite and a portable runner; root `test` delegates to `validate`; retention and wipe docs corrected; live docs sweep; the lost specialist backlog triaged into 16.16–16.19 (the CI row is 8.8) |
 | 14 | Post-AI-removal dead code & simplification | 14.1–14.12 | All fixed. Dead exports, files, capabilities and error codes removed; orphaned RPC and compose plumbing deleted; 36 orphan l10n keys pruned; AI audit docs corrected |
 | 15 | Partner email invite + session-bind resilience | 15.1–15.2 | All fixed. Account-only invite by email for partners without an account; a stale session-binding secret self-heals instead of forcing a login |
+| 16 | Client state delivery & the docs-sweep triage | 16.1–16.19 | All fixed. Frame-requesting state notifications, a derived drive detail item, merged mood history, generated grid thumbnails, a PII-free profile cache, server-text notification fallback, no iOS badge, a single iOS foreground renderer (device check not run), app-locale push registration, raw-body request signing, constant-time HMAC comparison, fail-closed session binding, owner-scoped media keys, and realtime resume after a failed wipe |
 
 ---
 
@@ -170,6 +171,25 @@
 | 14.12 | AI-removal documentation drift | Fixed (docs clarification; no code change) | 2026-10-30 |
 | 15.1 | Partner email invite for users without an account | Fixed (signed `/auth/invite-user` → GoTrue hosted invite; `409` when the address exists) | 2026-10-12 |
 | 15.2 | A slow or lost `/auth/session-bind` forces a login | Fixed (splash routes by session state; stale binding secret re-binds and retries once) | 2026-10-14 |
+| 16.1 | Coalesced notifications are never delivered without a frame source | Fixed (`scheduleFrame()` before the post-frame callback) | 2026-10-21 |
+| 16.2 | `DriveState._singleItem` goes stale in two write paths | Fixed (detail item derived from `_driveItems`) | 2026-10-30 |
+| 16.3 | Mood timeline collapses to 4 entries on full refetch | Fixed (fresh page merged with loaded pages) | 2026-10-30 |
+| 16.4 | Drive grid streams full-size videos and legacy images | Fixed (client-side video posters; no full-size fallback) | 2026-11-02 |
+| 16.5 | Profile PII sits unencrypted in `SharedPreferences` | Fixed (cache-only `toCacheJson` omits `email`/`auth_id`) | 2026-11-02 |
+| 16.6 | `username` and `partner_display_name` survive a wipe | Fixed (docs clarification; names kept by design) | 2026-11-02 |
+| 16.7 | Unknown `notificationKey` renders a notification with an empty body | Fixed (server `title`/`body` fallback) | 2026-11-02 |
+| 16.8 | iOS badge is hardcoded to 1 and never cleared | Fixed (`aps.badge` removed from the APNs payload) | 2026-11-02 |
+| 16.9 | iOS may present a foreground notification twice | Fixed (local notification owns the foreground; device check not run) | 2026-11-02 |
+| 16.10 | Server and client fall back to different locales | Fixed (app locale registered; English kept as legacy fallback) | 2026-11-02 |
+| 16.11 | Notifications doc claims notification taps never navigate | Fixed (docs clarification; tap consumer documented) | 2026-11-02 |
+| 16.12 | Storage doc's F-SC16 (`resetForTest()` never called) is false | Fixed (docs clarification; false finding deleted) | 2026-11-02 |
+| 16.13 | Secrets audit contradicts `.env.test` tracking and plist path | Fixed (docs clarification; one answer and iOS link) | 2026-11-02 |
+| 16.14 | `sweepStalMultipartUploads` is misspelled, and three docs repeat it | Fixed (renamed to `sweepStaleMultipartUploads`) | 2026-11-02 |
+| 16.15 | Signed-request HMAC comparison is not constant-time | Fixed (`timingSafeEqual` + hex shape guard) | 2026-11-02 |
+| 16.16 | Session binding fails open on lookup error or missing fingerprint | Fixed (fail closed with `DB-READ-001` / `AUTH-FAIL-006`) | 2026-11-02 |
+| 16.17 | Sanitizer rewrites the body before HMAC verification | Fixed (signature covers `req.rawBody`) | 2026-11-02 |
+| 16.18 | Client-supplied `metadata.thumbnail` is deleted without ownership check | Fixed (strict owner-segment check; prefix-guarded purge) | 2026-11-02 |
+| 16.19 | A failed data wipe leaves realtime processing suppressed | Fixed (`resume()` on failure; `refreshChannel()` on success) | 2026-11-02 |
 
 ---
 
@@ -223,3 +243,10 @@ Non-obvious constraints that still bind the code. Each one now lives in its owni
 44. **The backend was migrated to the `drive_items` schema, not the schema to the backend.** `name` (R2 key) and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so adding `filename` / `user_id` / `partner_id` columns would duplicate state and require a data migration. → `docs/features/shared-drive/doc.md` § Architecture & Component Mapping.
 45. **An R2 orphan-sweep read failure aborts the run before any deletion.** Treating an unread key source as empty would mark live objects as orphans; the sweep logs `retention.r2_orphan.failed` per source and skips the delete pass instead. → `docs/backend/infrastructure/doc.md` § Background Maintenance & Retention Jobs.
 46. **The binding secret rotates on every session-bind and is never reused; a lost response is healed by the client.** The server cannot know whether the previous secret reached the client, so reusing it would weaken the rotation; `_safeCall` treats `SEC-AUTH-002` as a stale secret, re-binds and retries once with the new one. → `docs/features/authentication/session-token-security/doc.md` § Binding Secret & HMAC Request Signing (Secret Lifecycle, Client-side Recovery).
+47. **The app's local notification owns the iOS foreground.** `setForegroundNotificationPresentationOptions()` stays at the API defaults (`alert/badge/sound: false`) while `onMessage` posts the localized local notification, so an FCM message cannot render twice. → `docs/app/notifications/doc.md` § Foreground (app in focus).
+48. **Push registration records the app locale, not the OS locale.** Every registration path sends `LanguageHelper.currentLocaleCode()`; the server's English `DEFAULT_LOCALE` is only the fallback for legacy rows whose `locale` is null or unsupported, so it is not a mismatch to align with the app's Italian default. → `docs/app/notifications/doc.md` § Localization.
+49. **Grid media never falls back to the full-size object.** `DriveItem.contentThumb` returns the stored thumbnail key or `null`, and a missing thumbnail renders a type placeholder; restoring the old `content` fallback would re-introduce one full-file download per grid tile. → `docs/features/shared-drive/doc.md` § Complete Upload Pipeline Trace.
+50. **Profile caches use a PII-free serializer.** `saveUserProfile`/`savePartnerProfile` write `User.toCacheJson`, which omits `email`/`auth_id` but keeps `partnershipCode` for the share-code tile; `toJson` remains the network shape. → `docs/app/storage-and-caching/doc.md` § Security Considerations.
+51. **Session binding fails closed on a lookup error or a missing fingerprint.** A `session_bindings` read error is `DB_READ_001` (500), not "no row", and a missing `X-Device-Fingerprint` is `AUTH_FAIL_006` when the row has a hash; treating either as "no binding" silently disables the control. → `docs/backend/security/doc.md` § 4. JWT Verification & Session Binding.
+52. **Request signatures cover the raw bytes, not the sanitized body.** `express.json({ verify })` stores `req.rawBody`; the HMAC hashes it (falling back to `req.body` only when absent) while handlers still receive the sanitized body, so sanitization cannot invalidate a correctly signed payload. → `docs/backend/security/doc.md` § 1. HMAC-SHA256 Request Signing.
+53. **Storage keys are owner-scoped twice.** Completion requires the caller's profile id as the path segment immediately before the file name for both `filename` and `metadata.thumbnail`, and deletion removes a thumbnail only under the main object's directory prefix, so a row cannot point the purge at another user's object. → `docs/features/shared-drive/doc.md` § Item Deletion Flow.
