@@ -75,7 +75,7 @@ function verifySignature(req, { timestamp, nonce, signature }, secret) {
     path: req.originalUrl.split("?")[0],
     timestamp,
     nonce,
-    payload: req.body,
+    payload: req.rawBody ?? req.body,
   });
 
   const matches = crypto.timingSafeEqual(

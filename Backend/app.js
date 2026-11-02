@@ -25,6 +25,11 @@ function createApp() {
   app.use(
     express.json({
       limit: env.bodyLimit,
+      // HMAC verification hashes the bytes the client signed; req.body is
+      // rewritten by sanitizeRequest() before the signed-request middleware runs.
+      verify: (req, _res, buf) => {
+        req.rawBody = buf.toString("utf8");
+      },
     })
   );
   app.use(express.urlencoded({ extended: false, limit: env.bodyLimit }));

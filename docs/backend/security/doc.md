@@ -33,7 +33,7 @@ The exact execution order of middleware in the application pipeline is determine
 ```
 
 > [!IMPORTANT]
-> **Key Finding on Order**: Input Sanitization occurs **before** Authentication, Rate Limiting, and HMAC Request Signing. HMAC verification occurs **after** Rate Limiting and Authentication, but **before** Schema Validation (`validateRequest`).
+> **Key Finding on Order**: Input Sanitization runs **before** Authentication, Rate Limiting, and HMAC Request Signing, but it only rewrites the parsed `req.body`. HMAC verification hashes the raw request bytes captured by `express.json({ verify })`, so the client's signature is checked against what it actually sent while route handlers still receive the sanitized body.
 
 ---
 
@@ -47,7 +47,7 @@ The exact execution order of middleware in the application pipeline is determine
   1. Extract `X-Request-Timestamp`, `X-Request-Nonce`, `X-Request-Signature`.
   2. Verify `req.sessionBinding.bindingSecret` exists (populated by `authenticateToken`).
   3. Validate timestamp skew (`Math.abs(now - timestamp) <= env.requestSigningMaxSkewMs` [default 300,000ms / 5 min]).
-  4. Compute expected HMAC: `HMAC-SHA256(secret, `${METHOD}.${path}.${timestamp}.${nonce}.${sha256(body)}`)`.
+  4. Compute expected HMAC: `HMAC-SHA256(secret, `${METHOD}.${path}.${timestamp}.${nonce}.${sha256(raw body)}`)`. The raw body is captured before sanitization, so whitespace or control characters trimmed from `req.body` do not invalidate the client's signature.
   5. Reject a signature that is not 64 lowercase hex characters, then compare the expected and supplied HMACs in constant time (`crypto.timingSafeEqual`).
   6. Call `consumeNonce` to record nonce usage.
 - **Failure Behavior**: Throws `SEC-AUTH-002` (401: missing session binding/headers, expired timestamp, invalid signature), `API-VALIDATION-001` (400: non-numeric timestamp) or `SEC-BLOCK-001` (429: replayed nonce).
@@ -136,7 +136,7 @@ The exact execution order of middleware in the application pipeline is determine
 
 - **Threat Addressed**: Control character injection, null-byte injection, whitespace pollution in request body/query/params.
 - **Implementation Location**: [`middleware/sanitizeRequest.js`](file:///f:/JustUS/Backend/middleware/sanitizeRequest.js).
-- **Request Flow**: Executes globally before routes. Recursively iterates through `req.body`, `req.query`, `req.params`. For string values, strips control characters `[\u0000-\u001f\u007f]` and applies `.trim()`.
+- **Request Flow**: Executes globally before routes. Recursively iterates through `req.body`, `req.query`, `req.params`. For string values, strips control characters `[\u0000-\u001f\u007f]` and applies `.trim()`. Signature verification is unaffected: `requireSignedRequest` hashes the raw request bytes captured by `express.json({ verify })`, not the sanitized `req.body`.
 - **Failure Behavior**: Mutates request payload in place, passes control to `next()`.
 - **Multi-Instance Behavior**: Fully stateless; works identically on all instances.
 

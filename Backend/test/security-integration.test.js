@@ -52,6 +52,7 @@ jest.mock("../features/user/user.controller", () => ({
 
 const { adminSupabase, authSupabase, resetRateLimitState } = require("../all_imports");
 const { createApp } = require("../app");
+const { completeUploadController } = require("../features/media/media.controller");
 
 // Helper to generate a mock JWT that authMiddleware can decode
 function generateMockJWT(payload) {
@@ -462,6 +463,74 @@ describe("Security Integration Tests", () => {
         .send(payload);
 
       expect(response.status).toBe(200);
+    });
+
+    test("PASS: signature covers the raw body and handlers see sanitized values", async () => {
+      setupAuthSuccess();
+      const token = generateMockJWT(validUserPayload);
+      const timestamp = Date.now();
+      const nonce = "raw-body-nonce";
+      const payload = {
+        type: "image",
+        filename: "uploads/42/photo.jpg",
+        originalName: "  name  ",
+        mimeType: "image/jpeg",
+        size: 1024,
+      };
+
+      const { signature } = signRequest({
+        secret: "secret-123",
+        method: "POST",
+        path: "/api/v1/media/complete",
+        timestamp,
+        nonce,
+        payload: JSON.stringify(payload),
+      });
+
+      const response = await request(app)
+        .post("/api/v1/media/complete")
+        .set("Authorization", `Bearer ${token}`)
+        .set("x-request-timestamp", timestamp.toString())
+        .set("x-request-nonce", nonce)
+        .set("x-request-signature", signature)
+        .send(payload);
+
+      expect(response.status).toBe(200);
+      expect(completeUploadController.mock.calls[0][0].body.originalName).toBe("name");
+    });
+
+    test("FAIL: a body that differs from the signed bytes is rejected", async () => {
+      setupAuthSuccess();
+      const token = generateMockJWT(validUserPayload);
+      const timestamp = Date.now();
+      const nonce = "tampered-body-nonce";
+      const signedPayload = {
+        type: "image",
+        filename: "uploads/42/photo.jpg",
+        originalName: "  name  ",
+        mimeType: "image/jpeg",
+        size: 1024,
+      };
+
+      const { signature } = signRequest({
+        secret: "secret-123",
+        method: "POST",
+        path: "/api/v1/media/complete",
+        timestamp,
+        nonce,
+        payload: JSON.stringify(signedPayload),
+      });
+
+      const response = await request(app)
+        .post("/api/v1/media/complete")
+        .set("Authorization", `Bearer ${token}`)
+        .set("x-request-timestamp", timestamp.toString())
+        .set("x-request-nonce", nonce)
+        .set("x-request-signature", signature)
+        .send({ ...signedPayload, originalName: "  tampered  " });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("SEC-AUTH-002");
     });
 
     test.each([
