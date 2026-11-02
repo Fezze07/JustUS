@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -103,6 +104,29 @@ void main() {
 
     expect(repo.fetchCalls, 1);
     expect(state.userProfile?.username, 'Alex');
+  });
+
+  test('profile cache omits email and auth_id but keeps the share code',
+      () async {
+    await StorageService.saveUserProfile(User(
+      id: 1,
+      email: 'user@example.com',
+      authId: 'auth-uuid',
+      displayName: 'Alex',
+      partnershipCode: 'ABC123',
+    ));
+
+    final raw =
+        (await SharedPreferences.getInstance()).getString('user_profile');
+    final persisted = jsonDecode(raw!) as Map<String, dynamic>;
+
+    expect(persisted.containsKey('email'), isFalse);
+    expect(persisted.containsKey('auth_id'), isFalse);
+    expect(persisted['partnership_code'], 'ABC123');
+
+    final restored = await StorageService.getUserProfile();
+    expect(restored?.displayName, 'Alex');
+    expect(restored?.partnershipCode, 'ABC123');
   });
 
   test('updateDisplayName persists server-side and updates local caches',

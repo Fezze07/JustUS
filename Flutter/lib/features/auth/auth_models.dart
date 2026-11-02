@@ -56,6 +56,16 @@ class User {
     };
   }
 
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'created_at': createdAt,
+      'display_name': displayName,
+      'profile_pic_url': profilePicUrl,
+      'partnership_code': partnershipCode,
+    };
+  }
+
   User copyWith({
     int? id,
     String? email,

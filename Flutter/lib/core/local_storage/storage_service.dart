@@ -333,7 +333,7 @@ class StorageService {
   // -------------------- Profile --------------------
 
   static Future<void> saveUserProfile(User user) async {
-    await _saveJson(_keyUserProfile, user.toJson());
+    await _saveJson(_keyUserProfile, user.toCacheJson());
   }
 
   static Future<User?> getUserProfile() async {
@@ -341,7 +341,7 @@ class StorageService {
   }
 
   static Future<void> savePartnerProfile(User user) async {
-    await _saveJson(_feat(_keyPartnerProfile), user.toJson());
+    await _saveJson(_feat(_keyPartnerProfile), user.toCacheJson());
   }
 
   static Future<User?> getPartnerProfile() async {
