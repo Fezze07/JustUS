@@ -41,6 +41,16 @@ async function createPresignedUpload({ user, payload }) {
   };
 }
 
+function isOwnedStorageKey(key, userId) {
+  if (typeof key !== "string") return false;
+  const segments = key.split("/");
+  return (
+    segments.length >= 2 &&
+    segments[segments.length - 1].length > 0 &&
+    segments[segments.length - 2] === String(userId)
+  );
+}
+
 async function registerCompletedUpload({ user, payload }) {
   const {
     filename,
@@ -52,9 +62,13 @@ async function registerCompletedUpload({ user, payload }) {
     kind,
   } = payload;
 
-  const expectedUserSegment = `/${user.profileId}/`;
-  if (!filename.includes(expectedUserSegment)) {
+  if (!isOwnedStorageKey(filename, user.profileId)) {
     throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Invalid storage key" });
+  }
+
+  const thumbnail = metadata?.thumbnail;
+  if (thumbnail != null && !isOwnedStorageKey(thumbnail, user.profileId)) {
+    throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Invalid thumbnail storage key" });
   }
 
   if (kind === "profile") {

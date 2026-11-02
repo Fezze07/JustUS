@@ -60,7 +60,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 
 2. **Node.js / Express API**:
    - [r2.service.js](file:///f:/JustUS/Backend/features/media/r2.service.js): AWS S3 SDK (`@aws-sdk/client-s3`) integration for Cloudflare R2. Sanitizes filenames, validates MIME/size, and generates S3 presigned PUT upload and GET download URLs.
-   - [mediaWorkflow.service.js](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Enforces upload permissions (`can_upload_large` capability for files > 5 MB), verifies storage key ownership (`/{userId}/`), updates user profile pictures or inserts `public.drive_items` records.
+   - [mediaWorkflow.service.js](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Enforces upload permissions (`can_upload_large` capability for files > 5 MB), verifies `filename` and `metadata.thumbnail` ownership (the caller's profile id is the path segment immediately before the file name), updates user profile pictures or inserts `public.drive_items` records.
    - [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js): Route handlers `presignUploadController`, `completeUploadController`, and `redirectToSignedDownloadController`.
 
 3. **Database Layer (Supabase / PostgreSQL)**:
@@ -149,10 +149,10 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - The thumbnail storage key is passed in `metadata.thumbnail` to `/complete-upload` and stored in `drive_items.metadata` (JSONB) — no new column.
 
 5. **Backend Database Registration**
-   - File: [media_service.dart:113-127](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L113-L127) & [mediaWorkflow.service.js:43-100](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L43-L100)
+   - File: [media_service.dart:113-127](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L113-L127) & [mediaWorkflow.service.js:54-117](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L54-L117)
    - Flutter sends `POST /api/v1/media/complete-upload` containing `{ kind, type, filename, originalName, mimeType, size, metadata }`.
    - Backend `registerCompletedUpload()`:
-     - Verifies storage key contains expected user segment `/${user.profileId}/` to prevent key hijacking.
+     - Verifies that `filename` and `metadata.thumbnail` (when present) carry the caller's profile id as the path segment immediately before the file name, rejecting a foreign key with `AUTH-FAIL-004`.
      - **Profile Picture Flow** (`kind === 'profile'`): Updates `user_profiles.profile_pic_url = filename` for `user_id = user.profileId`.
      - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then the latest `cancelled` partnership). Inserts `name` (R2 key), `original_name` and `partnership_id` into `public.drive_items`, returning the created `item` object.
 
@@ -182,9 +182,10 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
       - Deletes the drive_items row first (favorites/reactions cascade), re-asserting the
         partnership in the DELETE predicate (defense in depth)
       - Best-effort R2 cleanup (purgeR2Object): deletes the full-size object and the
-        thumbnail (metadata.thumbnail) when present; failures logged, never block the
-        response; orphaned objects are reclaimed by retentionJob sweepStaleOrphanObjects
-        (24 h cutoff, which also references metadata.thumbnail keys)
+        thumbnail (metadata.thumbnail) only when it shares the full-size object's
+        owner prefix; failures logged, never block the response; orphaned objects are
+        reclaimed by retentionJob sweepStaleOrphanObjects (24 h cutoff, which also
+        references metadata.thumbnail keys)
   → Success → DriveState sets `message` to `drive_deleted` and returns `true`, so `DriveItemScreen` drains it with `showPendingMessage()` and only then pops the confirm dialog and itself; failure → `false`, the local list is restored, and the screen stays open with the error toast (drive_state.dart:326-347)
 ```
 - The detail screen's item is derived from the grid list by the selected id; if the row disappears while the screen is open (for example a partner delete arriving through the realtime refresh), the body renders the deleted state instead of a spinner.

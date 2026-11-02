@@ -40,10 +40,22 @@ const redirectToSignedDownloadController = asyncHandler(async (req, res) => {
   res.redirect(url);
 });
 
+function storageKeysToPurge(item) {
+  const ownerPrefix = item.name ? item.name.slice(0, item.name.lastIndexOf("/") + 1) : "";
+  const thumbnail = item.metadata?.thumbnail;
+  const keys = [item.name];
+
+  if (typeof thumbnail === "string" && ownerPrefix && thumbnail.startsWith(ownerPrefix)) {
+    keys.push(thumbnail);
+  }
+
+  return keys.filter(Boolean);
+}
+
 const purgeR2Object = async (item, userId) => {
   if (!isConfigured()) return;
 
-  const keys = [item.name, item.metadata?.thumbnail ?? null].filter(Boolean);
+  const keys = storageKeysToPurge(item);
 
   for (const key of keys) {
     try {

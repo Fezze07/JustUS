@@ -16,9 +16,10 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
       - Rejects 403 unless the caller is a member of the item's accepted partnership (AUTH-FAIL-004)
       - Deletes the drive_items row first (favorites/reactions cascade), re-asserting
         the partnership in the DELETE predicate (partnership_id.eq.Y) — defense in depth
-      - Best-effort R2 cleanup via purgeR2Object(): failures are logged
-        (media.delete.r2_cleanup_failed) and never block the response — an orphaned
-        object is reclaimed by the retention sweep (below)
+      - Best-effort R2 cleanup via purgeR2Object(): deletes the full-size object and
+        deletes metadata.thumbnail only when it shares the full-size object's owner
+        prefix; failures are logged (media.delete.r2_cleanup_failed) and never block
+        the response — an orphaned object is reclaimed by the retention sweep (below)
   → Success → snackbar; failure → local list restored
 ```
 

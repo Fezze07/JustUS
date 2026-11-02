@@ -204,6 +204,26 @@ describe("media routes", () => {
     expect(response.body.error.code).toBe("AUTH-FAIL-004");
   });
 
+  test("rejects upload completion when the thumbnail key does not belong to the user", async () => {
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/media/complete")
+      .send({
+        kind: "drive",
+        type: "image",
+        filename: "uploads/42/test-memory.jpg",
+        originalName: "memory.jpg",
+        mimeType: "image/jpeg",
+        size: 2048,
+        metadata: { thumbnail: "uploads/999/foreign-thumb.jpg" },
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("AUTH-FAIL-004");
+    expect(adminSupabase.from).not.toHaveBeenCalled();
+  });
+
   test("stores drive metadata after a successful upload completion", async () => {
     const driveItemsQuery = createQueryBuilder({
       insert: jest.fn(() => driveItemsQuery),
@@ -235,6 +255,7 @@ describe("media routes", () => {
         originalName: "memory.jpg",
         mimeType: "image/jpeg",
         size: 4096,
+        metadata: { thumbnail: "uploads/42/test-thumb.jpg" },
       });
 
     expect(response.status).toBe(200);
@@ -248,7 +269,10 @@ describe("media routes", () => {
       original_name: "memory.jpg",
       mime_type: "image/jpeg",
       size: 4096,
-      metadata: { source: "backend-signed-url" },
+      metadata: {
+        thumbnail: "uploads/42/test-thumb.jpg",
+        source: "backend-signed-url",
+      },
     });
   });
 
@@ -321,6 +345,35 @@ describe("media routes", () => {
     expect(response.body.success).toBe(true);
     expect(deleteObject).toHaveBeenCalledWith("uploads/42/main.jpg");
     expect(deleteObject).toHaveBeenCalledWith("uploads/42/thumb.jpg");
+  });
+
+  test("does not delete a thumbnail outside the main object's owner prefix", async () => {
+    const driveItemsQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: 16,
+          partnership_id: 5,
+          name: "uploads/42/main.jpg",
+          metadata: { thumbnail: "uploads/999/foreign-thumb.jpg" },
+        },
+        error: null,
+      }),
+    });
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "drive_items") {
+        return driveItemsQuery;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const response = await request(createApp())
+      .post("/api/v1/media/delete")
+      .send({ id: 16 });
+
+    expect(response.status).toBe(200);
+    expect(deleteObject).toHaveBeenCalledTimes(1);
+    expect(deleteObject).toHaveBeenCalledWith("uploads/42/main.jpg");
   });
 
   test("still deletes the drive item row when the R2 cleanup fails", async () => {
