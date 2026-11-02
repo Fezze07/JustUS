@@ -222,7 +222,7 @@ On a genuine partnership transition the old scope is purged — feature caches a
 5. Feature states `clear()` — resets in-memory state.
 6. `RealtimeSyncService.refreshChannel()` — resubscribes after suppress/resume.
 
-**Not wiped by wipe**: `app_language_code`, `username`, `partner_display_name` (`clearAppCache()` deliberately does not remove account-identity keys). Checkpoints and media files *are* cleared, so a fresh login genuinely starts empty and no previous media thumbnails pop from disk.
+**Not wiped by wipe**: `app_language_code`, `username`, `partner_display_name`. `clearAppCache()` deliberately leaves these account-identity keys in place: `username` is read by every `notifyPartnerOnce` call and by cached game labels, so removing it would leave them nameless until the next login; `partner_display_name` self-corrects on the next `setPartner`. Checkpoints and media files *are* cleared, so a fresh login genuinely starts empty and no previous media thumbnails pop from disk.
 
 ---
 
@@ -249,18 +249,6 @@ On a genuine partnership transition the old scope is purged — feature caches a
 **Impact**: No functional impact. Tests work correctly because `SharedPreferences` mock is set up first.
 
 **Confidence**: HIGH
-
----
-
-### F-SC17: `Username` and `partner_display_name` survive wipe
-
-**Evidence**: `clearAppCache()` at `:368–387` clears 14 keys — `_keyUsername` and `_keyPartnerDisplayName` are **not** in the list. `ProfileState.wipeAppData()` runs `clearAppCache()` + `CacheService.clearAll()` + `emptyAppMediaCaches()`, none of which remove the identity keys.
-
-**What**: After a data wipe, the app retains the old username and partner display name. These are used by `GameState._resolveCachedNames` (`:103–127`) to resolve question option labels from cache, and by all `notifyPartnerOnce` calls to include a `partnerName` param. After a wipe + re-partner, the old username is correct (user's own name doesn't change), but the partner display name may be stale until re-fetched.
-
-**Impact**: Minor — name corrects itself after the next `setPartner` call.
-
-**Confidence**: MEDIUM
 
 ---
 

@@ -176,6 +176,8 @@ void main() {
       'mood_me': 'happy',
       'chk_drive_items': '2026-09-01T00:00:00.000Z',
       'user_profile': '{}',
+      'username': 'Alex',
+      'partner_display_name': 'Sam',
     });
     StorageService.resetForTest();
 
@@ -189,6 +191,8 @@ void main() {
     expect(wiped, isTrue);
     expect(await CacheService.getCheckpoint(CacheService.kDriveItems), isNull);
     expect(await StorageService.getMood('me'), isNull);
+    expect(await StorageService.getUsername(), 'Alex');
+    expect(await StorageService.getPartnerDisplayName(), 'Sam');
     // The wipe re-syncs the profile, so the key is repopulated from the server.
     expect(await StorageService.getUserProfile(), isNotNull);
     // The confirmation is set AFTER the reload, whose runSafe resets the
