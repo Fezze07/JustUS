@@ -41,7 +41,7 @@ Every screen push is by name; the only `MaterialPageRoute` in `lib/` is the one 
 2. `runApp(JustUsApp(...))` -> `MultiProvider` (11 eager states) -> `RealtimeSyncScope` -> `Selector2` -> `MaterialApp`.
 3. `MaterialApp`: `home: SplashScreen()`, `navigatorKey: ErrorHandler.navigatorKey`, `onGenerateRoute: generateAppRoute`. **Every app start begins at `SplashScreen`**; `initState` fires `unawaited(_checkAuth())`.
 
-There is no `onGenerateInitialRoutes`; a cold-start deep link would be resolved by the default initial-route algorithm, but Flutter's built-in deep-link routing is disabled on Android (`flutter_deeplinking_enabled=false`) so the Supabase SDK's `app_links` listener consumes auth callbacks instead of the Navigator. No `FirebaseMessaging` "getInitialMessage" consumption exists at startup (only local-notification `getNotificationAppLaunchDetails`, and its payload goes to the unlistened `onNotificationTap` stream - see Notification-driven navigation).
+There is no `onGenerateInitialRoutes`; a cold-start deep link would be resolved by the default initial-route algorithm, but Flutter's built-in deep-link routing is disabled on Android (`flutter_deeplinking_enabled=false`) so the Supabase SDK's `app_links` listener consumes auth callbacks instead of the Navigator. `NotificationService.init()` consumes both `getNotificationAppLaunchDetails` (local-notification launches) and `FirebaseMessaging.getInitialMessage` (FCM launches) at startup; their payloads reach `onNotificationTap`/`consumePendingPayload()` and are handled by `MainShellState` (see Notification-driven navigation).
 
 ---
 
@@ -189,10 +189,10 @@ Unknown names return `null`. A programmatic `pushNamed` of an unknown name is a 
 
 ## Notification-driven navigation
 
-**Not implemented.**
+Implemented in `MainShellState`:
 
-- `NotificationService` exposes `Stream<String?> get onNotificationTap` (notification_service.dart:29-31). Payloads are pushed from launch details and `onDidReceiveNotificationResponse`.
-- `MainShellState` subscribes to `onNotificationTap`, parsing destination tabs/routes from payload JSON and navigating dynamically when notifications are tapped.
+- `NotificationService` exposes `Stream<String?> get onNotificationTap` (notification_service.dart:36-38). Payloads are pushed from local-notification taps, `getNotificationAppLaunchDetails`, `FirebaseMessaging.onMessageOpenedApp` and `getInitialMessage`.
+- `MainShellState.initState` subscribes to `onNotificationTap` and drains `consumePendingPayload()` (main_shell.dart:42-46). `_handleNotificationPayload` (:55-105) switches tabs from `tabIndex`, from the notification key (`missyou`, `requestAccepted`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `bucketItemAdded`, `driveItemAdded`, `reactionAdded`) or from a route alias (`/homepage`, `/game`, `/bucket`, `/mood`, `/drive`). No screen-level deep link is attached.
 
 ---
 
@@ -306,7 +306,7 @@ There is no `NavigationService` and no router. The decision reads `AuthState.has
 ## Notes
 
 - All main destination screens are pushed by name; the only `MaterialPageRoute` in `lib/` is the one `generateAppRoute` returns.
-- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog`, the cancellation reverse teleport in `PartnerState`, and the password-recovery push in `AuthState` (all use `ErrorHandler.navigatorKey`). Feature state classes otherwise never navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
+- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog`, the cancellation reverse teleport in `PartnerState`, and the password-recovery push in `AuthState` (all use `ErrorHandler.navigatorKey`). Feature state classes otherwise do not navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
 - `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile (Managed-mode) dialog - a second core-layer consumer of the global navigator.
 - `Flutter/test/app_routes_test.dart` covers the route table: a known name builds its real screen, an unknown name returns `null`, and `/drive/item` requires an integer argument.
-- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", use `MainShellScope.of(context)` for tab switching, and subscribe to `onNotificationTap` to apply content navigation.
+- Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", use `MainShellScope.of(context)` for tab switching, and keep the existing `onNotificationTap` subscription as the content-navigation entry point.

@@ -308,7 +308,7 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
    - Platform settings (Android `ic_notification`, iOS/macOS Darwin, Linux, Windows with app id `com.justus.app`).
    - Plugin initialize with a global `onDidReceiveNotificationResponse` -> push tap payload into the broadcast `onNotificationTap` stream.
    - Android `justus_channel` creation + permission request (skipped in background).
-3. Android/iOS only: `setForegroundNotificationPresentationOptions()` with the defaults (`alert/badge/sound: false`), so the iOS foreground is rendered by the app's local notification; launch notification payload -> `onNotificationTap` after a 500ms delay; `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (foreground handler, registered once).
+3. Android/iOS only: `setForegroundNotificationPresentationOptions()` with the defaults (`alert/badge/sound: false`), so the iOS foreground is rendered by the app's local notification; local-notification launch payloads (`getNotificationAppLaunchDetails`) and FCM tap payloads (`onMessageOpenedApp`, `getInitialMessage`) -> `onNotificationTap`/`_pendingPayload`; `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (foreground handler, registered once).
 
 ### Background handler (`lib/main.dart`)
 

@@ -286,7 +286,7 @@ notifySchema = z.object({
 | 11 | `cancellationAccepted` | Backend (accept endpoint) | After `partnership_cancel_accept` deletes the row | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
 
 - All sends are fire-and-forget (`unawaited(notifyPartnerOnce(...))`) and swallow errors (`base_repository.dart:163-174`). No notification is retried, and the sender gets no feedback that the delivery failed.
-- **No destination screen / deep link is attached to any type** (cross-doc navigation F-N5; tap handling section below).
+- **No payload carries an explicit destination**: `MainShellState` maps each `notificationKey` to a tab (tap handling section below).
 - **No duplicate suppression**: each send yields a distinct notification with a unique server `notificationId`.
 
 ### Per-type notes
@@ -306,8 +306,9 @@ notifySchema = z.object({
 1. `_requestRemoteNotificationPermission()` (`:343-355`): `FirebaseMessaging.instance.requestPermission()` on web/Android/iOS only.
 2. `initLocalNotifications()`.
 3. `setForegroundNotificationPresentationOptions()` with the API defaults (`alert/badge/sound: false`) for Android/iOS non-web (`:44-50`) — on iOS the FCM foreground presentation is suppressed so the app's local notification is the only renderer.
-4. Launch payload detection: `getNotificationAppLaunchDetails()` → if `didNotificationLaunchApp`, push the payload to `_onNotificationTapController` after a 500 ms delay (`:52-68`).
-5. Foreground handler registered once: `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (`:94-102`).
+4. Launch payload detection: `getNotificationAppLaunchDetails()` → if `didNotificationLaunchApp`, store `_pendingPayload` and push the payload to `_onNotificationTapController` after a 500 ms delay (`:52-68`).
+5. FCM tap listeners: `FirebaseMessaging.onMessageOpenedApp` stores and emits the tap payload (`:72-76`); `getInitialMessage()` recovers the payload that launched the app from an FCM notification, stores it in `_pendingPayload` and emits it after a 500 ms delay (`:78-86`).
+6. Foreground handler registered once: `FirebaseMessaging.onMessage.listen(showRemoteMessage)` (`:94-102`).
 
 ### `initLocalNotifications({isBackground})` (`:83-141`)
 
@@ -340,29 +341,41 @@ Channel `justus_channel`, `importance: high`, `priority: high` (Android); Darwin
 
 ```dart
 final StreamController<String?> _onNotificationTapController = StreamController<String?>.broadcast();
-Stream<String?> get onNotificationTap => _onNotificationTapController.stream;   // :29-31
+Stream<String?> get onNotificationTap => _onNotificationTapController.stream;   // :36-38
 ```
 
-Payloads are pushed from two places:
+Payloads are pushed from four places:
 
 | Source | Location | Payload |
 |---|---|---|
-| `onDidReceiveNotificationResponse` (local notification tap) | `notification_service.dart:107-108` | `jsonEncode(message.data)` from the foreground local notification |
-| `getNotificationAppLaunchDetails` (app launched by a local notification) | `notification_service.dart:50-64` | `jsonEncode(response.payload)` after 500 ms |
+| `onDidReceiveNotificationResponse` (local notification tap) | `notification_service.dart:132-140` | `response.payload` from the foreground local notification |
+| `getNotificationAppLaunchDetails` (app launched by a local notification) | `notification_service.dart:52-68` | `response.payload`, stored in `_pendingPayload` and emitted after 500 ms |
+| `FirebaseMessaging.onMessageOpenedApp` (FCM tap from background) | `notification_service.dart:72-76` | `jsonEncode(message.data)`, stored in `_pendingPayload` |
+| `FirebaseMessaging.getInitialMessage` (app launched by an FCM notification) | `notification_service.dart:78-86` | `jsonEncode(message.data)`, stored in `_pendingPayload` and emitted after 500 ms |
 
 ### Consumers
 
-**There are no subscribers to `onNotificationTap` anywhere in the codebase** (grep shows only the definition and the two push sites). The payload is dead data.
+`MainShellState.initState` subscribes to `onNotificationTap` (`main_shell.dart:42`) and drains `NotificationService().consumePendingPayload()` so a payload that arrived before the shell mounted is applied on the next frame (`:43-46`). `_handleNotificationPayload` (`:55-105`) parses the payload and switches tabs:
 
-Cross-doc: this is navigation doc finding **F-N5** ("Notification taps never navigate").
+| Payload | Destination |
+|---|---|
+| `tabIndex` 0–6 | that tab |
+| `moodUpdated`, `/mood` | tab 2 |
+| `answerSubmitted`, `newQuestion`, `/game` | tab 1 |
+| `bucketItemAdded`, `/bucket` | tab 3 |
+| `driveItemAdded`, `reactionAdded`, `/drive` | tab 4 |
+| `missyou`, `requestAccepted`, `/homepage` | tab 0 |
+
+A non-JSON payload is treated as a bare `notificationKey`. Unknown keys and empty payloads are ignored.
 
 ### Behavior on tap today
 
 | Scenario | What happens |
 |---|---|
-| Foreground tap on local notification | `onNotificationTap` emits the payload → nothing consumes it; app stays on the current screen |
-| Background/killed tap on OS notification | App launches → `SplashScreen` → `AuthState.init()` → `MainShell` (or `PartnerScreen`/`LoginScreen`); the payload is not recovered (`getNotificationAppLaunchDetails` may not even report the FCM-originated launch — F-PN4) |
-| `FirebaseMessaging.getInitialMessage` | **Not consumed anywhere** (`main.dart` never reads it) |
+| Foreground tap on local notification | `onNotificationTap` emits the payload → `MainShellState` switches to the mapped tab |
+| Background tap on an FCM notification | `onMessageOpenedApp` emits the payload → `MainShellState` switches to the mapped tab |
+| App launched by tapping an FCM notification | `getInitialMessage` stores `_pendingPayload`; `MainShellState` drains it and switches to the mapped tab |
+| App launched by tapping a local notification | `getNotificationAppLaunchDetails` stores `_pendingPayload`; `MainShellState` drains it and switches to the mapped tab |
 
 ---
 
@@ -434,10 +447,10 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### F-PN4: `getNotificationAppLaunchDetails` may not detect FCM-originated launches (LOW)
 
-- **WHAT**: The launch-details check (`notification_service.dart:50-64`) relies on flutter_local_notifications having created the launching intent. System-tray notifications rendered by FCM do not carry the plugin's extras, so `didNotificationLaunchApp` is likely false for those launches and no payload is pushed.
-- **WHERE**: `notification_service.dart:50-64`.
+- **WHAT**: The launch-details check (`notification_service.dart:52-68`) relies on flutter_local_notifications having created the launching intent. System-tray notifications rendered by FCM do not carry the plugin's extras, so `didNotificationLaunchApp` is likely false for those launches and this path pushes no payload.
+- **WHERE**: `notification_service.dart:52-68`.
 - **WHEN**: App launched by tapping a background/killed FCM notification.
-- **IMPACT**: Currently zero (the stream has no consumers anyway — F-N5 navigation). Relevant if tap-driven navigation is ever added.
+- **IMPACT**: None in practice: `FirebaseMessaging.getInitialMessage` recovers FCM-originated launches (`notification_service.dart:78-86`), and local-notification launches are the ones the plugin reports.
 - **CONFIDENCE**: LOW — depends on plugin intent-detection internals; not device-verified.
 
 ---
@@ -508,7 +521,7 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 - **iOS push certificates**: the OS FCM flow (background-killed) requires APNs credentials configured in Firebase; they are assumed by the backend config and not verifiable from code.
 - **`user_devices` schema**: `supabase/schemas/public/tables/user_devices.sql` is the source of truth; it contains the `locale`, `updated_at` and `session_id` columns.
 - **Cross-doc references**:
-  - Navigation **F-N5**: notification taps never navigate (this section and `navigation/doc.md:332-338`).
+  - Navigation: notification taps are handled by `MainShellState` (see Notification-driven navigation in `navigation/doc.md`).
   - Storage **F-SC4** (resolved): `app_language_code` is preserved across logout (`StorageService.clearAll()` re-persists it), so notification localization keeps working after re-login.
   - Architecture **F11**: partnership rejection fires no notification (functional asymmetry).
   - Realtime: mutations that trigger notifications also flow back over the channel — no double-processing arises there (realtime doc, self-echo note).
