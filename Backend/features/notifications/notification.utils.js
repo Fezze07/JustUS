@@ -183,7 +183,6 @@ function buildFcmMessage({ fids, type, title, data, locale = "en" }) {
             body: localized.body,
           },
           sound: "default",
-          badge: 1,
         },
       },
     },

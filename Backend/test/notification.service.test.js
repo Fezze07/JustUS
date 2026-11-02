@@ -60,6 +60,9 @@ const {
   resolveNotificationTarget,
   sendNotificationToUser,
 } = require("../features/notifications/notification.service");
+const {
+  deliverToBatches,
+} = require("../features/notifications/notification.utils");
 
 beforeEach(() => {
   mockDb.rows = [];
@@ -264,5 +267,35 @@ describe("sendNotificationToUser targets installation ids", () => {
     expect(mockSendMulticast).toHaveBeenCalledTimes(1);
     expect(result.configured).toBe(false);
     expect(result.delivered).toBe(0);
+  });
+});
+
+describe("buildFcmMessage APNS payload", () => {
+  test("sends no badge so the iOS icon cannot stick at a stale count", async () => {
+    mockSendMulticast.mockResolvedValueOnce({
+      configured: true,
+      successCount: 1,
+      failureCount: 0,
+      responses: [{ success: true }],
+    });
+
+    await deliverToBatches({
+      userId: 1,
+      type: "partner",
+      title: "Hi",
+      data: { notificationKey: "missyou" },
+      devices: [
+        {
+          installation_id: "fid-ios-0001",
+          device_type: "ios",
+          locale: "en",
+        },
+      ],
+    });
+
+    const message = mockSendMulticast.mock.calls[0][0];
+    expect(message.apns.payload.aps.alert).toBeDefined();
+    expect(message.apns.payload.aps.sound).toBe("default");
+    expect(message.apns.payload.aps).not.toHaveProperty("badge");
   });
 });

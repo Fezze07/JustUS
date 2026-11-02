@@ -256,7 +256,8 @@ notifySchema = z.object({
    - Output: FCM multicast message containing:
      - `notification: {title, body}` — used by the OS for background/killed rendering.
      - `data` — `{type, title, body, source: 'justus-backend', notificationId, notificationKey, params, senderId}`.
-     - `android: {priority: 'high'}`, `apns: {headers: {'apns-priority': '10'}, payload: {aps: {alert, sound: 'default', badge: 1}}}`, `webpush` block.
+     - `android: {priority: 'high'}`, `apns: {headers: {'apns-priority': '10'}, payload: {aps: {alert, sound: 'default'}}}`, `webpush` block.
+   - **No `aps.badge`**: iOS badge counts are unused — the app has no clear-badge path, so a fixed value would stick at that number. The client's `badge: true` presentation option is inert without a badge value.
    - `notificationId` = `` `${Date.now()}-${Math.random().toString(36).slice(2, 10)}` `` — unique per dispatch.
 
 4. **Logging**: `logNotification` → `logs_notifications` (statuses: `no_devices`, `sent`, `partial`, `skipped_firebase_not_configured`); `logInfo` → `notification.delivery_summary` with delivered/failed/invalid-removed counts.
@@ -454,14 +455,6 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 - **WHERE**: `notification.utils.js:120`, `language_helper.dart:27`.
 - **WHEN**: Legacy rows with `locale = null`, or a locale not in `{it, en}`.
 - **IMPACT**: Background system-tray text in English while foreground/in-app strings are Italian (or vice-versa). Minor.
-- **CONFIDENCE**: HIGH.
-
-### F-PN9: iOS badge is hardcoded to 1 and never cleared (LOW)
-
-- **WHAT**: `buildFcmMessage` sets `aps.badge: 1` (`notification.utils.js:162`) — *set*, not increment, per notification. No `clearBadge`/`setBadge(0)` exists on app foreground.
-- **WHERE**: `notification.utils.js:162`; dashboard/native code has no `UIApplication.applicationIconBadgeNumber = 0`.
-- **WHEN**: Every notification on iOS.
-- **IMPACT**: App icon badge sticks at "1" after the first notification, never incrementing or clearing.
 - **CONFIDENCE**: HIGH.
 
 ---
