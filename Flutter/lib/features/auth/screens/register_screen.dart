@@ -20,7 +20,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   Widget build(BuildContext context) {
@@ -53,12 +55,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         VPTextField(
           controller: _passwordController,
           label: context.loc.auth_passwordLabel,
-          hint: '����������',
+          hint: '••••••••••',
           icon: Icons.lock_outline,
           isPassword: true,
           obscureText: _obscurePassword,
           onTogglePassword: () =>
               setState(() => _obscurePassword = !_obscurePassword),
+        ),
+        const SizedBox(height: 16),
+        VPTextField(
+          controller: _confirmPasswordController,
+          label: context.loc.auth_confirmPasswordLabel,
+          hint: context.loc.auth_registerConfirmPasswordHint,
+          icon: Icons.lock_outline,
+          isPassword: true,
+          obscureText: _obscureConfirmPassword,
+          onTogglePassword: () => setState(
+              () => _obscureConfirmPassword = !_obscureConfirmPassword),
         ),
 
         const SizedBox(height: 40),
@@ -72,6 +85,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed: () async {
                 final email = _emailController.text.trim();
                 final password = _passwordController.text;
+                final confirmPassword = _confirmPasswordController.text;
                 final name = _nameController.text.trim();
 
                 final nameError = Validators.validateRequired(
@@ -82,12 +96,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 final emailError = Validators.validateEmail(context, email);
                 final passwordError =
                     Validators.validatePassword(context, password);
+                final confirmError = confirmPassword != password
+                    ? context.loc.auth_validationPasswordMismatch
+                    : null;
 
                 if (nameError != null ||
                     emailError != null ||
-                    passwordError != null) {
+                    passwordError != null ||
+                    confirmError != null) {
                   final errorMessage =
-                      nameError ?? emailError ?? passwordError!;
+                      nameError ?? emailError ?? passwordError ?? confirmError!;
                   ErrorHandler.showSnackBar(context, errorMessage,
                       isError: true);
 
@@ -122,8 +140,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                           child: Text(
                             context.loc.auth_goToLogin,
-                            style:
-                                VpWidgets.googleFont(color: context.palette.primary),
+                            style: VpWidgets.googleFont(
+                                color: context.palette.primary),
                           ),
                         ),
                       ],

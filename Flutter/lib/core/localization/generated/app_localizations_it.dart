@@ -130,6 +130,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get auth_registerEmailHint => 'mario@example.com';
 
   @override
+  String get auth_registerConfirmPasswordHint => 'Reinserisci la password';
+
+  @override
   String get auth_passwordLabel => 'PASSWORD';
 
   @override
@@ -384,7 +387,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get profile_photoUploading => 'Caricamento foto profilo...';
 
   @override
-  String get partner_title => 'Con chi vuoi connetterti\noggi?';
+  String get partner_title => 'Collegati al tuo partner';
 
   @override
   String get partner_connected => 'CONNESSI';

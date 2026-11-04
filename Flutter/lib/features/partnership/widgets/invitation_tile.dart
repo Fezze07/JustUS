@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:justus/all_imports.dart';
 
 class InvitationTile extends StatelessWidget {
@@ -37,7 +37,8 @@ class InvitationTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: context.palette.primary.withValues(alpha: 0.2)),
+        border:
+            Border.all(color: context.palette.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -62,7 +63,7 @@ class InvitationTile extends StatelessWidget {
               children: [
                 Text(
                   title ?? invite.username,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: VpWidgets.googleFont(
                     color: context.palette.contentPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -73,7 +74,7 @@ class InvitationTile extends StatelessWidget {
                       (isReceived
                           ? context.loc.partner_wantsToConnect
                           : context.loc.partner_waitingResponse),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: VpWidgets.googleFont(
                     color: context.palette.contentTertiary,
                     fontSize: 12,
                   ),
@@ -84,7 +85,8 @@ class InvitationTile extends StatelessWidget {
           if (showAccept || isReceived) ...[
             IconButton(
               onPressed: onAccept,
-              icon: Icon(Icons.check_circle, color: context.palette.accentGreen),
+              icon:
+                  Icon(Icons.check_circle, color: context.palette.accentGreen),
               tooltip: acceptTooltip ?? context.loc.partner_acceptTooltip,
             ),
             IconButton(
@@ -97,7 +99,8 @@ class InvitationTile extends StatelessWidget {
               onPressed: onReject,
               icon: Icon(Icons.delete_outline,
                   color: context.palette.contentTertiary),
-              tooltip: rejectTooltip ?? context.loc.partner_cancelRequestTooltip,
+              tooltip:
+                  rejectTooltip ?? context.loc.partner_cancelRequestTooltip,
             ),
         ],
       ),

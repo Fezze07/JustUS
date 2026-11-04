@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'mario@example.com'**
   String get auth_registerEmailHint;
 
+  /// No description provided for @auth_registerConfirmPasswordHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Reinserisci la password'**
+  String get auth_registerConfirmPasswordHint;
+
   /// No description provided for @auth_passwordLabel.
   ///
   /// In it, this message translates to:
@@ -809,7 +815,7 @@ abstract class AppLocalizations {
   /// No description provided for @partner_title.
   ///
   /// In it, this message translates to:
-  /// **'Con chi vuoi connetterti\noggi?'**
+  /// **'Collegati al tuo partner'**
   String get partner_title;
 
   /// No description provided for @partner_connected.

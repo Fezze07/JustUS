@@ -129,6 +129,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get auth_registerEmailHint => 'john@example.com';
 
   @override
+  String get auth_registerConfirmPasswordHint => 'Re-enter your password';
+
+  @override
   String get auth_passwordLabel => 'PASSWORD';
 
   @override
@@ -378,7 +381,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_photoUploading => 'Uploading profile photo...';
 
   @override
-  String get partner_title => 'Who are you connecting\nwith today?';
+  String get partner_title => 'Connect with your partner';
 
   @override
   String get partner_connected => 'CONNECTED';

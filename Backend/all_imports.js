@@ -117,6 +117,7 @@ module.exports = {
   get sendMulticastNotification() { return require('./config/fcm-key').sendMulticastNotification; },
   get sendNotificationController() { return require('./features/notifications/notify.controller').sendNotificationController; },
   get sendNotificationToUser() { return require('./features/notifications/notification.service').sendNotificationToUser; },
+  get sendPartnerInviteEmail() { return require('./services/emailService').sendPartnerInviteEmail; },
   get serializeError() { return require('./core/logger').serializeError; },
   get sessionBindSchema() { return require('./features/auth/auth.schemas').sessionBindSchema; },
   get sha256() { return require('./utils/auth/cryptoUtils').sha256; },
