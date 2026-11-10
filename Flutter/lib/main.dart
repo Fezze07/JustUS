@@ -47,6 +47,7 @@ void main() {
       await dotenv.load();
 
       await StorageService.init();
+      await ApiService.primeDeviceFingerprint();
 
       await SupabaseService.initialize();
 

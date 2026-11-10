@@ -52,7 +52,7 @@ jest.mock("../features/user/user.controller", () => ({
 
 const { adminSupabase, authSupabase, resetRateLimitState } = require("../all_imports");
 const { createApp } = require("../app");
-const { completeUploadController } = require("../features/media/media.controller");
+const { completeUploadController, redirectToSignedDownloadController } = require("../features/media/media.controller");
 
 // Helper to generate a mock JWT that authMiddleware can decode
 function generateMockJWT(payload) {
@@ -308,6 +308,87 @@ describe("Security Integration Tests", () => {
 
       expect(response.status).toBe(401);
       expect(response.body.error.code).toBe("AUTH-FAIL-006");
+    });
+
+    test("PASS: media download after a bind sends the device fingerprint", async () => {
+      const token = generateMockJWT(validUserPayload);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1", email: "user@example.com" } },
+        error: null,
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockProfile, error: null }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: {
+                session_id: "session-123",
+                device_fingerprint_hash: "27bb7491278d5a3730469518b6264ddc70f665f98a0045c119f08c59bc0c07ff",
+                binding_secret: "secret-123",
+              },
+              error: null,
+            }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      redirectToSignedDownloadController.mockImplementationOnce((_req, res) =>
+        res.redirect(302, "https://r2.test.local/download/uploads/42/pic.jpg"));
+
+      const response = await request(app)
+        .get("/api/v1/media/file")
+        .query({ filename: "uploads/42/pic.jpg" })
+        .set("Authorization", `Bearer ${token}`)
+        .set("X-Device-Fingerprint", "device-123");
+
+      expect(response.status).toBe(302);
+      expect(redirectToSignedDownloadController).toHaveBeenCalled();
+    });
+
+    test("FAIL: media download without the bound fingerprint is rejected", async () => {
+      const token = generateMockJWT(validUserPayload);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1", email: "user@example.com" } },
+        error: null,
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockProfile, error: null }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: {
+                session_id: "session-123",
+                device_fingerprint_hash: "27bb7491278d5a3730469518b6264ddc70f665f98a0045c119f08c59bc0c07ff",
+                binding_secret: "secret-123",
+              },
+              error: null,
+            }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      const response = await request(app)
+        .get("/api/v1/media/file")
+        .query({ filename: "uploads/42/pic.jpg" })
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("AUTH-FAIL-006");
+      expect(redirectToSignedDownloadController).not.toHaveBeenCalled();
     });
 
     describe("server-side session state", () => {

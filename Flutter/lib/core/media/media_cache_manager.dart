@@ -76,7 +76,8 @@ class _R2FileService extends HttpFileService {
     if (isBareKey) {
       final signedUrl = await _media.getDownloadUrl(url);
       if (signedUrl != null) {
-        return super.get(signedUrl, headers: headers);
+        return super.get(signedUrl,
+            headers: {...?headers, ...ApiService.authHeaders});
       }
     }
 

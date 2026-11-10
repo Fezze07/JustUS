@@ -37,13 +37,24 @@ class ApiService {
     _lastBindingSecretSyncAttempt = null;
   }
 
+  static Future<void> primeDeviceFingerprint() async {
+    _cachedDeviceFingerprint ??=
+        await StorageService.getOrCreateDeviceFingerprint();
+  }
+
   static Map<String, String> get authHeaders {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
+    final token = _readAccessToken();
     if (token == null || token.isEmpty) {
       return const {};
     }
 
-    return {'Authorization': 'Bearer $token'};
+    final fingerprint = _cachedDeviceFingerprint;
+
+    return {
+      'Authorization': 'Bearer $token',
+      if (fingerprint != null && fingerprint.isNotEmpty)
+        'X-Device-Fingerprint': fingerprint,
+    };
   }
 
   static String? resolveProtectedMediaUrl(String? url) {

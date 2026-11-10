@@ -25,7 +25,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 │       NODE.JS / EXPRESS API LAYER     │            │
 │  POST /api/v1/media/presign-upload    │            │
 │  POST /api/v1/media/complete-upload   │            │
-│  GET /api/v1/media/download-signed    │            │
+│  GET /api/v1/media/file               │            │
 │  (Validates capability, size & MIME,  │            │
 │   generates AWS S3 presigned URLs,    │            │
 │   registers DB metadata)              │            │
@@ -238,20 +238,22 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 
 - **Upload URL Lifetime**: **300 seconds (5 minutes)** (`MEDIA_UPLOAD_URL_EXPIRES_SECONDS` in [env.js:38](file:///f:/JustUS/Backend/config/env.js#L38)).
 - **Download URL Lifetime**: **300 seconds (5 minutes)** (`MEDIA_DOWNLOAD_URL_EXPIRES_SECONDS` in [env.js:39](file:///f:/JustUS/Backend/config/env.js#L39)).
-- **Signed Download Route**: `GET /api/v1/media/download-signed?filename=...`
+- **Signed Download Route**: `GET /api/v1/media/file?filename=...`
+  - Requires `Authorization: Bearer <token>` **and** `X-Device-Fingerprint`: the auth middleware hashes the header and compares it with `session_bindings.device_fingerprint_hash`, rejecting a missing or mismatched value with `AUTH_FAIL_006` (401) once the session is bound. The Flutter client sends both headers on every protected media request via `ApiService.authHeaders`.
   - Validates caller authentication.
   - Queries `public.drive_items` by `name = filename` and confirms the caller is a member of the item's accepted partnership.
   - Generates S3 `GetObjectCommand` presigned URL and returns an HTTP `302 Redirect` to Cloudflare R2.
 
 ### Disk Caching Architecture (`MediaCacheManager`)
 
-- File: [media_cache_manager.dart:8-43](file:///f:/JustUS/Flutter/lib/core/media/media_cache_manager.dart#L8-L43)
+- File: [media_cache_manager.dart:64-86](file:///f:/JustUS/Flutter/lib/core/media/media_cache_manager.dart#L64-L86)
 - Flutter uses a custom `CacheManager` (`MediaCacheManager`) for gallery grid images:
   - **Stale Period**: **30 days** (`Duration(days: 30)`).
   - **Max Cache Objects**: 300 items.
   - **Custom File Service (`_R2FileService`)**:
     - Intercepts image URLs in `CachedNetworkImage`.
-    - If URL starts with R2 storage key pattern `users/`, it exchanges the key for a fresh signed URL by calling `MediaService.getDownloadUrl(url)`.
+    - If URL starts with an R2 storage key pattern (`users/`, `uploads/`, `profile/`), it exchanges the key for a fresh protected URL by calling `MediaService.getDownloadUrl(url)`.
+    - The download request carries `ApiService.authHeaders` (`Authorization` + `X-Device-Fingerprint`), including when the widget itself supplied no headers.
     - Streams and caches the binary image file locally on device disk under cache key `justus_media_cache`.
     - Subsequent gallery renders load the image directly from local disk cache without contacting backend or Cloudflare R2, bypassing signed URL expiration issues for cached items.
 
@@ -345,7 +347,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Video Upload & Compression | **IMPLEMENTED** | `LightCompressor` (`VideoQuality.medium`) |
 | Audio & Document Upload API | **IMPLEMENTED** | Supported in `MediaService` & Backend API; now reachable from the bottom sheet via `file_picker` |
 | Cloudflare R2 Presigned PUT URLs | **IMPLEMENTED** | S3 `PutObjectCommand` (300s lifetime) |
-| Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/download-signed` (300s lifetime) |
+| Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/file` (300s lifetime) |
 | Local Media Disk Cache | **IMPLEMENTED** | `MediaCacheManager` (30-day stale period) |
 | Incremental Sync & Checkpoints | **IMPLEMENTED** | `v_drive_dashboard` query on `updated_at > checkpoint` |
 | Favorites Subsystem | **IMPLEMENTED** | `public.favorites` + `v_drive_dashboard` join |

@@ -101,6 +101,16 @@ void main() {
       expect(capturedHeaders.containsKey('X-Client-User-Agent'), true);
       expect(capturedHeaders.containsKey('X-Client-User-Agent-Hash'), true);
     });
+
+    test('authHeaders carries the token and the primed fingerprint', () async {
+      ApiService.readAccessTokenForTest = () => 'test-token';
+      await ApiService.primeDeviceFingerprint();
+
+      final headers = ApiService.authHeaders;
+
+      expect(headers['Authorization'], 'Bearer test-token');
+      expect(headers['X-Device-Fingerprint'], isNotEmpty);
+    });
   });
 
   group('ApiService - Versioned routes', () {
