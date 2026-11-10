@@ -33,11 +33,9 @@ const inviteSchema = z.object({
 });
 
 // Account-only invite: the email address of a partner who has no JustUs
-// account yet. `redirectTo` is forwarded to GoTrue, which validates it against
-// the project's redirect allow-list.
+// account yet.
 const inviteUserSchema = z.object({
   email: z.string().email(),
-  redirectTo: z.string().url().max(2048).optional(),
 });
 
 module.exports = {

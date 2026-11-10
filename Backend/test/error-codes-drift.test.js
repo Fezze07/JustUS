@@ -55,7 +55,14 @@ describe("error code drift", () => {
         .map(([name]) => constants[name])
         .filter(Boolean)
     );
-    const clientOnly = new Set(["AUTH-FAIL-CRED", "AUTH-FAIL-CURRENT", "401"]);
+    // Client-generated codes: no backend response ever carries them.
+    // AUTH-EMAIL-EXISTS = signUp returned `identities: []` for an existing email.
+    const clientOnly = new Set([
+      "AUTH-FAIL-CRED",
+      "AUTH-FAIL-CURRENT",
+      "AUTH-EMAIL-EXISTS",
+      "401",
+    ]);
 
     const unexplained = [...handled].filter(
       (code) =>

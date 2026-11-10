@@ -59,12 +59,18 @@ const {
 const { createApp } = require("../app");
 
 describe("auth routes", () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
     resetAuthRiskState();
     resetRateLimitState();
     adminSupabase.from.mockReset();
     adminSupabase.rpc.mockReset();
     adminSupabase.auth.admin.inviteUserByEmail.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   test("rejects invalid login risk payloads", async () => {
@@ -529,32 +535,11 @@ describe("auth routes", () => {
     expect(response.body.error.message).toBe("Invalid partner email or code");
   });
 
-  test("dispatches the Supabase invite email for a new partner address", async () => {
-    adminSupabase.auth.admin.inviteUserByEmail.mockResolvedValue({
-      data: { user: { id: "invited-user-1" } },
-      error: null,
-    });
-
-    const app = createApp();
-    const response = await request(app)
-      .post("/api/v1/auth/invite-user")
-      .send({
-        email: "new-partner@example.com",
-        redirectTo: "justus://auth/callback",
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(adminSupabase.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-      "new-partner@example.com",
-      { redirectTo: "justus://auth/callback" }
-    );
-  });
-
-  test("omits redirectTo when the client sends none", async () => {
-    adminSupabase.auth.admin.inviteUserByEmail.mockResolvedValue({
-      data: { user: { id: "invited-user-2" } },
-      error: null,
+  test("sends a plain invite email without touching Supabase Auth", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(""),
     });
 
     const app = createApp();
@@ -563,36 +548,25 @@ describe("auth routes", () => {
       .send({ email: "new-partner@example.com" });
 
     expect(response.status).toBe(200);
-    expect(adminSupabase.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-      "new-partner@example.com",
-      undefined
-    );
+    expect(response.body.success).toBe(true);
+    expect(adminSupabase.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe("https://api.resend.com/emails");
+
+    const payload = JSON.parse(options.body);
+    expect(payload.to).toEqual(["new-partner@example.com"]);
+    expect(payload.html).toContain("new-partner@example.com");
+    expect(payload.html).toContain("https://app.test.local/auth/invite");
+    expect(payload.html).not.toContain("{{ .ConfirmationURL }}");
   });
 
-  test("refuses an invite when the address already has an account", async () => {
-    adminSupabase.auth.admin.inviteUserByEmail.mockResolvedValue({
-      data: { user: null },
-      error: {
-        code: "email_exists",
-        message: "A user with this email address has already been registered",
-      },
-    });
-
-    const app = createApp();
-    const response = await request(app)
-      .post("/api/v1/auth/invite-user")
-      .send({ email: "existing@example.com" });
-
-    // GoTrue is the authority on "already registered": the 422 is remapped to
-    // a 409 the client can translate into "ask your partner for their code".
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe("API-VALIDATION-002");
-  });
-
-  test("reports an unexpected invite dispatch failure as a server error", async () => {
-    adminSupabase.auth.admin.inviteUserByEmail.mockResolvedValue({
-      data: { user: null },
-      error: { code: "unexpected_failure", message: "smtp refused" },
+  test("reports an invite email dispatch failure as a server error", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: jest.fn().mockResolvedValue("smtp refused"),
     });
 
     const app = createApp();
@@ -605,14 +579,16 @@ describe("auth routes", () => {
   });
 
   test("rejects a malformed invite payload", async () => {
-    const app = createApp();
+    global.fetch = jest.fn();
 
+    const app = createApp();
     const response = await request(app)
       .post("/api/v1/auth/invite-user")
       .send({ email: "not-an-email" });
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("API-VALIDATION-001");
+    expect(global.fetch).not.toHaveBeenCalled();
     expect(adminSupabase.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 });

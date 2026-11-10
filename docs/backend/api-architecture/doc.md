@@ -119,8 +119,8 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/auth/invite-user`
 - **Controller**: `inviteUserController` ([`auth.routes.js`](file:///f:/JustUS/Backend/features/auth/auth.routes.js), [`auth.controller.js`](file:///f:/JustUS/Backend/features/auth/auth.controller.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(inviteUserRateLimit)` $\rightarrow$ `signed("auth-invite-user")` $\rightarrow$ `validated({ body: inviteUserSchema })`
-- **Request Body**: `{ email, redirectTo? }` (`redirectTo` is the client's platform redirect, e.g. `justus://auth/callback` on Android/iOS; GoTrue validates it against the project redirect allow-list).
-- **Behavior**: Calls `adminSupabase.auth.admin.inviteUserByEmail()`; GoTrue creates the invitee's Auth account and sends the hosted "Invite user" email. Account-only — no `partnerships` row. Rate-limited to 5/user and 10/IP per window because each call sends an email. An address that already has a confirmed account returns `409 API-VALIDATION-002` (GoTrue `email_exists` / `user_already_exists`); an invited-but-unconfirmed address is re-invited; any other GoTrue failure returns `500 API-FAIL-001`.
+- **Request Body**: `{ email }` only.
+- **Behavior**: `sendPartnerInviteEmail()` POSTs to the Resend API (`https://api.resend.com/emails`) and sends a plain email linking to `${APP_URL}/auth/invite`; it asks the partner to install JustUS and register autonomously. **No Auth account is created or confirmed** — the invitee's own `signUp` (password + confirmation email) is the only account-creation path. Account-only — no `partnerships` row. Rate-limited to 5/user and 10/IP per window because each call sends an email. A missing `RESEND_API_KEY` returns `500 SYS-FAIL-001`; a non-2xx Resend response returns `500 API-FAIL-001`.
 - **Flutter Consumer**: `PartnershipRepository.inviteUnregisteredPartner()` → `ApiService.inviteUnregisteredPartner()`, called by `AuthState.inviteUnregisteredPartner()` from `PartnerInviteEmailDialog`.
 
 ---

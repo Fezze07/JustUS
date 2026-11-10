@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
-/// Invites a partner who has no JustUs account yet: the backend calls
-/// `admin.inviteUserByEmail` and GoTrue sends the "Invite user" email. No
-/// partnership row is created here — the pairing request still needs the
-/// partner's 6-character code once they register.
+/// Invites a partner who has no JustUs account yet: the backend sends a plain
+/// email asking them to install the app and register autonomously. No Auth
+/// account is created — the pairing request still needs the partner's
+/// 6-character code once they register.
 class PartnerInviteEmailDialog extends StatefulWidget {
   const PartnerInviteEmailDialog({super.key});
 

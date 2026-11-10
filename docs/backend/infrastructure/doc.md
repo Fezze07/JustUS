@@ -82,7 +82,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 | **Nonce Memory Sweep vs. DB Sweep** | `nonceStore.js` sweeps memory every 10 min. `retentionJob.js` sweeps DB every 6h. | Memory sweep deletes in-process key after expiry; DB sweep deletes rows every 6h. | **NONE (SAFE)** | Dual-layer cleanup functions correctly. |
 | **In-Memory Rate Limiting Map Sweeping** | `rateLimit.js` sweeps buckets/penalties every 15 min. | `_sweepRateLimitMaps()` deletes expired window entries. | **NONE (SAFE)** | Prevents unbounded memory growth. |
 | **Module Barrel Export Pattern** | `all_imports.js` provides single import interface using ES5 getters. | 138 modules registered as dynamic getters (`get AppError() { return require(...); }`). | **NONE (SAFE)** | Prevents circular dependency deadlocks at startup. |
-| **HTML Callback Pages** | `/auth/callback` & `/auth/invite-callback` serve static HTML pages. | Defined in `routes/authCallbacks.js` using `templates/callbackPage.js`. | **NONE (SAFE)** | Serves friendly confirmation UI when deep links fail on desktop browsers. |
+| **HTML Callback Pages** | `/auth/callback`, `/auth/invite` & `/auth/invite-callback` serve static HTML pages. | Defined in `routes/authCallbacks.js` using `templates/callbackPage.js`. | **NONE (SAFE)** | Serves friendly confirmation UI when deep links fail on desktop browsers, plus the informational landing linked by the partner invite email. |
 
 ---
 

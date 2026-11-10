@@ -451,7 +451,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get partner_inviteEmailDescription =>
-      'Enter your partner\'s email: we\'ll send them an invitation to create a Just Us account.';
+      'Enter your partner\'s email: they\'ll get an invite to download JustUS and sign up.';
 
   @override
   String get partner_inviteEmailSuccess => 'Invitation sent!';
@@ -811,6 +811,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get error_authFailCred => 'Incorrect email or password.';
+
+  @override
+  String get error_authEmailExists =>
+      'This email is already registered. Log in or use \"Forgot Password?\" on the login screen.';
 
   @override
   String get error_authPermission001 =>

@@ -48,5 +48,9 @@ describe("API routing", () => {
     const inviteCallback = await request(app).get("/auth/invite-callback");
     expect(inviteCallback.status).toBe(200);
     expect(inviteCallback.text).toContain("Invito");
+
+    const inviteLanding = await request(app).get("/auth/invite");
+    expect(inviteLanding.status).toBe(200);
+    expect(inviteLanding.text).toContain("Benvenuto su JustUS");
   });
 });

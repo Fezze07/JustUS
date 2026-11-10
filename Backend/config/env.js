@@ -46,6 +46,8 @@ const env = {
   requestTimeoutMs: parseNumber(process.env.REQUEST_TIMEOUT_MS, 15_000),
   bodyLimit: process.env.BODY_LIMIT ?? "1mb",
   allowedOrigins: parseList(process.env.ALLOWED_ORIGINS),
+  appUrl: (process.env.APP_URL?.trim() || "https://justus.serverfede.eu").replace(/\/+$/, ""),
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseAnonKey: requireNonEmpty(
     process.env.SUPABASE_ANON_KEY,

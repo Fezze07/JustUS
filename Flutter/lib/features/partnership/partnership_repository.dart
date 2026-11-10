@@ -93,11 +93,9 @@ class PartnershipRepository extends BaseRepository {
     return Success(partner);
   }
 
-  Future<ResultWrapper<void>> inviteUnregisteredPartner(
-      String email, String redirectTo) async {
+  Future<ResultWrapper<void>> inviteUnregisteredPartner(String email) async {
     final result = await _api.inviteUnregisteredPartner({
       'email': email.trim(),
-      'redirectTo': redirectTo,
     });
     return result.map((_) {});
   }

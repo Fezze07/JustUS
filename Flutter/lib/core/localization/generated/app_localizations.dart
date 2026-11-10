@@ -947,7 +947,7 @@ abstract class AppLocalizations {
   /// No description provided for @partner_inviteEmailDescription.
   ///
   /// In it, this message translates to:
-  /// **'Inserisci l\'email del tuo partner: gli invieremo un invito per creare un account Just Us.'**
+  /// **'Inserisci l\'email del tuo partner: riceverà un invito per scaricare JustUS e registrarsi.'**
   String get partner_inviteEmailDescription;
 
   /// No description provided for @partner_inviteEmailSuccess.
@@ -1651,6 +1651,12 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Email o password non corretti.'**
   String get error_authFailCred;
+
+  /// No description provided for @error_authEmailExists.
+  ///
+  /// In it, this message translates to:
+  /// **'Questa email è già registrata. Accedi oppure usa «Password dimenticata?» nella schermata di login.'**
+  String get error_authEmailExists;
 
   /// No description provided for @error_authPermission001.
   ///

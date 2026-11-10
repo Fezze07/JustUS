@@ -15,6 +15,9 @@ class ErrorCodes {
   static const String authFail005 = 'AUTH-FAIL-005'; // Profilo non trovato
   static const String authFail006 = 'AUTH-FAIL-006'; // Device mismatch
   static const String authFailCred = 'AUTH-FAIL-CRED';
+  // signUp su un'email già confermata restituisce un finto successo
+  // (`identities: []`), senza inviare email e senza salvare la password.
+  static const String authEmailExists = 'AUTH-EMAIL-EXISTS';
   static const String authFailCurrent =
       'AUTH-FAIL-CURRENT'; // Vecchia password errata nel cambio password
   static const String authPermission001 =
@@ -113,6 +116,8 @@ class ErrorCodes {
         return loc.error_authFail006;
       case authFailCred:
         return loc.error_authFailCred;
+      case authEmailExists:
+        return loc.error_authEmailExists;
       case authPermission001:
         return loc.error_authPermission001;
       case dbRead001:

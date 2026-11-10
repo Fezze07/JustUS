@@ -101,10 +101,6 @@ class AuthState extends BaseState
     return ApiConfig.appUrl(ApiRoutes.authCallbackPath);
   }
 
-  /// Platform-appropriate post-confirmation redirect, also used as the landing
-  /// page of the Supabase "Invite user" email.
-  String get emailRedirectTo => _emailRedirectTo;
-
   Future<void> init() async {
     ApiService.onSessionExpired = () async {
       AnsiLogger.auth(
@@ -386,6 +382,15 @@ class AuthState extends BaseState
             message: 'Registrazione fallita: utente non creato');
       }
 
+      // Supabase risponde a signUp su un'email già confermata con un finto
+      // successo (`identities: []`): nessuna email inviata e password ignorata.
+      if (res.user!.identities?.isEmpty ?? false) {
+        throw AppError(
+            code: ErrorCodes.authEmailExists,
+            message: LanguageHelper.appLoc.error_authEmailExists,
+            severity: ErrorSeverity.medium);
+      }
+
       AnsiLogger.auth('Auth user creato: ${res.user!.id}', tag: 'Register');
 
       // 2. La verifica email è obbligatoria: se Supabase restituisce comunque
@@ -539,16 +544,13 @@ class AuthState extends BaseState
     });
   }
 
-  /// Invites a partner who has no JustUs account yet: the backend creates the
-  /// Auth account and GoTrue sends the "Invite user" email. Account-only — the
-  /// pairing request itself still needs the partner's code (see
-  /// [invitePartner]).
+  /// Invites a partner who has no JustUs account yet: the backend sends a plain
+  /// email asking them to install the app and register autonomously. No Auth
+  /// account is created — the pairing request itself still needs the partner's
+  /// code (see [invitePartner]).
   Future<bool> inviteUnregisteredPartner(String email) async {
     return runSafe(() async {
-      final res = await _partnershipRepo.inviteUnregisteredPartner(
-        email,
-        _emailRedirectTo,
-      );
+      final res = await _partnershipRepo.inviteUnregisteredPartner(email);
 
       if (res is! Success) {
         throw res;

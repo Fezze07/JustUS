@@ -46,7 +46,7 @@ const authRateLimit = createIpUserRateLimit({
 });
 
 // Invites dispatch a real email, so the per-user cap is tight: one account
-// cannot use the route to spray the "Invite user" template at many addresses.
+// cannot use the route to spray invite emails at many addresses.
 const inviteUserRateLimit = createIpUserRateLimit({
   name: "auth.invite-user",
   message: "Too many partner invitation emails",

@@ -13,6 +13,8 @@
 //   }));
 // =============================================================================
 
+const { escapeHtml } = require("./htmlEscape");
+
 /**
  * Builds a self-contained HTML page for auth callback responses.
  *
@@ -25,6 +27,7 @@
  * @returns {string} A complete HTML document string.
  */
 
+// eslint-disable-next-line max-lines-per-function -- page markup is one block
 function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle = "JustUs" }) {
     return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -33,31 +36,90 @@ function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle =
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(pageTitle)}</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
-        .container { background-color: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); max-width: 400px; width: 90%; }
-        h1 { color: #4CAF50; font-size: 24px; margin-bottom: 16px; }
-        p  { font-size: 16px; line-height: 1.5; margin-bottom: 24px; color: #cccccc; }
-        .icon { font-size: 48px; margin-bottom: 16px; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 60px 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #020103;
+            color: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-align: center;
+        }
+        .card {
+            width: 100%;
+            max-width: 480px;
+            background-color: #0d0a16;
+            border: 1px solid #251f35;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+        }
+        .header { padding: 48px 40px 32px; }
+        .logo {
+            display: inline-block;
+            padding: 1px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #bc61f5 0%, #7d35f2 100%);
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: -1px;
+        }
+        .logo span {
+            display: block;
+            padding: 10px 22px;
+            border-radius: 11px;
+            background-color: #0d0a16;
+        }
+        .content { padding: 0 48px 48px; }
+        .icon { font-size: 48px; line-height: 1; margin-bottom: 20px; }
+        h1 {
+            margin: 0 0 16px;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.8px;
+            line-height: 1.2;
+            color: #ffffff;
+        }
+        p {
+            margin: 0;
+            color: #a19bbd;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .footer {
+            padding: 32px 48px;
+            background-color: #120e1f;
+            border-top: 1px solid #251f35;
+        }
+        .footer p {
+            color: #433e5a;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="icon">${icon}</div>
-        <h1>${escapeHtml(title)}</h1>
-        <p>${escapeHtml(body)}</p>
+    <div class="card">
+        <div class="header">
+            <div class="logo"><span>Just Us</span></div>
+        </div>
+        <div class="content">
+            <div class="icon">${escapeHtml(icon)}</div>
+            <h1>${escapeHtml(title)}</h1>
+            <p>${escapeHtml(body)}</p>
+        </div>
+        <div class="footer">
+            <p>JUST US &bull; ${new Date().getFullYear()}</p>
+        </div>
     </div>
 </body>
 </html>`;
-}
-
-/** Minimal HTML escaping to prevent XSS if dynamic values are ever user-supplied. */
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
 }
 
 module.exports = { buildCallbackPage };
