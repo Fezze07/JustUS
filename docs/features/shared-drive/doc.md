@@ -115,7 +115,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Uses `image_picker` for camera/gallery; `file_picker` for audio/PDF; returns an `XFile` with a MIME type (inferred from the file extension when the platform does not provide one).
 
 2. **Client Validation & Compression Order**
-   - File: [media_service.dart:38-60](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L38-L60) & [compression_service.dart:43-46](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L43-L46)
+   - File: [media_service.dart:33-67](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L33-L67) & [compression_service.dart:9-93](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L9-L93)
    - **Step A: MIME Inferencing & Validation**: `_inferMime()` infers MIME type from extension if not provided. Validates against `_allowedMimes` map. If invalid, throws `Exception('Invalid MIME type')`.
    - **Step B: Size Guard BEFORE Compression (Fast-Fail)**: Checks `CompressionService.isWithinSizeLimit(file)`. If the original uncompressed file exceeds 15 MB (`15 * 1024 * 1024` bytes), it throws `Exception('File exceeds 15 MB limit before compression')` immediately.
    - **Step C: Compression Execution**:
@@ -123,9 +123,10 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
      - `MediaType.video`: Compressed via `LightCompressor.compressVideo(videoQuality: VideoQuality.medium)`.
      - `MediaType.audio` / `MediaType.file`: No compression applied (returns original file).
    - **Step D: Final Size & Filename Extraction**: `finalSize = await compressed.length()`. Extracts `originalName` from file path.
+   - Generated compression artifacts (compressed image/video, extracted video frame, thumbnail) are deleted in `finally` blocks when the upload finishes, success or failure; the original picked file is never deleted.
 
 3. **Backend Presigned Upload URL Request**
-   - File: [media_service.dart:65-81](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L65-L81) & [r2.service.js:76-96](file:///f:/JustUS/Backend/features/media/r2.service.js#L76-L96)
+   - File: [media_service.dart:75-86](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L75-L86) & [r2.service.js:76-96](file:///f:/JustUS/Backend/features/media/r2.service.js#L76-L96)
    - Flutter calls `ApiService.createMediaUploadUrl()` sending `POST /api/v1/media/presign-upload`.
    - Backend `presignUploadController` -> `createPresignedUpload()`:
      - Checks user capability `can_upload_large` if `size > 5 MB` (`largeUploadThresholdBytes`).
@@ -136,20 +137,21 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Returns `{ success: true, uploadUrl, filename, expiresIn }`.
 
 4. **Direct R2 S3 HTTP PUT Upload**
-   - File: [media_service.dart:84-94](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L84-L94)
-   - Flutter executes direct binary upload: `http.put(Uri.parse(uploadUrl), body: await compressed.readAsBytes(), headers: {'Content-Type': mime})`.
+   - File: [media_service.dart:91-101](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L91-L101)
+   - Flutter executes direct binary upload: `_http.put(Uri.parse(uploadUrl), body: await compressed.readAsBytes(), headers: {'Content-Type': mime})`.
    - Bypasses Node.js backend server memory for heavy file transfers.
    - Verifies response `statusCode == 200`.
 
 4b. **Thumbnail Generation & Upload (image and video drive items, best-effort)**
-   - File: [compression_service.dart:25-52](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L25-L52) & [media_service.dart:102-111](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L102-L111)
+   - File: [compression_service.dart:26-70](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L26-L70) & [media_service.dart:107-116](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L107-L116)
    - For image and video drive uploads (`skipRegistration == false`), `CompressionService.createThumbnail` produces a small (≤320 px, ~70% quality) JPEG. Videos first extract their first frame with `LightCompressor.getVideoThumbnail` (`CompressionService.createVideoThumbnail`), then run the same image thumbnail pipeline.
    - A second `POST /media/upload-url` (existing endpoint, `thumb.jpg` filename) yields a fresh presigned URL; the thumb is PUT to R2 under the same `uploads/{userId}/...` prefix.
    - Any presign/PUT failure is logged and results in **no thumbnail** (never fails the main upload).
+   - The generated thumbnail (and, for videos, the extracted frame) is deleted after the PUT attempt.
    - The thumbnail storage key is passed in `metadata.thumbnail` to `/complete-upload` and stored in `drive_items.metadata` (JSONB) — no new column.
 
 5. **Backend Database Registration**
-   - File: [media_service.dart:113-127](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L113-L127) & [mediaWorkflow.service.js:54-117](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L54-L117)
+   - File: [media_service.dart:118-132](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L118-L132) & [mediaWorkflow.service.js:54-117](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js#L54-L117)
    - Flutter sends `POST /api/v1/media/complete-upload` containing `{ kind, type, filename, originalName, mimeType, size, metadata }`.
    - Backend `registerCompletedUpload()`:
      - Verifies that `filename` and `metadata.thumbnail` (when present) carry the caller's profile id as the path segment immediately before the file name, rejecting a foreign key with `AUTH-FAIL-004`.
@@ -215,17 +217,17 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 [1] MIME Validation  ──>  [2] Size Guard (<=15MB)  ──>  [3] Compression  ──>  [4] Thumbnail (image/video)  ──>  [5] Presign + PUT main  ──>  [6] PUT thumbnail  ──>  [7] Complete
 ```
 
-1. **MIME Validation**: Executed first in `MediaService.uploadMedia()` ([media_service.dart:39-43](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L39-L43)). Infers MIME from extension and checks against allowed MIME map.
-2. **Size Guard**: Executed second in `MediaService.uploadMedia()` ([media_service.dart:46-48](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46-L48)). Calls `CompressionService.isWithinSizeLimit(file)`.
-3. **Compression**: Executed third in `MediaService.uploadMedia()` ([media_service.dart:52-59](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L52-L59)). Compresses images/videos.
-4. **Thumbnail**: For image and video drive items, `CompressionService.createThumbnail` produces a ≤320 px JPEG ([compression_service.dart:32](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L32)); videos extract their first frame first with `LightCompressor.getVideoThumbnail`.
-5. **Upload**: Presign + PUT of the compressed main file ([media_service.dart:65-95](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L65-L95)).
+1. **MIME Validation**: Executed first in `MediaService.uploadMedia()` ([media_service.dart:44-49](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L44-L49)). Infers MIME from extension and checks against allowed MIME map.
+2. **Size Guard**: Executed second in `MediaService.uploadMedia()` ([media_service.dart:54-57](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L54-L57)). Calls `CompressionService.isWithinSizeLimit(file)`.
+3. **Compression**: Executed third in `MediaService.uploadMedia()` ([media_service.dart:62-67](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L62-L67)). Compresses images/videos.
+4. **Thumbnail**: For image and video drive items, `CompressionService.createThumbnail` produces a ≤320 px JPEG ([compression_service.dart:26-58](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart#L26-L58)); videos extract their first frame first with `LightCompressor.getVideoThumbnail`.
+5. **Upload**: Presign + PUT of the compressed main file ([media_service.dart:75-105](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L75-L105)).
 6. **Thumbnail Upload**: Second presign + PUT of the thumbnail (best-effort, image and video items).
 7. **Complete**: `POST /media/complete-upload` registers the `drive_items` row (metadata includes `thumbnail` when present).
 
 ### 15 MB Size Limit (intended behavior)
 
-The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source files**, evaluated **BEFORE compression** as a fast-fail guard on the client ([media_service.dart:46](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L46)). This is intended behavior, not a defect (todo 5.4):
+The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source files**, evaluated **BEFORE compression** as a fast-fail guard on the client ([media_service.dart:54](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L54)). This is intended behavior, not a defect (todo 5.4):
 
 - **Client Guard**: `CompressionService.isWithinSizeLimit(file)` rejects any original file larger than 15 MB immediately, before any compression work is started. Files at or under the cap are then compressed (~80% quality JPEG / medium H.264) so the payload that actually reaches R2 is typically far smaller.
 - **Backend Check**: The backend additionally validates the size sent at presign against `env.maxUploadBytes` (15 MB) in `r2.service.js`. That size is the **post-compression** `finalSize`, so the R2 upload itself never exceeds the cap.
@@ -318,7 +320,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 
 Profile picture uploads share the underlying R2 storage pipeline with the Shared Drive:
 
-- File: [media_service.dart:149-159](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L149-L159)
+- File: [media_service.dart:154-165](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart#L154-L165)
 - Invokes `uploadMedia()` with `type = MediaType.image`, `customFolder = 'profile'`, and `skipRegistration = true`.
 - Object Key: `profile/{userId}/{timestamp}-{uuid}-{basename}.jpg`.
 - Backend Completion: `registerCompletedUpload()` detects `kind === 'profile'`, skips `drive_items` table insertion, and updates `user_profiles.profile_pic_url = filename`.
@@ -358,6 +360,6 @@ During reverse-engineering analysis, the following technical findings were ident
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |
 | Failed Upload-Completion Orphan Cleanup | **IMPLEMENTED** | PUT-to-R2-then-`/complete-upload` interruption (`media_service.dart`) leaves an object for ≤24 h; `retentionJob.sweepStaleOrphanObjects` (6-hour cadence, `ORPHAN_MAX_AGE_MS` 24 h, `uploads/` + `profile/` prefixes vs `drive_items.name` / `user_profiles.profile_pic_url`) reclaims it — no permanent orphan accumulation (todo 5.3) |
-| 15 MB Upload Size Cap | **IMPLEMENTED** | Deliberate 15 MB hard cap on source files: client fast-fail pre-compression (`CompressionService.isWithinSizeLimit`, media_service.dart:46) + backend presign validation on the post-compression `size` (`env.maxUploadBytes`) — intended behavior (todo 5.4), not a defect |
+| 15 MB Upload Size Cap | **IMPLEMENTED** | Deliberate 15 MB hard cap on source files: client fast-fail pre-compression (`CompressionService.isWithinSizeLimit`, media_service.dart:54) + backend presign validation on the post-compression `size` (`env.maxUploadBytes`) — intended behavior (todo 5.4), not a defect |
 | Media Thumbnail Generation | **IMPLEMENTED** | Client-side ≤320 px JPEG (`CompressionService.createThumbnail`, `FlutterImageCompress`) generated at upload for image and video drive items (videos extract their first frame with `LightCompressor.getVideoThumbnail` first), stored as a `*_thumb.jpg` object in R2 (2nd presigned URL, best-effort) with its key in `drive_items.metadata.thumbnail` (JSONB); grid + favorites render `DriveItem.contentThumb` and show a type placeholder when it is missing — never the full-size object. Tap loads the full file |
 | Audio / PDF Picker Button in UI | **IMPLEMENTED** | Added to media picker sheet via `file_picker` |

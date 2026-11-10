@@ -44,10 +44,28 @@ class CompressionService {
   /// Extracts the first video frame and downsizes it through the same
   /// ≤320 px JPEG thumbnail pipeline used for images.
   static Future<File> createVideoThumbnail(File file) async {
-    final framePath =
-        await LightCompressor().getVideoThumbnail(file.path, quality: 90);
+    final frame = File(
+        await LightCompressor().getVideoThumbnail(file.path, quality: 90));
 
-    return createThumbnail(File(framePath));
+    try {
+      final thumbnail = await createThumbnail(frame);
+      await deleteGenerated(frame, thumbnail);
+      return thumbnail;
+    } catch (_) {
+      await deleteGenerated(frame, file);
+      rethrow;
+    }
+  }
+
+  /// Deletes a generated temp file, never the input it may fall back to.
+  static Future<void> deleteGenerated(File generated, File original) async {
+    if (generated.path == original.path) return;
+
+    try {
+      await generated.delete();
+    } catch (_) {
+      // Best effort: a leftover temp file must never fail an upload.
+    }
   }
 
   /// Compresses a video using medium H.264 quality.

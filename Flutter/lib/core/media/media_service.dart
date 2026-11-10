@@ -6,7 +6,8 @@ import 'package:logger/logger.dart';
 import 'package:justus/all_imports.dart';
 
 class MediaService {
-  final _api = ApiService();
+  final ApiService _api;
+  final http.Client _http;
   final _logger = Logger(
     printer: PrettyPrinter(
         methodCount: 0,
@@ -14,6 +15,10 @@ class MediaService {
         lineLength: 50,
         dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart),
   );
+
+  MediaService({ApiService? api, http.Client? httpClient})
+      : _api = api ?? ApiService(),
+        _http = httpClient ?? http.Client();
 
   // ---------------------------------------------------------------------------
   // GET: Request a temporary signed URL for viewing a file
@@ -34,6 +39,7 @@ class MediaService {
     String? customFolder,
     bool skipRegistration = false,
   }) async {
+    File? compressed;
     try {
       // 1. MIME validation
       final mime = mimeType ?? _inferMime(file.path, type);
@@ -55,7 +61,6 @@ class MediaService {
 
       // 3. Compression
       _logger.i('[MediaService] Starting compression for ${type.name}...');
-      File compressed;
       if (type == MediaType.image) {
         compressed = await CompressionService.compressImage(file);
       } else if (type == MediaType.video) {
@@ -85,7 +90,7 @@ class MediaService {
 
       // 5. Upload directly to Cloudflare R2
       _logger.i('[MediaService] Uploading to R2: $r2Filename');
-      final uploadResult = await http.put(
+      final uploadResult = await _http.put(
         Uri.parse(uploadUrl),
         body: await compressed.readAsBytes(),
         headers: {'Content-Type': mime},
@@ -142,6 +147,10 @@ class MediaService {
       _logger.e('[MediaService] Exception in uploadMedia',
           error: e, stackTrace: stack);
       rethrow;
+    } finally {
+      if (compressed != null) {
+        await CompressionService.deleteGenerated(compressed, file);
+      }
     }
   }
 
@@ -166,8 +175,9 @@ class MediaService {
     required MediaType type,
     String? customFolder,
   }) async {
+    File? thumbnail;
     try {
-      final thumbnail = type == MediaType.video
+      thumbnail = type == MediaType.video
           ? await CompressionService.createVideoThumbnail(source)
           : await CompressionService.createThumbnail(source);
       final thumbSize = await thumbnail.length();
@@ -185,7 +195,7 @@ class MediaService {
       final uploadUrl = presignResult.value['uploadUrl'] as String;
       final thumbKey = presignResult.value['filename'] as String;
 
-      final result = await http.put(
+      final result = await _http.put(
         Uri.parse(uploadUrl),
         body: await thumbnail.readAsBytes(),
         headers: {'Content-Type': 'image/jpeg'},
@@ -201,6 +211,10 @@ class MediaService {
       _logger.e('[MediaService] Thumbnail generation/upload failed',
           error: e, stackTrace: st);
       return null;
+    } finally {
+      if (thumbnail != null) {
+        await CompressionService.deleteGenerated(thumbnail, source);
+      }
     }
   }
 
