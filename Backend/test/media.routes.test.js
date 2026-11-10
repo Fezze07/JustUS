@@ -61,13 +61,19 @@ jest.mock("../utils/misc/partnershipUtils", () => ({
 }));
 
 const { adminSupabase, deleteObject, resetRateLimitState } = require("../all_imports");
-const { getPartnershipId, isPartnershipMember } = require("../utils/misc/partnershipUtils");
+const {
+  getPartnerId,
+  getPartnershipId,
+  isPartnershipMember,
+} = require("../utils/misc/partnershipUtils");
 const { createApp } = require("../app");
 
 describe("media routes", () => {
   beforeEach(() => {
     adminSupabase.from.mockReset();
     deleteObject.mockClear();
+    getPartnerId.mockReset();
+    getPartnerId.mockResolvedValue(77);
     getPartnershipId.mockClear();
     isPartnershipMember.mockReset();
     isPartnershipMember.mockResolvedValue(true);
@@ -82,29 +88,45 @@ describe("media routes", () => {
   // regression in the redirect-to-signed-download path would only have been
   // caught in production.
   describe("GET /file (signed download redirect)", () => {
-    // getSignedDownloadUrl looks the row up with .single(), not .maybeSingle().
     const driveItemRow = (overrides = {}) => ({
       id: 5,
       partnership_id: 5,
       ...overrides,
     });
 
-    let driveItemsQuery;
-
-    const mockDriveItems = (row) => {
-      driveItemsQuery = createQueryBuilder({
-        single: jest.fn().mockResolvedValue({ data: row, error: null }),
+    const mockMediaTables = ({
+      driveByName = null,
+      driveByThumbnail = null,
+      profileOwner = null,
+    } = {}) => {
+      const driveNameQuery = createQueryBuilder({
+        maybeSingle: jest.fn().mockResolvedValue({ data: driveByName, error: null }),
       });
+      const driveThumbnailQuery = createQueryBuilder({
+        maybeSingle: jest.fn().mockResolvedValue({ data: driveByThumbnail, error: null }),
+      });
+      const profileQuery = createQueryBuilder({
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: profileOwner == null ? null : { user_id: profileOwner },
+          error: null,
+        }),
+      });
+      let driveCalls = 0;
+
       adminSupabase.from.mockImplementation((table) => {
         if (table === "drive_items") {
-          return driveItemsQuery;
+          driveCalls += 1;
+          return driveCalls === 1 ? driveNameQuery : driveThumbnailQuery;
         }
+        if (table === "user_profiles") return profileQuery;
         return createQueryBuilder();
       });
+
+      return { driveNameQuery, driveThumbnailQuery, profileQuery };
     };
 
     test("redirects a partnered drive item to its signed R2 download URL", async () => {
-      mockDriveItems(driveItemRow());
+      const { driveNameQuery } = mockMediaTables({ driveByName: driveItemRow() });
 
       const response = await request(createApp())
         .get("/api/v1/media/file")
@@ -114,15 +136,73 @@ describe("media routes", () => {
       expect(response.headers.location).toBe(
         "https://r2.test.local/download/uploads/42/memory.jpg",
       );
-      expect(driveItemsQuery.select).toHaveBeenCalledWith("partnership_id");
-      expect(driveItemsQuery.eq).toHaveBeenCalledWith("name", "uploads/42/memory.jpg");
+      expect(driveNameQuery.select).toHaveBeenCalledWith("partnership_id");
+      expect(driveNameQuery.eq).toHaveBeenCalledWith("name", "uploads/42/memory.jpg");
       expect(isPartnershipMember).toHaveBeenCalledWith(5, 42);
+    });
+
+    test("redirects a generated thumbnail found in metadata.thumbnail", async () => {
+      const { driveNameQuery, driveThumbnailQuery } = mockMediaTables({
+        driveByThumbnail: driveItemRow(),
+      });
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "uploads/42/memory_thumb.jpg" });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(
+        "https://r2.test.local/download/uploads/42/memory_thumb.jpg",
+      );
+      expect(driveNameQuery.eq).toHaveBeenCalledWith("name", "uploads/42/memory_thumb.jpg");
+      expect(driveThumbnailQuery.eq).toHaveBeenCalledWith(
+        "metadata->>thumbnail",
+        "uploads/42/memory_thumb.jpg",
+      );
+    });
+
+    test("redirects an owner's profile picture", async () => {
+      mockMediaTables({ profileOwner: 42 });
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "profile/42/avatar.jpg" });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(
+        "https://r2.test.local/download/profile/42/avatar.jpg",
+      );
+    });
+
+    test("redirects an accepted partner's profile picture", async () => {
+      mockMediaTables({ profileOwner: 77 });
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "profile/77/avatar.jpg" });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(
+        "https://r2.test.local/download/profile/77/avatar.jpg",
+      );
+      expect(getPartnerId).toHaveBeenCalledWith(42);
+    });
+
+    test("denies a profile picture belonging to an unrelated user", async () => {
+      mockMediaTables({ profileOwner: 99 });
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "profile/99/avatar.jpg" });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("AUTH-FAIL-004");
     });
 
     test("denies a download for a caller outside the item partnership", async () => {
       // The auth mock always returns profileId 42; the row's partnership has
       // other members, so the membership check must refuse it.
-      mockDriveItems(driveItemRow({ partnership_id: 6 }));
+      mockMediaTables({ driveByName: driveItemRow({ partnership_id: 6 }) });
       isPartnershipMember.mockResolvedValueOnce(false);
 
       const response = await request(createApp())
@@ -134,8 +214,34 @@ describe("media routes", () => {
       expect(response.body.error.code).toBe("AUTH-FAIL-004");
     });
 
-    test("returns 404 when the filename is not in the drive_items table", async () => {
-      mockDriveItems(null);
+    test("rejects a drive row that points at another user's key", async () => {
+      mockMediaTables({ driveByName: driveItemRow() });
+      isPartnershipMember
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "uploads/99/foreign.jpg" });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("AUTH-FAIL-004");
+      expect(isPartnershipMember).toHaveBeenCalledWith(5, 99);
+    });
+
+    test("rejects a key outside the allowed storage roots", async () => {
+      mockMediaTables();
+
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "custom/42/file.jpg" });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("AUTH-FAIL-004");
+    });
+
+    test("returns 404 when the filename is in neither drive_items nor user_profiles", async () => {
+      const { driveNameQuery, driveThumbnailQuery, profileQuery } = mockMediaTables();
 
       const response = await request(createApp())
         .get("/api/v1/media/file")
@@ -143,6 +249,15 @@ describe("media routes", () => {
 
       expect(response.status).toBe(404);
       expect(response.body.error.code).toBe("DB-NOT_FOUND-001");
+      expect(driveNameQuery.eq).toHaveBeenCalledWith("name", "uploads/42/ghost.jpg");
+      expect(driveThumbnailQuery.eq).toHaveBeenCalledWith(
+        "metadata->>thumbnail",
+        "uploads/42/ghost.jpg",
+      );
+      expect(profileQuery.eq).toHaveBeenCalledWith(
+        "profile_pic_url",
+        "uploads/42/ghost.jpg",
+      );
     });
 
     test("rejects a download request with no filename", async () => {

@@ -5,6 +5,7 @@ const {
   createDownloadUrl,
   isConfigured,
   getPartnershipId,
+  getPartnerId,
   isPartnershipMember,
   AppError,
   assertDbSuccess,
@@ -116,24 +117,92 @@ async function registerCompletedUpload({ user, payload }) {
   };
 }
 
+const STORAGE_KEY_ROOTS = new Set(["uploads", "users", "profile"]);
+
+function parseStorageKeyOwner(key) {
+  if (typeof key !== "string") return null;
+  const segments = key.split("/");
+  const ownerId = Number(segments[1]);
+  if (
+    segments.length < 3 ||
+    !segments[2] ||
+    !STORAGE_KEY_ROOTS.has(segments[0]) ||
+    !Number.isInteger(ownerId) ||
+    ownerId <= 0
+  ) {
+    return null;
+  }
+  return ownerId;
+}
+
+async function findDriveItem(filename) {
+  for (const column of ["name", "metadata->>thumbnail"]) {
+    const row = assertDbSuccess(
+      await adminSupabase
+        .from("drive_items")
+        .select("partnership_id")
+        .eq(column, filename)
+        .limit(1)
+        .maybeSingle(),
+      "DB_READ_001"
+    );
+    if (row) return row;
+  }
+  return null;
+}
+
+async function findProfileOwner(filename) {
+  const row = assertDbSuccess(
+    await adminSupabase
+      .from("user_profiles")
+      .select("user_id")
+      .eq("profile_pic_url", filename)
+      .limit(1)
+      .maybeSingle(),
+    "DB_READ_001"
+  );
+  return row?.user_id ?? null;
+}
+
+async function canAccessDriveItem(partnershipId, ownerId, userId) {
+  if (!(await isPartnershipMember(partnershipId, userId))) return false;
+  return ownerId === userId || isPartnershipMember(partnershipId, ownerId);
+}
+
+async function canAccessProfilePicture(profileOwnerId, ownerId, userId) {
+  if (profileOwnerId !== ownerId) return false;
+  if (profileOwnerId === userId) return true;
+
+  const partnerId = await getPartnerId(userId);
+  return partnerId != null && Number(partnerId) === profileOwnerId;
+}
+
 async function getSignedDownloadUrl({ userId, filename }) {
   ensureStorageConfigured();
 
-  const { data: media, error } = await adminSupabase
-    .from("drive_items")
-    .select("partnership_id")
-    .eq("name", filename)
-    .single();
+  const keyOwner = parseStorageKeyOwner(filename);
+  if (keyOwner == null) {
+    throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Invalid media key" });
+  }
 
-  if (error || !media) {
+  const driveItem = await findDriveItem(filename);
+  if (driveItem && (await canAccessDriveItem(driveItem.partnership_id, keyOwner, userId))) {
+    return createDownloadUrl(filename);
+  }
+
+  const profileOwner = await findProfileOwner(filename);
+  if (
+    profileOwner != null &&
+    (await canAccessProfilePicture(Number(profileOwner), keyOwner, userId))
+  ) {
+    return createDownloadUrl(filename);
+  }
+
+  if (!driveItem && profileOwner == null) {
     throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Media not found in database" });
   }
 
-  if (!(await isPartnershipMember(media.partnership_id, userId))) {
-    throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Forbidden: No access to this media" });
-  }
-
-  return createDownloadUrl(filename);
+  throw new AppError({ errorKey: "AUTH_FAIL_004", message: "Forbidden: No access to this media" });
 }
 
 module.exports = {

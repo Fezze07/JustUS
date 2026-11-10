@@ -241,7 +241,9 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 - **Signed Download Route**: `GET /api/v1/media/file?filename=...`
   - Requires `Authorization: Bearer <token>` **and** `X-Device-Fingerprint`: the auth middleware hashes the header and compares it with `session_bindings.device_fingerprint_hash`, rejecting a missing or mismatched value with `AUTH_FAIL_006` (401) once the session is bound. The Flutter client sends both headers on every protected media request via `ApiService.authHeaders`.
   - Validates caller authentication.
-  - Queries `public.drive_items` by `name = filename` and confirms the caller is a member of the item's accepted partnership.
+  - Only accepts keys rooted at `uploads/<userId>/`, `users/<userId>/` or `profile/<userId>/`; a key outside those roots is rejected before any signing.
+  - Resolves a drive object by `drive_items.name = filename` **or** `drive_items.metadata->>thumbnail = filename`, then confirms both the caller and the key's owner segment are members of the item's accepted partnership.
+  - Falls back to `user_profiles.profile_pic_url = filename`, allowing the profile owner or their accepted partner.
   - Generates S3 `GetObjectCommand` presigned URL and returns an HTTP `302 Redirect` to Cloudflare R2.
 
 ### Disk Caching Architecture (`MediaCacheManager`)

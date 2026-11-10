@@ -308,7 +308,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ## Invariants
 
-1. **Profile Picture Resolution**: Profile pictures are always uploaded with `kind = 'profile'`, storing relative R2 filenames in `user_profiles.profile_pic_url`.
+1. **Profile Picture Resolution**: Profile pictures are always uploaded with `kind = 'profile'`, storing relative R2 filenames in `user_profiles.profile_pic_url`. `GET /api/v1/media/file` serves them to the profile owner and their accepted partner only.
 2. **Language Preference Persistence**: The active locale code is strictly persisted in `SharedPreferences` under key `app_language_code`.
 3. **Session Integrity During Data Wipe**: Account wipe only affects application domain data; authentication sessions and security tokens remain completely active.
 
