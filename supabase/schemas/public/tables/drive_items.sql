@@ -11,6 +11,7 @@ CREATE TABLE "public"."drive_items" (
   "partnership_id" integer,
   "file_type_id"   bigint,
   CONSTRAINT "drive_items_file_type_id_fkey" FOREIGN KEY (file_type_id) REFERENCES public.drive_file_types(id) ON DELETE SET NULL,
+  CONSTRAINT "drive_items_name_key" UNIQUE (name),
   CONSTRAINT "drive_items_pkey" PRIMARY KEY (id),
   CONSTRAINT "drive_items_partnership_id_fkey" FOREIGN KEY (partnership_id) REFERENCES public.partnerships(id) ON DELETE CASCADE
 );

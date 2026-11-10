@@ -94,7 +94,7 @@ async function registerCompletedUpload({ user, payload }) {
   const item = assertDbSuccess(
     await adminSupabase
       .from("drive_items")
-      .insert({
+      .upsert({
         partnership_id: partnershipId,
         type,
         name: filename,
@@ -105,7 +105,7 @@ async function registerCompletedUpload({ user, payload }) {
           ...metadata,
           source: "backend-signed-url",
         },
-      })
+      }, { onConflict: "name" })
       .select()
       .single(),
     "DB_WRITE_001"

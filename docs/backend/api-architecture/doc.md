@@ -77,7 +77,7 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/media/complete`
 - **Controller**: `completeUploadController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `capability("can_media_upload")` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `signed("media-complete")` $\rightarrow$ `validated({ body: completeSchema })`
-- **Behavior**: If `kind === "profile"`, updates `user_profiles.profile_pic_url`. Otherwise inserts record into `drive_items`.
+- **Behavior**: If `kind === "profile"`, updates `user_profiles.profile_pic_url`. Otherwise upserts a `drive_items` row on the UNIQUE `name`, so a retried completion updates the same row instead of creating a duplicate.
 
 #### `GET /api/v1/media/file`
 - **Controller**: `redirectToSignedDownloadController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))

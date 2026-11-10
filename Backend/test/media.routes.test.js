@@ -339,9 +339,9 @@ describe("media routes", () => {
     expect(adminSupabase.from).not.toHaveBeenCalled();
   });
 
-  test("stores drive metadata after a successful upload completion", async () => {
+  test("upserts drive metadata after a successful upload completion", async () => {
     const driveItemsQuery = createQueryBuilder({
-      insert: jest.fn(() => driveItemsQuery),
+      upsert: jest.fn(() => driveItemsQuery),
       select: jest.fn(() => driveItemsQuery),
       single: jest.fn().mockResolvedValue({
         data: {
@@ -377,18 +377,55 @@ describe("media routes", () => {
     expect(response.body.success).toBe(true);
     expect(response.body.item.id).toBe(10);
     expect(getPartnershipId).toHaveBeenCalledWith(42);
-    expect(driveItemsQuery.insert).toHaveBeenCalledWith({
-      partnership_id: 5,
-      type: "image",
-      name: "uploads/42/test-memory.jpg",
-      original_name: "memory.jpg",
-      mime_type: "image/jpeg",
-      size: 4096,
-      metadata: {
-        thumbnail: "uploads/42/test-thumb.jpg",
-        source: "backend-signed-url",
+    expect(driveItemsQuery.upsert).toHaveBeenCalledWith(
+      {
+        partnership_id: 5,
+        type: "image",
+        name: "uploads/42/test-memory.jpg",
+        original_name: "memory.jpg",
+        mime_type: "image/jpeg",
+        size: 4096,
+        metadata: {
+          thumbnail: "uploads/42/test-thumb.jpg",
+          source: "backend-signed-url",
+        },
       },
+      { onConflict: "name" }
+    );
+  });
+
+  test("a retried completion upserts on name instead of inserting a duplicate", async () => {
+    const driveItemsQuery = createQueryBuilder({
+      upsert: jest.fn(() => driveItemsQuery),
+      select: jest.fn(() => driveItemsQuery),
+      single: jest.fn().mockResolvedValue({
+        data: { id: 10, name: "uploads/42/test-memory.jpg" },
+        error: null,
+      }),
     });
+
+    adminSupabase.from.mockImplementation(() => driveItemsQuery);
+
+    const app = createApp();
+    const payload = {
+      kind: "drive",
+      type: "image",
+      filename: "uploads/42/test-memory.jpg",
+      originalName: "memory.jpg",
+      mimeType: "image/jpeg",
+      size: 4096,
+    };
+
+    const first = await request(app).post("/api/v1/media/complete").send(payload);
+    const retry = await request(app).post("/api/v1/media/complete").send(payload);
+
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(driveItemsQuery.upsert).toHaveBeenCalledTimes(2);
+    expect(driveItemsQuery.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "uploads/42/test-memory.jpg" }),
+      { onConflict: "name" }
+    );
   });
 
   test("deletes a drive item and its R2 object through the delete endpoint", async () => {

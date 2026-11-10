@@ -60,7 +60,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 
 2. **Node.js / Express API**:
    - [r2.service.js](file:///f:/JustUS/Backend/features/media/r2.service.js): AWS S3 SDK (`@aws-sdk/client-s3`) integration for Cloudflare R2. Sanitizes filenames, validates MIME/size, and generates S3 presigned PUT upload and GET download URLs.
-   - [mediaWorkflow.service.js](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Enforces upload permissions (`can_upload_large` capability for files > 5 MB), verifies `filename` and `metadata.thumbnail` ownership (the caller's profile id is the path segment immediately before the file name), updates user profile pictures or inserts `public.drive_items` records.
+   - [mediaWorkflow.service.js](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Enforces upload permissions (`can_upload_large` capability for files > 5 MB), verifies `filename` and `metadata.thumbnail` ownership (the caller's profile id is the path segment immediately before the file name), updates user profile pictures or upserts `public.drive_items` records on `name`.
    - [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js): Route handlers `presignUploadController`, `completeUploadController`, and `redirectToSignedDownloadController`.
 
 3. **Database Layer (Supabase / PostgreSQL)**:
@@ -99,11 +99,11 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
       │ ── 5b. PUT Thumbnail JPEG (image/video) ─────────────────>│                      │                    │
       │    (2nd presigned URL, best-effort)                    │                      │                    │
       │ ── 6. POST /complete-upload ──>                        │                      │                    │
-      │                             │ ── Insert drive_items ─────────────────────────>│                    │
+      │                             │ ── Upsert drive_items (name) ───────────────────>│                    │
       │ <─ Returns DB DriveItem ────│                          │                      │                    │
       │                             │                          │                      │                    │
       │ ── 7. Push & Realtime ────────────────────────────────────────────────────────────────────────────>│
-      │    (notifyPartnerOnce + Supabase Realtime INSERT broadcast)                                        │ ── Refresh Drive
+      │    (notifyPartnerOnce + Supabase Realtime row broadcast)                                          │ ── Refresh Drive
 ```
 
 ### Detailed Component Steps
@@ -154,12 +154,12 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - Backend `registerCompletedUpload()`:
      - Verifies that `filename` and `metadata.thumbnail` (when present) carry the caller's profile id as the path segment immediately before the file name, rejecting a foreign key with `AUTH-FAIL-004`.
      - **Profile Picture Flow** (`kind === 'profile'`): Updates `user_profiles.profile_pic_url = filename` for `user_id = user.profileId`.
-     - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then the latest `cancelled` partnership). Inserts `name` (R2 key), `original_name` and `partnership_id` into `public.drive_items`, returning the created `item` object.
+     - **Drive Item Flow** (`kind === 'drive'`): Resolves the caller's partnership via `getPartnershipId()` (accepted first, then the latest `cancelled` partnership). Upserts `name` (R2 key, UNIQUE), `original_name` and `partnership_id` into `public.drive_items`, returning the matching `item` object. A retried completion updates the existing row instead of creating a duplicate.
 
 6. **Realtime Sync & Partner Notification**
    - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart)
    - Flutter triggers push notification `notifyPartnerOnce(notificationKey: 'driveItemAdded')`.
-   - Supabase Realtime emits `INSERT` event on `public.drive_items`.
+   - Supabase Realtime emits an `INSERT` event on `public.drive_items` (an `UPDATE` event on a retried completion).
    - Partner's `RefetchRealtimeHandler.handle` catches the event, debounces for 150 ms, and calls `DriveState.refreshFromRealtime()`.
 
 7. **Gallery UI Update**
@@ -191,7 +191,7 @@ DriveScreen context menu → DriveState.deleteItem(id) (optimistic removal + cac
 - The detail screen's item is derived from the grid list by the selected id; if the row disappears while the screen is open (for example a partner delete arriving through the realtime refresh), the body renders the deleted state instead of a spinner.
 - Obsolete direct SQL deletion (`sbClient.from('drive_items').delete()`) was replaced by this backend endpoint so R2 cleanup can never leave a dangling row (row delete is the transactional step; R2 is a best-effort side effect).
 - The client treats a `DB-NOT_FOUND-001` response (`drive_repository.dart` `_isAlreadyDeleted`) as success, so a lost-response retry does not restore an already-deleted item locally.
-- `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the cancelled partnership's id via `getPartnershipId()` and inserts the row against it (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
+- `media-complete` also completes a file whose signed URL was issued while the pair was `accepted`: if the partnership is now `cancelled` it resolves the cancelled partnership's id via `getPartnershipId()` and upserts the row against it (cascade-deleted if the partner accepts, kept if they decline). `createUploadUrl` stays accepted-only, so no new upload can start while cancelled; once the row is gone the completion fails and the object is reclaimed by the orphan sweep.
 - The same R2 deletion primitive (`deleteObjectsByPrefix`) is reused by the account wipe to purge all objects under a user's prefixes, and by the partnership cancellation acceptance endpoint, which sweeps `uploads/<user1>/` and `uploads/<user2>/` for the ex-couple — never `profile/<uid>/`. Failures are logged and the orphan sweep catches leftovers; the database delete is not rolled back.
 
 ---
@@ -348,6 +348,7 @@ During reverse-engineering analysis, the following technical findings were ident
 | Image Upload & Compression | **IMPLEMENTED** | `FlutterImageCompress` (~80% quality JPEG) |
 | Video Upload & Compression | **IMPLEMENTED** | `LightCompressor` (`VideoQuality.medium`) |
 | Audio & Document Upload API | **IMPLEMENTED** | Supported in `MediaService` & Backend API; now reachable from the bottom sheet via `file_picker` |
+| Idempotent Upload Completion | **IMPLEMENTED** | `drive_items.name` is UNIQUE and `/complete` upserts on `name`, so a timeout retry or double tap returns the same row instead of duplicating it |
 | Cloudflare R2 Presigned PUT URLs | **IMPLEMENTED** | S3 `PutObjectCommand` (300s lifetime) |
 | Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/file` (300s lifetime) |
 | Local Media Disk Cache | **IMPLEMENTED** | `MediaCacheManager` (30-day stale period) |
