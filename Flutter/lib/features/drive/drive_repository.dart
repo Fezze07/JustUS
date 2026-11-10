@@ -158,22 +158,6 @@ class DriveRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<DriveItemReactionsListResponse>> fetchReactions(
-      int driveItemId) async {
-    return tryCall(() async {
-      final data = await sbClient
-          .from('drive_item_reactions')
-          .select('id, created_at, emojis(emoji_char)')
-          .eq('item_id', driveItemId)
-          .toList();
-
-      final reactions = data.map((r) => DriveItemReaction.fromJson(r)).toList();
-
-      return DriveItemReactionsListResponse(
-          success: true, reactions: reactions);
-    });
-  }
-
   Future<ResultWrapper<void>> addReaction(
       int driveItemId, String emojiChar) async {
     return withUser((uid) async {
@@ -196,5 +180,4 @@ class DriveRepository extends BaseRepository {
       ));
     });
   }
-
 }

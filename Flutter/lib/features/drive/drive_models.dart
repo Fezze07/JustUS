@@ -119,39 +119,3 @@ class DriveItem {
     );
   }
 }
-
-class DriveItemReaction {
-  /// Dynamic emoji character
-  final String reaction;
-
-  DriveItemReaction({required this.reaction});
-
-  Map<String, dynamic> toJson() => {'reaction': reaction};
-
-  factory DriveItemReaction.fromJson(Map<String, dynamic> json) {
-    return DriveItemReaction(
-      reaction: ((json['emoji_char'] ?? json['reaction'] ?? json['emoji']) as String?) ?? '',
-    );
-  }
-}
-
-class DriveItemReactionsListResponse {
-  final bool success;
-  final List<DriveItemReaction> reactions;
-
-  DriveItemReactionsListResponse({
-    required this.success,
-    required this.reactions,
-  });
-
-  factory DriveItemReactionsListResponse.fromJson(Map<String, dynamic> json) {
-    return DriveItemReactionsListResponse(
-      success: (json['success'] as bool?) ?? false,
-      reactions: json['reactions'] != null
-          ? (json['reactions'] as List<dynamic>)
-              .map((e) => DriveItemReaction.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : [],
-    );
-  }
-}
