@@ -240,6 +240,15 @@ describe("media routes", () => {
       expect(response.body.error.code).toBe("AUTH-FAIL-004");
     });
 
+    test("rejects a legacy users/ storage key", async () => {
+      const response = await request(createApp())
+        .get("/api/v1/media/file")
+        .query({ filename: "users/42/legacy.jpg" });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("AUTH-FAIL-004");
+    });
+
     test("returns 404 when the filename is in neither drive_items nor user_profiles", async () => {
       const { driveNameQuery, driveThumbnailQuery, profileQuery } = mockMediaTables();
 

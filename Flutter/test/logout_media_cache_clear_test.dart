@@ -25,18 +25,18 @@ void main() {
   });
 
   test('logout empties the on-disk R2 media cache', () async {
-    await MediaCacheManager().putFile('users/1/a.jpg', _bytes);
-    await MediaCacheManager().putFile('users/1/b.jpg', _bytes);
+    await MediaCacheManager().putFile('uploads/1/a.jpg', _bytes);
+    await MediaCacheManager().putFile('uploads/1/b.jpg', _bytes);
 
-    expect(await MediaCacheManager().getFileFromCache('users/1/a.jpg'),
+    expect(await MediaCacheManager().getFileFromCache('uploads/1/a.jpg'),
         isNotNull);
-    expect(await MediaCacheManager().getFileFromCache('users/1/b.jpg'),
+    expect(await MediaCacheManager().getFileFromCache('uploads/1/b.jpg'),
         isNotNull);
 
     await AuthState(authRepo: _NoopAuthRepository()).logout();
 
-    expect(await MediaCacheManager().getFileFromCache('users/1/a.jpg'), isNull);
-    expect(await MediaCacheManager().getFileFromCache('users/1/b.jpg'), isNull);
+    expect(await MediaCacheManager().getFileFromCache('uploads/1/a.jpg'), isNull);
+    expect(await MediaCacheManager().getFileFromCache('uploads/1/b.jpg'), isNull);
   });
 
   test('logout best-effort cache clearing still completes', () async {

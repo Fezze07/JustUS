@@ -2,8 +2,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:justus/all_imports.dart';
 
 /// Custom CacheManager for R2 media files.
-/// Intercepts the R2 filename path (e.g. "users/42/image/uuid.jpg"),
-/// fetches a fresh signed URL via the Edge Function, then downloads
+/// Intercepts the R2 filename path (e.g. "uploads/42/image/uuid.jpg"),
+/// fetches a fresh signed URL via the backend, then downloads
 /// and caches the file locally for up to 30 days.
 class MediaCacheManager extends CacheManager with ImageCacheManager {
   static const key = 'justus_media_cache';
@@ -59,7 +59,7 @@ Future<void> evictAppMediaFile(String? url, {int? version}) async {
   }
 }
 
-/// Custom FileService: if the "URL" is an R2 filename (starts with "users/"),
+/// Custom FileService: if the "URL" is an R2 filename (starts with "uploads/"),
 /// exchange it for a fresh signed URL before downloading.
 class _R2FileService extends HttpFileService {
   final _media = MediaService();
@@ -67,9 +67,9 @@ class _R2FileService extends HttpFileService {
   @override
   Future<FileServiceResponse> get(String url,
       {Map<String, String>? headers}) async {
-    // Path validation: Must be a bare R2 key (users/ | uploads/ | profile/)
-    // with a minimum length to be a valid R2 path (e.g., "users/1/a.jpg" = 13 chars)
-    final prefixes = ['users/', 'uploads/', 'profile/'];
+    // Path validation: Must be a bare R2 key (uploads/ | profile/)
+    // with a minimum length to be a valid R2 path (e.g., "uploads/1/a.jpg" = 14 chars)
+    final prefixes = ['uploads/', 'profile/'];
     final isBareKey = !url.startsWith('http') &&
         prefixes.any((p) => url.startsWith(p)) &&
         url.length > 10;

@@ -82,7 +82,7 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `GET /api/v1/media/file`
 - **Controller**: `redirectToSignedDownloadController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `validated({ query: fileQuerySchema })`
-- **Behavior**: Resolves the key against `drive_items.name` / `drive_items.metadata.thumbnail` (caller and key owner must be members of the item's accepted partnership) or `user_profiles.profile_pic_url` (owner or accepted partner only). Keys outside the `uploads/`, `users/` and `profile/` roots are rejected. Generates an S3/R2 pre-signed download URL and responds with HTTP 302 redirect.
+- **Behavior**: Resolves the key against `drive_items.name` / `drive_items.metadata.thumbnail` (caller and key owner must be members of the item's accepted partnership) or `user_profiles.profile_pic_url` (owner or accepted partner only). Keys outside the `uploads/` and `profile/` roots are rejected. Generates an S3/R2 pre-signed download URL and responds with HTTP 302 redirect.
 
 #### `POST /api/v1/media/delete`
 - **Controller**: `deleteMediaController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))

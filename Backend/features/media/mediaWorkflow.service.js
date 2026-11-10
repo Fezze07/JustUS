@@ -117,7 +117,7 @@ async function registerCompletedUpload({ user, payload }) {
   };
 }
 
-const STORAGE_KEY_ROOTS = new Set(["uploads", "users", "profile"]);
+const STORAGE_KEY_ROOTS = new Set(["uploads", "profile"]);
 
 function parseStorageKeyOwner(key) {
   if (typeof key !== "string") return null;

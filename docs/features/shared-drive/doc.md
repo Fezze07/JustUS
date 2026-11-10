@@ -241,7 +241,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 - **Signed Download Route**: `GET /api/v1/media/file?filename=...`
   - Requires `Authorization: Bearer <token>` **and** `X-Device-Fingerprint`: the auth middleware hashes the header and compares it with `session_bindings.device_fingerprint_hash`, rejecting a missing or mismatched value with `AUTH_FAIL_006` (401) once the session is bound. The Flutter client sends both headers on every protected media request via `ApiService.authHeaders`.
   - Validates caller authentication.
-  - Only accepts keys rooted at `uploads/<userId>/`, `users/<userId>/` or `profile/<userId>/`; a key outside those roots is rejected before any signing.
+  - Only accepts keys rooted at `uploads/<userId>/` or `profile/<userId>/`; a key outside those roots is rejected before any signing.
   - Resolves a drive object by `drive_items.name = filename` **or** `drive_items.metadata->>thumbnail = filename`, then confirms both the caller and the key's owner segment are members of the item's accepted partnership.
   - Falls back to `user_profiles.profile_pic_url = filename`, allowing the profile owner or their accepted partner.
   - Generates S3 `GetObjectCommand` presigned URL and returns an HTTP `302 Redirect` to Cloudflare R2.
@@ -254,7 +254,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
   - **Max Cache Objects**: 300 items.
   - **Custom File Service (`_R2FileService`)**:
     - Intercepts image URLs in `CachedNetworkImage`.
-    - If URL starts with an R2 storage key pattern (`users/`, `uploads/`, `profile/`), it exchanges the key for a fresh protected URL by calling `MediaService.getDownloadUrl(url)`.
+    - If URL starts with an R2 storage key pattern (`uploads/`, `profile/`), it exchanges the key for a fresh protected URL by calling `MediaService.getDownloadUrl(url)`.
     - The download request carries `ApiService.authHeaders` (`Authorization` + `X-Device-Fingerprint`), including when the widget itself supplied no headers.
     - Streams and caches the binary image file locally on device disk under cache key `justus_media_cache`.
     - Subsequent gallery renders load the image directly from local disk cache without contacting backend or Cloudflare R2, bypassing signed URL expiration issues for cached items.
