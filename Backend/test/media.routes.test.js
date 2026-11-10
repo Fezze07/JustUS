@@ -286,6 +286,37 @@ describe("media routes", () => {
     expect(response.body.filename).toContain("uploads/42/");
   });
 
+  test("rejects an upload folder outside uploads/profile", async () => {
+    const response = await request(createApp())
+      .post("/api/v1/media/upload-url")
+      .send({
+        type: "image",
+        filename: "memory.jpg",
+        mimeType: "image/jpeg",
+        size: 4096,
+        folder: "custom",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("API-VALIDATION-001");
+  });
+
+  test("accepts the profile upload folder", async () => {
+    const response = await request(createApp())
+      .post("/api/v1/media/upload-url")
+      .send({
+        type: "image",
+        filename: "avatar.jpg",
+        mimeType: "image/jpeg",
+        size: 4096,
+        folder: "profile",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+  });
+
   test("rejects upload URL generation with invalid payload", async () => {
     const app = createApp();
     const response = await request(app)

@@ -131,7 +131,7 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
      - Checks user capability `can_upload_large` if `size > 5 MB` (`largeUploadThresholdBytes`).
      - Validates size <= `maxUploadBytes` (15 MB) and checks allowed MIME types in `r2.service.js`.
      - Sanitizes filename into a safe base name.
-     - Builds object key: `uploads/{userId}/{timestamp}-{uuid}-{basename}{extension}` (or `profile/{userId}/...`).
+     - Builds object key: `uploads/{userId}/{timestamp}-{uuid}-{basename}{extension}` (or `profile/{userId}/...` when `folder: "profile"`). The folder is allowlisted to those two roots; `buildObjectKey` maps anything else to `uploads/`.
      - Uses `@aws-sdk/s3-request-presigner` `getSignedUrl` with `PutObjectCommand` to generate an S3 presigned PUT URL valid for **300 seconds (5 minutes)** (`mediaUploadUrlExpiresSeconds`).
    - Returns `{ success: true, uploadUrl, filename, expiresIn }`.
 

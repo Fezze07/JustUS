@@ -5,7 +5,7 @@ const presignSchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(3).max(128),
   size: z.number().int().positive(),
-  folder: z.string().min(1).max(32).optional(),
+  folder: z.enum(["uploads", "profile"]).optional(),
 });
 
 const completeSchema = z.object({

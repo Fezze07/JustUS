@@ -80,7 +80,7 @@ function validateUpload({ type, mimeType, size }) {
 }
 
 function buildObjectKey({ userId, folder, filename }) {
-  const safeFolder = (folder || "uploads").replace(/[^a-zA-Z0-9/_-]+/g, "");
+  const safeFolder = folder === "profile" ? "profile" : "uploads";
   const { extension, basename } = sanitizeFilename(filename);
   const unique = `${Date.now()}-${crypto.randomUUID()}`;
   return `${safeFolder}/${userId}/${unique}-${basename}${extension}`;

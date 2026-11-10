@@ -70,7 +70,7 @@ The Flutter client uses a **hybrid architecture** by design:
 #### `POST /api/v1/media/upload-url`
 - **Controller**: `presignUploadController` ([`media.routes.js`](file:///f:/JustUS/Backend/features/media/media.routes.js))
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `capability("can_media_upload")` $\rightarrow$ `limited(mediaRateLimit)` $\rightarrow$ `signed("media-upload-url")` $\rightarrow$ `validated({ body: presignSchema })`
-- **Request Body**: `{ type, filename, mimeType, size, folder }`.
+- **Request Body**: `{ type, filename, mimeType, size, folder? }`. `folder` is optional and allowlisted to `uploads` (default) or `profile`; any other value is rejected with `API-VALIDATION-001`, so a client cannot write objects outside the roots covered by the retention sweep and account wipe.
 - **Response**: `{ success: true, uploadUrl, filename, expiresIn }`.
 - **External Dependencies**: AWS S3 SDK / Cloudflare R2 API generating pre-signed `PUT` URL.
 
