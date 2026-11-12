@@ -24,7 +24,7 @@ function validateRequest({ body, params, query }) {
     if (query) {
       const parsed = query.safeParse(req.query);
       if (!parsed.success) errors.push(...parsed.error.issues);
-      else req.query = parsed.data;
+      else Object.defineProperty(req, "query", { value: parsed.data, configurable: true });
     }
 
     if (errors.length > 0) {

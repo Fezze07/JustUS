@@ -33,7 +33,7 @@ The exact execution order of middleware in the application pipeline is determine
 ```
 
 > [!IMPORTANT]
-> **Key Finding on Order**: Input Sanitization runs **before** Authentication, Rate Limiting, and HMAC Request Signing, but it only rewrites the parsed `req.body`. HMAC verification hashes the raw request bytes captured by `express.json({ verify })`, so the client's signature is checked against what it actually sent while route handlers still receive the sanitized body.
+> **Key Finding on Order**: Input Sanitization runs **before** Authentication, Rate Limiting, and HMAC Request Signing, but it only rewrites the parsed `req.body` / `req.params` / `req.query` objects. HMAC verification hashes the raw request bytes captured by `express.json({ verify })`, so the client's signature is checked against what it actually sent while route handlers still receive the sanitized body.
 
 ---
 
@@ -136,7 +136,7 @@ The exact execution order of middleware in the application pipeline is determine
 
 - **Threat Addressed**: Control character injection, null-byte injection, whitespace pollution in request body/query/params.
 - **Implementation Location**: [`middleware/sanitizeRequest.js`](file:///f:/JustUS/Backend/middleware/sanitizeRequest.js).
-- **Request Flow**: Executes globally before routes. Recursively iterates through `req.body`, `req.query`, `req.params`. For string values, strips control characters `[\u0000-\u001f\u007f]` and applies `.trim()`. Signature verification is unaffected: `requireSignedRequest` hashes the raw request bytes captured by `express.json({ verify })`, not the sanitized `req.body`.
+- **Request Flow**: Executes globally before routes. Recursively iterates through `req.body`, `req.query`, `req.params`. For string values, strips control characters `[\u0000-\u001f\u007f]` and applies `.trim()`. `req.body` and `req.params` are ordinary data properties, but Express 5 exposes `req.query` as a prototype getter with no setter, so the cleaned query is installed with `Object.defineProperty(req, "query", { value, configurable: true })` — a plain `req.query = ...` is a silent no-op in CommonJS. `validateRequest` writes its parsed query (coercions, defaults, stripped unknown keys) back the same way; `configurable: true` lets the route-level validator replace the object installed by the global sanitizer. Signature verification is unaffected: `requireSignedRequest` hashes the raw request bytes captured by `express.json({ verify })`, not the sanitized `req.body`.
 - **Failure Behavior**: Mutates request payload in place, passes control to `next()`.
 - **Multi-Instance Behavior**: Fully stateless; works identically on all instances.
 

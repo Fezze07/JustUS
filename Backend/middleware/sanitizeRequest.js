@@ -26,7 +26,10 @@ function sanitizeRequest() {
       req.params = sanitizeValue(req.params);
     }
     if (req.query) {
-      req.query = sanitizeValue(req.query);
+      Object.defineProperty(req, "query", {
+        value: sanitizeValue(req.query),
+        configurable: true,
+      });
     }
     next();
   };
