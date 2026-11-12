@@ -44,7 +44,7 @@ void main() {
   });
 
   group('userMessage', () {
-    test('localizes each RPC code in both locales', () {
+    test('localizes the API validation codes in both locales', () {
       expect(ErrorCodes.userMessage(ErrorCodes.apiValidation003, en),
           'User not authenticated or invalid ID.');
       expect(ErrorCodes.userMessage(ErrorCodes.apiValidation004, it),
@@ -65,6 +65,10 @@ void main() {
           'Non puoi richiedere la cancellazione di nuovo. Riprova più tardi.');
       expect(ErrorCodes.userMessage(ErrorCodes.apiValidation014, en),
           'This cancellation request has expired.');
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation016, en),
+          'The request is too large.');
+      expect(ErrorCodes.userMessage(ErrorCodes.apiValidation016, it),
+          'La richiesta è troppo grande.');
     });
 
     test('accepts the cancellation codes from an RPC message', () {

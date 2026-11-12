@@ -41,6 +41,7 @@ class ErrorCodes {
   static const String apiValidation012 = 'API-VALIDATION-012';
   static const String apiValidation013 = 'API-VALIDATION-013';
   static const String apiValidation014 = 'API-VALIDATION-014';
+  static const String apiValidation016 = 'API-VALIDATION-016';
   static const String apiNotFound001 = 'API-NOT_FOUND-001';
   static const String apiTimeout001 = 'API-TIMEOUT-001';
   static const String apiFail001 = 'API-FAIL-001';
@@ -150,6 +151,8 @@ class ErrorCodes {
         return loc.error_apiValidation013;
       case apiValidation014:
         return loc.error_apiValidation014;
+      case apiValidation016:
+        return loc.error_apiValidation016;
       case apiNotFound001:
         return loc.error_apiNotFound001;
       case apiTimeout001:

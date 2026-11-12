@@ -125,6 +125,8 @@ The cancellation RPCs raise `API-VALIDATION-010`…`014` inside the Postgres exc
 | `API-VALIDATION-013` | `apiValidation013` | `error_apiValidation013` | 24-hour cooldown after a partner decline |
 | `API-VALIDATION-014` | `apiValidation014` | `error_apiValidation014` | Cancellation request expired |
 
+`API-VALIDATION-016` (oversized request body) is backend-only: no RPC raises it, so it is not on the `serverCodes` allowlist, but `userMessage` still maps it to `error_apiValidation016` in both locales.
+
 The EN/IT strings live in `intl_en.arb` / `intl_it.arb` and the generated `app_localizations*.dart`; `flutter gen-l10n` keeps them in sync. An unknown or unlisted RPC code still reaches the UI as the raw server message.
 
 ### Flutter Cancellation UI Keys

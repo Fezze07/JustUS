@@ -29,7 +29,7 @@ The application initialization sequence follows a strict synchronous-to-asynchro
    ├── app.use(requestLogger)                [Access logging]
    ├── app.use('/auth', authCallbackRoutes)  [HTML Email callback pages]
    ├── app.use('/api', createApiRouter())    [Mounts /api/v1 routes]
-   └── app.use(errorHandler)                 [Global Express error handler]
+   └── app.use(errorHandler)                 [Global handler: AppError / body-parser 4xx / SYS-FAIL-001]
 5. Server Binding & Listener (index.js)
    └── app.listen(env.port, "0.0.0.0")
 6. Background Retention Jobs Launch (core/jobs/retentionJob.js: startRetentionJobs())

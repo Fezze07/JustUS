@@ -1,3 +1,6 @@
+const express = require("express");
+const request = require("supertest");
+
 const mockLogAppError = jest.fn();
 const mockAppError = require("../core/errors/AppError").AppError;
 
@@ -109,6 +112,46 @@ describe("errorHandler response exposure", () => {
     expect(res.body.error.message).toBe(RAW_MESSAGE);
     expect(res.body.error.details).toEqual({ sql: "insert into users ..." });
     expect(typeof res.body.error.stack).toBe("string");
+  });
+});
+
+describe("errorHandler body-parser mapping", () => {
+  function makeApp(handler) {
+    const app = express();
+    app.use(express.json({ limit: "32b" }));
+    app.post("/body", (_req, res) => res.json({ ok: true }));
+    app.use(handler);
+    return app;
+  }
+
+  test("malformed JSON is a 400 API-VALIDATION-001, not a 500", async () => {
+    const response = await request(makeApp(loadHandler()))
+      .post("/body")
+      .set("Content-Type", "application/json")
+      .send('{"email":');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("API-VALIDATION-001");
+    expect(response.body.error.message).toBe("Request validation failed");
+
+    const record = mockLogAppError.mock.calls[0][0];
+    expect(record.code).toBe("API-VALIDATION-001");
+    expect(record.severity).toBe("LOW");
+  });
+
+  test("an oversized body is a 413 API-VALIDATION-016, not a 500", async () => {
+    const response = await request(makeApp(loadHandler()))
+      .post("/body")
+      .set("Content-Type", "application/json")
+      .send(JSON.stringify({ payload: "x".repeat(64) }));
+
+    expect(response.status).toBe(413);
+    expect(response.body.error.code).toBe("API-VALIDATION-016");
+    expect(response.body.error.message).toBe("Request body too large");
+
+    const record = mockLogAppError.mock.calls[0][0];
+    expect(record.code).toBe("API-VALIDATION-016");
+    expect(record.severity).toBe("LOW");
   });
 });
 

@@ -1754,6 +1754,12 @@ abstract class AppLocalizations {
   /// **'Questa richiesta di cancellazione è scaduta.'**
   String get error_apiValidation014;
 
+  /// No description provided for @error_apiValidation016.
+  ///
+  /// In it, this message translates to:
+  /// **'La richiesta è troppo grande.'**
+  String get error_apiValidation016;
+
   /// No description provided for @error_apiNotFound001.
   ///
   /// In it, this message translates to:

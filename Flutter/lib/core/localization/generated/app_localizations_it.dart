@@ -884,6 +884,9 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questa richiesta di cancellazione è scaduta.';
 
   @override
+  String get error_apiValidation016 => 'La richiesta è troppo grande.';
+
+  @override
   String get error_apiNotFound001 => 'Servizio non disponibile.';
 
   @override

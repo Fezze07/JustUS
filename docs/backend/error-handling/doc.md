@@ -16,7 +16,7 @@ The complete lifecycle of an error from occurrence to logging and user presentat
                        │
                        ▼
 [ Catch / Resolution Layer ]
-  (Backend: asyncHandler / try-catch ──► AppError.from(err, errorKey))
+  (Backend: asyncHandler / try-catch / body parser ──► AppError.from(err, errorKey))
   (Frontend: BaseRepository / _safeCall ──► ResultWrapper<T>)
                        │
                        ▼
@@ -81,6 +81,17 @@ The Supabase RPCs raise validation failures as Postgres exceptions whose message
 `API-VALIDATION-004` is shared by two `partnership_request` guards: the sender already holds a `pending`/`accepted`/`cancelled` row, or the recipient already holds an `accepted`/`cancelled` row. The client string is intentionally generic ("A partnership or request already exists."); the developer note on the raise says which side was refused.
 
 All five constants (`apiValidation010`…`014`) map through `ErrorCodes.userMessage` to the EN/IT `error_apiValidation010`…`014` strings. A code outside the allowlist still reaches the UI as the raw message instead of a localized `userMessage`.
+
+### 4. Body-parser 4xx errors
+
+`express.json()` / `express.urlencoded()` reject a malformed or oversized body before any route runs. [`errorHandler`](file:///f:/JustUS/Backend/middleware/errorHandler.js) recognizes the `body-parser` error type and maps it before the generic fallback:
+
+| `err.type` | Error key | HTTP | Client message |
+|---|---|---|---|
+| `entity.parse.failed` | `API_VALIDATION_001` | 400 | Request validation failed |
+| `entity.too.large` | `API_VALIDATION_016` | 413 | Request body too large |
+
+Both are logged at `LOW` severity (`status >= 400`), so a client mistake is no longer recorded as a `SYS-FAIL-001` server error. `API-VALIDATION-016` is emitted only by the backend: no RPC raises it, so it is absent from `ErrorCodes.serverCodes`, but `ErrorCodes.userMessage` still localizes it through `error_apiValidation016` (EN/IT).
 
 ---
 

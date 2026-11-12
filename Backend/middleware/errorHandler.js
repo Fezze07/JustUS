@@ -13,10 +13,17 @@ const { AppError, logAppError, sanitizePayload } = require("../all_imports");
 
 const ENABLE_ERROR_DETAILS = process.env.ENABLE_ERROR_DETAILS === "true";
 
+const BODY_PARSER_ERROR_CODES = new Map([
+  ["entity.parse.failed", "API_VALIDATION_001"],
+  ["entity.too.large", "API_VALIDATION_016"],
+]);
+
 async function errorHandler(err, req, res, _next) {
   let appError;
   if (err instanceof AppError) {
     appError = err;
+  } else if (BODY_PARSER_ERROR_CODES.has(err?.type)) {
+    appError = AppError.from(err, BODY_PARSER_ERROR_CODES.get(err.type));
   } else {
     let errorKey = "SYS_FAIL_001";
     if (err.name === "TimeoutError" || err.message?.toLowerCase().includes("timeout")) {

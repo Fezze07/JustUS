@@ -327,6 +327,7 @@
   "error_apiValidation012": "Non puoi eseguire questa azione di cancellazione.",
   "error_apiValidation013": "Non puoi richiedere la cancellazione di nuovo. Riprova più tardi.",
   "error_apiValidation014": "Questa richiesta di cancellazione è scaduta.",
+  "error_apiValidation016": "La richiesta è troppo grande.",
   "error_apiNotFound001": "Servizio non disponibile.",
   "error_apiTimeout001": "La richiesta ha impiegato troppo. Riprova.",
   "error_apiFail001": "Si è verificato un errore. Riprova.",
