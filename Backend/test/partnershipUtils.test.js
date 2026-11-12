@@ -1,13 +1,21 @@
-jest.mock("../all_imports", () => ({
-  adminSupabase: { from: jest.fn() },
-  assertDbSuccess: ({ data, error }) => {
-    if (error) throw new Error(error.message);
-    return data;
-  },
-}));
+jest.mock("../all_imports", () => {
+  const { AppError } = require("../core/errors/AppError");
+  return {
+    AppError,
+    adminSupabase: { from: jest.fn(), rpc: jest.fn() },
+    assertDbSuccess: ({ data, error }, errorKey = "DB_READ_001") => {
+      if (error) {
+        throw new AppError({ errorKey, message: error.message, cause: error });
+      }
+      return data;
+    },
+  };
+});
 
 const { adminSupabase } = require("../all_imports");
 const {
+  getPartnerId,
+  getCancellationPartnerId,
   getPartnershipId,
   getPartnershipById,
   isPartnershipParticipant,
@@ -29,6 +37,7 @@ const makeBuilder = (result) => {
 describe("partnershipUtils lookups", () => {
   beforeEach(() => {
     adminSupabase.from.mockReset();
+    adminSupabase.rpc.mockReset();
   });
 
   test("getPartnershipId prefers an accepted partnership", async () => {
@@ -83,15 +92,71 @@ describe("partnershipUtils lookups", () => {
     expect(query.eq).toHaveBeenCalledWith("id", 5);
   });
 
-  test("getPartnershipById returns null for a missing row or a read error", async () => {
-    adminSupabase.from
-      .mockReturnValueOnce(makeBuilder({ data: null, error: null }))
-      .mockReturnValueOnce(
-        makeBuilder({ data: null, error: { message: "db down" } })
-      );
+  test("getPartnershipById returns null for a missing row", async () => {
+    adminSupabase.from.mockReturnValueOnce(
+      makeBuilder({ data: null, error: null })
+    );
 
     await expect(getPartnershipById(404)).resolves.toBeNull();
-    await expect(getPartnershipById(5)).resolves.toBeNull();
+  });
+
+  test("getPartnershipById surfaces a read error as DB-READ-001", async () => {
+    adminSupabase.from.mockReturnValueOnce(
+      makeBuilder({ data: null, error: { message: "db down" } })
+    );
+
+    await expect(getPartnershipById(5)).rejects.toMatchObject({
+      code: "DB-READ-001",
+      message: "db down",
+    });
+  });
+
+  test("getPartnerId returns the accepted partner id or null", async () => {
+    adminSupabase.rpc
+      .mockResolvedValueOnce({ data: [{ id: 77 }], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    await expect(getPartnerId(42)).resolves.toBe(77);
+    await expect(getPartnerId(42)).resolves.toBeNull();
+    expect(adminSupabase.rpc).toHaveBeenCalledWith(
+      "partnership_get_accepted_partner",
+      { target_user_id: 42 }
+    );
+  });
+
+  test("getPartnerId surfaces a read error as DB-READ-001", async () => {
+    adminSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "accepted partner lookup down" },
+    });
+
+    await expect(getPartnerId(42)).rejects.toMatchObject({
+      code: "DB-READ-001",
+    });
+  });
+
+  test("getCancellationPartnerId returns the cancellation partner or null", async () => {
+    adminSupabase.rpc
+      .mockResolvedValueOnce({ data: [{ partner_id: 77 }], error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(getCancellationPartnerId(42)).resolves.toBe(77);
+    await expect(getCancellationPartnerId(42)).resolves.toBeNull();
+    expect(adminSupabase.rpc).toHaveBeenCalledWith(
+      "partnership_get_cancellation_partner",
+      { p_user_id: 42 }
+    );
+  });
+
+  test("getCancellationPartnerId surfaces a read error as DB-READ-001", async () => {
+    adminSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "cancellation partner lookup down" },
+    });
+
+    await expect(getCancellationPartnerId(42)).rejects.toMatchObject({
+      code: "DB-READ-001",
+    });
   });
 
   test("isPartnershipParticipant checks both member columns", () => {

@@ -14,18 +14,10 @@ async function deleteUserR2Objects(userId) {
 
   const prefixes = new Set([`uploads/${userId}/`, `profile/${userId}/`]);
 
-  try {
-    const partnerId = await getPartnerId(userId);
-    if (partnerId) {
-      prefixes.add(`uploads/${partnerId}/`);
-      prefixes.add(`profile/${partnerId}/`);
-    }
-  } catch (err) {
-    logError({
-      event: "wipe.r2.partner_resolve_failed",
-      error: { message: err?.message, name: err?.name },
-      user_id: userId,
-    });
+  const partnerId = await getPartnerId(userId);
+  if (partnerId) {
+    prefixes.add(`uploads/${partnerId}/`);
+    prefixes.add(`profile/${partnerId}/`);
   }
 
   for (const prefix of prefixes) {
@@ -63,6 +55,7 @@ const wipeUserDataController = asyncHandler(async (req, res) => {
   try {
     await deleteUserR2Objects(userId);
   } catch (r2Error) {
+    if (r2Error instanceof AppError) throw r2Error;
     if (env.nodeEnv !== "test") {
       logError({
         event: "wipe.r2.cleanup_failed",

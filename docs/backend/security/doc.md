@@ -91,12 +91,12 @@ The exact execution order of middleware in the application pipeline is determine
   1. Extract Bearer token from `Authorization` header.
   2. Validate token via Supabase Auth API `authSupabase.auth.getUser(token)`. GoTrue verifies the JWT and rejects a token whose `session_id` no longer resolves to an `auth.sessions` row, so a deleted session stops working before the JWT expires.
   3. Validate token lifetime against `env.maxAccessTokenLifetimeSec`.
-  4. Fetch user profile from `users` table.
+  4. Fetch user profile from `users` table. A profile read error fails closed with `DB-READ-001`; only a genuinely absent row becomes `AUTH-FAIL-005`.
   5. Fetch the session binding from `session_bindings` matching `session_id` or `${profile.id}:${clientContext.deviceFingerprintHash}`, and call `session_is_live(session_id)` in parallel. A lookup error fails closed (`DB-READ-001`); only a genuinely absent row is treated as "no binding".
   6. Reject with `AUTH-FAIL-001` when `session_is_live` returns false: the function reads `auth.sessions.not_after` (the Supabase session timebox) and catches an expiry GoTrue only enforces at token refresh. An RPC error fails open — GoTrue already enforces session existence, so this is defence in depth.
   7. Enforce session binding: when the row has `device_fingerprint_hash`, a missing `X-Device-Fingerprint` header or a different hash is rejected with `AUTH-FAIL-006`.
   8. Attach `req.user` (with `profileId`, `role`, `capabilities`) and `req.sessionBinding` (`bindingSecret`).
-- **Failure Behavior**: Returns `AUTH-FAIL-001` (invalid/expired token or expired server-side session), `AUTH-FAIL-002` (missing token), `AUTH-FAIL-004` (invalid role), `AUTH-FAIL-005` (no profile), `AUTH-FAIL-006` (missing or mismatched device binding), `DB-READ-001` (500: session-binding lookup failed).
+- **Failure Behavior**: Returns `AUTH-FAIL-001` (invalid/expired token or expired server-side session), `AUTH-FAIL-002` (missing token), `AUTH-FAIL-004` (invalid role), `AUTH-FAIL-005` (no profile), `AUTH-FAIL-006` (missing or mismatched device binding), `DB-READ-001` (500: profile or session-binding lookup failed).
 - **Storage**: `session_bindings` (device binding and signing secret) plus Supabase `auth.sessions` (session existence and `not_after`).
 - **Multi-Instance Behavior**: Fully stateful via PostgreSQL queries; consistent across instances.
 

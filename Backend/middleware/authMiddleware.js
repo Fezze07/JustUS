@@ -148,7 +148,7 @@ async function handleAuthError(error, req, next) {
  * @returns {Promise<object|null>} Il profilo utente o null se non trovato.
  */
 async function fetchUserProfile(authId) {
-  const { data: profile } = await adminSupabase
+  const { data: profile, error } = await adminSupabase
     .from("users")
     .select(`
       id, 
@@ -159,6 +159,7 @@ async function fetchUserProfile(authId) {
     `)
     .eq("auth_id", authId)
     .maybeSingle();
+  assertDbSuccess({ data: profile, error }, "DB_READ_001");
   return profile;
 }
 

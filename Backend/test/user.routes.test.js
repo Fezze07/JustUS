@@ -53,8 +53,10 @@ const {
   authenticateToken,
   adminSupabase,
   deleteObjectsByPrefix,
+  getPartnerId,
   resetRateLimitState,
 } = require("../all_imports");
+const { AppError } = require("../core/errors/AppError");
 const { createApp } = require("../app");
 
 describe("user routes", () => {
@@ -69,6 +71,7 @@ describe("user routes", () => {
     // `.mockRejectedValue` installed by the "R2 cleanup fails" case used to
     // stick for the rest of the file and turn every later wipe into a 500.
     deleteObjectsByPrefix.mockResolvedValue(0);
+    getPartnerId.mockResolvedValue(77);
     authenticateToken.mockImplementation((req, _res, next) => {
       req.user = {
         id: "auth-user-1",
@@ -110,6 +113,21 @@ describe("user routes", () => {
     ]) {
       expect(deleteObjectsByPrefix).toHaveBeenCalledWith(prefix);
     }
+  });
+
+  test("returns a retryable read error when the partner lookup fails during wipe", async () => {
+    adminSupabase.rpc.mockResolvedValue({ error: null });
+    getPartnerId.mockRejectedValue(new AppError({ errorKey: "DB_READ_001" }));
+    const app = createApp();
+
+    const response = await request(app).post("/api/v1/users/wipe").send({});
+
+    expect(response.status).toBe(500);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("DB-READ-001");
+    // The partner prefix is unknown, so the wipe stops instead of silently
+    // deleting only the caller's objects and reporting success.
+    expect(deleteObjectsByPrefix).not.toHaveBeenCalled();
   });
 
   test("returns a declared storage error when R2 wipe cleanup fails", async () => {

@@ -137,7 +137,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Controllers & Routes
 - [`user.routes.js`](file:///f:/JustUS/Backend/features/user/user.routes.js): Defines `POST /api/v1/users/wipe`, guarded by authentication (`authenticated()`), rate limiting (`userRateLimit`: max 5 requests per window) and HMAC signing (`signed("user-wipe")`).
-- [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js): Implements `wipeUserDataController`, extracting `userId = req.user.profileId`, executing RPC `debug_wipe_couple_data`, then deleting the R2 objects under the user's and their accepted partner's prefixes via `deleteUserR2Objects` (`uploads/{id}/`, `profile/{id}/`).
+- [`user.controller.js`](file:///f:/JustUS/Backend/features/user/user.controller.js): Implements `wipeUserDataController`, extracting `userId = req.user.profileId`, executing RPC `debug_wipe_couple_data`, then deleting the R2 objects under the user's and their accepted partner's prefixes via `deleteUserR2Objects` (`uploads/{id}/`, `profile/{id}/`). A partner-lookup read error stops the wipe with `DB-READ-001` (500) instead of deleting only the caller's prefixes and leaving partner media behind.
 - [`mediaWorkflow.service.js`](file:///f:/JustUS/Backend/features/media/mediaWorkflow.service.js): Implements signed upload creation (`createPresignedUpload`) and registration (`registerCompletedUpload`). When `kind === 'profile'`, updates `user_profiles.profile_pic_url` directly.
 
 ---

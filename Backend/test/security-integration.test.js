@@ -272,6 +272,41 @@ describe("Security Integration Tests", () => {
       expect(response.body.error.code).toBe("DB-READ-001");
     });
 
+    test("FAIL: Profile lookup error fails closed with DB-READ-001", async () => {
+      const token = generateMockJWT(validUserPayload);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1" } },
+        error: null,
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: null,
+              error: { message: "users unavailable" },
+            }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      const response = await request(app)
+        .post("/api/v1/auth/invite")
+        .set("Authorization", `Bearer ${token}`)
+        .set("X-Device-Fingerprint", "device-123")
+        .send(validInvitePayload);
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe("DB-READ-001");
+    });
+
     test("FAIL: Missing device fingerprint with a bound session", async () => {
       const token = generateMockJWT(validUserPayload);
 

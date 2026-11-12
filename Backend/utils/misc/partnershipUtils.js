@@ -1,11 +1,14 @@
 const { adminSupabase, assertDbSuccess } = require("../../all_imports");
 
 async function getPartnerId(userId) {
-    const { data, error } = await adminSupabase.rpc('partnership_get_accepted_partner', {
-        target_user_id: userId
-    });
+    const data = assertDbSuccess(
+        await adminSupabase.rpc('partnership_get_accepted_partner', {
+            target_user_id: userId
+        }),
+        'DB_READ_001'
+    );
 
-    if (error || !data || data.length === 0) return null;
+    if (!data || data.length === 0) return null;
     return data[0].id;
 }
 
@@ -22,11 +25,13 @@ function normalizePartnerId(data) {
 }
 
 async function getCancellationPartnerId(userId) {
-    const { data, error } = await adminSupabase.rpc('partnership_get_cancellation_partner', {
-        p_user_id: userId
-    });
+    const data = assertDbSuccess(
+        await adminSupabase.rpc('partnership_get_cancellation_partner', {
+            p_user_id: userId
+        }),
+        'DB_READ_001'
+    );
 
-    if (error) return null;
     return normalizePartnerId(data);
 }
 
@@ -49,14 +54,16 @@ async function getPartnershipId(userId) {
 }
 
 async function getPartnershipById(partnershipId) {
-    const { data, error } = await adminSupabase
-        .from('partnerships')
-        .select('id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at')
-        .eq('id', partnershipId)
-        .maybeSingle();
+    const data = assertDbSuccess(
+        await adminSupabase
+            .from('partnerships')
+            .select('id, user_id_1, user_id_2, status, cancel_requested_by, cancel_expires_at')
+            .eq('id', partnershipId)
+            .maybeSingle(),
+        'DB_READ_001'
+    );
 
-    if (error || !data) return null;
-    return data;
+    return data ?? null;
 }
 
 function isPartnershipParticipant(partnership, userId) {
