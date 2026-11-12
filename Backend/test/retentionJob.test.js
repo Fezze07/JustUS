@@ -20,7 +20,7 @@ jest.mock("@aws-sdk/client-s3", () => ({
 }));
 
 const mockDeleteObjects = jest.fn().mockResolvedValue(1);
-const mockListObjects = jest.fn().mockImplementation(async (prefix) => {
+const mockDefaultListObjects = async (prefix) => {
   if (prefix === "uploads/") {
     return [
       { key: "uploads/active_file.jpg", lastModified: Date.now() - 1000 },
@@ -28,7 +28,8 @@ const mockListObjects = jest.fn().mockImplementation(async (prefix) => {
     ];
   }
   return [];
-});
+};
+const mockListObjects = jest.fn(mockDefaultListObjects);
 
 jest.mock("../features/media/r2.service", () => ({
   listObjects: mockListObjects,
@@ -42,39 +43,50 @@ jest.mock("../core/logger", () => ({
 }));
 
 jest.mock("../config/db", () => {
-  const tablesData = {
+  const initialRows = () => ({
     drive_items: [{ name: "uploads/active_file.jpg", metadata: null }],
     user_profiles: [{ profile_pic_url: "profile/active_pic.jpg" }],
+  });
+
+  const tableState = {
+    drive_items: { rows: initialRows().drive_items, error: null, errorByFrom: {} },
+    user_profiles: { rows: initialRows().user_profiles, error: null, errorByFrom: {} },
+  };
+  const rangeCalls = [];
+  const selectCalls = [];
+
+  const createSelectQuery = (tableName) => {
+    const query = {
+      not: jest.fn(() => query),
+      order: jest.fn((column) => {
+        query._orderColumn = column;
+        return query;
+      }),
+      range: jest.fn(async (from, to) => {
+        rangeCalls.push({ table: tableName, from, to, order: query._orderColumn });
+        const state = tableState[tableName];
+        const error = state.errorByFrom[from] ?? state.error;
+        if (error) return { data: null, error };
+        return { data: state.rows.slice(from, to + 1), error: null };
+      }),
+    };
+    query.select = jest.fn((columns) => {
+      selectCalls.push({ table: tableName, columns });
+      return query;
+    });
+    return query;
   };
 
   const queryBuilder = {
     delete: jest.fn().mockReturnThis(),
     select: jest.fn(() => queryBuilder),
-    not: jest.fn((col, op, val) => {
-      queryBuilder._currentNot = { col, op, val };
-      return queryBuilder;
-    }),
+    not: jest.fn(() => queryBuilder),
     lt: jest.fn().mockResolvedValue({ error: null, count: 1 }),
   };
 
-  const driveItemsSelect = jest.fn().mockReturnValue({
-    not: jest.fn().mockResolvedValue({ error: null, data: tablesData.drive_items }),
-  });
-
-  // Allow from() to return mock data for drive_items and user_profiles select queries
-  const fromMock = jest.fn((tableName) => {
-    if (tableName === "drive_items") {
-      return { select: driveItemsSelect };
-    }
-    if (tableName === "user_profiles") {
-      return {
-        select: jest.fn().mockReturnValue({
-          not: jest.fn().mockResolvedValue({ error: null, data: tablesData.user_profiles }),
-        }),
-      };
-    }
-    return queryBuilder;
-  });
+  const fromMock = jest.fn((tableName) =>
+    tableState[tableName] ? createSelectQuery(tableName) : queryBuilder
+  );
 
   return {
     adminSupabase: {
@@ -82,12 +94,27 @@ jest.mock("../config/db", () => {
       rpc: jest.fn().mockResolvedValue({ data: 0, error: null }),
     },
     __queryBuilder: queryBuilder,
-    __fromMock: fromMock,
-    __driveItemsSelect: driveItemsSelect,
+    __tableState: tableState,
+    __rangeCalls: rangeCalls,
+    __selectCalls: selectCalls,
+    __resetTables: () => {
+      const rows = initialRows();
+      tableState.drive_items = { rows: rows.drive_items, error: null, errorByFrom: {} };
+      tableState.user_profiles = { rows: rows.user_profiles, error: null, errorByFrom: {} };
+      rangeCalls.length = 0;
+      selectCalls.length = 0;
+    },
   };
 });
 
-const { adminSupabase, __queryBuilder, __fromMock, __driveItemsSelect } = require("../config/db");
+const {
+  adminSupabase,
+  __queryBuilder,
+  __tableState,
+  __rangeCalls,
+  __selectCalls,
+  __resetTables,
+} = require("../config/db");
 const { startRetentionJobs, stopRetentionJobs, fetchReferencedKeys } = require("../core/jobs/retentionJob");
 const { logError } = require("../core/logger");
 const { AbortMultipartUploadCommand } = require("@aws-sdk/client-s3");
@@ -97,6 +124,8 @@ describe("retentionJob - all cleanup jobs", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockListObjects.mockImplementation(mockDefaultListObjects);
+    __resetTables();
     now = Date.now();
   });
 
@@ -142,7 +171,14 @@ describe("retentionJob - all cleanup jobs", () => {
     );
 
     // 5. R2 orphan object sweep test
-    expect(__driveItemsSelect).toHaveBeenCalledWith("name, metadata");
+    expect(__selectCalls).toContainEqual({
+      table: "drive_items",
+      columns: "name, metadata",
+    });
+    expect(__selectCalls).toContainEqual({
+      table: "user_profiles",
+      columns: "profile_pic_url",
+    });
     expect(mockListObjects).toHaveBeenCalledWith("uploads/");
     expect(mockListObjects).toHaveBeenCalledWith("profile/");
     expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/stale_orphan.jpg"]);
@@ -155,12 +191,10 @@ describe("retentionJob - all cleanup jobs", () => {
   });
 
   test("logs a failed referenced-key source and still runs the multipart sweep", async () => {
-    __driveItemsSelect.mockReturnValueOnce({
-      not: jest.fn().mockResolvedValue({
-        data: null,
-        error: { message: "column drive_items.name does not exist", code: "42703" },
-      }),
-    });
+    __tableState.drive_items.error = {
+      message: "column drive_items.name does not exist",
+      code: "42703",
+    };
 
     await startRetentionJobs();
 
@@ -171,6 +205,76 @@ describe("retentionJob - all cleanup jobs", () => {
       })
     );
     expect(mockS3Send).toHaveBeenCalled();
+    expect(mockDeleteObjects).not.toHaveBeenCalled();
+  });
+
+  test("paginates drive_items and keeps an object referenced on the second page", async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({
+      name: `uploads/u/filler-${i}.jpg`,
+      metadata: null,
+    }));
+    rows[1000] = { name: "uploads/u/keep.jpg", metadata: null };
+    __tableState.drive_items.rows = rows;
+    mockListObjects.mockImplementation(async (prefix) =>
+      prefix === "uploads/"
+        ? [
+            { key: "uploads/u/keep.jpg", lastModified: now - 48 * 3600 * 1000 },
+            { key: "uploads/u/orphan.jpg", lastModified: now - 48 * 3600 * 1000 },
+          ]
+        : []
+    );
+
+    await startRetentionJobs();
+
+    expect(__rangeCalls.filter((call) => call.table === "drive_items")).toEqual([
+      { table: "drive_items", from: 0, to: 999, order: "id" },
+      { table: "drive_items", from: 1000, to: 1999, order: "id" },
+    ]);
+    expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/u/orphan.jpg"]);
+  });
+
+  test("paginates user_profiles and keeps a picture referenced on the second page", async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({
+      profile_pic_url: `profile/pic-${i}.jpg`,
+    }));
+    rows[1000] = { profile_pic_url: "profile/keep_pic.jpg" };
+    __tableState.user_profiles.rows = rows;
+    mockListObjects.mockImplementation(async (prefix) =>
+      prefix === "profile/"
+        ? [
+            { key: "profile/keep_pic.jpg", lastModified: now - 48 * 3600 * 1000 },
+            { key: "profile/orphan_pic.jpg", lastModified: now - 48 * 3600 * 1000 },
+          ]
+        : []
+    );
+
+    await startRetentionJobs();
+
+    expect(__rangeCalls.filter((call) => call.table === "user_profiles")).toEqual([
+      { table: "user_profiles", from: 0, to: 999, order: "user_id" },
+      { table: "user_profiles", from: 1000, to: 1999, order: "user_id" },
+    ]);
+    expect(mockDeleteObjects).toHaveBeenCalledWith(["profile/orphan_pic.jpg"]);
+  });
+
+  test("aborts the sweep when a later reference page fails", async () => {
+    __tableState.drive_items.rows = Array.from({ length: 1000 }, (_, i) => ({
+      name: `uploads/u/filler-${i}.jpg`,
+      metadata: null,
+    }));
+    __tableState.drive_items.errorByFrom[1000] = {
+      message: "connection reset",
+      code: "08006",
+    };
+
+    await startRetentionJobs();
+
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "retention.r2_orphan.failed",
+        source: "drive_items",
+      })
+    );
     expect(mockDeleteObjects).not.toHaveBeenCalled();
   });
 

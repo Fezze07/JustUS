@@ -184,12 +184,28 @@ async function sweepExpiredCancellations() {
 
 // ── R2 orphaned-object sweep ─────────────────────────────────────────────────
 
+const REFERENCE_PAGE_SIZE = 1000;
+
+async function readAllPages(buildQuery, orderColumn) {
+  const rows = [];
+  for (let from = 0; ; from += REFERENCE_PAGE_SIZE) {
+    const page = assertDbSuccess(
+      await buildQuery()
+        .order(orderColumn, { ascending: true })
+        .range(from, from + REFERENCE_PAGE_SIZE - 1),
+      "DB_READ_001"
+    ) ?? [];
+    rows.push(...page);
+    if (page.length < REFERENCE_PAGE_SIZE) return rows;
+  }
+}
+
 async function fetchReferencedKeys() {
   const referenced = new Set();
 
-  const read = async (source, query) => {
+  const read = async (source, buildQuery, orderColumn) => {
     try {
-      return assertDbSuccess(await query, "DB_READ_001");
+      return await readAllPages(buildQuery, orderColumn);
     } catch (err) {
       await logError({
         error: { message: err.message, name: err.name },
@@ -202,10 +218,12 @@ async function fetchReferencedKeys() {
 
   const driveRows = await read(
     "drive_items",
-    adminSupabase
-      .from("drive_items")
-      .select("name, metadata")
-      .not("name", "is", null)
+    () =>
+      adminSupabase
+        .from("drive_items")
+        .select("name, metadata")
+        .not("name", "is", null),
+    "id"
   );
   if (!driveRows) return null;
 
@@ -217,10 +235,12 @@ async function fetchReferencedKeys() {
 
   const profileRows = await read(
     "user_profiles",
-    adminSupabase
-      .from("user_profiles")
-      .select("profile_pic_url")
-      .not("profile_pic_url", "is", null)
+    () =>
+      adminSupabase
+        .from("user_profiles")
+        .select("profile_pic_url")
+        .not("profile_pic_url", "is", null),
+    "user_id"
   );
   if (!profileRows) return null;
 
