@@ -141,10 +141,17 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(__queryBuilder.delete).toHaveBeenCalledWith({ count: "exact" });
     expect(__queryBuilder.lt).toHaveBeenCalledWith("expires_at", expect.any(String));
 
-    // 2. Old logs sweep test (security_events, api_access, api_errors)
+    // 2. Old logs sweep test (security_events, api_access, api_errors,
+    //    auth_failures, notifications)
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_security_events");
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_api_access");
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_api_errors");
+    expect(adminSupabase.from).toHaveBeenCalledWith("logs_auth_failures");
+    expect(adminSupabase.from).toHaveBeenCalledWith("logs_notifications");
+    const logCutoffCalls = __queryBuilder.lt.mock.calls.filter(
+      (call) => call[0] === "created_at"
+    );
+    expect(logCutoffCalls).toHaveLength(5);
 
     // 3. User devices sweep test (dead-session prune + 30-day cutoff)
     expect(adminSupabase.from).toHaveBeenCalledWith("user_devices");

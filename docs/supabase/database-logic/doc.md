@@ -215,12 +215,12 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `logs_cleanup(p_days integer DEFAULT 90)`
 * **SQL Source:** `supabase/schemas/public/functions/logs_cleanup.sql`
-* **Purpose:** Database maintenance. Deletes API access logs, error logs, security events, and notification logs older than `p_days` days (default **90**, matching the Node `LOG_RETENTION_DAYS` window).
+* **Purpose:** Database maintenance. Deletes API access logs, error logs, security events, auth-failure logs, and notification logs older than `p_days` days (default **90**, matching the Node `LOG_RETENTION_DAYS` window).
 * **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
   - **Execution Grants:** Backend-only. Revoked from `PUBLIC`, `anon`, `authenticated`. Granted to `postgres`, `service_role`.
 * **Inputs:** `p_days` (default `90`); raises an exception when NULL or `< 1`.
 * **Outputs:** `void`.
-* **Tables Touched:** `logs_api_access` (DELETE), `logs_api_errors` (DELETE), `logs_security_events` (DELETE), `logs_notifications` (DELETE).
+* **Tables Touched:** `logs_api_access` (DELETE), `logs_api_errors` (DELETE), `logs_security_events` (DELETE), `logs_auth_failures` (DELETE), `logs_notifications` (DELETE).
 * **Execution Condition:** `created_at < NOW() - make_interval(days => p_days)`.
 * **Caller:** Not `pg_cron`-scheduled. Node.js `retentionJob.js` (`sweepOldLogs`) is the single active retention driver (daily, `LOG_RETENTION_DAYS = 90`); the SQL function may be invoked manually with the same 90-day default.
 

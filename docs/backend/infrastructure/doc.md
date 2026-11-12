@@ -50,7 +50,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **In-Memory Component**: `nonceStore.js` also runs an in-memory `Map` sweep every 10 minutes (`_sweepExpiredNonces`) to clear in-process JavaScript maps.
 
 ### 2. Log Sweep (`sweepOldLogs`)
-- **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`.
+- **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`, `logs_auth_failures`, `logs_notifications`.
 - **Retention Period**: Configured via `LOG_RETENTION_DAYS` env var (**REQUIRED** — no code default; env.js throws if missing/invalid).
 - **Interval**: Every 24 hours (`LOG_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000`).
 - **Logic**: Calculates cutoff date (`Date.now() - LOG_RETENTION_DAYS * 86,400,000`). Executes `DELETE FROM <table> WHERE created_at < cutoff`.

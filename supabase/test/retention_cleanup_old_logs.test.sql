@@ -47,6 +47,13 @@ INSERT INTO public.logs_security_events (type, path, created_at) VALUES
   ('retention-60',  '/retention-60',  now() - interval '60 days'),
   ('retention-10',  '/retention-10',  now() - interval '10 days');
 
+INSERT INTO public.logs_auth_failures (error_code, path, created_at) VALUES
+  ('AUTH-FAIL-001', '/retention-120', now() - interval '120 days'),
+  ('AUTH-FAIL-001', '/retention-91',  now() - interval '91 days'),
+  ('AUTH-FAIL-001', '/retention-89',  now() - interval '89 days'),
+  ('AUTH-FAIL-001', '/retention-60',  now() - interval '60 days'),
+  ('AUTH-FAIL-001', '/retention-10',  now() - interval '10 days');
+
 INSERT INTO public.logs_notifications (type, status, created_at) VALUES
   ('push', 'retention-120', now() - interval '120 days'),
   ('push', 'retention-91',  now() - interval '91 days'),
@@ -61,6 +68,7 @@ BEGIN
   IF (SELECT count(*) FROM public.logs_api_access     WHERE path LIKE '/retention-%') <> 5
      OR (SELECT count(*) FROM public.logs_api_errors     WHERE path LIKE '/retention-%') <> 5
      OR (SELECT count(*) FROM public.logs_security_events WHERE type LIKE 'retention-%') <> 5
+     OR (SELECT count(*) FROM public.logs_auth_failures   WHERE path LIKE '/retention-%') <> 5
      OR (SELECT count(*) FROM public.logs_notifications   WHERE status LIKE 'retention-%') <> 5 THEN
     RAISE EXCEPTION 'fixture failed: the log fixtures are incomplete';
   END IF;
@@ -113,7 +121,7 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- B. The DEFAULT sweep removes strictly-older-than-90-days rows in all four
+-- B. The DEFAULT sweep removes strictly-older-than-90-days rows in all five
 --    tables and leaves everything at 89 days or newer.
 -- ---------------------------------------------------------------------------
 SELECT public.logs_cleanup();
@@ -124,6 +132,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path IN ('/retention-120', '/retention-91')) OR
      EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path IN ('/retention-120', '/retention-91')) OR
      EXISTS (SELECT 1 FROM public.logs_security_events WHERE type IN ('retention-120', 'retention-91'))  OR
+     EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path IN ('/retention-120', '/retention-91'))  OR
      EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status IN ('retention-120', 'retention-91')) THEN
     RAISE EXCEPTION 'B failed: a row older than the 90-day default survived';
   END IF;
@@ -132,18 +141,21 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path = '/retention-89') OR
      NOT EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path = '/retention-89') OR
      NOT EXISTS (SELECT 1 FROM public.logs_security_events WHERE type = 'retention-89')  OR
+     NOT EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path = '/retention-89')  OR
      NOT EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status = 'retention-89') THEN
     RAISE EXCEPTION 'B failed: an 89-day row was deleted by the 90-day default';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path = '/retention-60') OR
      NOT EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path = '/retention-60') OR
      NOT EXISTS (SELECT 1 FROM public.logs_security_events WHERE type = 'retention-60')  OR
+     NOT EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path = '/retention-60')  OR
      NOT EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status = 'retention-60') THEN
     RAISE EXCEPTION 'B failed: a 60-day row was deleted by the 90-day default';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path = '/retention-10') OR
      NOT EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path = '/retention-10') OR
      NOT EXISTS (SELECT 1 FROM public.logs_security_events WHERE type = 'retention-10')  OR
+     NOT EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path = '/retention-10')  OR
      NOT EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status = 'retention-10') THEN
     RAISE EXCEPTION 'B failed: a 10-day row was deleted by the 90-day default';
   END IF;
@@ -152,6 +164,7 @@ BEGIN
   IF (SELECT count(*) FROM public.logs_api_access     WHERE path LIKE '/retention-%') <> 3
      OR (SELECT count(*) FROM public.logs_api_errors     WHERE path LIKE '/retention-%') <> 3
      OR (SELECT count(*) FROM public.logs_security_events WHERE type LIKE 'retention-%') <> 3
+     OR (SELECT count(*) FROM public.logs_auth_failures   WHERE path LIKE '/retention-%') <> 3
      OR (SELECT count(*) FROM public.logs_notifications   WHERE status LIKE 'retention-%') <> 3 THEN
     RAISE EXCEPTION 'B failed: an unexpected number of rows survived the default sweep';
   END IF;
@@ -169,6 +182,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path IN ('/retention-60', '/retention-89')) OR
      EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path IN ('/retention-60', '/retention-89')) OR
      EXISTS (SELECT 1 FROM public.logs_security_events WHERE type IN ('retention-60', 'retention-89'))  OR
+     EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path IN ('/retention-60', '/retention-89'))  OR
      EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status IN ('retention-60', 'retention-89')) THEN
     RAISE EXCEPTION 'C failed: a row older than 30 days survived the explicit sweep';
   END IF;
@@ -176,6 +190,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.logs_api_access     WHERE path = '/retention-10') OR
      NOT EXISTS (SELECT 1 FROM public.logs_api_errors     WHERE path = '/retention-10') OR
      NOT EXISTS (SELECT 1 FROM public.logs_security_events WHERE type = 'retention-10')  OR
+     NOT EXISTS (SELECT 1 FROM public.logs_auth_failures   WHERE path = '/retention-10')  OR
      NOT EXISTS (SELECT 1 FROM public.logs_notifications   WHERE status = 'retention-10') THEN
     RAISE EXCEPTION 'C failed: the 10-day row was deleted by the explicit 30-day sweep';
   END IF;
@@ -183,6 +198,7 @@ BEGIN
   IF (SELECT count(*) FROM public.logs_api_access     WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_api_errors     WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_security_events WHERE type LIKE 'retention-%') <> 1
+     OR (SELECT count(*) FROM public.logs_auth_failures   WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_notifications   WHERE status LIKE 'retention-%') <> 1 THEN
     RAISE EXCEPTION 'C failed: an unexpected number of rows survived the explicit sweep';
   END IF;
@@ -248,6 +264,7 @@ BEGIN
   IF (SELECT count(*) FROM public.logs_api_access     WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_api_errors     WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_security_events WHERE type LIKE 'retention-%') <> 1
+     OR (SELECT count(*) FROM public.logs_auth_failures   WHERE path LIKE '/retention-%') <> 1
      OR (SELECT count(*) FROM public.logs_notifications   WHERE status LIKE 'retention-%') <> 1 THEN
     RAISE EXCEPTION 'D failed: a rejected call still deleted rows';
   END IF;

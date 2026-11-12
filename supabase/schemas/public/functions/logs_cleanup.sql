@@ -15,6 +15,7 @@ BEGIN
   DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
   DELETE FROM public.logs_api_errors WHERE created_at < v_cutoff;
   DELETE FROM public.logs_security_events WHERE created_at < v_cutoff;
+  DELETE FROM public.logs_auth_failures WHERE created_at < v_cutoff;
   DELETE FROM public.logs_notifications WHERE created_at < v_cutoff;
 END;
 $function$;

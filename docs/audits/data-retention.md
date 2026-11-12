@@ -12,8 +12,8 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 | Component | Target Artifact / Table | Scheduled Trigger / Interval | Retention Policy | Active Status | Conflict / Discrepancy |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Node.js Log Sweep** | `logs_security_events`<br>`logs_api_access`<br>`logs_api_errors` | Daily via `retentionJob.js` (`sweepOldLogs`) | **90 days** (`LOG_RETENTION_DAYS`) | **ACTIVE** | None |
-| **PostgreSQL `logs_cleanup(p_days)`** | `logs_api_access`<br>`logs_api_errors`<br>`logs_security_events`<br>`logs_notifications` | Stored procedure (`logs_cleanup.sql`), not cron-scheduled | **90 days default** (`p_days integer DEFAULT 90`; null/`< 1` rejected) | **MANUAL / INACTIVE CRON** | **NONE (Aligned 2026-09-23)** |
+| **Node.js Log Sweep** | `logs_security_events`<br>`logs_api_access`<br>`logs_api_errors`<br>`logs_auth_failures`<br>`logs_notifications` | Daily via `retentionJob.js` (`sweepOldLogs`) | **90 days** (`LOG_RETENTION_DAYS`) | **ACTIVE** | None |
+| **PostgreSQL `logs_cleanup(p_days)`** | `logs_api_access`<br>`logs_api_errors`<br>`logs_security_events`<br>`logs_auth_failures`<br>`logs_notifications` | Stored procedure (`logs_cleanup.sql`), not cron-scheduled | **90 days default** (`p_days integer DEFAULT 90`; null/`< 1` rejected) | **MANUAL / INACTIVE CRON** | **NONE (Aligned 2026-09-23)** |
 | **Node.js Nonce Sweep** | `request_nonces` | Every 6h via `retentionJob.js` (`sweepExpiredNonces`) | Expired timestamp (`lt("expires_at", now)`) | **ACTIVE** | None |
 | **Node.js In-Memory Nonce Sweep** | `consumedNonces` Map | Every 10 min via `_sweepExpiredNonces()` | Expired timestamp | **ACTIVE** | None (Dual-layer) |
 | **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStaleMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
@@ -46,6 +46,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
     DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
     DELETE FROM public.logs_api_errors WHERE created_at < v_cutoff;
     DELETE FROM public.logs_security_events WHERE created_at < v_cutoff;
+    DELETE FROM public.logs_auth_failures WHERE created_at < v_cutoff;
     DELETE FROM public.logs_notifications WHERE created_at < v_cutoff;
   END;
   $function$;
@@ -76,7 +77,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 ## Technical Analysis of All Data Retention Layers
 
 ### 1. Database & Security Log Cleanup
-* **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`.
+* **Target Tables**: `logs_security_events`, `logs_api_access`, `logs_api_errors`, `logs_auth_failures`, `logs_notifications`.
 * **Current Active Mechanism**: Node.js `sweepOldLogs()` in `retentionJob.js`.
 * **Execution Schedule**: Executed once immediately on server startup, then every 24 hours via `setInterval`.
 * **Configuration**: `LOG_RETENTION_DAYS` environment variable (**REQUIRED** — no code default; env.js throws if missing/invalid).
@@ -144,6 +145,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
        DELETE FROM public.logs_api_access WHERE created_at < v_cutoff;
        DELETE FROM public.logs_api_errors WHERE created_at < v_cutoff;
        DELETE FROM public.logs_security_events WHERE created_at < v_cutoff;
+       DELETE FROM public.logs_auth_failures WHERE created_at < v_cutoff;
        DELETE FROM public.logs_notifications WHERE created_at < v_cutoff;
      END;
      $function$;

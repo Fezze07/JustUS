@@ -63,7 +63,13 @@ async function sweepExpiredNonces() {
 
 async function sweepOldLogs() {
   const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const tables = ["logs_security_events", "logs_api_access", "logs_api_errors"];
+  const tables = [
+    "logs_security_events",
+    "logs_api_access",
+    "logs_api_errors",
+    "logs_auth_failures",
+    "logs_notifications",
+  ];
 
   for (const table of tables) {
     try {
