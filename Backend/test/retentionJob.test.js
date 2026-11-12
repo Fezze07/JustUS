@@ -1,17 +1,16 @@
-const { mockS3Send } = (() => {
-  const mockSend = jest.fn().mockImplementation(async (command) => {
-    if (command._type === "list_multipart") {
-      return {
-        Uploads: [
-          { Key: "uploads/stale_multipart.jpg", UploadId: "upload-1", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
-          { Key: "uploads/fresh_multipart.jpg", UploadId: "upload-2", Initiated: new Date(Date.now() - 1 * 3600 * 1000).toISOString() },
-        ],
-      };
-    }
-    return {};
-  });
-  return { mockS3Send: mockSend };
-})();
+const defaultMultipartSend = async (command) => {
+  if (command._type === "list_multipart") {
+    return {
+      IsTruncated: false,
+      Uploads: [
+        { Key: "uploads/stale_multipart.jpg", UploadId: "upload-1", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
+        { Key: "uploads/fresh_multipart.jpg", UploadId: "upload-2", Initiated: new Date(Date.now() - 1 * 3600 * 1000).toISOString() },
+      ],
+    };
+  }
+  return {};
+};
+const mockS3Send = jest.fn(defaultMultipartSend);
 
 jest.mock("@aws-sdk/client-s3", () => ({
   S3Client: jest.fn(() => ({ send: mockS3Send })),
@@ -116,7 +115,7 @@ const {
   __resetTables,
 } = require("../config/db");
 const { startRetentionJobs, stopRetentionJobs, fetchReferencedKeys } = require("../core/jobs/retentionJob");
-const { logError } = require("../core/logger");
+const { logError, logInfo } = require("../core/logger");
 const { AbortMultipartUploadCommand } = require("@aws-sdk/client-s3");
 
 describe("retentionJob - all cleanup jobs", () => {
@@ -124,6 +123,7 @@ describe("retentionJob - all cleanup jobs", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockS3Send.mockImplementation(defaultMultipartSend);
     mockListObjects.mockImplementation(mockDefaultListObjects);
     __resetTables();
     now = Date.now();
@@ -189,6 +189,88 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(mockListObjects).toHaveBeenCalledWith("uploads/");
     expect(mockListObjects).toHaveBeenCalledWith("profile/");
     expect(mockDeleteObjects).toHaveBeenCalledWith(["uploads/stale_orphan.jpg"]);
+  });
+
+  test("paginates multipart listings and aborts stale uploads on every page", async () => {
+    const listCalls = [];
+    mockS3Send.mockImplementation(async (command) => {
+      if (command._type !== "list_multipart") return {};
+      listCalls.push(command);
+      if (!command.KeyMarker) {
+        return {
+          IsTruncated: true,
+          NextKeyMarker: "uploads/page2-key",
+          NextUploadIdMarker: "upload-page2",
+          Uploads: [
+            { Key: "uploads/page1_stale.jpg", UploadId: "upload-p1", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
+          ],
+        };
+      }
+      return {
+        IsTruncated: false,
+        Uploads: [
+          { Key: "uploads/page2_stale.jpg", UploadId: "upload-p2", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
+        ],
+      };
+    });
+
+    await startRetentionJobs();
+
+    expect(listCalls).toHaveLength(2);
+    expect(listCalls[1]).toEqual(
+      expect.objectContaining({
+        KeyMarker: "uploads/page2-key",
+        UploadIdMarker: "upload-page2",
+      })
+    );
+    const abortedKeys = mockS3Send.mock.calls
+      .filter((call) => call[0]._type === "abort_multipart")
+      .map((call) => call[0].Key);
+    expect(abortedKeys).toEqual([
+      "uploads/page1_stale.jpg",
+      "uploads/page2_stale.jpg",
+    ]);
+  });
+
+  test("attempts later aborts when one multipart abort fails", async () => {
+    mockS3Send.mockImplementation(async (command) => {
+      if (command._type === "list_multipart") {
+        return {
+          IsTruncated: false,
+          Uploads: [
+            { Key: "uploads/fail_abort.jpg", UploadId: "upload-fail", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
+            { Key: "uploads/after_fail.jpg", UploadId: "upload-after", Initiated: new Date(Date.now() - 72 * 3600 * 1000).toISOString() },
+          ],
+        };
+      }
+      if (
+        command._type === "abort_multipart" &&
+        command.Key === "uploads/fail_abort.jpg"
+      ) {
+        throw new Error("abort rejected");
+      }
+      return {};
+    });
+
+    await expect(startRetentionJobs()).resolves.toBeUndefined();
+
+    const abortedKeys = mockS3Send.mock.calls
+      .filter((call) => call[0]._type === "abort_multipart")
+      .map((call) => call[0].Key);
+    expect(abortedKeys).toEqual([
+      "uploads/fail_abort.jpg",
+      "uploads/after_fail.jpg",
+    ]);
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "retention.r2_multipart.abort_failed",
+        key: "uploads/fail_abort.jpg",
+      })
+    );
+    expect(logInfo).toHaveBeenCalledWith("retention.r2_multipart", {
+      aborted: 1,
+      failed: 1,
+    });
   });
 
   test("fetchReferencedKeys includes a seeded drive item key", async () => {

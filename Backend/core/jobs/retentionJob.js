@@ -138,35 +138,60 @@ function buildR2Client() {
   });
 }
 
+async function abortStaleUpload(client, upload, cutoff, counters) {
+  const initiated = upload.Initiated ? new Date(upload.Initiated).getTime() : 0;
+  if (initiated >= cutoff) return;
+
+  try {
+    await client.send(
+      new AbortMultipartUploadCommand({
+        Bucket: env.r2BucketName,
+        Key: upload.Key,
+        UploadId: upload.UploadId,
+      })
+    );
+    counters.aborted++;
+  } catch (err) {
+    counters.failed++;
+    await logError({
+      error: { message: err.message, name: err.name },
+      event: "retention.r2_multipart.abort_failed",
+      key: upload.Key,
+    });
+  }
+}
+
 async function sweepStaleMultipartUploads() {
   const client = buildR2Client();
   if (!client) return; // R2 not configured — skip silently
 
   try {
-    const list = await client.send(
-      new ListMultipartUploadsCommand({ Bucket: env.r2BucketName })
-    );
-
-    const uploads = list.Uploads ?? [];
     const cutoff = Date.now() - MULTIPART_MAX_AGE_MS;
-    let aborted = 0;
+    const counters = { aborted: 0, failed: 0 };
+    let keyMarker;
+    let uploadIdMarker;
+    let truncated = true;
 
-    for (const upload of uploads) {
-      const initiated = upload.Initiated ? new Date(upload.Initiated).getTime() : 0;
-      if (initiated < cutoff) {
-        await client.send(
-          new AbortMultipartUploadCommand({
-            Bucket: env.r2BucketName,
-            Key: upload.Key,
-            UploadId: upload.UploadId,
-          })
-        );
-        aborted++;
+    while (truncated) {
+      const list = await client.send(
+        new ListMultipartUploadsCommand({
+          Bucket: env.r2BucketName,
+          KeyMarker: keyMarker,
+          UploadIdMarker: uploadIdMarker,
+        })
+      );
+
+      for (const upload of list.Uploads ?? []) {
+        await abortStaleUpload(client, upload, cutoff, counters);
       }
+
+      truncated = list.IsTruncated === true;
+      keyMarker = list.NextKeyMarker;
+      uploadIdMarker = list.NextUploadIdMarker;
     }
 
-    if (aborted > 0) {
-      logInfo("retention.r2_multipart", { aborted });
+    if (counters.aborted > 0 || counters.failed > 0) {
+      logInfo("retention.r2_multipart", counters);
     }
   } catch (err) {
     await logError({ error: { message: err.message, name: err.name }, event: "retention.r2_multipart.failed" });

@@ -59,7 +59,7 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Target**: Cloudflare R2 bucket (`env.r2BucketName`).
 - **Interval**: Every 6 hours (`MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Threshold**: Aborts uploads initiated more than 48 hours ago (`MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000`).
-- **Logic**: Invokes AWS S3 SDK `ListMultipartUploadsCommand`, inspects `Initiated` timestamp, and sends `AbortMultipartUploadCommand` for expired uploads.
+- **Logic**: Invokes AWS S3 SDK `ListMultipartUploadsCommand`, inspects `Initiated` timestamp, and sends `AbortMultipartUploadCommand` for expired uploads. The listing follows `IsTruncated` with `NextKeyMarker` / `NextUploadIdMarker` until the last page; each abort has its own `try`, so one rejected abort logs `retention.r2_multipart.abort_failed` and the sweep still aborts the remaining stale uploads.
 
 ### 4. R2 Orphaned-Object Sweep (`sweepStaleOrphanObjects`)
 - **Target**: Cloudflare R2 bucket (`env.r2BucketName`) — finalized objects under `uploads/` + `profile/`.

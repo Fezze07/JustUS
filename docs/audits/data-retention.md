@@ -96,7 +96,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 
 ### 3. Cloudflare R2 Stale Multipart Upload Cleanup
 * **Target Bucket**: Cloudflare R2 `just-us` storage bucket.
-* **Mechanism**: `sweepStaleMultipartUploads()` using AWS S3 SDK (`ListMultipartUploadsCommand` and `AbortMultipartUploadCommand`).
+* **Mechanism**: `sweepStaleMultipartUploads()` using AWS S3 SDK (`ListMultipartUploadsCommand` and `AbortMultipartUploadCommand`). The listing follows `IsTruncated` using `NextKeyMarker` / `NextUploadIdMarker`, so uploads past the first 1000-entry page are still seen. Each abort is attempted in its own `try` block: a rejected abort is counted and logged as `retention.r2_multipart.abort_failed` without skipping the remaining uploads, and the run logs `retention.r2_multipart` with the `aborted` / `failed` counts.
 * **Execution Schedule**: Runs every 6 hours (`MULTIPART_SWEEP_INTERVAL_MS`).
 * **Cutoff Period**: 48 hours (`MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000`).
 * **Effectiveness**: **ACTIVE & NECESSARY**. Prevents abandoned or interrupted chunked file uploads from consuming storage quota indefinitely.
