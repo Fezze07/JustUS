@@ -90,6 +90,20 @@ function clearFailedLogins({ email, deviceFingerprint, ipAddress }) {
   loginAttempts.delete(key);
 }
 
+// Sweep expired attempts so unique email/device/IP keys cannot grow the map
+// forever. Matches the 15-minute lifetime of an attempt entry.
+function sweepExpiredLoginAttempts(now = Date.now()) {
+  let removed = 0;
+  for (const [key, state] of loginAttempts) {
+    if (state.expiresAt <= now) {
+      loginAttempts.delete(key);
+      removed++;
+    }
+  }
+  return removed;
+}
+setInterval(sweepExpiredLoginAttempts, 15 * 60 * 1000).unref();
+
 /**
  * Binds a new Supabase session to a device fingerprint, enforcing the rule
  * that one device may hold exactly one active session at a time.
@@ -199,6 +213,7 @@ module.exports = {
   checkLoginRisk,
   recordFailedLogin,
   clearFailedLogins,
+  sweepExpiredLoginAttempts,
   trackSession,
   resetAuthRiskState,
 };

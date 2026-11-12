@@ -160,6 +160,7 @@ The exact execution order of middleware in the application pipeline is determine
   2. Constructs cache key: `${namespace}:${userId ?? "anonymous"}:${key}`.
   3. Checks in-memory store (`responses.get(cacheKey)`). If valid entry exists, returns cached response immediately.
   4. Otherwise, wraps `res.json()` to intercept and store response status code and body for 24 hours (`Date.now() + 24 * 60 * 60_000`).
+- **Expiration Sweep**: An unref'ed 15-minute interval (`sweepExpiredResponses`) deletes every entry whose `expiresAt` has passed, so unique idempotency keys cannot grow the process heap; `getEntry()` still drops an expired entry lazily on lookup.
 - **Multi-Instance Behavior**: Idempotency responses are stored **exclusively in an in-memory `Map`** (`responses = new Map()`), so the guarantee is **per instance**: a retried request hitting a different instance bypasses the cache and re-executes the operation, and a restart erases every cached entry. **Accepted** under the single-instance deployment assumption (see Overview) — severity **HIGH**, a documented per-process constraint rather than a defect to be remediated with a shared store. Within one instance a retried key returns the first response and is executed once.
 
 ---

@@ -23,7 +23,20 @@ function saveEntry(payload, response) {
   });
 }
 
+function sweepExpiredResponses(now = Date.now()) {
+  let removed = 0;
+  for (const [key, entry] of responses) {
+    if (entry.expiresAt <= now) {
+      responses.delete(key);
+      removed++;
+    }
+  }
+  return removed;
+}
+setInterval(sweepExpiredResponses, 15 * 60 * 1000).unref();
+
 module.exports = {
   getEntry,
   saveEntry,
+  sweepExpiredResponses,
 };

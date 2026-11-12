@@ -262,7 +262,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 ### Risk Service Specification
 
 - File: [authRisk.service.js](file:///f:/JustUS/Backend/features/auth/authRisk.service.js)
-- Storage Mechanism: In-memory `Map` (`loginAttempts = new Map()`) held in the Node process, so the counter is **per instance** (see § Known Issues). State expires after 15 minutes of inactivity (`15 * 60_000` ms).
+- Storage Mechanism: In-memory `Map` (`loginAttempts = new Map()`) held in the Node process, so the counter is **per instance** (see § Known Issues). State expires after 15 minutes of inactivity (`15 * 60_000` ms), and an unref'ed 15-minute interval (`sweepExpiredLoginAttempts`) deletes expired entries so unique (email, device, IP) keys cannot grow the map without bound.
 - Attempt Key Composition:
   ```js
   const key = [

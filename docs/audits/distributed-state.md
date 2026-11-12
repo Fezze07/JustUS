@@ -43,7 +43,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 * **File**: [`Backend/features/auth/authRisk.service.js`](file:///f:/JustUS/Backend/features/auth/authRisk.service.js#L11)
 * **Data Structure**: `const loginAttempts = new Map();`
 * **Purpose**: Tracks failed login attempts per device/IP/email, applies progressive strike levels, and enforces 10-to-30 minute IP/account lockouts.
-* **Lifecycle & Expiration**: Individual keys expire after 15 minutes of inactivity (`now + 15 * 60_000`).
+* **Lifecycle & Expiration**: Individual keys expire after 15 minutes of inactivity (`now + 15 * 60_000`); an unref'ed 15-minute interval (`sweepExpiredLoginAttempts`) deletes expired keys so unique (email, device, IP) triples cannot accumulate in the process heap.
 * **Persistence Layer**: **NONE** (100% in-memory).
 * **Process Restart Behavior**: All strike levels and active login blocks are lost upon process restart.
 * **Multi-Instance Behavior**: **UNSAFE (HIGH)**. Brute-force credential stuffing attacks spread across multiple backend instances will fail to accumulate strikes on any single node, allowing attackers substantially more password guesses before triggering a lockout.
@@ -56,7 +56,7 @@ When running multiple backend instances (e.g. horizontal scaling, round-robin lo
 * **File**: [`Backend/core/infra/idempotencyStore.js`](file:///f:/JustUS/Backend/core/infra/idempotencyStore.js#L1)
 * **Data Structure**: `const responses = new Map();`
 * **Purpose**: Caches API responses for 24 hours (`Date.now() + 24 * 60 * 60_000`) based on namespace, user ID, and idempotency key to prevent duplicate processing of unsafe operations.
-* **Lifecycle & Expiration**: Retained for 24 hours; expired entries deleted lazily on lookup (`getEntry()`).
+* **Lifecycle & Expiration**: Retained for 24 hours; expired entries are deleted lazily on lookup (`getEntry()`) and by an unref'ed 15-minute interval (`sweepExpiredResponses`), so unique idempotency keys cannot grow the process heap.
 * **Persistence Layer**: **NONE** (100% in-memory).
 * **Process Restart Behavior**: All cached idempotent responses are erased on backend deployment or crash.
 * **Multi-Instance Behavior**: **UNSAFE (HIGH)**. If a client retries a request and the retry hits Instance B instead of Instance A, Instance B will re-execute the operation instead of returning the cached result, potentially causing duplicate database mutations.
