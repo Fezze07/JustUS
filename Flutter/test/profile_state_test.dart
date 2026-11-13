@@ -106,6 +106,37 @@ void main() {
     expect(state.userProfile?.username, 'Alex');
   });
 
+  test('clear invalidates an in-flight load so it cannot resurrect the profile',
+      () async {
+    final repo = GatedUserRepository();
+    final state = ProfileState(
+      userRepo: repo,
+      partnershipRepo: FakePartnerRepository(),
+    );
+
+    final staleLoad = state.loadProfile();
+    while (repo.fetchCalls == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    // Logout/wipe happens while the network fetch is still pending.
+    state.clear();
+    repo.gate.complete();
+    await staleLoad;
+
+    expect(state.userProfile, isNull);
+    expect(state.partnerProfile, isNull);
+    expect(await StorageService.getUserProfile(), isNull);
+    expect(await StorageService.getPartnerProfile(), isNull);
+
+    // The next account still gets a real server load instead of the stale one.
+    await state.loadProfile(force: true);
+
+    expect(repo.fetchCalls, 2);
+    expect(state.userProfile?.username, 'Alex');
+    expect(await StorageService.getUserProfile(), isNotNull);
+  });
+
   test('profile cache omits email and auth_id but keeps the share code',
       () async {
     await StorageService.saveUserProfile(User(

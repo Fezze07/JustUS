@@ -39,6 +39,7 @@ class ProfileState extends BaseState {
       ApiService.versionedMediaUrl(_userProfile?.profilePicUrl, _profilePicVersion);
 
   Future<void>? _inFlightLoad;
+  int _generation = 0;
 
   Future<void> loadProfile({bool force = false}) {
     final inFlight = _inFlightLoad;
@@ -49,12 +50,15 @@ class ProfileState extends BaseState {
       return force ? inFlight.then((_) => loadProfile(force: true)) : inFlight;
     }
 
-    final future = _loadProfile(force);
-    _inFlightLoad = future.whenComplete(() => _inFlightLoad = null);
+    final generation = _generation;
+    final future = _loadProfile(force, generation);
+    _inFlightLoad = future.whenComplete(() {
+      if (_generation == generation) _inFlightLoad = null;
+    });
     return _inFlightLoad!;
   }
 
-  Future<void> _loadProfile(bool force) async {
+  Future<void> _loadProfile(bool force, int generation) async {
     // Throttling: if not forced and fetched recently, skip server call
     final now = DateTime.now();
     final shouldSkipServer = !force &&
@@ -65,7 +69,10 @@ class ProfileState extends BaseState {
       // Load from cache first
       final cachedUser = await StorageService.getUserProfile();
       final cachedPartner = await StorageService.getPartnerProfile();
-      _profilePicVersion = await StorageService.getProfilePicVersion();
+      final cachedVersion = await StorageService.getProfilePicVersion();
+      if (generation != _generation) return;
+
+      _profilePicVersion = cachedVersion;
 
       if (cachedUser != null) {
         _userProfile = cachedUser;
@@ -81,6 +88,7 @@ class ProfileState extends BaseState {
           _partnershipRepo.fetchPartnerProfile(),
           _partnershipRepo.getPartnership(),
         ]);
+        if (generation != _generation) return;
 
         final userResult = results[0] as ResultWrapper<User>;
         await handleResult(userResult, onSuccess: (value) async {
@@ -172,6 +180,8 @@ class ProfileState extends BaseState {
   }
 
   void clear() {
+    _generation++;
+    _inFlightLoad = null;
     _userProfile = null;
     _partnerProfile = null;
     _isUploading = false;

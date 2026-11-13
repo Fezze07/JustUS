@@ -275,7 +275,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 - [`change_password_screen.dart`](file:///f:/JustUS/Flutter/lib/features/auth/screens/change_password_screen.dart)
   - `_ChangePasswordScreenState`: Password change form with reauthentication, loading state, localized validation & error handling.
 - [`profile_state.dart`](file:///f:/JustUS/Flutter/lib/features/settings/profile_state.dart)
-  - `loadProfile()`: Throttled fetch of user and partner profile data.
+  - `loadProfile()`: Throttled fetch of user and partner profile data; `clear()` invalidates any load still in flight so its late result is discarded.
   - `uploadProfilePhoto()`: Uploads image file, updates local profile version (`saveProfilePicVersion`) and evicts the previous picture from `MediaCacheManager` (`evictAppMediaFile`).
   - `updateDisplayName()`: Updates `user_profiles.display_name`, refreshes in-memory model + `user_profile`/`username` caches.
   - `wipeAppData()`: Triggers backend wipe API, then clears local app cache + checkpoints + media file caches (`clearAppCache`, `CacheService.clearAll`, `emptyAppMediaCaches`).

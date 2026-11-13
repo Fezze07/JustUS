@@ -137,7 +137,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 - `AuthState.login()` runs a full 5-step sequence (risk check -> captcha -> Supabase sign-in -> profile fetch -> persist login data -> session sync -> installation-id registration -> partner fetch). Partner fetch failure is swallowed with an empty `catch (_) {}` (auth_state.dart, "Step 5").
 - `AuthState.register()` performs only signup; it **does not** set login data even when Supabase auto-confirms (so no session bootstrap happens on register).
 - `PartnerState` re-fetches partnership on realtime events and holds the parallel `PartnershipCancellation? cancellation` (fetched after the accepted-partnership read). While cancelled the active view is empty, so `AuthState.hasPartner` stays false.
-- `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and coalesces concurrent loads: a caller that arrives while another load is in flight awaits that same load (cache read + network fetch run once), and a forced caller chains a fresh load after it — no caller is left with empty state.
+- `ProfileState.loadProfile()` has a 1-minute throttle (`_fetchThrottle`) and coalesces concurrent loads: a caller that arrives while another load is in flight awaits that same load (cache read + network fetch run once), and a forced caller chains a fresh load after it — no caller is left with empty state. `clear()` (logout/wipe) bumps a generation counter and drops the in-flight reference, so a load that completes afterwards discards its state and storage writes instead of resurrecting the previous account's profile.
 
 ---
 
