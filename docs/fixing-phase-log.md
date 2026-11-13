@@ -28,6 +28,8 @@
 | 14 | Post-AI-removal dead code & simplification | 14.1–14.12 | All fixed. Dead exports, files, capabilities and error codes removed; orphaned RPC and compose plumbing deleted; 36 orphan l10n keys pruned; AI audit docs corrected |
 | 15 | Partner email invite + session-bind resilience | 15.1–15.2 | All fixed. Account-only invite by email for partners without an account; a stale session-binding secret self-heals instead of forcing a login |
 | 16 | Client state delivery & the docs-sweep triage | 16.1–16.19 | All fixed. Frame-requesting state notifications, a derived drive detail item, merged mood history, generated grid thumbnails, a PII-free profile cache, server-text notification fallback, no iOS badge, a single iOS foreground renderer (device check not run), app-locale push registration, raw-body request signing, constant-time HMAC comparison, fail-closed session binding, owner-scoped media keys, and realtime resume after a failed wipe |
+| 17 | Media delivery & upload lifecycle | 17.1–17.6 | All fixed. Fingerprint headers on protected media, avatar/thumbnail resolution, idempotent completion, an upload-folder allowlist, generated-artifact cleanup, and the dead reaction API deleted |
+| 18 | Retention, failures & resource safety | 18.1–18.10 | All fixed. Paginated orphan/multipart sweeps, five-table log pruning, unref'ed map sweeps, `DB-READ-001` propagation, body-parser 4xx mapping, the Express 5 query write-back, fail-closed CORS, the capability-denial code, and the dead `R2_ACCOUNT_ID` config |
 
 ---
 
@@ -190,6 +192,22 @@
 | 16.17 | Sanitizer rewrites the body before HMAC verification | Fixed (signature covers `req.rawBody`) | 2026-11-02 |
 | 16.18 | Client-supplied `metadata.thumbnail` is deleted without ownership check | Fixed (strict owner-segment check; prefix-guarded purge) | 2026-11-02 |
 | 16.19 | A failed data wipe leaves realtime processing suppressed | Fixed (`resume()` on failure; `refreshChannel()` on success) | 2026-11-02 |
+| 17.1 | Media requests fail after session binding | Fixed (`X-Device-Fingerprint` in `authHeaders`) | 2026-11-10 |
+| 17.2 | Avatars and thumbnails 404 in `/media/file` | Fixed (row-backed, owner-scoped keys) | 2026-11-10 |
+| 17.3 | Upload completion duplicates rows on retry | Fixed (UNIQUE `name` + upsert) | 2026-11-10 |
+| 17.4 | Upload folder can escape the swept roots | Fixed (`uploads`/`profile` allowlist) | 2026-11-10 |
+| 17.5 | Generated compression artifacts are never deleted | Fixed (`finally` cleanup) | 2026-11-10 |
+| 17.6 | Dead reaction-fetch API | Fixed (`fetchReactions` + two models deleted) | 2026-11-10 |
+| 18.1 | Orphan-sweep reference reads are unpaginated | Fixed (1000-row `readAllPages`) | 2026-11-12 |
+| 18.2 | Auth-failure and notification logs never expire | Fixed (five-table prune) | 2026-11-12 |
+| 18.3 | Multipart sweep ignores pagination and abort isolation | Fixed (marker loop + per-abort `try`) | 2026-11-12 |
+| 18.4 | Expired in-memory maps grow without bound | Fixed (unref'ed 15-minute sweeps) | 2026-11-12 |
+| 18.5 | DB read errors mask as auth/not-found | Fixed (`DB-READ-001` propagation) | 2026-11-12 |
+| 18.6 | Body-parser 4xx errors become 500s | Fixed (`entity.*` type mapping) | 2026-11-12 |
+| 18.7 | Query validation write-back is a silent no-op | Fixed (`Object.defineProperty` write-back) | 2026-11-12 |
+| 18.8 | Empty CORS allowlist allows every origin | Fixed (fail closed) | 2026-11-13 |
+| 18.9 | Capability denial returns `SEC-AUTH-001` | Fixed (`AUTH-PERMISSION-001`) | 2026-11-13 |
+| 18.10 | Dead `R2_ACCOUNT_ID` config | Fixed (field and templates deleted) | 2026-11-13 |
 
 ---
 
@@ -250,3 +268,9 @@ Non-obvious constraints that still bind the code. Each one now lives in its owni
 51. **Session binding fails closed on a lookup error or a missing fingerprint.** A `session_bindings` read error is `DB_READ_001` (500), not "no row", and a missing `X-Device-Fingerprint` is `AUTH_FAIL_006` when the row has a hash; treating either as "no binding" silently disables the control. → `docs/backend/security/doc.md` § 4. JWT Verification & Session Binding.
 52. **Request signatures cover the raw bytes, not the sanitized body.** `express.json({ verify })` stores `req.rawBody`; the HMAC hashes it (falling back to `req.body` only when absent) while handlers still receive the sanitized body, so sanitization cannot invalidate a correctly signed payload. → `docs/backend/security/doc.md` § 1. HMAC-SHA256 Request Signing.
 53. **Storage keys are owner-scoped twice.** Completion requires the caller's profile id as the path segment immediately before the file name for both `filename` and `metadata.thumbnail`, and deletion removes a thumbnail only under the main object's directory prefix, so a row cannot point the purge at another user's object. → `docs/features/shared-drive/doc.md` § Item Deletion Flow.
+54. **A media upload folder is allowlisted, not free-form.** `POST /media/upload-url` accepts only `uploads` or `profile`, because those are the two roots the account wipe and the orphan sweep cover; a new folder would create objects that survive deletion. → `docs/backend/api-architecture/doc.md` § `POST /api/v1/media/upload-url`.
+55. **A `/media/file` key is signed only after it resolves to an owned row.** The key must match `drive_items.name`, `drive_items.metadata.thumbnail` or `user_profiles.profile_pic_url` and belong to the caller's accepted partnership (or the caller's own profile); an arbitrary requested key is never signed. → `docs/backend/api-architecture/doc.md` § `GET /api/v1/media/file`.
+56. **Orphan-sweep reference reads always paginate.** PostgREST truncates an unpaginated read at `max_rows` (1000), and treating the truncated set as complete deletes live objects, so every reference source goes through `readAllPages()` and a failed page aborts the whole sweep. → `docs/audits/data-retention.md` § 3b. Cloudflare R2 Orphaned-Finalized-Object Cleanup.
+57. **A database read error is never a "no partner"/"not found" result.** Partnership and profile helpers surface the failure as `DB-READ-001`, because callers translate `null` into an authorization or not-found response and a wipe would then skip the partner's R2 prefixes. → `docs/features/partnership/doc.md` § Component Roles.
+58. **Express 5 `req.query` is replaced, never assigned.** The prototype getter has no setter, so middleware installs the parsed object with `Object.defineProperty(..., { configurable: true })`; a plain assignment is a silent no-op (and throws only in strict mode). → `docs/backend/security/doc.md` § 7. Input Sanitization.
+59. **An empty CORS allowlist denies every origin.** Failing open would let an unset `ALLOWED_ORIGINS` admit any website; only the development private-origin branch (localhost/`192.168.*`) remains unconditional. → `docs/backend/security/doc.md` § 12. Cross-Origin Resource Sharing (CORS).
