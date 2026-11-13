@@ -866,7 +866,7 @@ describe("Security Integration Tests", () => {
         .send(payload);
 
       expect(response.status).toBe(403);
-      expect(response.body.error.code).toBe("SEC-AUTH-001");
+      expect(response.body.error.code).toBe("AUTH-PERMISSION-001");
     });
   });
 });

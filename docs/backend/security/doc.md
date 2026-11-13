@@ -107,7 +107,7 @@ The exact execution order of middleware in the application pipeline is determine
 - **Threat Addressed**: Unauthorized access to media upload and large-upload endpoints.
 - **Implementation Location**: [`middleware/authorizeCapabilities.js`](file:///f:/JustUS/Backend/middleware/authorizeCapabilities.js), [`features/auth/authorization.service.js`](file:///f:/JustUS/Backend/features/auth/authorization.service.js).
 - **Request Flow**: `authenticateToken` resolves user role from `user_roles` table, maps role to capabilities array (e.g. `user` $\rightarrow$ `['can_media_upload']`). `authorizeCapabilities(...requiredCapabilities)` checks if `req.user.capabilities` contains all required permissions.
-- **Failure Behavior**: Throws `AppError({ errorKey: "SEC_AUTH_001", message: "Missing capability" })`.
+- **Failure Behavior**: Throws `AppError({ errorKey: "AUTH_PERMISSION_001", message: "Missing capability" })` (403 `AUTH-PERMISSION-001`).
 - **Multi-Instance Behavior**: Fully stateless per-request based on authenticated user context.
 
 ---

@@ -9,7 +9,7 @@ function authorizeCapabilities(...requiredCapabilities) {
 
     if (missing.length > 0) {
       return next(new AppError({
-        errorKey: "SEC_AUTH_001",
+        errorKey: "AUTH_PERMISSION_001",
         message: "Missing capability",
         details: { missing }
       }));
