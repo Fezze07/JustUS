@@ -165,11 +165,11 @@ class DriveRepository extends BaseRepository {
         'p_emoji_char': emojiChar,
       });
 
-      await sbClient.from('drive_item_reactions').insert({
+      await sbClient.from('drive_item_reactions').upsert({
         'item_id': driveItemId,
         'user_id': uid,
         'emoji_id': emojiId,
-      });
+      }, onConflict: 'user_id,item_id');
 
       unawaited(notifyPartnerOnce(
         notificationKey: 'reactionAdded',

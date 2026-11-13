@@ -17,6 +17,7 @@ class DriveState extends BaseState with CheckpointMixin {
   bool _isSyncing = false;
   List<DriveItem> _favoriteItems = [];
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
+  final Map<int, String> _myReactionEmoji = {};
 
   List<DriveItem> get driveItems => _driveItems;
   DriveItem? get singleItem {
@@ -355,9 +356,14 @@ class DriveState extends BaseState with CheckpointMixin {
 
       await result.handleAsync(
         onSuccess: (_) async {
+          final previous = _myReactionEmoji[itemId];
+          _myReactionEmoji[itemId] = emoji;
           _driveItems = _driveItems.map((item) {
             if (item.id == itemId) {
-              return item.copyWith(reactions: [...item.reactions, emoji]);
+              final reactions = List<String>.from(item.reactions);
+              if (previous != null) reactions.remove(previous);
+              reactions.add(emoji);
+              return item.copyWith(reactions: reactions);
             }
             return item;
           }).toList();
@@ -410,6 +416,7 @@ class DriveState extends BaseState with CheckpointMixin {
     _driveItems = [];
     _rebuildFavorites();
     _selectedItemId = null;
+    _myReactionEmoji.clear();
     // The memoized probe is user-scoped: never let it survive a logout or a
     // partnership switch.
     _invalidateProbe();

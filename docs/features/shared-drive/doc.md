@@ -308,10 +308,11 @@ Favorites and emoji reactions are architecturally decoupled from media object st
 ### Emoji Reactions Subsystem
 
 - Table: `public.drive_item_reactions` (`id`, `item_id`, `user_id`, `emoji_id`).
-- Add Reaction Execution: `DriveRepository.addReaction(itemId, emojiChar)` ([drive_repository.dart:121-147](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L121-L147)).
+- Add Reaction Execution: `DriveRepository.addReaction(itemId, emojiChar)` ([drive_repository.dart:161-182](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L161-L182)).
   - Calls PostgreSQL RPC `emoji_get_or_create(p_emoji_char)` to resolve `emoji_id`.
-  - Inserts row into `public.drive_item_reactions`.
+  - Upserts into `public.drive_item_reactions` on `(user_id, item_id)`, so a new emoji replaces the caller's previous reaction instead of raising `23505`.
   - Fires partner push notification `notifyPartnerOnce('reactionAdded')`.
+- State Management: `DriveState.addReaction` replaces the emoji the caller sent earlier in the current session before adding the new one; the next refresh reconciles the list with `v_drive_dashboard`.
 - View Integration: `v_drive_dashboard` aggregates reactions into a JSONB array of emoji strings returned with each drive item payload.
 
 ---

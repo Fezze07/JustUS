@@ -44,8 +44,12 @@ class _FakeDriveRepository extends DriveRepository {
     return const Success<void>(null);
   }
 
+  final List<String> reactionCalls = [];
+
   @override
   Future<ResultWrapper<void>> addReaction(int driveItemId, String emoji) async {
+    reactionCalls.add(emoji);
+
     return const Success<void>(null);
   }
 
@@ -283,6 +287,35 @@ void main() {
 
     expect(state.message, LanguageHelper.appLoc.drive_reactionAdded);
     expect(state.driveItems.first.reactions, ['❤️']);
+
+    state.clear();
+  });
+
+  test('changing a reaction replaces the previous emoji instead of appending',
+      () async {
+    final repo = _FakeDriveRepository()
+      ..serverCount = 1
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z'
+      ..fullSnapshot = [
+        _item(1, 'a.png', '2026-01-01T00:00:00.000Z', reactions: ['💚'])
+      ]
+      ..incrementalResult = [];
+    await StorageService.saveDriveItems([
+      _item(1, 'a.png', '2026-01-01T00:00:00.000Z', reactions: ['💚']),
+    ]);
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    await state.addReaction(1, '😀');
+    expect(state.driveItems.first.reactions, ['💚', '😀'],
+        reason: "the partner's 💚 must survive the first reaction");
+
+    await state.addReaction(1, '😂');
+    expect(state.driveItems.first.reactions, ['💚', '😂'],
+        reason: 'the caller has one row per item, so 😀 is replaced');
+    expect(repo.reactionCalls, ['😀', '😂']);
 
     state.clear();
   });
