@@ -1046,12 +1046,6 @@ abstract class AppLocalizations {
   /// **'I nostri ricordi'**
   String get drive_title;
 
-  /// No description provided for @drive_select.
-  ///
-  /// In it, this message translates to:
-  /// **'SELEZIONA'**
-  String get drive_select;
-
   /// No description provided for @drive_filterAll.
   ///
   /// In it, this message translates to:
@@ -1085,8 +1079,14 @@ abstract class AppLocalizations {
   /// No description provided for @drive_emptyTitle.
   ///
   /// In it, this message translates to:
-  /// **'Ancora nessuna vibe'**
+  /// **'Ancora nessun ricordo'**
   String get drive_emptyTitle;
+
+  /// No description provided for @drive_noFilteredResults.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun elemento corrisponde a questo filtro'**
+  String get drive_noFilteredResults;
 
   /// No description provided for @drive_uploading.
   ///

@@ -42,6 +42,32 @@ DriveItem _item(int id, String type, {int isFavorite = 0}) {
   );
 }
 
+Future<void> _pumpDrive(WidgetTester tester, List<DriveItem> items) async {
+  final state = DriveState(repository: _FakeDriveRepository(items));
+
+  await tester.runAsync(() async {
+    await StorageService.saveDriveItems(items);
+    await CacheService.saveCheckpoint(
+        CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
+    await state.initialLoad();
+    await settleMicrotasks();
+  });
+
+  await tester.pumpWidget(
+    ChangeNotifierProvider<DriveState>.value(
+      value: state,
+      child: MaterialApp(
+        theme: AppTheme.dark,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('it'),
+        home: DriveScreen(tabIndex: 4, tabNotifier: TabIndexNotifier()),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 int _gridCount(WidgetTester tester) {
   final grid = tester.widget<SliverGrid>(find.byType(SliverGrid));
   return (grid.delegate as SliverChildBuilderDelegate).estimatedChildCount!;
@@ -58,34 +84,11 @@ void main() {
 
   testWidgets('filter chips narrow the grid and the dead SELECT is gone',
       (tester) async {
-    final items = [
+    await _pumpDrive(tester, [
       _item(1, 'image'),
       _item(2, 'video'),
       _item(3, 'image', isFavorite: 1),
-    ];
-    final state = DriveState(repository: _FakeDriveRepository(items));
-
-    await tester.runAsync(() async {
-      await StorageService.saveDriveItems(items);
-      await CacheService.saveCheckpoint(
-          CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
-      await state.initialLoad();
-      await settleMicrotasks();
-    });
-
-    await tester.pumpWidget(
-      ChangeNotifierProvider<DriveState>.value(
-        value: state,
-        child: MaterialApp(
-          theme: AppTheme.dark,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('it'),
-          home: DriveScreen(tabIndex: 4, tabNotifier: TabIndexNotifier()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+    ]);
 
     expect(find.text('SELEZIONA'), findsNothing);
     expect(_gridCount(tester), 3);
@@ -108,5 +111,25 @@ void main() {
     await tester.tap(find.text('TUTTI'));
     await tester.pumpAndSettle();
     expect(_gridCount(tester), 3);
+  });
+
+  testWidgets('a filter with no matches shows the generic filtered-empty copy',
+      (tester) async {
+    await _pumpDrive(tester, [_item(1, 'image')]);
+
+    await tester.tap(find.text('VIDEO'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nessun elemento corrisponde a questo filtro'),
+        findsOneWidget);
+    expect(find.byType(SliverGrid), findsNothing);
+  });
+
+  testWidgets('an empty drive shows the memories copy', (tester) async {
+    await _pumpDrive(tester, const []);
+
+    expect(find.text('Ancora nessun ricordo'), findsOneWidget);
+    expect(
+        find.text('Nessun elemento corrisponde a questo filtro'), findsNothing);
   });
 }

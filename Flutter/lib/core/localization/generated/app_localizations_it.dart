@@ -514,9 +514,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get drive_title => 'I nostri ricordi';
 
   @override
-  String get drive_select => 'SELEZIONA';
-
-  @override
   String get drive_filterAll => 'Tutti';
 
   @override
@@ -532,7 +529,11 @@ class AppLocalizationsIt extends AppLocalizations {
   String get drive_latestVibes => 'ULTIME VIBE';
 
   @override
-  String get drive_emptyTitle => 'Ancora nessuna vibe';
+  String get drive_emptyTitle => 'Ancora nessun ricordo';
+
+  @override
+  String get drive_noFilteredResults =>
+      'Nessun elemento corrisponde a questo filtro';
 
   @override
   String get drive_uploading => 'Caricamento...';

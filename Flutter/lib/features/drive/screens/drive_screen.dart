@@ -185,9 +185,10 @@ class _DriveScreenState extends State<DriveScreen>
                     selector: (_, s) => (s.isLoading, s.driveItems),
                     builder: (context, driveData, _) {
                       final isLoading = driveData.$1;
-                      final items = driveData.$2.where(_matchesFilter).toList();
+                      final allItems = driveData.$2;
+                      final items = allItems.where(_matchesFilter).toList();
 
-                      if (isLoading && items.isEmpty) {
+                      if (isLoading && allItems.isEmpty) {
                         return SliverFillRemaining(
                           child: Center(
                               child: CircularProgressIndicator(
@@ -205,7 +206,9 @@ class _DriveScreenState extends State<DriveScreen>
                                     size: 64, color: context.palette.glass),
                                 const SizedBox(height: 16),
                                 Text(
-                                  context.loc.drive_emptyTitle,
+                                  allItems.isEmpty
+                                      ? context.loc.drive_emptyTitle
+                                      : context.loc.drive_noFilteredResults,
                                   style: GoogleFonts.plusJakartaSans(
                                     color: context.palette.contentPrimary
                                         .withValues(alpha: 0.5),
