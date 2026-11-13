@@ -59,7 +59,6 @@ class AuthState extends BaseState
         _sessionRevokeTimeout = sessionRevokeTimeout;
 
   String? _accessToken;
-  String? _refreshToken;
   String? _username;
   int? _userId;
   int? _partnerId;
@@ -68,14 +67,10 @@ class AuthState extends BaseState
   List<PartnershipInvitation> _sentInvitations = [];
   List<PartnershipInvitation> _receivedInvitations = [];
 
-  User? user;
-
   /// Invoked at the end of [logout] once auth data, storage and checkpoints are
   /// cleared, so the app root can reset the feature states (F-SM7).
   void Function()? onClearFeatureStates;
 
-  String? get accessToken => _accessToken;
-  String? get refreshToken => _refreshToken;
   String? get username => _username;
   int? get userId => _userId;
   int? get partnerId => _partnerId;
@@ -121,7 +116,6 @@ class AuthState extends BaseState
     // 1. Get local data parallelized
     final results = await Future.wait([
       StorageService.getAccessToken(),
-      StorageService.getRefreshToken(),
       StorageService.getUsername(),
       StorageService.getUserId(),
       StorageService.getPartnerId(),
@@ -130,12 +124,11 @@ class AuthState extends BaseState
     ]);
 
     _accessToken = results[0] as String?;
-    _refreshToken = results[1] as String?;
-    _username = results[2] as String?;
-    _userId = results[3] as int?;
-    _partnerId = results[4] as int?;
-    _partnerDisplayName = results[5] as String?;
-    _partnershipId = results[6] as int?;
+    _username = results[1] as String?;
+    _userId = results[2] as int?;
+    _partnerId = results[3] as int?;
+    _partnerDisplayName = results[4] as String?;
+    _partnershipId = results[5] as int?;
 
     // Bind the storage namespace to the persisted partnership so feature
     // caches and checkpoints are never read under a different partnership
@@ -181,7 +174,6 @@ class AuthState extends BaseState
           await StorageService.saveRefreshToken(currentSession.refreshToken!);
         }
         _accessToken = currentSession.accessToken;
-        _refreshToken = currentSession.refreshToken;
       } else if (evt == AuthChangeEvent.passwordRecovery) {
         AnsiLogger.auth('Password recovery event received from deep link',
             tag: 'AuthState');
@@ -673,7 +665,6 @@ class AuthState extends BaseState
     required User user,
   }) async {
     _accessToken = accessToken;
-    _refreshToken = refreshToken;
     _username = user.username;
     _userId = user.id;
 
@@ -821,7 +812,6 @@ class AuthState extends BaseState
     ApiService.clearHeadersCache();
     await emptyAppMediaCaches();
     _accessToken = null;
-    _refreshToken = null;
     _username = null;
     _userId = null;
     _partnerId = null;
@@ -829,7 +819,6 @@ class AuthState extends BaseState
     _partnerDisplayName = null;
     _sentInvitations = [];
     _receivedInvitations = [];
-    user = null;
     onClearFeatureStates?.call();
     notifyListeners();
   }

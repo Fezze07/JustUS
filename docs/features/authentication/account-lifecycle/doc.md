@@ -178,7 +178,7 @@ Logout Initiated (Profile / Partner Screen)
    │
    ├── 5. ApiService Header Cache Reset (ApiService.clearHeadersCache())
    │
-   ├── 6. AuthState Memory Reset (_accessToken, _refreshToken, _userId, _partnerId -> null)
+   ├── 6. AuthState Memory Reset (_accessToken, _userId, _partnerId -> null)
    │
    ├── 7. AuthState.notifyListeners()
    │        │

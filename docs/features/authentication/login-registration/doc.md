@@ -173,9 +173,9 @@ Flutter UI (LoginScreen)
    - Converts `auth_id` to internal integer `user.id`.
 
 6. **Local Token & Session Persistence**
-   - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L413-L429)
+   - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L662-L677)
    - Invokes `setLoginData()`:
-     - Sets in-memory variables (`_accessToken`, `_refreshToken`, `_username`, `_userId`).
+     - Sets in-memory variables (`_accessToken`, `_username`, `_userId`).
      - Persists values securely via `StorageService` (`saveAccessToken`, `saveRefreshToken`, `saveUsername`, `saveUserId`).
      - Calls `notifyListeners()`.
 
