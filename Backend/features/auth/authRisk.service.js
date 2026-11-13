@@ -22,7 +22,8 @@ function buildAttemptKey({ email, deviceFingerprint, ipAddress }) {
 
 function getAttemptState(key, now = Date.now()) {
   const existing = loginAttempts.get(key);
-  if (!existing || existing.expiresAt <= now) {
+
+  if (!existing || (existing.blockedUntil <= now && existing.expiresAt <= now)) {
     const fresh = {
       failures: 0,
       strikeLevel: 0,
@@ -32,6 +33,10 @@ function getAttemptState(key, now = Date.now()) {
     loginAttempts.set(key, fresh);
     return fresh;
   }
+
+  // A live block outlives the 15-minute inactivity window; either way the
+  // entry expires 15 minutes after the last touch.
+  existing.expiresAt = Math.max(now + 15 * 60_000, existing.blockedUntil);
   return existing;
 }
 
@@ -49,12 +54,14 @@ function checkLoginRisk(payload) {
 }
 
 async function recordFailedLogin({ email, deviceFingerprint, ipAddress, reason: _reason }) {
+  const now = Date.now();
   const key = buildAttemptKey({ email, deviceFingerprint, ipAddress });
-  const state = getAttemptState(key);
+  const state = getAttemptState(key, now);
   state.failures += 1;
 
-  updateStrikeLevel(state);
+  updateStrikeLevel(state, now);
 
+  state.expiresAt = Math.max(now + 15 * 60_000, state.blockedUntil);
   loginAttempts.set(key, state);
 
   if (state.strikeLevel > 0) {
@@ -62,8 +69,8 @@ async function recordFailedLogin({ email, deviceFingerprint, ipAddress, reason: 
       type: "login_anomaly",
       path: "/api/v1/auth/login-attempt",
       ip_address: ipAddress ?? null,
-      retry_after_seconds: state.blockedUntil > Date.now()
-          ? Math.ceil((state.blockedUntil - Date.now()) / 1000)
+      retry_after_seconds: state.blockedUntil > now
+          ? Math.ceil((state.blockedUntil - now) / 1000)
           : 0,
     });
   }
@@ -75,15 +82,15 @@ async function recordFailedLogin({ email, deviceFingerprint, ipAddress, reason: 
   };
 }
 
-function updateStrikeLevel(state) {
+function updateStrikeLevel(state, now = Date.now()) {
   if (state.failures >= 3) state.strikeLevel = Math.max(state.strikeLevel, 1);
   if (state.failures >= 5) {
     state.strikeLevel = Math.max(state.strikeLevel, 2);
-    state.blockedUntil = Date.now() + 10 * 60_000;
+    state.blockedUntil = now + 10 * 60_000;
   }
   if (state.failures >= 8) {
     state.strikeLevel = 3;
-    state.blockedUntil = Date.now() + 30 * 60_000;
+    state.blockedUntil = now + 30 * 60_000;
   }
 }
 

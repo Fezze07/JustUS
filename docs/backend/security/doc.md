@@ -208,7 +208,7 @@ The exact execution order of middleware in the application pipeline is determine
 | Security Control | Storage Mechanism | Multi-Instance Behavior | Vulnerability Level |
 |---|---|---|---|
 | **Rate Limiter & Bans** | In-Memory `Map` (`buckets`, `penalties`) | **Isolated per node** (accepted — single instance). Limits scale linearly with worker instance count; strikes/bans are bypassed across nodes under horizontal scaling. | **HIGH** |
-| **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies. | **HIGH** |
+| **Login-Attempt Strikes** | In-Memory `Map` (`loginAttempts`) | **Isolated per node** (accepted — single instance). Credential-stuffing failures and the 10/30-minute lockouts do not accumulate across nodes; within one instance the documented threshold still applies, and an active lockout is retained until the block ends rather than being dropped with the 15-minute inactivity window. | **HIGH** |
 | **Idempotency Cache** | In-Memory `Map` (`responses`) | **Isolated per node** (accepted — single instance). Retried requests on different instances bypass the cache and re-execute; within one instance a retried key returns the first response and runs once. | **HIGH** |
 | **Nonce Deduplication** | In-Memory `Map` + PostgreSQL `request_nonces` | **Multi-Instance Safe**. The DB `UNIQUE (nonce)` insert is the authoritative replay check; the memory map is only a cache. | **LOW (SAFE)** |
 | **JWT & Session Binding** | PostgreSQL `session_bindings` + Supabase `auth.sessions` | **Multi-Instance Safe**. Database backed. | **LOW (SAFE)** |
