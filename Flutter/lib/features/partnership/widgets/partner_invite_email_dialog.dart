@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:justus/all_imports.dart';
 
-/// Invites a partner who has no JustUs account yet: the backend sends a plain
+/// Invites a partner who has no JustUS account yet: the backend sends a plain
 /// email asking them to install the app and register autonomously. No Auth
 /// account is created — the pairing request still needs the partner's
 /// 6-character code once they register.

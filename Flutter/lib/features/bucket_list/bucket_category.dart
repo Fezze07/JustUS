@@ -11,7 +11,6 @@ class BucketCategory {
     'Travel',
     'Dates',
     'Goals',
-    'Crazy',
     'Adventure',
     'Romantic',
     'Homemade',
@@ -22,7 +21,6 @@ class BucketCategory {
   static const Color travel = AppCategoryColors.travel;
   static const Color dates = AppCategoryColors.dates;
   static const Color goals = AppCategoryColors.goals;
-  static const Color crazy = AppCategoryColors.crazy;
   static const Color adventure = AppCategoryColors.adventure;
   static const Color romantic = AppCategoryColors.romantic;
   static const Color homemade = AppCategoryColors.homemade;
@@ -31,7 +29,6 @@ class BucketCategory {
     'Travel': travel,
     'Dates': dates,
     'Goals': goals,
-    'Crazy': crazy,
     'Adventure': adventure,
     'Romantic': romantic,
     'Homemade': homemade,
@@ -41,7 +38,6 @@ class BucketCategory {
     'Travel': AppCategoryColors.travelLight,
     'Dates': AppCategoryColors.datesLight,
     'Goals': AppCategoryColors.goalsLight,
-    'Crazy': AppCategoryColors.crazyLight,
     'Adventure': AppCategoryColors.adventureLight,
     'Romantic': AppCategoryColors.romanticLight,
     'Homemade': AppCategoryColors.homemadeLight,
@@ -59,7 +55,6 @@ class BucketCategory {
       'Travel' => loc.bucket_categoryTravel,
       'Dates' => loc.bucket_categoryDates,
       'Goals' => loc.bucket_categoryGoals,
-      'Crazy' => loc.bucket_categoryCrazy,
       'Adventure' => loc.bucket_categoryAdventure,
       'Romantic' => loc.bucket_categoryRomantic,
       'Homemade' => loc.bucket_categoryHomemade,

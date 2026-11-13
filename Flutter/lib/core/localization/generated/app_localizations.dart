@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// Nome dell'app mostrato dal sistema.
   ///
   /// In it, this message translates to:
-  /// **'JustUs'**
+  /// **'JustUS'**
   String get appTitle;
 
   /// Titolo della schermata impostazioni.
@@ -161,7 +161,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTagline.
   ///
   /// In it, this message translates to:
-  /// **'Momenti condivisi, cuori più vicini'**
+  /// **'Uno spazio privato per la coppia'**
   String get appTagline;
 
   /// No description provided for @common_you.
@@ -275,7 +275,7 @@ abstract class AppLocalizations {
   /// No description provided for @nav_drive.
   ///
   /// In it, this message translates to:
-  /// **'Drive'**
+  /// **'I nostri ricordi'**
   String get nav_drive;
 
   /// No description provided for @nav_favorites.
@@ -377,7 +377,7 @@ abstract class AppLocalizations {
   /// No description provided for @auth_registerSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Inizia il vostro percorso verso una connessione più profonda.'**
+  /// **'Crea un account per collegarti al tuo partner.'**
   String get auth_registerSubtitle;
 
   /// No description provided for @auth_alreadyAccount.
@@ -515,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @auth_captchaMessage.
   ///
   /// In it, this message translates to:
-  /// **'JustUs sta verificando che tu sia un umano...'**
+  /// **'JustUS sta verificando che tu sia un umano...'**
   String get auth_captchaMessage;
 
   /// No description provided for @auth_captchaMissingConfig.
@@ -611,13 +611,13 @@ abstract class AppLocalizations {
   /// No description provided for @home_bucketListTitle.
   ///
   /// In it, this message translates to:
-  /// **'Sogni da vivere'**
+  /// **'La nostra lista dei desideri'**
   String get home_bucketListTitle;
 
   /// No description provided for @home_bucketListSubtitleDynamic.
   ///
   /// In it, this message translates to:
-  /// **'{count} attività in sospeso'**
+  /// **'{count} obiettivi in sospeso'**
   String home_bucketListSubtitleDynamic(int count);
 
   /// No description provided for @home_nudgeTitle.
@@ -647,7 +647,7 @@ abstract class AppLocalizations {
   /// No description provided for @settings_notificationsSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Attività e promemoria neurali'**
+  /// **'Attività e promemoria'**
   String get settings_notificationsSubtitle;
 
   /// No description provided for @settings_themeTitle.
@@ -701,7 +701,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_anniversaryEmpty.
   ///
   /// In it, this message translates to:
-  /// **'Imposta la vostra data speciale'**
+  /// **'Imposta la data dell\'anniversario'**
   String get profile_anniversaryEmpty;
 
   /// No description provided for @profile_wipeDataTitle.
@@ -827,7 +827,7 @@ abstract class AppLocalizations {
   /// No description provided for @partner_newConnection.
   ///
   /// In it, this message translates to:
-  /// **'Nuova connessione'**
+  /// **'Collega un partner'**
   String get partner_newConnection;
 
   /// No description provided for @partner_addPartner.
@@ -935,7 +935,7 @@ abstract class AppLocalizations {
   /// No description provided for @partner_inviteEmailPrompt.
   ///
   /// In it, this message translates to:
-  /// **'Il tuo partner non ha Just Us? Invitalo ora!'**
+  /// **'Il tuo partner non ha ancora JustUS? Invia un invito.'**
   String get partner_inviteEmailPrompt;
 
   /// No description provided for @partner_inviteEmailTitle.
@@ -1073,7 +1073,7 @@ abstract class AppLocalizations {
   /// No description provided for @drive_latestVibes.
   ///
   /// In it, this message translates to:
-  /// **'ULTIME VIBE'**
+  /// **'ULTIMI RICORDI'**
   String get drive_latestVibes;
 
   /// No description provided for @drive_emptyTitle.
@@ -1139,7 +1139,7 @@ abstract class AppLocalizations {
   /// No description provided for @drive_noFavoritesSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Aggiungi foto e video ai preferiti dal Drive!'**
+  /// **'Aggiungi elementi ai preferiti dal Drive.'**
   String get drive_noFavoritesSubtitle;
 
   /// No description provided for @drive_takePhoto.
@@ -1169,7 +1169,7 @@ abstract class AppLocalizations {
   /// No description provided for @drive_uploadComplete.
   ///
   /// In it, this message translates to:
-  /// **'Upload completato ✓'**
+  /// **'Caricamento completato.'**
   String get drive_uploadComplete;
 
   /// No description provided for @drive_deleted.
@@ -1262,12 +1262,6 @@ abstract class AppLocalizations {
   /// **'Obiettivi'**
   String get bucket_categoryGoals;
 
-  /// No description provided for @bucket_categoryCrazy.
-  ///
-  /// In it, this message translates to:
-  /// **'Follie'**
-  String get bucket_categoryCrazy;
-
   /// No description provided for @bucket_categoryAdventure.
   ///
   /// In it, this message translates to:
@@ -1313,7 +1307,7 @@ abstract class AppLocalizations {
   /// No description provided for @bucket_title.
   ///
   /// In it, this message translates to:
-  /// **'I nostri sogni'**
+  /// **'La nostra lista dei desideri'**
   String get bucket_title;
 
   /// No description provided for @bucket_emptyCategory.
@@ -1337,13 +1331,13 @@ abstract class AppLocalizations {
   /// No description provided for @bucket_markedDone.
   ///
   /// In it, this message translates to:
-  /// **'Segnato come fatto!'**
+  /// **'Obiettivo completato.'**
   String get bucket_markedDone;
 
   /// No description provided for @bucket_markedUndone.
   ///
   /// In it, this message translates to:
-  /// **'Segnato da fare!'**
+  /// **'Obiettivo riaperto.'**
   String get bucket_markedUndone;
 
   /// No description provided for @bucket_deleted.
@@ -1352,16 +1346,10 @@ abstract class AppLocalizations {
   /// **'Obiettivo eliminato!'**
   String get bucket_deleted;
 
-  /// No description provided for @mood_boardTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Mood Board'**
-  String get mood_boardTitle;
-
   /// No description provided for @mood_recents.
   ///
   /// In it, this message translates to:
-  /// **'I TUOI RECENTI'**
+  /// **'MOOD RECENTI'**
   String get mood_recents;
 
   /// No description provided for @mood_howFeeling.
@@ -1400,12 +1388,6 @@ abstract class AppLocalizations {
   /// **'Inserisci una sola emoji'**
   String get mood_enterSingleEmoji;
 
-  /// No description provided for @mood_duplicateTechnicalMessage.
-  ///
-  /// In it, this message translates to:
-  /// **'Utente ha tentato di reinserire il mood corrente.'**
-  String get mood_duplicateTechnicalMessage;
-
   /// No description provided for @mood_updated.
   ///
   /// In it, this message translates to:
@@ -1415,7 +1397,7 @@ abstract class AppLocalizations {
   /// No description provided for @mood_noneSet.
   ///
   /// In it, this message translates to:
-  /// **'Nessun mood settato'**
+  /// **'Nessun mood registrato'**
   String get mood_noneSet;
 
   /// No description provided for @mood_showMore.
@@ -1433,7 +1415,7 @@ abstract class AppLocalizations {
   /// No description provided for @game_noMatches.
   ///
   /// In it, this message translates to:
-  /// **'Ancora nessun match. Rispondi alla domanda del giorno!'**
+  /// **'Nessun gioco ancora. Rispondi alla domanda del giorno.'**
   String get game_noMatches;
 
   /// No description provided for @game_statusBothAgreed.
@@ -1445,7 +1427,7 @@ abstract class AppLocalizations {
   /// No description provided for @game_statusDisagreed.
   ///
   /// In it, this message translates to:
-  /// **'Un disaccordo giocoso'**
+  /// **'Risposte diverse'**
   String get game_statusDisagreed;
 
   /// No description provided for @game_statusWaiting.
@@ -1499,7 +1481,7 @@ abstract class AppLocalizations {
   /// No description provided for @game_tryFetchingAgain.
   ///
   /// In it, this message translates to:
-  /// **'Cercane un\'altra!'**
+  /// **'Nuova domanda'**
   String get game_tryFetchingAgain;
 
   /// No description provided for @game_invalidOption.
@@ -1529,7 +1511,7 @@ abstract class AppLocalizations {
   /// No description provided for @update_newVersion.
   ///
   /// In it, this message translates to:
-  /// **'È disponibile una nuova versione di JustUs.'**
+  /// **'È disponibile una nuova versione di JustUS.'**
   String get update_newVersion;
 
   /// No description provided for @update_changelogTitle.
@@ -1691,7 +1673,7 @@ abstract class AppLocalizations {
   /// No description provided for @error_apiValidation002.
   ///
   /// In it, this message translates to:
-  /// **'Questa email ha già un account Just Us. Chiedi al tuo partner il codice di 6 caratteri.'**
+  /// **'Questa email ha già un account JustUS. Chiedi al tuo partner il codice di 6 caratteri.'**
   String get error_apiValidation002;
 
   /// No description provided for @error_apiValidation003.
@@ -1889,7 +1871,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_appVersion.
   ///
   /// In it, this message translates to:
-  /// **'JustUS OS {version}'**
+  /// **'Versione JustUS {version}'**
   String profile_appVersion(String version);
 
   /// No description provided for @bucket_createdOn.
@@ -1955,7 +1937,7 @@ abstract class AppLocalizations {
   /// No description provided for @notif_newQuestion_body.
   ///
   /// In it, this message translates to:
-  /// **'Una nuova domanda ti aspetta!'**
+  /// **'È disponibile una nuova domanda.'**
   String get notif_newQuestion_body;
 
   /// No description provided for @notif_driveItemAdded_title.
@@ -1985,13 +1967,13 @@ abstract class AppLocalizations {
   /// No description provided for @notif_bucketItemAdded_title.
   ///
   /// In it, this message translates to:
-  /// **'Nuovo desiderio nella bucket list'**
+  /// **'Nuovo obiettivo nella lista dei desideri'**
   String get notif_bucketItemAdded_title;
 
   /// No description provided for @notif_bucketItemAdded_body.
   ///
   /// In it, this message translates to:
-  /// **'{partnerName} ha aggiunto un desiderio'**
+  /// **'{partnerName} ha aggiunto un obiettivo'**
   String notif_bucketItemAdded_body(String partnerName);
 
   /// No description provided for @notif_cancellationRequested_title.

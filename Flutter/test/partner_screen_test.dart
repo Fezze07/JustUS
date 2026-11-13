@@ -143,7 +143,7 @@ void main() {
     );
     expect(find.text('Ripristina partnership'), findsOneWidget);
     expect(find.text('CODE12'), findsNothing);
-    expect(find.text('Nuova connessione'), findsNothing);
+    expect(find.text('Collega un partner'), findsNothing);
     expect(find.byTooltip('Accetta'), findsNothing);
     expect(find.text('Logout'), findsOneWidget);
 
@@ -224,7 +224,7 @@ void main() {
           'Partnership interrotta. Tutti i dati condivisi sono stati eliminati.'),
       findsOneWidget,
     );
-    expect(find.text('Nuova connessione'), findsOneWidget);
+    expect(find.text('Collega un partner'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
   });

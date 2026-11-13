@@ -564,7 +564,7 @@ class AuthState extends BaseState
     });
   }
 
-  /// Invites a partner who has no JustUs account yet: the backend sends a plain
+  /// Invites a partner who has no JustUS account yet: the backend sends a plain
   /// email asking them to install the app and register autonomously. No Auth
   /// account is created — the pairing request itself still needs the partner's
   /// code (see [invitePartner]).

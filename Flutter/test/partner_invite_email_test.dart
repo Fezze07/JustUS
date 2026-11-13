@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:justus/all_imports.dart';
 import 'test_helpers/mock_secure_storage.dart';
 
-/// Regression tests for the "your partner doesn't have Just Us?" invite: the
+/// Regression tests for the "your partner doesn't have JustUS?" invite: the
 /// state must forward the address to the repository and report failure without
 /// pretending the email went out.
 class _FakePartnershipRepository extends PartnershipRepository {

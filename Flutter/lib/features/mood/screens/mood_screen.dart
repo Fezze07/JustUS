@@ -1,5 +1,5 @@
 // =============================================================================
-// MoodScreen - Interactive Mood Board with Violet-Punk Design
+// MoodScreen - Interactive Mood Tracker with Violet-Punk Design
 // =============================================================================
 
 import 'dart:async';
@@ -50,7 +50,7 @@ class _MoodScreenState extends State<MoodScreen>
         child: Column(
           children: [
             VPHeader(
-              title: context.loc.mood_boardTitle,
+              title: context.loc.nav_mood,
               onBack: () => MainShell.of(context)?.switchToTab(0),
             ),
             Expanded(

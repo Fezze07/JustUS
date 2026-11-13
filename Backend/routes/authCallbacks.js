@@ -8,8 +8,8 @@ const inviteCallbackController = asyncHandler(async (req, res) => {
   res.status(200).send(
     buildCallbackPage({
       title: "Invito Accettato!",
-      body: "L'invito è stato verificato con successo. Puoi chiudere questa pagina e tornare all'app JustUs per iniziare.",
-      pageTitle: "Invito Ricevuto - JustUs",
+      body: "L'invito è stato verificato con successo. Puoi chiudere questa pagina e tornare all'app JustUS per iniziare.",
+      pageTitle: "Invito Ricevuto - JustUS",
     })
   );
 });
@@ -33,8 +33,8 @@ const webCallbackController = asyncHandler(async (req, res) => {
   res.status(200).send(
     buildCallbackPage({
       title: "Email Confermata!",
-      body: "La tua email è stata verificata con successo. Puoi chiudere questa pagina e tornare all'app JustUs per continuare.",
-      pageTitle: "Autenticazione Riuscita - JustUs",
+      body: "La tua email è stata verificata con successo. Puoi chiudere questa pagina e tornare all'app JustUS per continuare.",
+      pageTitle: "Autenticazione Riuscita - JustUS",
     })
   );
 });

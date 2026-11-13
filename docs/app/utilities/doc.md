@@ -109,7 +109,7 @@ The utilities covered include:
 * **Callers**:
   - `showError` called by `ErrorHandler._showErrorDialog` ([`error_handler.dart:240`](file:///f:/JustUS/Flutter/lib/core/error_handling/error_handler.dart#L240)).
   - `showPartnerInvite` called by `PartnerScreen` ([`partner_screen.dart:129`](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart#L129)).
-  - `showPartnerInviteEmail` called by `PartnerScreen` (the "Il tuo partner non ha Just Us? Invitalo ora!" entry point).
+  - `showPartnerInviteEmail` called by `PartnerScreen` (the "Il tuo partner non ha ancora JustUS? Invia un invito." entry point).
 * **Expected Usage**: Invoke dialog popups cleanly without having to instantiate `showDialog` boilerplate in screens.
 * **Error Behavior**: Uses `unawaited(showDialog(...))` to non-block execution flow.
 * **Lifecycle Assumptions**: Assumes `BuildContext` remains valid during dialog presentation call.

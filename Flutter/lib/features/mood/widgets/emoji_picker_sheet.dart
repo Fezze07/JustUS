@@ -128,7 +128,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
       ErrorHandler.handle(
         AppError(
             code: ErrorCodes.localMoodDuplicate,
-            message: context.loc.mood_duplicateTechnicalMessage),
+            message: context.loc.error_localMoodDuplicate),
         context: context,
       );
 
@@ -145,7 +145,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
       ErrorHandler.handle(
         AppError(
             code: ErrorCodes.localMoodDuplicate,
-            message: context.loc.mood_duplicateTechnicalMessage),
+            message: context.loc.error_localMoodDuplicate),
         context: context,
       );
 

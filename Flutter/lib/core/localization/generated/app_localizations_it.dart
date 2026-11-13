@@ -9,7 +9,7 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
-  String get appTitle => 'JustUs';
+  String get appTitle => 'JustUS';
 
   @override
   String get settingsTitle => 'Impostazioni';
@@ -39,7 +39,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get systemOverrideSectionTitle => 'SISTEMA';
 
   @override
-  String get appTagline => 'Momenti condivisi, cuori più vicini';
+  String get appTagline => 'Uno spazio privato per la coppia';
 
   @override
   String get common_you => 'TU';
@@ -96,7 +96,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get nav_list => 'Lista';
 
   @override
-  String get nav_drive => 'Drive';
+  String get nav_drive => 'I nostri ricordi';
 
   @override
   String get nav_favorites => 'Preferiti';
@@ -149,7 +149,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get auth_registerSubtitle =>
-      'Inizia il vostro percorso verso una connessione più profonda.';
+      'Crea un account per collegarti al tuo partner.';
 
   @override
   String get auth_alreadyAccount => 'Hai già un account?';
@@ -222,7 +222,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get auth_captchaMessage =>
-      'JustUs sta verificando che tu sia un umano...';
+      'JustUS sta verificando che tu sia un umano...';
 
   @override
   String get auth_captchaMissingConfig =>
@@ -276,11 +276,11 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_viewAll => 'Vedi tutto';
 
   @override
-  String get home_bucketListTitle => 'Sogni da vivere';
+  String get home_bucketListTitle => 'La nostra lista dei desideri';
 
   @override
   String home_bucketListSubtitleDynamic(int count) {
-    return '$count attività in sospeso';
+    return '$count obiettivi in sospeso';
   }
 
   @override
@@ -297,7 +297,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get settings_notificationsTitle => 'Notifiche';
 
   @override
-  String get settings_notificationsSubtitle => 'Attività e promemoria neurali';
+  String get settings_notificationsSubtitle => 'Attività e promemoria';
 
   @override
   String get settings_themeTitle => 'Tema';
@@ -326,7 +326,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get profile_anniversaryTitle => 'Anniversario';
 
   @override
-  String get profile_anniversaryEmpty => 'Imposta la vostra data speciale';
+  String get profile_anniversaryEmpty => 'Imposta la data dell\'anniversario';
 
   @override
   String get profile_wipeDataTitle => 'Cancella dati app';
@@ -393,7 +393,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get partner_connected => 'CONNESSI';
 
   @override
-  String get partner_newConnection => 'Nuova connessione';
+  String get partner_newConnection => 'Collega un partner';
 
   @override
   String get partner_addPartner => 'Aggiungi partner';
@@ -450,7 +450,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get partner_inviteEmailPrompt =>
-      'Il tuo partner non ha Just Us? Invitalo ora!';
+      'Il tuo partner non ha ancora JustUS? Invia un invito.';
 
   @override
   String get partner_inviteEmailTitle => 'Invita il tuo partner';
@@ -526,7 +526,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get drive_filterLikes => 'Like';
 
   @override
-  String get drive_latestVibes => 'ULTIME VIBE';
+  String get drive_latestVibes => 'ULTIMI RICORDI';
 
   @override
   String get drive_emptyTitle => 'Ancora nessun ricordo';
@@ -561,7 +561,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get drive_noFavoritesSubtitle =>
-      'Aggiungi foto e video ai preferiti dal Drive!';
+      'Aggiungi elementi ai preferiti dal Drive.';
 
   @override
   String get drive_takePhoto => 'Scatta foto';
@@ -576,7 +576,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get drive_fromDocuments => 'Documento (PDF)';
 
   @override
-  String get drive_uploadComplete => 'Upload completato ✓';
+  String get drive_uploadComplete => 'Caricamento completato.';
 
   @override
   String get drive_deleted => 'Eliminato!';
@@ -624,9 +624,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_categoryGoals => 'Obiettivi';
 
   @override
-  String get bucket_categoryCrazy => 'Follie';
-
-  @override
   String get bucket_categoryAdventure => 'Avventura';
 
   @override
@@ -648,7 +645,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_add => 'Aggiungi';
 
   @override
-  String get bucket_title => 'I nostri sogni';
+  String get bucket_title => 'La nostra lista dei desideri';
 
   @override
   String get bucket_emptyCategory => 'Nessun obiettivo in questa categoria.';
@@ -660,19 +657,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get bucket_added => 'Obiettivo aggiunto!';
 
   @override
-  String get bucket_markedDone => 'Segnato come fatto!';
+  String get bucket_markedDone => 'Obiettivo completato.';
 
   @override
-  String get bucket_markedUndone => 'Segnato da fare!';
+  String get bucket_markedUndone => 'Obiettivo riaperto.';
 
   @override
   String get bucket_deleted => 'Obiettivo eliminato!';
 
   @override
-  String get mood_boardTitle => 'Mood Board';
-
-  @override
-  String get mood_recents => 'I TUOI RECENTI';
+  String get mood_recents => 'MOOD RECENTI';
 
   @override
   String get mood_howFeeling => 'Come ti senti?';
@@ -693,14 +687,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mood_enterSingleEmoji => 'Inserisci una sola emoji';
 
   @override
-  String get mood_duplicateTechnicalMessage =>
-      'Utente ha tentato di reinserire il mood corrente.';
-
-  @override
   String get mood_updated => 'Mood aggiornato!';
 
   @override
-  String get mood_noneSet => 'Nessun mood settato';
+  String get mood_noneSet => 'Nessun mood registrato';
 
   @override
   String get mood_showMore => 'Mostra altri';
@@ -710,13 +700,13 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get game_noMatches =>
-      'Ancora nessun match. Rispondi alla domanda del giorno!';
+      'Nessun gioco ancora. Rispondi alla domanda del giorno.';
 
   @override
   String get game_statusBothAgreed => 'Siete entrambi d’accordo!';
 
   @override
-  String get game_statusDisagreed => 'Un disaccordo giocoso';
+  String get game_statusDisagreed => 'Risposte diverse';
 
   @override
   String get game_statusWaiting => 'In attesa del partner';
@@ -743,7 +733,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get game_allCaughtUp => 'Pronti per una nuova domanda?';
 
   @override
-  String get game_tryFetchingAgain => 'Cercane un\'altra!';
+  String get game_tryFetchingAgain => 'Nuova domanda';
 
   @override
   String get game_invalidOption => 'Errore: opzione non valida';
@@ -758,7 +748,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get update_availableTitle => 'Aggiornamento disponibile!';
 
   @override
-  String get update_newVersion => 'È disponibile una nuova versione di JustUs.';
+  String get update_newVersion => 'È disponibile una nuova versione di JustUS.';
 
   @override
   String get update_changelogTitle => 'Novità:';
@@ -845,7 +835,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get error_apiValidation002 =>
-      'Questa email ha già un account Just Us. Chiedi al tuo partner il codice di 6 caratteri.';
+      'Questa email ha già un account JustUS. Chiedi al tuo partner il codice di 6 caratteri.';
 
   @override
   String get error_apiValidation003 =>
@@ -966,7 +956,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String profile_appVersion(String version) {
-    return 'JustUS OS $version';
+    return 'Versione JustUS $version';
   }
 
   @override
@@ -1010,7 +1000,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get notif_newQuestion_title => 'Nuova domanda di coppia';
 
   @override
-  String get notif_newQuestion_body => 'Una nuova domanda ti aspetta!';
+  String get notif_newQuestion_body => 'È disponibile una nuova domanda.';
 
   @override
   String get notif_driveItemAdded_title => 'Nuovo ricordo aggiunto';
@@ -1029,11 +1019,12 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get notif_bucketItemAdded_title => 'Nuovo desiderio nella bucket list';
+  String get notif_bucketItemAdded_title =>
+      'Nuovo obiettivo nella lista dei desideri';
 
   @override
   String notif_bucketItemAdded_body(String partnerName) {
-    return '$partnerName ha aggiunto un desiderio';
+    return '$partnerName ha aggiunto un obiettivo';
   }
 
   @override

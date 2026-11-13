@@ -116,7 +116,7 @@ class NotificationService {
       const linuxSettings =
           LinuxInitializationSettings(defaultActionName: 'Open notification');
       const windowsSettings = WindowsInitializationSettings(
-        appName: 'JustUs',
+        appName: 'JustUS',
         appUserModelId: 'com.justus.app',
         guid: '09cd7eb2-30eb-4a5d-a8b9-c84f6ad53c8a',
       );
@@ -157,8 +157,8 @@ class NotificationService {
           await androidImplementation.createNotificationChannel(
             const AndroidNotificationChannel(
               'justus_channel',
-              'JustUs Notifications',
-              description: 'Main channel for JustUs app notifications',
+              'JustUS Notifications',
+              description: 'Main channel for JustUS app notifications',
               importance: Importance.high,
             ),
           );
@@ -307,8 +307,8 @@ class NotificationService {
   }) async {
     const androidDetails = AndroidNotificationDetails(
       'justus_channel',
-      'JustUs Notifications',
-      channelDescription: 'Main channel for JustUs app notifications',
+      'JustUS Notifications',
+      channelDescription: 'Main channel for JustUS app notifications',
       importance: Importance.high,
       priority: Priority.high,
     );

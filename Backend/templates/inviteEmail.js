@@ -14,7 +14,7 @@ function buildInviteEmail({ email, inviteUrl, appUrl }) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invito Speciale su Just Us</title>
+    <title>Invito Speciale su JustUS</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #020103; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #020103;">
@@ -29,7 +29,7 @@ function buildInviteEmail({ email, inviteUrl, appUrl }) {
                                 <tr>
                                     <td style="background: linear-gradient(135deg, #bc61f5 0%, #7d35f2 100%); padding: 1px; border-radius: 12px;">
                                         <div style="background-color: #0d0a16; padding: 10px 22px; border-radius: 11px;">
-                                            <span style="color: #ffffff; font-size: 20px; font-weight: 900; letter-spacing: -1px; display: block;">Just Us</span>
+                                            <span style="color: #ffffff; font-size: 20px; font-weight: 900; letter-spacing: -1px; display: block;">JustUS</span>
                                         </div>
                                     </td>
                                 </tr>
@@ -43,7 +43,7 @@ function buildInviteEmail({ email, inviteUrl, appUrl }) {
                                 Ti stanno aspettando!
                             </h1>
                             <p style="color: #a19bbd; font-size: 16px; line-height: 1.6; margin: 0 0 40px 0;">
-                                Ehi! Qualcuno di speciale ti ha invitato a unirti a <strong style="color: #ffffff;">Just Us</strong> usando il tuo indirizzo <strong style="color: #ffffff;">${escapeHtml(email)}</strong>.<br><br>
+                                Ehi! Qualcuno di speciale ti ha invitato a unirti a <strong style="color: #ffffff;">JustUS</strong> usando il tuo indirizzo <strong style="color: #ffffff;">${escapeHtml(email)}</strong>.<br><br>
                                 È il momento di creare il vostro spazio riservato per condividere tutto quello che vi passa per la testa. Scarica l'app, registrati con questa email e conferma l'indirizzo che riceverai.
                             </p>
                         </td>

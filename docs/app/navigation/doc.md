@@ -146,7 +146,7 @@ Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _
 
 - `IndexedStack` keeps all **visited** tabs alive (state preserved; disposed only when `MainShell` is disposed). Unvisited tabs are represented by `SizedBox.shrink()` (main_shell.dart:47-48).
 - The `HomeBottomNav` is a **custom overlay** in the same `Stack` (bottom-aligned, height 90 + margin, main_shell.dart:51-63) - not a `BottomNavigationBar`. The `IndexedStack` content is padded by 110px (bottom) to avoid the floating nav (line 44).
-- `HomeBottomNav` (home_bottom_nav.dart) renders 7 items: Games(1) Mood(2) List(3) [center Home(0)] Drive(4) Favorites(5) Profile(6). The center home is a raised circle that doubles as the Home tab.
+- `HomeBottomNav` (home_bottom_nav.dart) renders 7 items: Games(1) Mood(2) List(3) [center Home(0)] Our memories(4) Favorites(5) Profile(6). The center home is a raised circle that doubles as the Home tab.
 
 ---
 

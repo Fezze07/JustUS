@@ -310,7 +310,7 @@ class _PartnerScreenState extends State<PartnerScreen>
                               ),
                             ],
 
-                            // Invite a partner who has no JustUs account yet.
+                            // Invite a partner who has no JustUS account yet.
                             if (partner == null) ...[
                               const SizedBox(height: AppSpacing.md),
                               _buildInviteByEmailButton(),

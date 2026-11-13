@@ -100,12 +100,12 @@ Server notification templates support `it` and `en` across key events:
 | `cancellationDeclined` | **Richiesta di interruzione rifiutata** / `{partnerName} ha rifiutato la richiesta di interruzione` | **Cancellation Declined** / `{partnerName} declined the cancellation request` |
 | `cancellationAccepted` | **Partnership interrotta** / `{partnerName} ha accettato la richiesta di interruzione` | **Partnership Ended** / `{partnerName} accepted the cancellation request` |
 | `missyou` | **Mi manchi** / `{partnerName} sente la tua mancanza` | **Miss You** / `{partnerName} misses you` |
-| `moodUpdated` | **Nuovo Umore** / `{partnerName} ha aggiornato il suo umore` | **New Mood** / `{partnerName} updated their mood` |
+| `moodUpdated` | **Nuovo Mood** / `{partnerName} ha aggiornato il suo mood` | **New Mood** / `{partnerName} updated their mood` |
 | `answerSubmitted` | **Nuova Risposta** / `{partnerName} ha risposto alla domanda` | **New Answer** / `{partnerName} answered the question` |
-| `newQuestion` | **Nuova Domanda di Coppia** / `Una nuova domanda ti aspetta!` | **New Couple Question** / `A new question awaits you!` |
+| `newQuestion` | **Nuova Domanda di Coppia** / `È disponibile una nuova domanda.` | **New Couple Question** / `A new question is available.` |
 | `driveItemAdded` | **Nuovo Ricordo Aggiunto** / `{partnerName} ha aggiunto un ricordo` | **New Memory Added** / `{partnerName} added a memory` |
 | `reactionAdded` | **Nuova Reazione a un Ricordo** / `{partnerName} ha reagito con {emojiChar}` | **New Reaction to a Memory** / `{partnerName} reacted with {emojiChar}` |
-| `bucketItemAdded` | **Nuovo Desiderio nella Lista** / `{partnerName} ha aggiunto un desiderio` | **New Wish in the Bucket List** / `{partnerName} added a wish` |
+| `bucketItemAdded` | **Nuovo Obiettivo nella Lista dei Desideri** / `{partnerName} ha aggiunto un obiettivo` | **New Goal in the Bucket List** / `{partnerName} added a goal` |
 | `default` | **JustUS** / `Hai una nuova notifica` | **JustUS** / `You have a new notification` |
 
 ### Backend Translation Resolution Logic

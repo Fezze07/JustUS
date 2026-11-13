@@ -23,12 +23,12 @@ const { escapeHtml } = require("./htmlEscape");
  * @param {string}  opts.body   - Paragraph text below the heading.
  * @param {string}  [opts.icon] - Emoji icon shown above the heading. Defaults to ✅.
  * @param {string}  [opts.lang] - HTML lang attribute. Defaults to "it".
- * @param {string}  [opts.pageTitle] - Browser tab title. Defaults to "JustUs".
+ * @param {string}  [opts.pageTitle] - Browser tab title. Defaults to "JustUS".
  * @returns {string} A complete HTML document string.
  */
 
 // eslint-disable-next-line max-lines-per-function -- page markup is one block
-function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle = "JustUs" }) {
+function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle = "JustUS" }) {
     return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
@@ -107,7 +107,7 @@ function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle =
 <body>
     <div class="card">
         <div class="header">
-            <div class="logo"><span>Just Us</span></div>
+            <div class="logo"><span>JustUS</span></div>
         </div>
         <div class="content">
             <div class="icon">${escapeHtml(icon)}</div>

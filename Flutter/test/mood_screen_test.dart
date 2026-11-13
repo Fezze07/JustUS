@@ -123,7 +123,7 @@ void main() {
     expect(find.text('🤖'), findsNothing);
     expect(find.text('😄'), findsWidgets);
     expect(find.text('🥰'), findsWidgets);
-    expect(find.text('Mood Board'), findsOneWidget);
+    expect(find.text('Mood'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();

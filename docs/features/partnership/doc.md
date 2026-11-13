@@ -44,7 +44,7 @@ The partnership architecture spans three main layers:
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [partner_screen.dart](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart): UI rendering for personal partnership code, partner card, pending received requests, pending sent requests, add partner action, and the "your partner doesn't have Just Us? Invite them now!" entry point.
+   - [partner_screen.dart](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart): UI rendering for personal partnership code, partner card, pending received requests, pending sent requests, add partner action, and the "your partner doesn't have JustUS yet? Send an invitation." entry point.
    - [partner_state.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partner_state.dart): State manager for fetching partnership data, sending/accepting/rejecting requests, and performing optimistic state updates.
    - [partner_invite_dialog.dart](file:///f:/JustUS/Flutter/lib/features/partnership/widgets/partner_invite_dialog.dart): email + 6-char code pairing request. [partner_invite_email_dialog.dart](file:///f:/JustUS/Flutter/lib/features/partnership/widgets/partner_invite_email_dialog.dart): account-only email invite (download + autonomous registration, no Auth account).
    - [partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart): Network client interacting with Supabase client (direct query on `v_active_partnership`, `partnership_get_pending_invitations` RPC, `partnership_accept` RPC, `partnership_reject` RPC for rejection, cancellation RPCs) and Node Express API (`_api.inviteUser`, `_api.inviteUnregisteredPartner`, `_api.acceptPartnershipCancellation`).
@@ -164,7 +164,7 @@ The partnership feature uses two distinct channels, by design:
 | **Supabase** | `partnership_request` RPC | Database request creation | Inserts row into `public.partnerships` with `status = 'pending'` |
 
 > [!IMPORTANT]
-> **Decision (2026-10-12, invite reworked 2026-11-04)**: pairing requests never send an email. Every pairing request requires the recipient to already have a JustUs account (email + 6-char code), so the request itself is delivered in-app: the recipient sees it on `PartnerScreen` and is notified by push. The only partnership-related email is the plain **invite email**, sent by `/api/v1/auth/invite-user` to someone who has no account yet. It only asks them to download JustUS and register autonomously (password + confirmation email), and creates no Auth account or session. No `partnerships` row is written; the pairing still happens through email + code once the invitee registers.
+> **Decision (2026-10-12, invite reworked 2026-11-04)**: pairing requests never send an email. Every pairing request requires the recipient to already have a JustUS account (email + 6-char code), so the request itself is delivered in-app: the recipient sees it on `PartnerScreen` and is notified by push. The only partnership-related email is the plain **invite email**, sent by `/api/v1/auth/invite-user` to someone who has no account yet. It only asks them to download JustUS and register autonomously (password + confirmation email), and creates no Auth account or session. No `partnerships` row is written; the pairing still happens through email + code once the invitee registers.
 
 ### The invite email (`POST /api/v1/auth/invite-user`)
 
@@ -207,7 +207,7 @@ The partnership feature uses two distinct channels, by design:
 - **UI Update**: Pending invitation is removed from local list. (Direct `DELETE` from Flutter is not used; the flow goes through the `partnership_reject` RPC.)
 
 ### 5. Inviting a Partner Who Has No Account
-- **Entry Point**: `PartnerScreen` shows "Il tuo partner non ha Just Us? Invitalo ora!" (`partner_inviteEmailPrompt`) whenever the caller has no partner.
+- **Entry Point**: `PartnerScreen` shows "Il tuo partner non ha ancora JustUS? Invia un invito." (`partner_inviteEmailPrompt`) whenever the caller has no partner.
 - **User Action**: Opens `PartnerInviteEmailDialog`, enters the partner's email, taps "Send".
 - **Execution**: `AuthState.inviteUnregisteredPartner(email)` -> `PartnershipRepository.inviteUnregisteredPartner(email)` -> `POST /api/v1/auth/invite-user` -> `sendPartnerInviteEmail()` (Resend HTTP API).
 - **Side Effects**: the partner receives a plain email asking them to download JustUS and register autonomously; **no** Auth account is created or confirmed, and no `partnerships` row is written.
@@ -227,7 +227,7 @@ The partnership feature uses two distinct channels, by design:
 - **Failure**: the mapped error (including the 24h `API-VALIDATION-013` cooldown) is shown and the user stays on Profile.
 
 ### 8. PartnerScreen Cancellation States
-- **Requested by me**: a waiting card (`partner_cancellationWaiting(partnerName)`, no countdown or expiry date) plus a plain `partner_restorePartnership` button. The personal-code card, "New Connection" and both invitation lists are hidden. Restore calls `revertCancellation` and returns to `MainShell` with the pair `accepted`.
+- **Requested by me**: a waiting card (`partner_cancellationWaiting(partnerName)`, no countdown or expiry date) plus a plain `partner_restorePartnership` button. The personal-code card, "Connect a partner" and both invitation lists are hidden. Restore calls `revertCancellation` and returns to `MainShell` with the pair `accepted`.
 - **Requested by partner**: the reusable `InvitationTile` (`partner_cancellationRequested(partnerName)` / `partner_cancellationSubtitle`) with accept and decline actions; its optional title, subtitle, leading icon, tooltips and per-action visibility default to the normal invitation copy, so existing invitation cards are unchanged. Decline calls `revertCancellation` and returns to `MainShell`; the trigger records `cancel_declined_at`.
 - **Accept**: a simple confirmation (`partner_cancellationEndTitle` / `partner_cancellationEndContent`) followed by `PartnerState.acceptCancellation` (the signed backend endpoint). On success (or a lost response whose row is gone) the screen shows `partner_cancellationEnded` and the empty PartnerScreen, so the user can pair again. If the request is still present, the error is shown and the state stays cancelled. There is no server tombstone: the ended copy is local to the session.
 - **Requester cannot accept**: only the `requestedByMe == false` branch renders accept/decline; this mirrors `partnership_cancel_accept` rejecting the requester.
@@ -317,7 +317,7 @@ During the reverse-engineering analysis, the following technical findings and bu
 
 * **WHAT**: The "Invite Partner" flow (email + 6-char code) creates a pending `partnerships` row via `partnership_request` RPC; it does **not** send an email.
 * **WHERE**: `invitePartnerController` ([auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js)) and `PartnershipRepository.inviteUser` ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
-* **WHY**: By design — a pairing request requires the recipient to already have a JustUs account, so the request is delivered in-app (PartnerScreen + push notification) instead of by email. Email is reserved for the account-only invite (`/api/v1/auth/invite-user`), which is the only way to reach someone without an account. See § Email Policy.
+* **WHY**: By design — a pairing request requires the recipient to already have a JustUS account, so the request is delivered in-app (PartnerScreen + push notification) instead of by email. Email is reserved for the account-only invite (`/api/v1/auth/invite-user`), which is the only way to reach someone without an account. See § Email Policy.
 * **WHEN**: Anytime a user sends a pairing request through the in-app dialog.
 * **IMPACT**: The recipient learns about the request from the app or a push notification; the 6-char code is still shared out-of-band.
 * **CONFIDENCE**: **HIGH**

@@ -45,25 +45,24 @@ Fields: `id (int)`, `text (String)`, `done (bool)`, `createdAt (String ISO)`, `c
 
 Source: `Flutter/lib/features/bucket_list/bucket_category.dart`
 
-Seven compile-time constants:
+Six compile-time constants:
 
 | Key | Color | Italian label |
 |---|---|---|
 | `Travel` | `#4FC3F7` | Viaggi |
 | `Dates` | `#FF8A65` | Appuntamenti |
 | `Goals` | `#81C784` | Obiettivi |
-| `Crazy` | `#CE93D8` | Follie |
 | `Adventure` | `#FFD54F` | Avventura |
 | `Romantic` | `#F06292` | Romantico |
 | `Homemade` | `#4DD0E1` | Fatto in casa |
 
-`BucketCategory.all = 'all'` is a synthetic filter sentinel (not a storable category).
+`BucketCategory.all = 'all'` is a synthetic filter sentinel (not a storable category). The database constraint still accepts `Crazy` for rows created before the UI removed the category; those rows render through the fallback label and color.
 
 ### 3.1 Category Validation — Layer by Layer
 
 | Layer | Behavior |
 |---|---|
-| Flutter UI | Add-dialog only exposes 7 chips; no free-text category input |
+| Flutter UI | Add-dialog only exposes 6 chips; no free-text category input |
 | Flutter Repository | `addBucketItem` omits `category` key from INSERT if null or empty |
 | Backend (Node.js) | NOT IMPLEMENTED — no bucket_items routes exist |
 | Database | CHECK constraint `bucket_items_category_check` — allows NULL or the 7 bucket categories (F-BL3 resolved, applied to remote) |
@@ -265,9 +264,9 @@ Source: `Flutter/lib/features/bucket_list/screens/bucket_list_screen.dart`
 
 Source: `Flutter/lib/features/home/screens/homepage_screen.dart:443`
 
-- Section: "Sogni da vivere".
+- Section: "La nostra lista dei desideri".
 - Shows up to 4 not-done items from `BucketState.items`.
-- Tappable subtitle: `{count} attività in sospeso` → navigates to tab 3.
+- Tappable subtitle: `{count} obiettivi in sospeso` → navigates to tab 3.
 - No category filter applied.
 
 ---
@@ -280,11 +279,11 @@ Trigger: on add item only (`bucket_repository.dart:49`).
 - `notifyPartnerOnce` → backend `/api/v1/notify` → FCM to partner (unawaited).
 
 Content (Flutter `notification_service.dart:281`):
-- Title IT: "Nuovo desiderio nella bucket list"
-- Body IT: "{partnerName} ha aggiunto qualcosa"
+- Title IT: "Nuovo obiettivo nella lista dei desideri"
+- Body IT: "{partnerName} ha aggiunto un obiettivo"
 - Item text not included in notification.
 
-Backend also defines `bucketItemAdded` with English strings ("New Wish in the Bucket List"). Which string is used depends on which layer builds the FCM payload — **UNCERTAIN**.
+Backend also defines `bucketItemAdded` with English strings ("New Goal in the Bucket List"). Which string is used depends on which layer builds the FCM payload — **UNCERTAIN**.
 
 **Status: PARTIALLY IMPLEMENTED** — trigger on add only; no item content; toggle/delete unnotified.
 

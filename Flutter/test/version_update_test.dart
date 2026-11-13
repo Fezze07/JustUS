@@ -111,7 +111,7 @@ void main() {
     bool showNoUpdateToast = false,
   }) async {
     PackageInfo.setMockInitialValues(
-      appName: 'JustUs',
+      appName: 'JustUS',
       packageName: 'com.fezze.justus',
       version: '1.0.0',
       buildNumber: localBuild,
@@ -563,7 +563,7 @@ void main() {
       await runCheck(tester);
 
       expect(find.byType(VPDialog), findsOneWidget);
-      expect(find.text('A new version of JustUs is available.'), findsOneWidget);
+      expect(find.text('A new version of JustUS is available.'), findsOneWidget);
       expect(find.text('What\u2019s new:'), findsNothing);
     });
 

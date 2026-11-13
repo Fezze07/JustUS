@@ -52,8 +52,8 @@ const LOCALIZATIONS = {
       body: `${p.partnerName || "Il tuo partner"} sente la tua mancanza`,
     }),
     moodUpdated: (p) => ({
-      title: "Nuovo Umore",
-      body: `${p.partnerName || "Il tuo partner"} ha aggiornato il suo umore`,
+      title: "Nuovo Mood",
+      body: `${p.partnerName || "Il tuo partner"} ha aggiornato il suo mood`,
     }),
     answerSubmitted: (p) => ({
       title: "Nuova Risposta",
@@ -61,7 +61,7 @@ const LOCALIZATIONS = {
     }),
     newQuestion: () => ({
       title: "Nuova Domanda di Coppia",
-      body: "Una nuova domanda ti aspetta!",
+      body: "È disponibile una nuova domanda.",
     }),
     driveItemAdded: (p) => ({
       title: "Nuovo Ricordo Aggiunto",
@@ -72,8 +72,8 @@ const LOCALIZATIONS = {
       body: `${p.partnerName || "Il tuo partner"} ha reagito con ${p.emojiChar || "❤️"}`,
     }),
     bucketItemAdded: (p) => ({
-      title: "Nuovo Desiderio nella Lista",
-      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un desiderio`,
+      title: "Nuovo Obiettivo nella Lista dei Desideri",
+      body: `${p.partnerName || "Il tuo partner"} ha aggiunto un obiettivo`,
     }),
     default: () => ({
       title: "JustUS",
@@ -111,7 +111,7 @@ const LOCALIZATIONS = {
     }),
     newQuestion: () => ({
       title: "New Couple Question",
-      body: "A new question awaits you!",
+      body: "A new question is available.",
     }),
     driveItemAdded: (p) => ({
       title: "New Memory Added",
@@ -122,8 +122,8 @@ const LOCALIZATIONS = {
       body: `${p.partnerName || "Your partner"} reacted with ${p.emojiChar || "❤️"}`,
     }),
     bucketItemAdded: (p) => ({
-      title: "New Wish in the Bucket List",
-      body: `${p.partnerName || "Your partner"} added a wish`,
+      title: "New Goal in the Bucket List",
+      body: `${p.partnerName || "Your partner"} added a goal`,
     }),
     default: () => ({
       title: "JustUS",

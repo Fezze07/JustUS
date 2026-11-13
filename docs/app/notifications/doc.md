@@ -305,7 +305,7 @@ notifySchema = z.object({
 - **`requestAccepted`**: fired from `acceptPartnerRequest` (rpc), a UI-triggered accept. The request *creation* (`invite`) and **rejection do not notify** — the architecture doc (F11) records the rejection asymmetry.
 - **`missyou`**: no throttling client-side; holding the miss-you button queues one `notifyPartnerOnce` per `sendMissYou` RPC success — the 12/min user rate limit is the only cap.
 - **`moodUpdated`**: `emojiChar` is passed in params but the ARB body `notif_moodUpdated_body({partnerName})` does not interpolate it, and the server template omits it too — the emoji payload is effectively unused in both localization passes.
-- **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`Una nuova domanda ti aspetta!` / `A new question awaits you!`). Fired on `fetchNewGameQuestion` only when the sender's client actually creates the `game_questions` row; a partner's client that discovers the row (Realtime insert or cold-start read) returns the existing question without notifying.
+- **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`È disponibile una nuova domanda.` / `A new question is available.`). Fired on `fetchNewGameQuestion` only when the sender's client actually creates the `game_questions` row; a partner's client that discovers the row (Realtime insert or cold-start read) returns the existing question without notifying.
 - **`reactionAdded`**: the only type whose ARB body uses two params (`{partnerName}`, `{emojiChar}`); rendered with the actual reaction emoji.
 
 ---
@@ -324,9 +324,9 @@ notifySchema = z.object({
 ### `initLocalNotifications({isBackground})` (`:83-141`)
 
 - `kIsWeb` → no-op.
-- Wire formats: `AndroidInitializationSettings('ic_notification')`, `DarwinInitializationSettings`, `LinuxInitializationSettings(defaultActionName: 'Open notification')`, `WindowsInitializationSettings(appName: 'JustUs', appUserModelId: 'com.justus.app', guid: ...)`.
+- Wire formats: `AndroidInitializationSettings('ic_notification')`, `DarwinInitializationSettings`, `LinuxInitializationSettings(defaultActionName: 'Open notification')`, `WindowsInitializationSettings(appName: 'JustUS', appUserModelId: 'com.justus.app', guid: ...)`.
 - `_notifications.initialize(onDidReceiveNotificationResponse: (r) => _onNotificationTapController.add(r.payload))`.
-- Android: `requestNotificationsPermission()` + create channel `justus_channel` / `'JustUs Notifications'` / `importance: Importance.high` — only when NOT in a background isolate (`:119-141`).
+- Android: `requestNotificationsPermission()` + create channel `justus_channel` / `'JustUS Notifications'` / `importance: Importance.high` — only when NOT in a background isolate (`:119-141`).
 
 ### `showRemoteMessage(message, {isBackground})` (`:178-200`)
 

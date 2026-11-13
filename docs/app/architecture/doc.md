@@ -2,7 +2,7 @@
 
 ## Overview
 
-JustUS is a private couples app ("Just Us") built with Flutter. The Flutter application lives in `Flutter/` and follows a **feature-first layered architecture**:
+JustUS is a private couples app built with Flutter. The Flutter application lives in `Flutter/` and follows a **feature-first layered architecture**:
 
 - `lib/core/` - cross-cutting infrastructure: networking, local storage, realtime, notifications, error handling, versioning, localization, theming, media.
 - `lib/features/<feature>/` - each business capability (auth, partnership, home, mood, games, bucket_list, drive, settings) split into `models/`, `repository/`, `state/`, `screens/`, `widgets/`.
