@@ -44,6 +44,7 @@ class _RealtimeSyncScopeState extends State<RealtimeSyncScope> {
     )..start();
 
     authState.onClearFeatureStates = () {
+      partnerState.clear();
       moodState.clear();
       homepageState.clear();
       bucketState.clear();

@@ -152,7 +152,7 @@ The logout protocol performs a multi-layer tear-down of local credentials, stora
 
 ### Execution Sequence
 
-Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:777-796](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L777-L796)):
+Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:777-801](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L777-L801)):
 
 ```
 Logout Initiated (Profile / Partner Screen)
@@ -163,7 +163,8 @@ Logout Initiated (Profile / Partner Screen)
    ├── 1. Installation ID Revoke (best-effort, POST /api/v1/auth/installation-id-revoke)
    │        └── deletes this device's user_devices row before the session dies
    │
-   ├── 2. Supabase Auth Sign-Out (sbClient.auth.signOut())
+   ├── 2. Supabase Auth Sign-Out (sbClient.auth.signOut(), best-effort)
+   │        └── a failure is logged; the rest of the teardown still runs
    │
    ├── 3. Checkpoint Cache Purge (CacheService.clearAll())
    │
@@ -297,7 +298,7 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 
 ### Feature-State Cleanup on Logout
 
-`AuthState.logout()` wipes secure storage (`FlutterSecureStorage.deleteAll()`) and SharedPreferences (`SharedPreferences.clear()`), then calls the `onClearFeatureStates` hook wired in `RealtimeSyncScope` (`realtime_sync_scope.dart:46-53`). The static active-partnership cache is dropped at the very start of `logout()` by `PartnershipRepository.clearPartnershipCache()`, and the hook clears the eager Provider singletons — `MoodState`, `HomepageState`, `BucketState`, `GameState`, `DriveState`, `ProfileState` — so no in-memory field survives into a second account in the same process.
+`AuthState.logout()` wipes secure storage (`FlutterSecureStorage.deleteAll()`) and SharedPreferences (`SharedPreferences.clear()`), then calls the `onClearFeatureStates` hook wired in `RealtimeSyncScope` (`realtime_sync_scope.dart:46-54`). The static active-partnership cache is dropped at the very start of `logout()` by `PartnershipRepository.clearPartnershipCache()`, both invitation lists are reset by `logout()` itself, and the hook clears the eager Provider singletons — `PartnerState`, `MoodState`, `HomepageState`, `BucketState`, `GameState`, `DriveState`, `ProfileState` — so no in-memory field survives into a second account in the same process.
 
 Two keys deliberately **survive** logout: `app_language_code` and the theme mode (`app_theme_mode`). They are user preferences, not account data, and are re-applied at the next login.
 
@@ -377,7 +378,7 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 | Installation ID Reassignment | **IMPLEMENTED** | Database `upsert` on conflict `installation_id` |
 | Local Storage Purge on Logout | **IMPLEMENTED** | Clears `FlutterSecureStorage` and `SharedPreferences` |
 | Realtime Teardown on Logout | **IMPLEMENTED** | Unsubscribes WebSocket channel via `RealtimeSyncScope` |
-| In-Memory State Provider Cleanup | **IMPLEMENTED** | `onClearFeatureStates` hook wired in `RealtimeSyncScope` resets the six provider singletons |
+| In-Memory State Provider Cleanup | **IMPLEMENTED** | `onClearFeatureStates` hook wired in `RealtimeSyncScope` resets the seven provider singletons, including `PartnerState`; `logout()` also empties both invitation lists |
 | Installation ID Unregistration | **IMPLEMENTED** | `AuthState._revokeInstallationId()` → `POST /api/v1/auth/installation-id-revoke` (best-effort, 5 s cap) |
 | Other-Device Push Registration Revocation on Password Write | **IMPLEMENTED** | `AuthState._revokeOtherInstallations()` → `POST /api/v1/auth/installation-id-revoke-all` (best-effort, 5 s cap) |
 | Stale Registration Cleanup (dead-session + age) | **IMPLEMENTED** | `sweepStaleUserDevices` → `device_purge_dead_sessions()` RPC (rows whose session is gone/lapsed die at the next run) + `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback |

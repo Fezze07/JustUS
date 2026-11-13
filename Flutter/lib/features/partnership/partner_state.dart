@@ -18,6 +18,12 @@ class PartnerState extends BaseState {
 
   User? get partner => _partnershipInfo?.partner;
 
+  void clear() {
+    _partnershipInfo = null;
+    _cancellation = null;
+    notifyListeners();
+  }
+
   Future<void> fetchPartnership() async {
     await runSafe(() async {
       final hadCancellation = _cancellation != null;

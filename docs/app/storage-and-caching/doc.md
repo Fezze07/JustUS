@@ -200,10 +200,10 @@ On a genuine partnership transition the old scope is purged — feature caches a
 
 ## Logout Behavior
 
-`AuthState.logout()` (`:777–796` of `auth_state.dart`):
+`AuthState.logout()` (`:777–801` of `auth_state.dart`):
 
 1. `PartnershipRepository.clearPartnershipCache()` — drops the memoized active-partnership future before any teardown work, so the next account always queries the server instead of inheriting the previous user's partnership.
-2. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
+2. `_authRepo.signOut()` — clears the Supabase session in memory. Best-effort: a GoTrue/network failure is logged and the remaining teardown still runs.
 3. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
 4. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, `app_theme_mode`, and `notifications_enabled`, which are read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes the tokens/IDs, but `_keyDeviceFingerprint` is read before the `deleteAll()` and re-persisted after it, so it survives logout.
 5. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`; the next `_buildHeaders` re-reads the preserved fingerprint from secure storage, so no new UUID is ever minted by a logout.

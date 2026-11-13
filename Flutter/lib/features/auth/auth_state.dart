@@ -777,7 +777,11 @@ class AuthState extends BaseState
   Future<void> logout() async {
     PartnershipRepository.clearPartnershipCache();
     await _revokeInstallationId();
-    await _authRepo.signOut();
+    try {
+      await _authRepo.signOut();
+    } catch (e) {
+      AnsiLogger.error('Sign out failed: $e', tag: 'AuthState');
+    }
     await CacheService.clearAll();
     await StorageService.clearAll();
     ApiService.clearHeadersCache();
@@ -790,6 +794,7 @@ class AuthState extends BaseState
     _partnershipId = null;
     _partnerDisplayName = null;
     _sentInvitations = [];
+    _receivedInvitations = [];
     user = null;
     onClearFeatureStates?.call();
     notifyListeners();
