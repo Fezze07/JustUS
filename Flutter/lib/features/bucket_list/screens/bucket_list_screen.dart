@@ -21,7 +21,6 @@ class _BucketListScreenState extends State<BucketListScreen>
     with TabScreenMixin, StateMessageListener<BucketState, BucketListScreen> {
   final TextEditingController _addController = TextEditingController();
   String _selectedCategory = BucketCategory.all;
-  final Map<int, bool> _pendingChanges = {};
   final Set<int> _pendingDeletes = {};
   BucketState get _bucketState => context.read<BucketState>();
 
@@ -180,14 +179,7 @@ class _BucketListScreenState extends State<BucketListScreen>
                   builder: (context, bucketData, child) {
                     final items = bucketData.$1
                         .where((item) => !_pendingDeletes.contains(item.id))
-                        .map((item) {
-                      if (_pendingChanges.containsKey(item.id)) {
-                        return item.copyWith(
-                            done: _pendingChanges[item.id] ?? false);
-                      }
-
-                      return item;
-                    }).toList();
+                        .toList();
 
                     if (bucketData.$2 && items.isEmpty) {
                       return ListView(
@@ -305,22 +297,7 @@ class _BucketListScreenState extends State<BucketListScreen>
               checked: isDone,
               label: item.text,
               child: GestureDetector(
-                onTap: () {
-                  final originalItem =
-                      state.items.firstWhere((i) => i.id == item.id);
-                  final currentDone = _pendingChanges.containsKey(item.id)
-                      ? _pendingChanges[item.id] ?? originalItem.done
-                      : originalItem.done;
-                  final newDone = !currentDone;
-                  setState(() {
-                    if (newDone == originalItem.done) {
-                      _pendingChanges.remove(item.id);
-                    } else {
-                      _pendingChanges[item.id] = newDone;
-                    }
-                  });
-                  unawaited(state.toggleDone(item.id, newDone));
-                },
+                onTap: () => unawaited(state.toggleDone(item.id)),
                 child: Container(
                   width: AppDims.checkbox,
                   height: AppDims.checkbox,

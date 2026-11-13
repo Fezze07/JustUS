@@ -154,14 +154,32 @@ class BucketState extends BaseState
     });
   }
 
-  Future<void> toggleDone(int id, bool done) async {
+  Future<void> toggleDone(int id) async {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index == -1) return;
+
+    final original = _items[index];
+    final optimistic = original.copyWith(done: !original.done);
+    _items = _items.toList();
+    _items[index] = optimistic;
+    _itemsVersion++;
+    notifyListeners();
+
     await runSafe(() async {
-      final result = await _repository.toggleBucketItem(id, done);
+      final result = await _repository.toggleBucketItem(id, optimistic.done);
       if (result.isError) {
-        await handleResult(result);
-        return;
+        final currentIndex = _items.indexWhere((item) => item.id == id);
+        // Roll back only while no realtime event has replaced the item since.
+        if (currentIndex != -1 && identical(_items[currentIndex], optimistic)) {
+          _items = _items.toList();
+          _items[currentIndex] = original;
+          _itemsVersion++;
+          notifyListeners();
+        }
+
+        throw result;
       }
-      if (done) {
+      if (optimistic.done) {
         setMessage(LanguageHelper.appLoc.bucket_markedDone);
       } else {
         setMessage(LanguageHelper.appLoc.bucket_markedUndone);

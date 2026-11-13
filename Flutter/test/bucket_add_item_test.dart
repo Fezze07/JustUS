@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,6 +28,35 @@ class _FakeBucketRepository extends BucketRepository {
 
   @override
   Future<ResultWrapper<void>> deleteBucketItem(int id) async => result;
+}
+
+class _GatedBucketRepository extends _FakeBucketRepository {
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<ResultWrapper<void>> toggleBucketItem(int id, bool done) async {
+    await gate.future;
+
+    return result;
+  }
+}
+
+Future<BucketState> _stateWithItem(BucketRepository repository) async {
+  final state = BucketState(repository: repository);
+  await state.applyRealtimeEvent(
+    eventType: 'insert',
+    newRecord: const {
+      'id': 1,
+      'text': 'goal',
+      'done': false,
+      'created_at': '2026-05-01T00:00:00.000Z',
+      'updated_at': '2026-05-01T00:00:00.000Z',
+      'category': 'Travel',
+    },
+    oldRecord: const {},
+  );
+
+  return state;
 }
 
 void main() {
@@ -64,15 +95,59 @@ void main() {
     state.clear();
   });
 
-  test('toggling done confirms the new state, undone says so too', () async {
-    final state = BucketState(repository: _FakeBucketRepository());
+  test('toggling done flips the item and confirms the new state', () async {
+    final state = await _stateWithItem(_FakeBucketRepository());
 
-    await state.toggleDone(1, true);
+    await state.toggleDone(1);
+    expect(state.items.single.done, isTrue);
     expect(state.message, LanguageHelper.appLoc.bucket_markedDone);
 
-    await state.toggleDone(1, false);
+    await state.toggleDone(1);
+    expect(state.items.single.done, isFalse);
     expect(state.message, LanguageHelper.appLoc.bucket_markedUndone);
 
+    state.clear();
+  });
+
+  test('a failed toggle rolls the optimistic flip back', () async {
+    final repo = _FakeBucketRepository(
+      result: const GenericError<void>(message: 'update rejected', code: 500),
+    );
+    final state = await _stateWithItem(repo);
+
+    await state.toggleDone(1);
+
+    expect(state.items.single.done, isFalse);
+    expect(state.message, isNot(LanguageHelper.appLoc.bucket_markedDone));
+    state.clear();
+  });
+
+  test('a partner realtime update is not masked by an in-flight toggle',
+      () async {
+    final repo = _GatedBucketRepository();
+    final state = await _stateWithItem(repo);
+
+    final toggle = state.toggleDone(1);
+    expect(state.items.single.done, isTrue);
+
+    // Partner undoes the item while the local UPDATE is still in flight.
+    await state.applyRealtimeEvent(
+      eventType: 'update',
+      newRecord: const {
+        'id': 1,
+        'text': 'goal',
+        'done': false,
+        'created_at': '2026-05-01T00:00:00.000Z',
+        'updated_at': '2026-05-02T00:00:00.000Z',
+        'category': 'Travel',
+      },
+      oldRecord: const {},
+    );
+
+    repo.gate.complete();
+    await toggle;
+
+    expect(state.items.single.done, isFalse);
     state.clear();
   });
 

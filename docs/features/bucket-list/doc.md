@@ -121,7 +121,7 @@ WHERE id = $id AND partnership_id = $activePartnershipId
 ```
 
 - Modify scoped by `partnership_id` (via `withPartnership` + `.match`) — defense-in-depth alongside RLS; throws `AppError(API-VALIDATION-007)` if none is found.
-- Optimistic UI via `_pendingChanges` map; Realtime UPDATE clears it.
+- Optimistic UI in [`BucketState.toggleDone`](file:///f:/JustUS/Flutter/lib/features/bucket_list/bucket_state.dart): the item's `done` is flipped in memory and `notifyListeners()` runs before the UPDATE. A failed write restores the previous item and surfaces the error through `ErrorHandler`; a Realtime UPDATE replaces the item, so a partner's later change is never masked.
 - Idempotent at DB level. Rapid double-taps may show brief inconsistency.
 - No notification on toggle.
 
@@ -179,7 +179,7 @@ Subscribed via shared channel `justus-sync-<userId>-<generation>`:
 
 ### 6.3 `applyRealtimeEvent` Logic
 
-Source: `bucket_state.dart:130`
+Source: `bucket_state.dart:205`
 
 | Event | Behavior |
 |---|---|
@@ -258,7 +258,7 @@ Source: `Flutter/lib/features/bucket_list/screens/bucket_list_screen.dart`
 - Category filter: horizontal scrollable chips (`_selectedCategory` local state); client-side filter.
 - Item list: `ListView.separated` with `AlwaysScrollableScrollPhysics`.
 - Add dialog: `AlertDialog` with TextField (text) + ChoiceChip row (category). Default: `Travel`.
-- Toggle: custom checkbox via `GestureDetector`. Optimistic via `_pendingChanges`. `unawaited`.
+- Toggle: custom checkbox via `GestureDetector`. `BucketState.toggleDone` flips the item optimistically and rolls back on failure. `unawaited`.
 - Delete: `Dismissible` swipe right-to-left. Optimistic via `_pendingDeletes`. `unawaited`.
 
 ### 9.2 Homepage Preview
