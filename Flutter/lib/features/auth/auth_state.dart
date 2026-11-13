@@ -37,6 +37,8 @@ class AuthState extends BaseState
   StreamSubscription<String>? _installationIdSubscription;
   String? _lastSyncedLocale;
   bool _isSyncingLocale = false;
+  bool _isSyncingNotificationPreference = false;
+  bool _notificationPreferenceChangedWhileSyncing = false;
 
   /// Trailing-edge window coalescing lifecycle-driven locale syncs.
   @override
@@ -272,8 +274,28 @@ class AuthState extends BaseState
 
   /// Pushes the device-local notification toggle to the backend by
   /// re-registering this installation, so disabled devices stop receiving push.
+  ///
+  /// The registration is an absolute-value upsert, so repeating one request is
+  /// harmless; the race is a double tap sending two values that land out of
+  /// order. A call made while a registration is in flight only marks the
+  /// preference dirty, and one final registration sends the latest stored value
+  /// after the current one settles — the server's last write then matches the
+  /// switch's last position.
   Future<void> syncNotificationPreference() async {
-    await _registerInstallationId();
+    if (_isSyncingNotificationPreference) {
+      _notificationPreferenceChangedWhileSyncing = true;
+      return;
+    }
+
+    _isSyncingNotificationPreference = true;
+    try {
+      do {
+        _notificationPreferenceChangedWhileSyncing = false;
+        await _registerInstallationId();
+      } while (_notificationPreferenceChangedWhileSyncing);
+    } finally {
+      _isSyncingNotificationPreference = false;
+    }
   }
 
   Future<bool> login(String email, String password) async {

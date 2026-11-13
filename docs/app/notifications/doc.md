@@ -128,7 +128,7 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 | Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
 | FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn` | Re-registers the new FID |
 | App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; sends the app locale, not the system locale |
-| Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it |
+| Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it. Calls are single-flight: a second tap while one registration is pending re-sends the latest stored value after it settles, so the final server write matches the final switch position |
 | **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Deletes the row; see below |
 
 ### Backend upsert — `POST /api/v1/auth/installation-id`
@@ -151,7 +151,7 @@ assertDbSuccess(await adminSupabase.from("user_devices").upsert(
 
 - `installation_id` is `UNIQUE` — if an installation id is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
 - `device_type` is inferred from `x-client-user-agent`/`user-agent` when the body omits it.
-- `notificationsEnabled` is optional (`auth.schemas.js`); the repository always sends the current device preference. When a legacy client omits it, the column is left untouched, so an upsert never flips a disabled device back on.
+- `notificationsEnabled` is optional (`auth.schemas.js`); the repository always sends the current device preference. When a legacy client omits it, the column is left untouched, so an upsert never flips a disabled device back on. Because the body carries an absolute value, replaying the same registration is idempotent; `AuthState.syncNotificationPreference()` serializes toggle-driven registrations so two rapid taps cannot land out of order.
 - Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id")` → `validated({body})` (`auth.routes.js`).
 
 `authRateLimit`: `{ipMax: 20, userMax: 10, window: 60_000 ms}`.
@@ -522,6 +522,8 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 `Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not; it also asserts the posted locale is the app locale when it differs from the system locale.
 
 `Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
+
+`Flutter/test/notification_preference_sync_test.dart` covers the toggle sync: a second `syncNotificationPreference()` while the first registration is in flight does not start a concurrent request, and once it settles one final registration is sent with the latest stored value (`[false, true]`, max one request in flight).
 
 **Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS foreground presentation (code-reviewed, not device-verified), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
 
