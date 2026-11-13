@@ -617,7 +617,7 @@ abstract class AppLocalizations {
   /// No description provided for @home_bucketListSubtitleDynamic.
   ///
   /// In it, this message translates to:
-  /// **'{count} obiettivi in sospeso'**
+  /// **'{count, plural, =1{1 obiettivo in sospeso} other{{count} obiettivi in sospeso}}'**
   String home_bucketListSubtitleDynamic(int count);
 
   /// No description provided for @home_nudgeTitle.
@@ -689,7 +689,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_changePasswordSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Proteggi il vostro spazio condiviso'**
+  /// **'Cambia la password del tuo account'**
   String get profile_changePasswordSubtitle;
 
   /// No description provided for @profile_anniversaryTitle.
@@ -713,7 +713,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_wipeDataSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Resetta tutto tranne l’account'**
+  /// **'Resetta tutti i dati tranne l’account'**
   String get profile_wipeDataSubtitle;
 
   /// No description provided for @profile_wipeConfirmTitle.
@@ -725,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_wipeConfirmContent.
   ///
   /// In it, this message translates to:
-  /// **'Questa azione eliminerà definitivamente elementi del drive, bucket list, giochi e mood.\n\nLogin e connessione saranno preservati.'**
+  /// **'Questa azione eliminerà definitivamente ricordi, obiettivi della lista dei desideri, giochi e mood.\n\nLogin e connessione saranno preservati.'**
   String get profile_wipeConfirmContent;
 
   /// No description provided for @profile_wipeCancel.
@@ -1139,7 +1139,7 @@ abstract class AppLocalizations {
   /// No description provided for @drive_noFavoritesSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Aggiungi elementi ai preferiti dal Drive.'**
+  /// **'Aggiungi ai preferiti gli elementi dei vostri ricordi.'**
   String get drive_noFavoritesSubtitle;
 
   /// No description provided for @drive_takePhoto.

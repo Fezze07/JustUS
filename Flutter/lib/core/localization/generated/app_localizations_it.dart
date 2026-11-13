@@ -280,7 +280,13 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String home_bucketListSubtitleDynamic(int count) {
-    return '$count obiettivi in sospeso';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count obiettivi in sospeso',
+      one: '1 obiettivo in sospeso',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -320,7 +326,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get profile_changePasswordSubtitle =>
-      'Proteggi il vostro spazio condiviso';
+      'Cambia la password del tuo account';
 
   @override
   String get profile_anniversaryTitle => 'Anniversario';
@@ -332,14 +338,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get profile_wipeDataTitle => 'Cancella dati app';
 
   @override
-  String get profile_wipeDataSubtitle => 'Resetta tutto tranne l’account';
+  String get profile_wipeDataSubtitle =>
+      'Resetta tutti i dati tranne l’account';
 
   @override
   String get profile_wipeConfirmTitle => 'CANCELLARE TUTTI I DATI?';
 
   @override
   String get profile_wipeConfirmContent =>
-      'Questa azione eliminerà definitivamente elementi del drive, bucket list, giochi e mood.\n\nLogin e connessione saranno preservati.';
+      'Questa azione eliminerà definitivamente ricordi, obiettivi della lista dei desideri, giochi e mood.\n\nLogin e connessione saranno preservati.';
 
   @override
   String get profile_wipeCancel => 'ANNULLA';
@@ -561,7 +568,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get drive_noFavoritesSubtitle =>
-      'Aggiungi elementi ai preferiti dal Drive.';
+      'Aggiungi ai preferiti gli elementi dei vostri ricordi.';
 
   @override
   String get drive_takePhoto => 'Scatta foto';

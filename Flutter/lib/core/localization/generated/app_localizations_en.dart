@@ -279,7 +279,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String home_bucketListSubtitleDynamic(int count) {
-    return '$count goals pending';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count goals pending',
+      one: '1 goal pending',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -316,7 +322,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_yourPartnerCodeTitle => 'Your Partner Code';
 
   @override
-  String get profile_changePasswordSubtitle => 'Secure your shared space';
+  String get profile_changePasswordSubtitle => 'Change your account password';
 
   @override
   String get profile_anniversaryTitle => 'Anniversary';
@@ -328,14 +334,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_wipeDataTitle => 'Wipe App Data';
 
   @override
-  String get profile_wipeDataSubtitle => 'Reset everything except account';
+  String get profile_wipeDataSubtitle =>
+      'Reset all app data except your account';
 
   @override
   String get profile_wipeConfirmTitle => 'WIPE ALL DATA?';
 
   @override
   String get profile_wipeConfirmContent =>
-      'This will permanently delete all drive items, bucket list, games, and moods.\n\nLogin and connection will be preserved.';
+      'This will permanently delete all memories, bucket list items, games, and moods.\n\nLogin and connection will be preserved.';
 
   @override
   String get profile_wipeCancel => 'CANCEL';
@@ -553,7 +560,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get drive_noFavorites => 'No favorites';
 
   @override
-  String get drive_noFavoritesSubtitle => 'Mark items as favorites in Drive.';
+  String get drive_noFavoritesSubtitle =>
+      'Mark items in your memories as favorites.';
 
   @override
   String get drive_takePhoto => 'Take Photo';
