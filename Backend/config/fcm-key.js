@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const path = require("path");
 const { getMessaging } = require("firebase-admin/messaging");
 let initialized = false;
 
@@ -17,7 +18,9 @@ function initializeFirebaseAdmin() {
   let serviceAccount;
 
   try {
-    serviceAccount = require(serviceAccountPath);
+    serviceAccount = require(
+      path.resolve(__dirname, "..", serviceAccountPath)
+    );
   } catch (err) {
     console.error("[FCM] Error loading Firebase service account:", err.message);
     return false;
