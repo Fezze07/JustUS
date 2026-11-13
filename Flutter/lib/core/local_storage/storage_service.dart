@@ -28,8 +28,6 @@ String _isolateEncodeList(List<Map<String, dynamic>> list) => jsonEncode(list);
 class StorageService {
   static const String _keyUsername = 'username';
   static const String _keyUserId = 'user_id';
-  static const String _keyAccessToken = 'access_token';
-  static const String _keyRefreshToken = 'refresh_token';
   static const String _keyPartnerId = 'partner_id';
   static const String _keyPartnershipId = 'partnership_id';
   static const String _keyPartnerDisplayName = 'partner_display_name';
@@ -184,26 +182,6 @@ class StorageService {
     final val = await _secureStorage.read(key: _keyUserId);
 
     return val != null ? int.tryParse(val) : null;
-  }
-
-  // -------------------- Access Token --------------------
-
-  static Future<void> saveAccessToken(String token) async {
-    await _secureStorage.write(key: _keyAccessToken, value: token);
-  }
-
-  static Future<String?> getAccessToken() async {
-    return await _secureStorage.read(key: _keyAccessToken);
-  }
-
-  // -------------------- Refresh Token --------------------
-
-  static Future<void> saveRefreshToken(String token) async {
-    await _secureStorage.write(key: _keyRefreshToken, value: token);
-  }
-
-  static Future<String?> getRefreshToken() async {
-    return await _secureStorage.read(key: _keyRefreshToken);
   }
 
   // -------------------- Device Binding --------------------

@@ -10,8 +10,7 @@ import 'test_helpers/mock_secure_storage.dart';
 /// Regression tests for 9.2: logout must drop the push registration for this
 /// device, and it must do so without ever blocking or failing the teardown —
 /// an offline device still has to end up logged out.
-const String kTestInstallationId =
-    'fid-used-by-the-logout-tests-0123456789';
+const String kTestInstallationId = 'fid-used-by-the-logout-tests-0123456789';
 
 class _RecordingAuthRepository extends AuthRepository {
   _RecordingAuthRepository({this.onRevoke});
@@ -38,7 +37,6 @@ class _RecordingAuthRepository extends AuthRepository {
 
 Future<void> _login(AuthState auth) => auth.setLoginData(
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: User(id: 1, email: 'user@example.com', displayName: 'Alex'),
     );
 
@@ -50,7 +48,8 @@ void main() {
     installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
-    InstallationIdService.installationIdOverride = () async => kTestInstallationId;
+    InstallationIdService.installationIdOverride =
+        () async => kTestInstallationId;
   });
 
   tearDown(() {
@@ -71,7 +70,7 @@ void main() {
     // it is issued before `signOut()`, not after.
     expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
     expect(auth.isLoggedIn, isFalse);
-    expect(await StorageService.getAccessToken(), isNull);
+    expect(await StorageService.getUserId(), isNull);
   });
 
   test('logout completes when the revoke fails', () async {
@@ -106,7 +105,8 @@ void main() {
     expect(auth.isLoggedIn, isFalse);
   });
 
-  test('logout skips the revoke when no installation id could be resolved', () async {
+  test('logout skips the revoke when no installation id could be resolved',
+      () async {
     InstallationIdService.installationIdOverride = () async => '';
     final repo = _RecordingAuthRepository();
     final auth = AuthState(authRepo: repo);

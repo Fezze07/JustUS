@@ -462,12 +462,6 @@ class ApiService {
         return false;
       }
 
-      await StorageService.saveAccessToken(session.accessToken);
-      final newRefreshToken = session.refreshToken;
-      if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-        await StorageService.saveRefreshToken(newRefreshToken);
-      }
-
       return session.accessToken != staleAccessToken;
     } catch (e) {
       AnsiLogger.error('_tryRefreshToken error: $e', tag: 'ApiService');

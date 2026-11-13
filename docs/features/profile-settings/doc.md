@@ -18,7 +18,7 @@ This document provides a reverse-engineering technical analysis of the end-to-en
 6. **Language & Localization Management**: Navigates to `/localization` to select between supported languages (Italian and English), persisting the preference across app restarts and dynamically switching localized string lookup.
 7. **Notification Preference Toggle**: VPSettingTile switch allowing users to toggle push/local notifications on or off, persisted locally via `StorageService` (`notifications_enabled`) and mirrored to `user_devices.notifications_enabled` so the backend stops targeting a disabled installation in foreground, background and terminated state.
 8. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
-9. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing local tokens, cached data, and real-time WebSocket subscriptions.
+9. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing the SDK session, cached data, and real-time WebSocket subscriptions.
 10. **App Version Display & Interactive Update Check**: Displays cached/live app version (`v{version}`) loaded from `SharedPreferences` key `app_version` (falling back to `package_info_plus`). Manual update checks display an immediate inline loading spinner on the tile and footer.
 11. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL, Cloudflare R2, and local storage without invalidating authentication tokens.
 12. **Partnership Cancellation Request**: When paired (`AuthState.hasPartner`), a danger-styled tile above Logout opens a simple confirmation dialog and calls `partnership_request_cancel`. The couple is frozen, the partner is pushed, and the requester lands on `PartnerScreen` in the waiting state; a cooldown/error response keeps the user on Profile.
@@ -175,8 +175,6 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 | Storage Level | Key | Purpose | Cleared on Logout? | Cleared on Account Wipe? |
 |---|---|---|---|---|
-| `FlutterSecureStorage` | `access_token` | JWT Access Token | **YES** | NO |
-| `FlutterSecureStorage` | `refresh_token` | JWT Refresh Token | **YES** | NO |
 | `FlutterSecureStorage` | `user_id` | DB User Integer ID | **YES** | NO |
 | `FlutterSecureStorage` | `partner_id` | DB Partner Integer ID | **YES** | NO |
 | `FlutterSecureStorage` | `partnership_id` | DB Partnership Integer ID | **YES** | NO |
@@ -190,7 +188,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 | `SharedPreferences` | `profile_pic_version` | Profile Pic Cache Version (appended as `?v=` to the own-avatar URL) | **YES** | **YES** |
 | `SharedPreferences` | `username` / `partner_display_name` | Profile Names | **YES** | NO |
 
-> **Deliberate retention**: the wipe intentionally does **not** clear `FlutterSecureStorage` (`access_token`, `refresh_token`, `user_id`, `partner_id`, `partnership_id`, `device_fingerprint`, `request_binding_secret`) nor the display-name keys. Authentication must remain active after the wipe (invariant 3), so tokens/session identity are always preserved; names are kept only as a cosmetic convenience for the post-wipe reload.
+> **Deliberate retention**: the wipe intentionally does **not** clear `FlutterSecureStorage` (`user_id`, `partner_id`, `partnership_id`, `device_fingerprint`, `request_binding_secret`) nor the display-name keys. Authentication must remain active after the wipe (invariant 3), so session identity is always preserved; the Supabase SDK's own token storage is untouched as well. Names are kept only as a cosmetic convenience for the post-wipe reload.
 | `SharedPreferences` | `bucket_list`, `drive_cache`, etc. | App Feature Caches | **YES** | **YES** |
 
 ---
@@ -256,7 +254,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 | **Local Storage** | `SharedPreferences` (`chk_*` checkpoints) | **DELETED** | `wipeAppData` also calls `CacheService.clearAll()` (F-SC10 resolved). |
 | **Local Storage** | `SharedPreferences` (`username`, `partner_display_name`) | **SURVIVES** | Deliberate — display names are a cosmetic convenience; tokens stay for an active session. |
 | **Media Cache** | `MediaCacheManager` / `DefaultCacheManager` (on-disk files) | **DELETED** | `wipeAppData` calls `emptyAppMediaCaches()` (F-SC11 resolved). |
-| **Secure Storage** | `FlutterSecureStorage` | **SURVIVES** | Deliberate — auth tokens (`access_token`, `user_id`, `binding_secret`, `device_fingerprint`) are kept so the session remains valid after the wipe. |
+| **Secure Storage** | `FlutterSecureStorage` | **SURVIVES** | Deliberate — session identity (`user_id`, `binding_secret`, `device_fingerprint`) is kept, and the Supabase SDK's own token storage is untouched, so the session remains valid after the wipe. |
 | **Cached State** | In-Memory Providers (`GameState`, `BucketState`, `DriveState`, `MoodState`, `HomepageState`) | **CLEARED** | Explicitly cleared in UI callback (`context.read<State>().clear()`). |
 
 ---

@@ -58,7 +58,6 @@ void main() {
     final state = AuthState(authRepo: AuthRepository(api: api));
     await state.setLoginData(
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: User(id: 1, email: 'user@example.com', displayName: 'Alex'),
     );
 

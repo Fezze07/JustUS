@@ -14,7 +14,7 @@ public.session_bindings (JustUS-specific security & device binding data)
 
 The session security model in JustUS is a multi-layered defense system:
 - **Identity Provider (Supabase Auth)**: Single source of truth for session lifecycle (`auth.sessions`), issuing Access Tokens (JWT) and Refresh Tokens.
-- **Client Storage & Networking (Flutter)**: Manages secure token storage (`FlutterSecureStorage`), headers injection, request signing, and single-retry 401 recovery (`ApiService`).
+- **Client Storage & Networking (Flutter)**: Delegates session persistence to the Supabase SDK, injects headers, signs requests, and performs single-retry 401 recovery (`ApiService`).
 - **Backend Middleware (Node.js / Express)**: Enforces Supabase token verification (`authSupabase.auth.getUser`), device fingerprint binding validation (`session_bindings`), and HMAC signature verification (`requireSignedRequest`).
 
 ---
@@ -28,7 +28,8 @@ Session Creation (Login / Register)
    │
    ├── 1. Supabase Auth returns Access Token (JWT) & Refresh Token
    │
-   ├── 2. AuthState.setLoginData saves tokens to StorageService (FlutterSecureStorage)
+   ├── 2. AuthState.setLoginData keeps `_accessToken` in memory; the SDK persists the token pair
+   │      and StorageService stores only username + user id
    │
    ├── 3. Session Binding (POST /api/v1/auth/session-bind)
    │        │
@@ -58,7 +59,7 @@ Session Creation (Login / Register)
    │        │
    │        ├── Calls Supabase SDK auth.refreshSession() (single refresh path)
    │        ├── SDK updates its live session and emits tokenRefreshed
-   │        ├── AuthState listener persists the new tokens to StorageService
+   │        ├── App persists no tokens; AuthState keeps only an in-memory marker
    │        └── Concurrent callers share one refresh: gotrue dedupes by
    │            refresh token, including the SDK's built-in auto-refresh
    │
@@ -110,14 +111,11 @@ Session Creation (Login / Register)
 
 ## Token Storage
 
-Client-side token persistence is handled through `StorageService` backed by `FlutterSecureStorage`:
+Supabase Auth owns client-side token persistence. `Supabase.initialize` runs with its defaults (`persistSession: true`, `autoRefreshToken: true`), so the SDK keeps the access/refresh pair in its own local session storage and refreshes it in the background.
 
-| Key Name | Storage Type | Purpose | File Reference |
-|---|---|---|---|
-| `access_token` | Secure Storage | Supabase Bearer JWT | [storage_service.dart:145](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart#L145) |
-| `refresh_token` | Secure Storage | Supabase Refresh Token | [storage_service.dart:155](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart#L155) |
-| `device_fingerprint` | Secure Storage | Client Device UUID | [storage_service.dart:174](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart#L174) |
-| `request_binding_secret` | Secure Storage | HMAC Request Signing Secret | [storage_service.dart:186](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart#L186) |
+The app does not mirror tokens in `StorageService`. `AuthState._accessToken` is an in-memory `isLoggedIn` marker seeded from `auth.currentSession` during `init()`; `ApiService` and the Realtime client read the live SDK session directly.
+
+`StorageService` still persists `device_fingerprint` and `request_binding_secret` in secure storage; both are cleared on logout.
 
 ### In-Memory Caching (`ApiService`)
 
@@ -144,19 +142,19 @@ Flutter Client                         Supabase Auth
       │                                      │
       │── SDK updates currentSession ────────┘
       │   -> emits tokenRefreshed
-      │   -> AuthState listener persists both tokens to StorageService
+      │   -> app persists no tokens (in-memory marker only)
 ```
 
 On HTTP `401`, `ApiService._safeCall`:
 1. Captures the access token that was used for the failed request.
 2. If the live Supabase session already carries a **different** access token, a refresh already happened (e.g. the SDK auto-refresh won) -> retry immediately without refreshing again.
-3. Otherwise calls `auth.refreshSession()`, which updates the live session; `AuthState._accessToken` is updated by the `tokenRefreshed` listener and the new tokens are persisted to `StorageService`.
+3. Otherwise calls `auth.refreshSession()`, which updates the live session; the original request is retried once with the new token.
 4. On success retries the original request once (`isRetry = true`); on failure calls `onSessionExpired` (-> `logout()`) and returns the synthetic `401`.
 
 ### Concurrency Protection
 
 - There is exactly **one** refresh path (the Supabase SDK). gotrue serializes concurrent refreshes that share a refresh token through an internal `_pendingRefreshes` map, so simultaneous 401-driven refreshes and the SDK's built-in auto-refresh spend the one-time refresh token only once.
-- Because the SDK owns the session, the two views cannot diverge for **requests**: `ApiService._readAccessToken()` and `RealtimeSyncConnection` both read `Supabase.instance.client.auth` directly, so `AuthState._accessToken` is only a mirror. The `tokenRefreshed` listener keeps that mirror current (todo# 1.6), but it is *not* a hard invariant — a `signInWithPassword` that does not emit `tokenRefreshed` (the re-auth inside `changePassword`) replaces the live session and leaves the mirror pointing at the previous one.
+- Because the SDK owns the session, the two views cannot diverge for **requests**: `ApiService._readAccessToken()` and `RealtimeSyncConnection` both read `Supabase.instance.client.auth` directly. `AuthState._accessToken` is only an in-memory `isLoggedIn` marker seeded from the SDK session at `init()`; it is not refreshed or persisted, and no request reads it.
 
 ---
 
@@ -179,7 +177,7 @@ Flutter Client                         Supabase Auth (auth.sessions)
       │                                        │
 ```
 
-The live session and the Realtime JWT are untouched; the secure-storage mirror keeps the tokens of the now-deleted previous session, and nothing reads it (see [Concurrency Protection](#concurrency-protection)).
+The live session and the Realtime JWT are untouched; the in-memory `isLoggedIn` marker stays non-null and no token is persisted by the app (see [Concurrency Protection](#concurrency-protection)).
 
 - **Scope `others` keeps the caller alive**: the SDK sends no local `signOut()` and fires no `signedOut` event for this scope, so `AuthState.logout()` is not triggered and the device that changed the password stays in.
 - **Effect on the other devices**: GoTrue runs `DELETE FROM auth.sessions WHERE id != <current>` on scope `others`, so their refresh tokens *and* their unexpired access tokens are rejected at once — every authenticated call resolves the JWT's `session_id`, and a missing session answers `session_not_found` before the 1 h JWT lifetime matters. `authenticateToken` maps that to `AUTH_FAIL_001` (`401`), which drives the other device through the standard [401 handling](#401-handling--request-retry): the refresh fails, `onSessionExpired` logs it out and its device-token row is revoked.
@@ -373,7 +371,7 @@ None currently identified.
 
 ### Flutter Frontend
 - [api_service.dart](file:///f:/JustUS/Flutter/lib/core/network/api_service.dart): Core HTTP client, `_buildHeaders()`, `_safeCall()`, `_tryRefreshToken()`.
-- [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Secure storage wrapper for access token, refresh token, fingerprint, binding secret.
+- [storage_service.dart](file:///f:/JustUS/Flutter/lib/core/local_storage/storage_service.dart): Secure storage wrapper for the device fingerprint and request binding secret; tokens are owned by the Supabase SDK.
 - [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart): Global auth state, session initialization, lifecycle locale sync.
 - [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart): Supabase Auth calls, including `revokeOtherSessions()` (`signOut(scope: others)`) and `revokeOtherInstallations()` (`POST /auth/installation-id-revoke-all`).
 

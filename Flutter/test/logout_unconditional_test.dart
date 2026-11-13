@@ -69,7 +69,6 @@ class _ActivePartnerRepository extends PartnershipRepository {
 
 Future<void> _login(AuthState auth) => auth.setLoginData(
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: User(id: 1, email: 'user@example.com', displayName: 'Alex'),
     );
 
@@ -117,7 +116,7 @@ void main() {
 
     expect(find.text(AppRoutes.login), findsOneWidget);
     expect(auth.isLoggedIn, isFalse);
-    expect(await StorageService.getAccessToken(), isNull);
+    expect(await StorageService.getUserId(), isNull);
     expect(await StorageService.getMood('me'), isNull);
     expect(await CacheService.getCheckpoint(CacheService.kMissYou), isNull);
   });

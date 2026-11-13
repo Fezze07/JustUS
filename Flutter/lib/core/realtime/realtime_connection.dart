@@ -10,8 +10,7 @@ import 'package:justus/all_imports.dart';
 /// Created and torn down by [RealtimeSyncService]; feature handlers are wired
 /// via [bindings] and a shared [RealtimeSyncSession] supplies the identity and
 /// processing-suppression flags.
-class RealtimeSyncConnection
-    with WidgetsBindingObserver, TrailingEdgeDebounce {
+class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
   RealtimeSyncConnection({
     required sb.SupabaseClient client,
     required RealtimeSyncSession session,
@@ -47,7 +46,7 @@ class RealtimeSyncConnection
   @override
   Duration get debounce => const Duration(milliseconds: 300);
 
-  /// Registers as a lifecycle observer and subscribes to auth token-refresh.
+  /// Registers as a lifecycle observer and subscribes to auth events.
   void start() {
     if (_disposed) return;
 
@@ -56,14 +55,9 @@ class RealtimeSyncConnection
       AnsiLogger.realtime(
           'auth state changed: event=${authState.event} foreground=$_foreground userId=${_session.userId}');
 
-      // Token refresh is handled internally by Supabase; just update the
-      // JWT on the existing Realtime connection without disconnecting.
+      // SupabaseClient already forwards the rotated JWT to the Realtime client;
+      // skip the reconnect here so a refresh does not tear down the channel.
       if (authState.event == sb.AuthChangeEvent.tokenRefreshed) {
-        final token = authState.session?.accessToken;
-        if (token != null) {
-          AnsiLogger.realtime('token refreshed -> realtime.setAuth()');
-          unawaited(_client.realtime.setAuth(token));
-        }
         return;
       }
 
@@ -128,8 +122,7 @@ class RealtimeSyncConnection
         const slowDelayMs = 60000;
         final slowJitter = (slowDelayMs * 0.25).round();
         final slowFinal = slowDelayMs +
-            (DateTime.now().microsecondsSinceEpoch %
-                    (slowJitter * 2 + 1) -
+            (DateTime.now().microsecondsSinceEpoch % (slowJitter * 2 + 1) -
                 slowJitter);
         AnsiLogger.realtime(
             '_scheduleReconnect() - max fast retries (20) reached; slow retry in ${slowFinal}ms while polling fallback active (F-RT7)');

@@ -113,9 +113,9 @@ class AuthState extends BaseState
     await _installationIdSubscription?.cancel();
     _installationIdSubscription = null;
 
-    // 1. Get local data parallelized
+    // 1. Get local identity data; the SDK owns the token pair.
+    final session = _authRepo.currentSession;
     final results = await Future.wait([
-      StorageService.getAccessToken(),
       StorageService.getUsername(),
       StorageService.getUserId(),
       StorageService.getPartnerId(),
@@ -123,12 +123,12 @@ class AuthState extends BaseState
       StorageService.getPartnershipId(),
     ]);
 
-    _accessToken = results[0] as String?;
-    _username = results[1] as String?;
-    _userId = results[2] as int?;
-    _partnerId = results[3] as int?;
-    _partnerDisplayName = results[4] as String?;
-    _partnershipId = results[5] as int?;
+    _accessToken = session?.accessToken;
+    _username = results[0] as String?;
+    _userId = results[1] as int?;
+    _partnerId = results[2] as int?;
+    _partnerDisplayName = results[3] as String?;
+    _partnershipId = results[4] as int?;
 
     // Bind the storage namespace to the persisted partnership so feature
     // caches and checkpoints are never read under a different partnership
@@ -136,9 +136,13 @@ class AuthState extends BaseState
     StorageService.setActivePartnership(_partnershipId);
 
     // 2. Check Supabase session
-    final session = _authRepo.currentSession;
     if (session == null) {
-      if (_accessToken != null) await logout();
+      if (_username != null ||
+          _userId != null ||
+          _partnerId != null ||
+          _partnershipId != null) {
+        await logout();
+      }
     } else {
       if (_username == null || _username!.isEmpty) {
         final profileResult =
@@ -148,7 +152,6 @@ class AuthState extends BaseState
         if (user != null) {
           await setLoginData(
             accessToken: session.accessToken,
-            refreshToken: session.refreshToken ?? '',
             user: user,
           );
         }
@@ -163,18 +166,10 @@ class AuthState extends BaseState
       }
     }
 
-    // Sincronizza lo StorageService e gestisci il passwordRecovery da link email
+    // Gestisci il passwordRecovery da link email
     _authSubscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      final evt = data.event;
-      final currentSession = data.session;
-      if (evt == AuthChangeEvent.tokenRefreshed && currentSession != null) {
-        await StorageService.saveAccessToken(currentSession.accessToken);
-        if (currentSession.refreshToken != null) {
-          await StorageService.saveRefreshToken(currentSession.refreshToken!);
-        }
-        _accessToken = currentSession.accessToken;
-      } else if (evt == AuthChangeEvent.passwordRecovery) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
         AnsiLogger.auth('Password recovery event received from deep link',
             tag: 'AuthState');
         final navContext = ErrorHandler.navigatorKey.currentContext;
@@ -342,7 +337,6 @@ class AuthState extends BaseState
       // Step 3: Set local data
       await setLoginData(
         accessToken: res.session!.accessToken,
-        refreshToken: res.session!.refreshToken ?? '',
         user: user,
       );
 
@@ -661,15 +655,12 @@ class AuthState extends BaseState
 
   Future<void> setLoginData({
     required String accessToken,
-    required String refreshToken,
     required User user,
   }) async {
     _accessToken = accessToken;
     _username = user.username;
     _userId = user.id;
 
-    await StorageService.saveAccessToken(accessToken);
-    await StorageService.saveRefreshToken(refreshToken);
     await StorageService.saveUsername(user.username);
     await StorageService.saveUserId(user.id);
 
@@ -723,7 +714,8 @@ class AuthState extends BaseState
 
   Future<void> _checkLoginRisk(String email) async {
     try {
-      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
+      final deviceFingerprint =
+          await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.checkLoginRisk(email, deviceFingerprint);
 
       if (result is GenericError<Map<String, dynamic>> && result.code == 429) {
@@ -746,7 +738,8 @@ class AuthState extends BaseState
   /// wrong-password error the user needs to see.
   Future<void> _reportFailedLogin(String email, String reason) async {
     try {
-      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
+      final deviceFingerprint =
+          await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.reportFailedLogin(
         email,
         deviceFingerprint,
@@ -767,7 +760,8 @@ class AuthState extends BaseState
     }
 
     try {
-      final deviceFingerprint = await InstallationIdService.getDeviceFingerprint();
+      final deviceFingerprint =
+          await InstallationIdService.getDeviceFingerprint();
       final result = await _authRepo.bindSession(deviceFingerprint);
 
       final value = result.valueOrNull;

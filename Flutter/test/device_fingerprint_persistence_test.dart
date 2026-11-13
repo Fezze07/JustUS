@@ -25,7 +25,6 @@ void main() {
     final before = await StorageService.getOrCreateDeviceFingerprint();
 
     await StorageService.saveUserId(42);
-    await StorageService.saveAccessToken('token');
     await StorageService.saveRequestBindingSecret('secret');
 
     await StorageService.clearAll();
@@ -37,18 +36,14 @@ void main() {
 
   test(
       'clearAll still wipes the session-bound secure storage values '
-      '(user id, tokens, binding secret)', () async {
+      '(user id, binding secret)', () async {
     await StorageService.saveUserId(42);
-    await StorageService.saveAccessToken('token');
-    await StorageService.saveRefreshToken('refresh');
     await StorageService.saveRequestBindingSecret('secret');
     final fingerprint = await StorageService.getOrCreateDeviceFingerprint();
 
     await StorageService.clearAll();
 
     expect(await StorageService.getUserId(), isNull);
-    expect(await StorageService.getAccessToken(), isNull);
-    expect(await StorageService.getRefreshToken(), isNull);
     expect(await StorageService.getRequestBindingSecret(), isNull);
     expect(await StorageService.getOrCreateDeviceFingerprint(), fingerprint);
   });

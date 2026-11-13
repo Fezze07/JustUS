@@ -125,7 +125,8 @@ Flutter UI (LoginScreen)
    │
    ├── 7. Session Storage (AuthState.setLoginData)
    │        │
-   │        └── Saves accessToken, refreshToken, username, userId to StorageService
+   │        └── Keeps `_accessToken` in memory and saves username, userId to StorageService
+   │            (the Supabase SDK persists the token pair itself)
    │
    ├── 8. Backend Session Sync (Backend POST /api/v1/auth/session-bind)
    │        │
@@ -176,7 +177,7 @@ Flutter UI (LoginScreen)
    - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L662-L677)
    - Invokes `setLoginData()`:
      - Sets in-memory variables (`_accessToken`, `_username`, `_userId`).
-     - Persists values securely via `StorageService` (`saveAccessToken`, `saveRefreshToken`, `saveUsername`, `saveUserId`).
+     - Persists username and user id via `StorageService` (`saveUsername`, `saveUserId`); the Supabase SDK owns token persistence.
      - Calls `notifyListeners()`.
 
 7. **Backend Session Synchronization**

@@ -96,7 +96,7 @@ All eleven providers are created **eagerly at startup**, regardless of which scr
 
 ### Failure behavior
 
-- `_checkAuth()` wraps only `init()` in a `try/catch` block. An exception (including the 8 s timeout) is logged via `AnsiLogger` and navigation then follows the **same** post-auth decision as the happy path: it does not force `LoginScreen`. Only a session state with no access token routes there, so a transient network failure no longer logs a still-valid user out. The timed-out `init()` future keeps running and still stores a late binding secret.
+- `_checkAuth()` wraps only `init()` in a `try/catch` block. An exception (including the 8 s timeout) is logged via `AnsiLogger` and navigation then follows the **same** post-auth decision as the happy path: it does not force `LoginScreen`. Only a session state with no in-memory auth marker routes there, so a transient network failure no longer logs a still-valid user out. The timed-out `init()` future keeps running and still stores a late binding secret.
 - `handleGlobal` defers UI to a post-frame callback specifically because it is invoked from build/error phases (see Error Handling).
 
 ### Can initialization run more than once?
@@ -182,7 +182,7 @@ Every feature exposes `*Repository extends BaseRepository`:
 - **Headers**: `Authorization: Bearer <supabase access token>` (from `Supabase.instance.client.auth.currentSession`), `X-Device-Fingerprint` (cached static within the process; primed at startup by `ApiService.primeDeviceFingerprint()`), `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
 - **HMAC request signing**: for signed endpoints it builds `X-Request-Timestamp`, `X-Request-Nonce` (UUID v4), and `X-Request-Signature` = HMAC-SHA256 over `METHOD.path.timestamp.nonce.bodyHash` using the **session binding secret**. If the secret is unavailable for a `requireSignature: true` authenticated call, it first attempts recovery by invoking `onMissingBindingSecret` (wired to `AuthState._syncBackendSession`, deduplicated in-flight + 30s cooldown); if recovery fails it throws a typed `AppError(code: 'LOCAL-BINDING-001')`, which `_safeCall` returns as `GenericError(details: AppError)` so `ErrorHandler` shows a retry-able message. Unsigned endpoints still carry a fresh timestamp + nonce (required by `freshNonce` routes) but never a signature when the secret is absent.
 - **Stale-secret recovery** (`_isRejectedSignature`): a 401 whose body code is `SEC-AUTH-002` means the backend rotated the secret while the client kept the old one (the backend verifies the JWT *before* the signature, so the token is known good). `_safeCall` then re-runs the same recovery and retries once when the secret actually changed, instead of spending a token refresh on an unexpired token.
-- **Response handling** (`_safeCall`): default timeout 10s; 2xx -> decode via `compute()` isolate; 401 -> records the token used for the request, then `_tryRefreshToken(staleToken)` calls the Supabase SDK's `auth.refreshSession()` (the single refresh path; gotrue dedupes concurrent refreshes by refresh token). If the live session already holds a different token the refresh is skipped; otherwise the SDK session is refreshed and the `tokenRefreshed` listener syncs `AuthState`, then the original request is retried once. Refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`; the synthetic `"401"` code is in `ErrorCodes.requiresReauth`, so `ErrorHandler` opens the reauth dialog and redirects to `/login` (todo# 1.3). Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`. A call issued *from* the teardown passes `notifySessionExpired: false` so a 401 cannot re-enter `logout()` — currently only `revokeInstallationId`.
+- **Response handling** (`_safeCall`): default timeout 10s; 2xx -> decode via `compute()` isolate; 401 -> records the token used for the request, then `_tryRefreshToken(staleToken)` calls the Supabase SDK's `auth.refreshSession()` (the single refresh path; gotrue dedupes concurrent refreshes by refresh token). If the live session already holds a different token the refresh is skipped; otherwise the SDK session is refreshed and the original request is retried once. Refresh failure -> `onSessionExpired?.call()` (global callback -> `AuthState.logout()`) and `GenericError(401)`; the synthetic `"401"` code is in `ErrorCodes.requiresReauth`, so `ErrorHandler` opens the reauth dialog and redirects to `/login` (todo# 1.3). Non-2xx parses the `{error:{code,message,severity}}` envelope into `AppError`. A call issued *from* the teardown passes `notifySessionExpired: false` so a 401 cannot re-enter `logout()` — currently only `revokeInstallationId`.
 - **Static mutable state**: `ApiService.onSessionExpired`, `ApiService.onMissingBindingSecret`, `_cachedDeviceFingerprint`, `_cachedRequestBindingSecret`, `_bindingSecretRecovery`, `_lastBindingSecretSyncAttempt`.
 - `resolveProtectedMediaUrl(url)` rewrites raw R2 object keys into `GET /api/v1/media/file?filename=...` URLs (used by avatar widgets).
 - `authHeaders` static getter - used by `ProtectedNetworkImage` and the media cache file service for authenticated image downloads; returns `Authorization` plus the cached `X-Device-Fingerprint`.
@@ -193,10 +193,10 @@ Sealed: `Success<T>` / `GenericError<T>(code, message, details)` / `NetworkError
 
 ### Single token-refresh mechanism
 
-1. **Supabase SDK (source of truth)**: the SDK refreshes automatically before expiry and fires `AuthChangeEvent.tokenRefreshed`; `AuthState` listens and persists the new access/refresh tokens to secure storage.
+1. **Supabase SDK (source of truth)**: the SDK refreshes automatically before expiry and fires `AuthChangeEvent.tokenRefreshed`; the live session is updated in place. The app persists no tokens.
 2. **401-driven refresh**: `ApiService._tryRefreshToken()` calls the same `auth.refreshSession()` and, if the SDK had not already refreshed (detected by comparing the request's token with the live session), updates the live session before retrying.
 
-gotrue's internal `_pendingRefreshes` map makes both sources share a single network refresh per refresh token, so they cannot race. The SDK session is authoritative for the access token (`ApiService` reads it from `Supabase.instance.client.auth.currentSession`); `AuthState` mirrors it via the `tokenRefreshed` listener (todo# 1.6). The mirror is not an invariant, though: a `signInWithPassword` that emits no `tokenRefreshed` (the re-auth inside `changePassword`) replaces the live session and leaves `_accessToken` and the secure-storage copy on the previous one. Nothing reads them for auth decisions — `ApiService` and `RealtimeSyncConnection` both take the SDK session, and `AuthState.isLoggedIn` only null-checks the mirror. The former backend `/auth/refresh` proxy has been retired.
+gotrue's internal `_pendingRefreshes` map makes both sources share a single network refresh per refresh token, so they cannot race. The SDK session is authoritative for the access token (`ApiService` reads it from `Supabase.instance.client.auth.currentSession`); `AuthState._accessToken` is only an in-memory `isLoggedIn` marker seeded from `currentSession` at init — it is not refreshed, persisted or read for requests, so a re-auth that replaces the session cannot leave anything but that marker stale. `ApiService` and `RealtimeSyncConnection` both take the SDK session. The former backend `/auth/refresh` proxy has been retired.
 
 ---
 
@@ -205,7 +205,7 @@ gotrue's internal `_pendingRefreshes` map makes both sources share a single netw
 ### StorageService (`lib/core/local_storage/storage_service.dart`)
 
 - `SharedPreferences` (initialized in `main()` via `init()`; lazily re-fetched in the async `prefs` getter) - non-secret data plus caches.
-- `flutter_secure_storage` - tokens, user id, partner id, partnership id, device fingerprint (UUID v4), request binding secret.
+- `flutter_secure_storage` - user id, partner id, partnership id, device fingerprint (UUID v4), request binding secret. Tokens are owned by the Supabase SDK.
 - JSON encode/decode **offloaded to isolates** via `compute()` (top-level isolate helpers).
 - On read of `partner_id`/`partnership_id`, `-1` is translated to `null` (legacy sentinel).
 - `saveRequestBindingSecret` also updates `ApiService._cachedRequestBindingSecret` (inline bridge across layers).
@@ -281,7 +281,7 @@ The realtime stack was split by responsibility (files under `lib/core/realtime/`
 - `handlers/` — feature strategies extending the base: `MoodRealtimeHandler` (distinct-user coalescing), `MissYouRealtimeHandler` (immediate), `BucketRealtimeHandler` (immediate granular), `GameRealtimeHandler` (immediate + FIFO buffer).
 
 `RealtimeSyncService`:
-- `start()`: delegates to `RealtimeSyncConnection.start()` which registers as `WidgetsBindingObserver`, subscribes to `auth.onAuthStateChange`. On `tokenRefreshed` -> `realtime.setAuth(token)` without reconnect. Any other auth event while foreground+user -> `scheduleReconnect()`.
+- `start()`: delegates to `RealtimeSyncConnection.start()` which registers as `WidgetsBindingObserver`, subscribes to `auth.onAuthStateChange`, and ignores `tokenRefreshed` (the Supabase client forwards the rotated JWT to Realtime itself). Any other auth event while foreground+user -> `scheduleReconnect()`.
 - `configure(userId, partnerId, partnershipId)`: resets retry counters; mutates the session ids; if `userId` or `partnershipId` is null -> unsubscribe and defer; else (on change) `scheduleReconnect`.
 - Subscribes to **9 tables** on one channel `justus-sync-<userId>-<generation>`: `moods`, `partnerships`, `missyou`, `bucket_items`, `game_questions`, `game_answers`, `drive_items`, `drive_item_reactions`, `user_profiles`.
 - Event routing: per-feature relevance filter (`RealtimeSyncSession.isRelevant*`/`isPartnershipRecord`) + dedup (`markSeen`, LRU of 80 `table:event:id:commitTimestamp` keys) + debounced timers (120-150 ms) into feature states (`refreshFromRealtime(...)`, `applyRealtimeEvent(...)`, `handleQuestionInsert/Update/Delete`, `handleAnswerInsert/Update/Delete`, `addMissYou`).
@@ -357,13 +357,13 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
 
 1. Sets `ApiService.onSessionExpired` -> forced `logout()`. (Global mutable callback, overwritten on every call.)
 2. Cancels prior `_authSubscription`/`_installationIdSubscription` (makes init re-runnable).
-3. **Parallel** secure-storage reads via `Future.wait`: access token, refresh token, username, user id, partner id, partner display name, partnership id.
+3. **Parallel** identity-storage reads via `Future.wait`: username, user id, partner id, partner display name, partnership id. `_accessToken` is seeded from the live Supabase session.
 4. Supabase session check:
-   - No session + local access token -> `logout()` (clears cache).
+   - No session + leftover local identity -> `logout()` (clears cache).
    - Session present + username missing -> `fetchProfileByAuthId` + `setLoginData`.
 5. `_syncBackendSession()`: POST `/auth/session-bind` with the device fingerprint; stores the returned binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request whose secret is missing - or was rejected as stale (`SEC-AUTH-002`) - re-runs it on demand.
 6. If logged in + FCM: `updateInstallationId(installationId, locale = app locale)` (backed by `AuthRepository.updateInstallationId`, which is signed). Failures logged only.
-7. Subscribes to `auth.onAuthStateChange` (`tokenRefreshed` -> persist tokens) and `InstallationIdService.onRegistered` (re-register installation id).
+7. Subscribes to `auth.onAuthStateChange` (`passwordRecovery` -> reset-password route; token refreshes are left to the SDK) and `InstallationIdService.onRegistered` (re-register installation id).
 8. Registers `this` as `WidgetsBindingObserver` -> resumed -> debounced locale sync; `didChangeLocales` -> locale sync.
 9. Calls `notifyListeners()`.
 
@@ -441,7 +441,7 @@ Three components register as `WidgetsBindingObserver`:
 
 ### F10: Token refresh race between `AuthState._accessToken` and `Supabase` session
 
-**Evidence**: `AuthState` maintains its own `_accessToken` (auth_state.dart:41) but `ApiService._getHeaders()` reads the token from `Supabase.instance.client.auth.currentSession?.accessToken` (api_service.dart:58). `AuthState.isLoggedIn` checks `_accessToken != null` (auth_state.dart:70).
+**Evidence**: `AuthState` maintains an in-memory `_accessToken` (auth_state.dart:61) used only by `isLoggedIn`; `ApiService._getHeaders()` reads the token from `Supabase.instance.client.auth.currentSession?.accessToken` (api_service.dart:125).
 
 **What**: `AuthState.logout()` first revokes the installation id (network, best-effort), then calls `_authRepo.signOut()` (which clears the Supabase session), and only afterwards clears `_accessToken` and `StorageService`. But `ApiService._safeCall` reads from `Supabase.instance.client.auth.currentSession` directly - if the Supabase session is cleared asynchronously, a brief window exists where `ApiService` sees a stale session while `AuthState` thinks it is logged out.
 

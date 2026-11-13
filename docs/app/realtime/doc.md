@@ -200,7 +200,7 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 ### start / auth events (`RealtimeSyncConnection.start`)
 
 - `RealtimeSyncService.start()` → `RealtimeSyncConnection.start()` adds a `WidgetsBindingObserver` and subscribes to `_client.auth.onAuthStateChange`.
-- `tokenRefreshed` → `_client.realtime.setAuth(token)` **without disconnecting** (recommended Supabase pattern). No reconnect is triggered.
+- `tokenRefreshed` → ignored by the connection: the Supabase client already forwards the rotated JWT to Realtime on the existing channel. No reconnect is triggered.
 - Any other auth event with `_foreground && userId != null` → `scheduleReconnect()`.
 
 ### configure (`RealtimeSyncService.configure`)
@@ -233,7 +233,7 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 
 ### JWT refresh
 
-- Handled internally by Supabase on the existing connection; the client explicitly calls `setAuth` on `tokenRefreshed` to keep RLS authorizing the channel after token rotation. No reconnect, no event loss by design.
+- Handled internally by Supabase on the existing connection; the connection listens only to skip a reconnect on `tokenRefreshed`. RLS stays authorized after token rotation with no app-side `setAuth` call, no reconnect and no event loss by design.
 
 ---
 
@@ -444,7 +444,7 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 | Polling fallback at 15 s after 3 consecutive failures | IMPLEMENTED |
 | Resume → resubscribe + full `_refreshAll` | IMPLEMENTED |
 | Pause/detach/hidden → unsubscribe | IMPLEMENTED |
-| JWT `setAuth` on token refresh (no reconnect) | IMPLEMENTED |
+| JWT refresh handed to Supabase (no client `setAuth`, no reconnect) | IMPLEMENTED |
 | Wipe suppression (`suppress`/`resume`/`refreshChannel`) | IMPLEMENTED |
 | Bucket granular in-order application | IMPLEMENTED |
 | Bucket version gate vs concurrent refresh (F-RT4) | IMPLEMENTED (`bucket_state.dart`) |
@@ -468,7 +468,7 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 
 | Test file | Realtime coverage |
 |---|---|
-| `Flutter/test/realtime_sync_service_test.dart` | Service-level pipeline against a mocked `SupabaseClient`/`RealtimeChannel`: the first channel binds all nine tables with `event: all` (`justus-sync-<userId>-<generation>`), an identity change removes the stale generation and opens the next one, a `moods` insert flows channel → real `MoodRealtimeHandler` → real `MoodState` → repository (one partner refresh, own mood untouched), a burst of partner mood inserts coalesces into exactly one refetch, a `game_questions` insert reaches the game state with no debounce, a replayed `missyou` insert reaches the counter once, a foreign-partnership `bucket_items` row never reaches the state, a PK-only `partnerships` DELETE triggers exactly one `PartnerState.refreshFromRealtime`, a token refresh calls `realtime.setAuth` without resubscribing, and `dispose()` removes the channel. |
+| `Flutter/test/realtime_sync_service_test.dart` | Service-level pipeline against a mocked `SupabaseClient`/`RealtimeChannel`: the first channel binds all nine tables with `event: all` (`justus-sync-<userId>-<generation>`), an identity change removes the stale generation and opens the next one, a `moods` insert flows channel → real `MoodRealtimeHandler` → real `MoodState` → repository (one partner refresh, own mood untouched), a burst of partner mood inserts coalesces into exactly one refetch, a `game_questions` insert reaches the game state with no debounce, a replayed `missyou` insert reaches the counter once, a foreign-partnership `bucket_items` row never reaches the state, a PK-only `partnerships` DELETE triggers exactly one `PartnerState.refreshFromRealtime`, a token refresh is ignored without resubscribing or calling `setAuth`, and `dispose()` removes the channel. |
 | `Flutter/test/partner_state_test.dart` | Partner/cancellation state: paired, cancelled-by-me, cancelled-by-partner, deleted-row cleanup, lost accept response (`ended`) vs expired accept (`-014`), the reverse teleport from a pushed route when a known cancellation resolves to no partner, and no teleport while the request is still pending. |
 | `Flutter/test/bucket_realtime_handler_test.dart` | `BucketRealtimeHandler`: insert/update/delete are forwarded immediately (no debounce) with the correct record (update reads `newRecord`, delete reads `oldRecord`), foreign-partnership rows are dropped, sparse PK-only deletes are still applied, replays are dropped before the state is touched. The second group drives a real `BucketState`: insert lands without any full refetch, update toggles in place without duplicating, delete removes the row, an update for an unknown row is ignored. |
 | `Flutter/test/miss_you_realtime_handler_test.dart` | `MissYouRealtimeHandler`: insert increments with the decoded row id (and with a null id when the key is absent), delete refetches instead of incrementing, update does neither, foreign-partnership rows are dropped, sparse PK-only deletes are still refetched, replays are dropped. The second group drives a real `HomepageState`: the optimistic counter is persisted without a refetch, a replay does not double count (F-RT5 end to end), and a delete replaces the counter with the server total. |
@@ -483,7 +483,7 @@ _(F-RT4 bucket/refresh race, F-RT5 miss-you idempotency, F-RT6 `game_answers` de
 | `Flutter/test/bucket_realtime_race_test.dart` | F-RT4: the version gate against a concurrent full refresh. |
 | `Flutter/test/missyou_idempotent_test.dart` | F-RT5: per-row-key counting, bounded FIFO, `clear()` reset, stale-snapshot guard. |
 
-**Still not covered**: the real WebSocket transport (channel status → reconnect ladder beyond the `setAuth`/generation paths above), `WidgetsBindingObserver` resume/pause transitions, and the polling-fallback 15 s timer. These need a live client or fake-async around the binding, and are not part of the current test budget.
+**Still not covered**: the real WebSocket transport (channel status → reconnect ladder beyond the token-refresh/generation paths above), `WidgetsBindingObserver` resume/pause transitions, and the polling-fallback 15 s timer. These need a live client or fake-async around the binding, and are not part of the current test budget.
 
 ---
 

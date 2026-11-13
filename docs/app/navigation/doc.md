@@ -69,8 +69,8 @@ Observations:
 
 ### Failed session restoration behavior (reconstruction)
 
-- `init()` (auth_state.dart:80-179): storage reads parallelized; if `Supabase` session is null but a local access token exists -> `logout()` (auth_state.dart:116). Then `isLoggedIn == false` -> splash routes to `LoginScreen`. (Reachable, correct.)
-- If session exists but username missing -> `fetchProfileByAuthId`; on **network failure** `user` stays null (auth_state.dart:122), but `isLoggedIn` remains **true** (token based). Splash then calls `fetchPartnership()` (likely also failing) -> `partner null` -> `PartnerScreen`. The user lands on partnering UI with no visible session data until `loadProfile` catches up.
+- `init()` (auth_state.dart:80-179): identity storage reads parallelized; `_accessToken` is seeded from the Supabase session. If the session is null but leftover local identity (username/user/partner ids) exists -> `logout()` (auth_state.dart:139). Then `isLoggedIn == false` -> splash routes to `LoginScreen`. (Reachable, correct.)
+- If session exists but username missing -> `fetchProfileByAuthId`; on **network failure** `user` stays null (auth_state.dart:122), but `isLoggedIn` remains **true** (marker seeded from the session). Splash then calls `fetchPartnership()` (likely also failing) -> `partner null` -> `PartnerScreen`. The user lands on partnering UI with no visible session data until `loadProfile` catches up.
 - The 401/refresh-failure path never reaches the splash (see Authentication-driven navigation).
 
 ---
@@ -88,7 +88,7 @@ The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is centra
 | PartnerScreen existing-partner card tap | partner != null | MainShell via `pushReplacementNamed` | partner_screen.dart |
 | RegisterScreen onPressed | register() success | confirm-email dialog -> pop,pop -> Login (email verification mandatory) | register_screen.dart |
 
-Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty` (auth_state.dart:61) and `AuthState.hasPartner => _partnerId != null` (auth_state.dart:62). Requirement: **an authenticated user without partnership goes to `PartnerScreen`; with partnership goes to `MainShell`.** This holds on every site only if the underlying data succeeded.
+Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty` (auth_state.dart:82) and `AuthState.hasPartner => _partnerId != null` (auth_state.dart:83). Requirement: **an authenticated user without partnership goes to `PartnerScreen`; with partnership goes to `MainShell`.** This holds on every site only if the underlying data succeeded.
 
 **Covered at runtime**: a partnership that stops being active (cancellation requested, accepted and deleted, or otherwise removed) makes `AuthState.hasPartner` false. `MainShell` watches that getter and replaces the stack with `PartnerScreen` through `ErrorHandler.navigatorKey`; `PartnerState` also teleports when a known cancellation resolves to no partner, which covers pushed routes where the shell is offstage. Forward one-shot decisions remain as described above.
 

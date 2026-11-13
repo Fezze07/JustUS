@@ -81,8 +81,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() {
-    registerFallbackValue(
-        _MockRealtimeChannel() as sb.RealtimeChannel);
+    registerFallbackValue(_MockRealtimeChannel() as sb.RealtimeChannel);
   });
 
   late _MockSupabaseClient client;
@@ -149,8 +148,8 @@ void main() {
       return channel;
     });
     when(() => channel.subscribe(any())).thenAnswer((invocation) {
-      statusCallback = invocation.positionalArguments[0]
-          as void Function(sb.RealtimeSubscribeStatus, Object?)?;
+      statusCallback = invocation.positionalArguments[0] as void Function(
+          sb.RealtimeSubscribeStatus, Object?)?;
       return channel;
     });
 
@@ -162,8 +161,7 @@ void main() {
     when(() => realtimeClient.setAuth(any())).thenAnswer((_) async {});
 
     client = _MockSupabaseClient();
-    when(() => client.channel(any()))
-        .thenReturn(channel);
+    when(() => client.channel(any())).thenReturn(channel);
     when(() => client.realtime).thenReturn(realtimeClient);
     when(() => client.auth).thenReturn(goTrue);
     when(() => client.removeChannel(any())).thenAnswer((_) async => 'removed');
@@ -238,8 +236,7 @@ void main() {
         'drive_item_reactions',
         'user_profiles',
       });
-      verify(() => client.channel('justus-sync-42-1'))
-          .called(1);
+      verify(() => client.channel('justus-sync-42-1')).called(1);
     });
 
     test('an identity change opens a new channel instead of reusing it',
@@ -249,8 +246,7 @@ void main() {
       service.configure(userId: 42, partnerId: 77, partnershipId: 4242);
       await service.refreshChannel();
 
-      verify(() => client.channel('justus-sync-42-2'))
-          .called(1);
+      verify(() => client.channel('justus-sync-42-2')).called(1);
       // The stale generation must be removed before resubscribing.
       verify(() => client.removeChannel(channel)).called(1);
     });
@@ -276,14 +272,14 @@ void main() {
           reason: "a partner's change must not refetch our own mood");
     });
 
-    test('a burst of partner mood inserts coalesces into one refetch', () async {
+    test('a burst of partner mood inserts coalesces into one refetch',
+        () async {
       await connect();
       final partnerCallsBefore = moodRepository.fetchPartnerMoodCalls;
 
       for (var i = 1; i <= 3; i++) {
         emit('moods', sb.PostgresChangeEvent.insert,
-            newRecord: {'id': i, 'user_id': 77},
-            at: DateTime.utc(2026, 1, i));
+            newRecord: {'id': i, 'user_id': 77}, at: DateTime.utc(2026, 1, i));
       }
       await Future<void>.delayed(_afterDebounce);
 
@@ -342,30 +338,18 @@ void main() {
   });
 
   group('RealtimeSyncService connection lifecycle', () {
-    test('a token refresh updates the JWT without resubscribing', () async {
+    test('a token refresh is left to Supabase without resubscribing', () async {
       service.start();
       await connect();
 
-      authChanges.add(sb.AuthState(
+      authChanges.add(const sb.AuthState(
         sb.AuthChangeEvent.tokenRefreshed,
-        sb.Session(
-          accessToken: 'jwt-2',
-          refreshToken: 'refresh-2',
-          tokenType: 'bearer',
-          user: const sb.User(
-            id: '42',
-            appMetadata: {},
-            userMetadata: {},
-            aud: '',
-            createdAt: '2026-05-01T00:00:00.000Z',
-          ),
-        ),
+        null,
       ));
       await pumpEventQueue();
 
-      verify(() => realtimeClient.setAuth('jwt-2')).called(1);
-      verify(() => client.channel(any()))
-          .called(1);
+      verifyNever(() => realtimeClient.setAuth(any()));
+      verify(() => client.channel(any())).called(1);
       verifyNever(() => client.removeChannel(any()));
     });
 

@@ -49,7 +49,7 @@ Both password writes end with `AuthState._revokeOtherSessions()` ([auth_state.da
 
 - **Push registrations die with the sessions**: after revoking the other sessions, the client keeps its **own** installation id and asks the backend to delete every *other* `user_devices` row (`POST /api/v1/auth/installation-id-revoke-all`, middleware stack `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id-revoke-all")` → `validated({ body: revokeInstallationSchema })`, same rate-limit bucket as the logout revoke). The delete is scoped `user_id = me AND installation_id != mine`, so the caller's own pushes keep flowing. The deleted rows are **durable**: `POST /api/v1/auth/installation-id` is `authenticated()`, and the other devices' Supabase sessions are already dead, so a revoked device gets `401` and cannot re-register. The same best-effort contract applies — a failure is logged and never fails the change, and a 5 s timeout (`sessionRevokeTimeout`) bounds it.
 - **Residual — push registrations survive only when the revoke-all cannot land**: if the local installation id is empty the call is skipped outright (mirroring the logout revoke's `isEmpty` guard), and an offline call or a crash between the two revokes leaves the rows in place. Those rows then stop receiving pushes only when the device itself hits a `401` (and runs the [logout revoke](#logout)), or when the retention sweep prunes them — rows whose `session_id` no longer resolves to a live session at the next sweep run, age-purged rows after `USER_DEVICE_RETENTION_DAYS`.
-- **Residual — the local token mirror is stale**: the re-auth `signInWithPassword` creates a *new* session on this device, and the subsequent `others` revoke deletes the older one that `AuthState._accessToken` / `StorageService` still hold. Harmless: every authenticated request and the Realtime JWT are read from the live SDK session, and the stale copy only feeds the `isLoggedIn` check.
+- **Residual — the in-memory auth marker is stale**: the re-auth `signInWithPassword` creates a *new* session on this device, and the subsequent `others` revoke deletes the older one that `AuthState._accessToken` still holds. Harmless: every authenticated request and the Realtime JWT read the live SDK session, the app persists no tokens, and the stale marker only feeds the `isLoggedIn` check.
 
 ---
 
@@ -239,11 +239,11 @@ If the revoke never lands (offline logout, session already expired, app killed m
 
 1. **Unauthenticated → Authenticated**:
    - Triggered by `AuthState.login()` or `register()`.
-   - Populates `StorageService`, initializes `_accessToken`, syncs backend session via `/auth/session-bind`, registers the installation id, and fetches active partnership status.
+   - Populates `StorageService` with the username and database user id, initializes `_accessToken` from the SDK session, syncs backend session via `/auth/session-bind`, registers the installation id, and fetches active partnership status.
 2. **Authenticated → Refreshing → Authenticated**:
    - Triggered when `ApiService._safeCall` receives HTTP 401.
    - Delegates to the Supabase SDK (`auth.refreshSession()`), the single refresh path; if the SDK already refreshed the live session (different token than the failed request), the redundant call is skipped.
-   - The `tokenRefreshed` listener persists the new access+refresh pair to `StorageService`; the original request is retried with `isRetry = true`. If the refresh fails, `logout()` runs and the synthetic `"401"` code is `requiresReauth`, so the reauth dialog opens and redirects to `LoginScreen` (todo# 1.3).
+   - The SDK updates the live session; the original request is retried with `isRetry = true`. If the refresh fails, `logout()` runs and the synthetic `"401"` code is `requiresReauth`, so the reauth dialog opens and redirects to `LoginScreen` (todo# 1.3).
 3. **Authenticated → Logout → Unauthenticated**:
    - User confirms logout dialog.
    - Revokes the device installation id (best-effort), clears storage, invalidates session headers, unsubscribes Realtime channel, and replaces stack with `LoginScreen`.
@@ -272,8 +272,6 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 
 | Key Name | Description | Cleared on Logout? |
 |---|---|---|
-| `access_token` | Supabase Bearer Token | **YES** |
-| `refresh_token` | Supabase Refresh Token | **YES** |
 | `user_id` | Database Integer User ID | **YES** |
 | `partner_id` | Database Integer Partner ID | **YES** |
 | `partnership_id` | Database Integer Partnership ID | **YES** |
@@ -335,9 +333,9 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 
 ## Edge Cases
 
-1. **Logout During Active HTTP Requests**: In-flight requests failing after `logout()` are handled by `_safeCall`. Since `StorageService` is already wiped, token refresh fails and no re-authentication state is modified.
+1. **Logout During Active HTTP Requests**: In-flight requests failing after `logout()` are handled by `_safeCall`. Since the SDK session and `StorageService` are already cleared, token refresh fails and no re-authentication state is modified.
 2. **Account Wipe Operating Without Logout**: `ProfileState.wipeAppData()` executes database purging without touching session tokens or clearing `AuthState`, allowing seamless app usage post-wipe. The push registration survives the wipe, which is correct: the session stays active.
-3. **Password Change on a Device with a Pre-existing Session**: the re-auth inside `changePassword` opens a *second* session for this same device, so the `others` revoke deletes the session the app was using before the change. Only its copy in `AuthState._accessToken` / `StorageService` is affected — requests and the Realtime JWT read the live SDK session, so nothing breaks, but those stored values are dead tokens until the next refresh.
+3. **Password Change on a Device with a Pre-existing Session**: the re-auth inside `changePassword` opens a *second* session for this same device, so the `others` revoke deletes the session the app was using before the change. Only the in-memory `AuthState._accessToken` marker is affected — requests and the Realtime JWT read the live SDK session, so nothing breaks; the marker stays non-null and only feeds `isLoggedIn`.
 4. **Password Change While Other Devices Are Logged In**: those devices lose API access immediately (their `auth.sessions` rows are gone), and their `user_devices` rows are deleted at once by the revoke-all (`POST /api/v1/auth/installation-id-revoke-all`), so server-initiated pushes stop with the sessions — see [Other-Session Revocation](#other-session-revocation). If that best-effort call cannot land, they keep receiving pushes until they next hit a `401` and run the logout revoke, or until the retention sweep prunes them (dead-session rows at the next sweep run, otherwise the 30-day age window).
 5. **No Session Available for the Revoke**: `updatePasswordNew` runs from a recovery deep link; when no live session exists (link opened in a client that never resolved it) the SDK sends no revoke, so the other sessions survive. The password change itself still succeeds.
 
