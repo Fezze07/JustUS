@@ -156,7 +156,8 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- C. the sanctioned path: the backend calls partnership_request on
---    service_role, which is the only caller that may create a row.
+--    service_role, which is the only caller that may create a row. Email and
+--    code are matched case-insensitively, ignoring surrounding whitespace.
 -- ---------------------------------------------------------------------------
 RESET ROLE;
 RESET request.jwt.claims;
@@ -164,8 +165,18 @@ SET LOCAL ROLE service_role;
 DO $$
 DECLARE
   v_id integer;
+  v_state text;
 BEGIN
-  SELECT public.partnership_request('bob@partnership-test.local', 'BOB222', 9001) INTO v_id;
+  -- A genuine mismatch must still be refused, even with a valid code.
+  v_state := pg_temp.rls_try(format(
+    $q$SELECT public.partnership_request(%L, %L, %s)$q$,
+    'nobody@partnership-test.local', 'BOB222', 9001));
+  IF v_state IS DISTINCT FROM 'P0001' THEN
+    RAISE EXCEPTION 'C failed: an unknown email gave %, expected P0001',
+      coalesce(v_state, 'no error (the request was created)');
+  END IF;
+
+  SELECT public.partnership_request('  Bob@Partnership-Test.Local  ', 'bob222', 9001) INTO v_id;
 
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'C failed: partnership_request returned no id';

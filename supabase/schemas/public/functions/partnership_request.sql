@@ -30,7 +30,8 @@ BEGIN
   SELECT u.id INTO v_partner_id 
   FROM public.users u
   JOIN public.user_profiles up ON u.id = up.user_id
-  WHERE u.email = partner_email AND up.partnership_code = upper(partner_code);
+  WHERE lower(btrim(u.email)) = lower(btrim(partner_email))
+    AND up.partnership_code = upper(btrim(partner_code));
 
   IF v_partner_id IS NULL THEN
     RAISE EXCEPTION 'API-VALIDATION-005: Invalid partner email or code';
