@@ -115,6 +115,7 @@ Flutter UI (LoginScreen)
    ├── 5. Supabase Auth Authentication (sbClient.auth.signInWithPassword)
    │        │
    │        ├── Validates credentials + Turnstile against Supabase Auth
+   │        ├── On AuthRetryableFetchException: fails with LOCAL-NET-001, no strike
    │        └── On AuthException / null response: reports the attempt
    │                (Backend POST /api/v1/auth/login-attempt) before failing
    │
@@ -162,8 +163,8 @@ Flutter UI (LoginScreen)
 4. **Supabase Authentication**
    - File: [auth_repository.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_repository.dart#L38-L40)
    - Invokes `sbClient.auth.signInWithPassword(email: email, password: password, captchaToken: captchaToken)`.
-   - A Supabase `AuthException` (invalid credentials, unconfirmed email, etc.) is caught and rethrown as `AppError(authFailCred)`; the same applies when `res.user`/`res.session` are null. `authFailCred` is client-only and **not** in `requiresReauth`, so `ErrorHandler` shows a SnackBar on the form (no session-expiry dialog, no stack replacement).
-   - Before rethrowing, both failure branches call `AuthState._reportFailedLogin`, which posts `{ email, deviceFingerprint, reason }` (`invalid_credentials` / `no_user_data`) to `POST /api/v1/auth/login-attempt` — this is what feeds the strike engine. The report is **best-effort**: it swallows its own errors, so the wrong-password error is always the one the user sees. The device fingerprint is the same one the pre-login risk check uses, so both address the same strike key.
+   - A Supabase `AuthException` (invalid credentials, unconfirmed email, etc.) is caught and rethrown as `AppError(authFailCred)`; the same applies when `res.user`/`res.session` are null. `authFailCred` is client-only and **not** in `requiresReauth`, so `ErrorHandler` shows a SnackBar on the form (no session-expiry dialog, no stack replacement). A transient `AuthRetryableFetchException` (offline, GoTrue 5xx/429) is caught **before** the generic `AuthException` and rethrown as `AppError.network()` (`LOCAL-NET-001`), so an outage is not presented as a wrong password.
+   - The two credential-failure branches call `AuthState._reportFailedLogin`, which posts `{ email, deviceFingerprint, reason }` (`invalid_credentials` / `no_user_data`) to `POST /api/v1/auth/login-attempt` — this is what feeds the strike engine. The retryable-network branch does **not** report, so an outage never advances the lockout. The report is **best-effort**: it swallows its own errors, so the wrong-password error is always the one the user sees. The device fingerprint is the same one the pre-login risk check uses, so both address the same strike key.
    - Returns a Supabase `AuthResponse` containing `res.user` and `res.session`.
 
 5. **Profile Resolution**
@@ -284,7 +285,7 @@ JustUS features a backend in-memory risk tracking service designed to prevent br
 ### Blocking & Evaluation Order
 
 - Pre-login check (`POST /api/v1/auth/login-risk-check`): Evaluates risk **before** credential verification. If `blocked` is true, throws `AppError(SEC_BLOCK_002)` with HTTP 429 status code.
-- Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails. Increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
+- Failure report (`POST /api/v1/auth/login-attempt`): Called by `AuthState._reportFailedLogin` when `signInWithPassword` fails with a credential error (`AuthException` other than `AuthRetryableFetchException`, or a null user/session). A transient `AuthRetryableFetchException` (offline, GoTrue 5xx/429) is not reported and surfaces as `LOCAL-NET-001`. The report increments the same key's counter and returns the new `failures` / `strikeLevel`; once the strike level schedules a lockout it answers `429 SEC_BLOCK_002` instead. The client treats that as a normal (ignored) result, since the credential error is what matters.
 - Replay safety: the client sends an `X-Idempotency-Key` per report and the route runs `withIdempotency("auth-login-attempt")`, so a redelivered report (e.g. the 401-retry inside `ApiService._safeCall`) replays the cached response instead of counting the same failed login twice. The idempotency cache is in-memory and **per instance** (single-instance deployment; see `docs/backend/security/doc.md` §9). A successful login clears the counter through `clearFailedLogins()` in the session-bind handler.
 
 ### Request Validation & Abuse Controls
@@ -315,6 +316,7 @@ The `ip-email` rule counts how many *different* emails one IP presents per windo
 | Turnstile Cancel / Timeout | Flutter Client | `CaptchaService` | `LOCAL-UNKNOWN` | SnackBar ("Captcha failed") |
 | Risk Blocked (Brute-force) | Backend Node API | `checkLoginRiskController` | `SEC-BLOCK-002` | SnackBar ("Troppi tentativi di login. Riprova tra poco.") |
 | Invalid Credentials | Supabase Auth | `AuthException` (caught in `AuthState.login`) | `AUTH-FAIL-CRED` | Form error SnackBar (no dialog, no redirect) |
+| Transient Auth Outage | Supabase Auth / Network | `AuthRetryableFetchException` (caught first in `AuthState.login`) | `LOCAL-NET-001` | Form error SnackBar; no strike reported |
 | Profile Missing in DB | Flutter AuthState | `UserRepository` | `DB-NOT_FOUND-001` | SnackBar (`error_dbNotFound001`) |
 | Backend Sync Network Error | Node API / Http | `NetworkError` | N/A | Silent log / SnackBar |
 

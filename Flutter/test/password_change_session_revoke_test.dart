@@ -257,7 +257,7 @@ void main() {
 
   test('a wrong current password never reaches the revoke', () async {
     final repo = _RecordingAuthRepository(
-      reAuthError: const sb.AuthException('Invalid login credentials'),
+      reAuthError: const sb.AuthApiException('Invalid login credentials'),
     );
     final state = _stateWith(repo);
 
@@ -270,6 +270,24 @@ void main() {
     expect(repo.calls, ['signInWithPassword']);
     expect(state.message, LanguageHelper.appLoc.auth_currentPasswordIncorrect,
         reason: 'the wrong-password case must reach the user via the listener');
+  });
+
+  test('a transient re-auth failure is not treated as the wrong password',
+      () async {
+    final repo = _RecordingAuthRepository(
+      reAuthError: sb.AuthRetryableFetchException(),
+    );
+    final state = _stateWith(repo);
+
+    final result = await state.changePassword(
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    );
+
+    expect(result, ChangePasswordResult.failure);
+    expect(repo.calls, ['signInWithPassword']);
+    expect(state.message,
+        isNot(LanguageHelper.appLoc.auth_currentPasswordIncorrect));
   });
 
   test('a rejected password write never reaches the revoke', () async {

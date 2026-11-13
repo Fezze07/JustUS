@@ -56,6 +56,17 @@ class _NoSessionAuthRepository extends _WrongPasswordAuthRepository {
   }
 }
 
+class _RetryableFailureAuthRepository extends _WrongPasswordAuthRepository {
+  @override
+  Future<AuthResponse> signInWithPassword({
+    required String email,
+    required String password,
+    required String captchaToken,
+  }) async {
+    throw AuthRetryableFetchException();
+  }
+}
+
 /// Captures what the error layer logs, so the assertion can name the error code
 /// the user is shown instead of only "login returned false".
 Future<List<String>> _capturingOutput(Future<void> Function() body) async {
@@ -118,6 +129,21 @@ void main() {
     final logged = output.join('\n');
     expect(logged, contains(ErrorCodes.authFailCred));
     expect(logged, isNot(contains(ErrorCodes.localNetworkError)));
+  });
+
+  test('a transient auth failure is not reported as a wrong password',
+      () async {
+    final repo = _RetryableFailureAuthRepository();
+    final state = _stateWith(repo);
+
+    final output = await _capturingOutput(() async {
+      expect(await state.login('user@example.com', 'any-password'), isFalse);
+    });
+
+    expect(repo.reports, isEmpty);
+    final logged = output.join('\n');
+    expect(logged, contains(ErrorCodes.localNetworkError));
+    expect(logged, isNot(contains(ErrorCodes.authFailCred)));
   });
 
   test('a response without a session is reported too', () async {

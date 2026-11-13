@@ -290,6 +290,10 @@ class AuthState extends BaseState
           password: password,
           captchaToken: captchaToken,
         );
+      } on AuthRetryableFetchException {
+        // Offline / GoTrue 5xx / 429: a transient outage must not be counted
+        // as a wrong password or feed the backend lockout.
+        throw AppError.network();
       } on AuthException catch (e) {
         await _reportFailedLogin(email, 'invalid_credentials');
         throw AppError(
@@ -480,6 +484,8 @@ class AuthState extends BaseState
           password: currentPassword,
           captchaToken: captchaToken,
         );
+      } on AuthRetryableFetchException {
+        throw AppError.network();
       } on AuthException catch (e) {
         // La vecchia password è sbagliata: nessuno snackbar generico,
         // la schermata mostrerà il messaggio specifico.
