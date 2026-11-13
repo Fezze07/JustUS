@@ -12,6 +12,8 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
+enum _DriveFilter { all, photos, videos, likes }
+
 class DriveScreen extends TabScreen {
   const DriveScreen(
       {super.key, required super.tabIndex, required super.tabNotifier});
@@ -22,8 +24,21 @@ class DriveScreen extends TabScreen {
 
 class _DriveScreenState extends State<DriveScreen>
     with TabScreenMixin, StateMessageListener<DriveState, DriveScreen> {
+  _DriveFilter _filter = _DriveFilter.all;
+
   @override
   DriveState get messageSource => context.read<DriveState>();
+
+  bool _matchesFilter(DriveItem item) {
+    final type = item.type.toLowerCase();
+    return switch (_filter) {
+      _DriveFilter.all => true,
+      _DriveFilter.photos => type == 'image',
+      _DriveFilter.videos =>
+        type == 'video' || item.content.toLowerCase().endsWith('.mp4'),
+      _DriveFilter.likes => item.isFavorite == 1,
+    };
+  }
 
   @override
   Future<void> loadData({bool force = false}) async {
@@ -89,22 +104,7 @@ class _DriveScreenState extends State<DriveScreen>
                   SliverToBoxAdapter(
                     child: VPHeader(
                       title: context.loc.drive_title,
-                      onBack: () =>
-                          MainShell.of(context)?.switchToTab(0),
-                      trailing: [
-                        TextButton(
-                          onPressed: () {},
-                          child: Text(
-                            context.loc.drive_select,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: context.palette.accentAqua,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                      ],
+                      onBack: () => MainShell.of(context)?.switchToTab(0),
                     ),
                   ),
 
@@ -118,16 +118,29 @@ class _DriveScreenState extends State<DriveScreen>
                         children: [
                           VPFilterChip(
                               label: context.loc.drive_filterAll,
-                              isActive: true),
+                              isActive: _filter == _DriveFilter.all,
+                              onTap: () =>
+                                  setState(() => _filter = _DriveFilter.all)),
                           const SizedBox(width: 12),
-                          VPFilterChip(label: context.loc.drive_filterPhotos),
+                          VPFilterChip(
+                              label: context.loc.drive_filterPhotos,
+                              isActive: _filter == _DriveFilter.photos,
+                              onTap: () => setState(
+                                  () => _filter = _DriveFilter.photos)),
                           const SizedBox(width: 12),
-                          VPFilterChip(label: context.loc.drive_filterVideos),
+                          VPFilterChip(
+                              label: context.loc.drive_filterVideos,
+                              isActive: _filter == _DriveFilter.videos,
+                              onTap: () => setState(
+                                  () => _filter = _DriveFilter.videos)),
                           const SizedBox(width: 12),
                           VPFilterChip(
                               label: context.loc.drive_filterLikes,
                               icon: Icons.favorite,
-                              iconColor: context.palette.danger),
+                              iconColor: context.palette.danger,
+                              isActive: _filter == _DriveFilter.likes,
+                              onTap: () =>
+                                  setState(() => _filter = _DriveFilter.likes)),
                         ],
                       ),
                     ),
@@ -155,7 +168,8 @@ class _DriveScreenState extends State<DriveScreen>
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    context.palette.accentPurple.withValues(alpha: 0.5),
+                                    context.palette.accentPurple
+                                        .withValues(alpha: 0.5),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -171,7 +185,7 @@ class _DriveScreenState extends State<DriveScreen>
                     selector: (_, s) => (s.isLoading, s.driveItems),
                     builder: (context, driveData, _) {
                       final isLoading = driveData.$1;
-                      final items = driveData.$2;
+                      final items = driveData.$2.where(_matchesFilter).toList();
 
                       if (isLoading && items.isEmpty) {
                         return SliverFillRemaining(

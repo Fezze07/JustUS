@@ -49,7 +49,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [drive_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart): UI rendering for memories gallery grid, category filter chips (All, Photos, Videos, Likes), FAB upload trigger, pull-to-refresh, and upload progress banner.
+   - [drive_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart): UI rendering for memories gallery grid and category filter chips (All, Photos, Videos, Likes) that filter the in-memory items locally (`Likes` = items flagged `isFavorite`), FAB upload trigger, pull-to-refresh, and upload progress banner. There is no selection mode and no header action.
    - [drive_item_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_item_screen.dart): Full-screen viewer supporting interactive zoom for images (`InteractiveViewer`), video playback (`VideoPlayerController`), audio streaming (`AudioPlayer`), emoji reaction picker modal, and favorite toggling.
    - [favorites_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/favorites_screen.dart): Filtered view rendering media items marked as favorite by the current user.
    - [drive_state.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart): State manager handling incremental sync, cache loading, optimistic deletions/favorites, reactions, and R2 upload triggers.
