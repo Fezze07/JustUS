@@ -16,23 +16,18 @@ class PartnershipRepository extends BaseRepository {
 
   @override
   Future<Map<String, dynamic>?> getActivePartnership() async {
-    if (_activePartnershipFuture != null) {
+    final currentUid = await getUserId();
+
+    if (_activePartnershipFuture != null &&
+        _activePartnershipUserId == currentUid) {
       return _activePartnershipFuture;
     }
 
+    clearPartnershipCache();
+    _activePartnershipUserId = currentUid;
+
     final future = () async {
       try {
-        final currentUid = await getUserId();
-        // If the user changed (both non-null and different), invalidate and fetch again
-        if (_activePartnershipUserId != null &&
-            currentUid != null &&
-            _activePartnershipUserId != currentUid) {
-          clearPartnershipCache();
-          _activePartnershipUserId = currentUid;
-          return await getActivePartnership();
-        }
-        _activePartnershipUserId = currentUid;
-
         return await sbClient
             .from('v_active_partnership')
             .select()

@@ -775,6 +775,7 @@ class AuthState extends BaseState
   }
 
   Future<void> logout() async {
+    PartnershipRepository.clearPartnershipCache();
     await _revokeInstallationId();
     await _authRepo.signOut();
     await CacheService.clearAll();

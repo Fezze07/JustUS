@@ -194,19 +194,20 @@ On a genuine partnership transition the old scope is purged — feature caches a
 | `DefaultCacheManager` (file cache) | default (`stalePeriod = 7 days`) | default LRU | default | Used by `drive_grid_item`, `ProtectedNetworkImage` (when no `cacheManager` param). Cleared on logout and wipe (`emptyAppMediaCaches()`). |
 | SharedPreferences feature caches | **No TTL** | Never evicted | N/A | Overwritten on each fetch. Multiple concurrent writes can race (see §Edge Cases). |
 | Checkpoints | **No TTL** | Never evicted until overwritten | N/A | Reset on logout (`CacheService.clearAll`), **wipe** (`CacheService.clearAll` from `wipeAppData`), or explicit force-refresh (`clearCheckpoints`). |
-| `PartnershipRepository._activePartnershipFuture` | In-memory only | Invalidated by `clearPartnershipCache()` or user-id mismatch detection | 1 future | Static map in `PartnershipRepository` (`:9–10`). Clears on realtime partnership event, but **not** on logout. Self-heals on next call with different user-id. |
+| `PartnershipRepository._activePartnershipFuture` | In-memory only | Invalidated by `clearPartnershipCache()`, a user-id mismatch, or logout | 1 future | Static map in `PartnershipRepository` (`:9–10`). Clears on every realtime partnership event and at the start of `AuthState.logout()`; a call for a different user-id also discards it before the cached future is returned. |
 
 ---
 
 ## Logout Behavior
 
-`AuthState.logout()` (`:739–757` of `auth_state.dart`):
+`AuthState.logout()` (`:777–796` of `auth_state.dart`):
 
-1. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
-2. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
-3. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, `app_theme_mode`, and `notifications_enabled`, which are read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes the tokens/IDs, but `_keyDeviceFingerprint` is read before the `deleteAll()` and re-persisted after it, so it survives logout.
-4. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`; the next `_buildHeaders` re-reads the preserved fingerprint from secure storage, so no new UUID is ever minted by a logout.
-5. `emptyAppMediaCaches()` — empties both on-disk media stores, `MediaCacheManager` and `DefaultCacheManager`, so the previous account's profile pictures and drive media never survive into the next session. Best-effort: platform failures are logged and never block logout (same helper `wipeAppData` uses).
+1. `PartnershipRepository.clearPartnershipCache()` — drops the memoized active-partnership future before any teardown work, so the next account always queries the server instead of inheriting the previous user's partnership.
+2. `_authRepo.signOut()` — clears Supabase session (synchronous in-memory).
+3. `CacheService.clearAll()` — removes all 6 checkpoint keys from SharedPreferences.
+4. `StorageService.clearAll()` — `p.clear()` removes **all** SharedPreferences keys (feature caches and every constant in StorageService) **except `app_language_code`, `app_theme_mode`, and `notifications_enabled`, which are read before and re-persisted after the clear**; `_secureStorage.deleteAll()` removes the tokens/IDs, but `_keyDeviceFingerprint` is read before the `deleteAll()` and re-persisted after it, so it survives logout.
+5. `ApiService.clearHeadersCache()` — sets `_cachedDeviceFingerprint = null`, `_cachedRequestBindingSecret = null`; the next `_buildHeaders` re-reads the preserved fingerprint from secure storage, so no new UUID is ever minted by a logout.
+6. `emptyAppMediaCaches()` — empties both on-disk media stores, `MediaCacheManager` and `DefaultCacheManager`, so the previous account's profile pictures and drive media never survive into the next session. Best-effort: platform failures are logged and never block logout (same helper `wipeAppData` uses).
 
 **Net effect**: All cached feature data, identity, and tokens are wiped. The language (`app_language_code`), theme (`app_theme_mode`), notifications-enabled and **the device fingerprint** are preserved as device-level state. The media file cache (both `MediaCacheManager` and `DefaultCacheManager`) **is** cleared by `emptyAppMediaCaches()` (F-SC9 resolved).
 

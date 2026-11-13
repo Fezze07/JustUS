@@ -152,32 +152,35 @@ The logout protocol performs a multi-layer tear-down of local credentials, stora
 
 ### Execution Sequence
 
-Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:730-747](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L730-L747)):
+Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:777-796](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L777-L796)):
 
 ```
 Logout Initiated (Profile / Partner Screen)
    │
-   ├── 0. Installation ID Revoke (best-effort, POST /api/v1/auth/installation-id-revoke)
+   ├── 0. Partnership Cache Clear (PartnershipRepository.clearPartnershipCache())
+   │        └── the next account cannot inherit the previous active partnership
+   │
+   ├── 1. Installation ID Revoke (best-effort, POST /api/v1/auth/installation-id-revoke)
    │        └── deletes this device's user_devices row before the session dies
    │
-   ├── 1. Supabase Auth Sign-Out (sbClient.auth.signOut())
+   ├── 2. Supabase Auth Sign-Out (sbClient.auth.signOut())
    │
-   ├── 2. Checkpoint Cache Purge (CacheService.clearAll())
+   ├── 3. Checkpoint Cache Purge (CacheService.clearAll())
    │
-   ├── 3. Storage & Secret Wipe (StorageService.clearAll())
+   ├── 4. Storage & Secret Wipe (StorageService.clearAll())
    │        ├── SharedPreferences.clear()
    │        └── FlutterSecureStorage.deleteAll()
    │
-   ├── 4. ApiService Header Cache Reset (ApiService.clearHeadersCache())
+   ├── 5. ApiService Header Cache Reset (ApiService.clearHeadersCache())
    │
-   ├── 5. AuthState Memory Reset (_accessToken, _refreshToken, _userId, _partnerId -> null)
+   ├── 6. AuthState Memory Reset (_accessToken, _refreshToken, _userId, _partnerId -> null)
    │
-   ├── 6. AuthState.notifyListeners()
+   ├── 7. AuthState.notifyListeners()
    │        │
    │        └── Triggers RealtimeSyncScope -> RealtimeSyncService.configure(userId: null)
    │               └── RealtimeSyncConnection.unsubscribe() closes WebSocket channel
    │
-   └── 7. UI Stack Replacement (Navigator.pushAndRemoveUntil -> LoginScreen)
+   └── 8. UI Stack Replacement (Navigator.pushAndRemoveUntil -> LoginScreen)
 ```
 
 #### Why the revoke runs first
@@ -294,7 +297,7 @@ Concrete inventory of storage keys cleared versus surviving during `logout()`:
 
 ### Feature-State Cleanup on Logout
 
-`AuthState.logout()` wipes secure storage (`FlutterSecureStorage.deleteAll()`) and SharedPreferences (`SharedPreferences.clear()`), then calls the `onClearFeatureStates` hook wired in `RealtimeSyncScope` (`realtime_sync_scope.dart:46-53`). The hook clears the eager Provider singletons — `MoodState`, `HomepageState`, `BucketState`, `GameState`, `DriveState`, `ProfileState` — so no in-memory field survives into a second account in the same process.
+`AuthState.logout()` wipes secure storage (`FlutterSecureStorage.deleteAll()`) and SharedPreferences (`SharedPreferences.clear()`), then calls the `onClearFeatureStates` hook wired in `RealtimeSyncScope` (`realtime_sync_scope.dart:46-53`). The static active-partnership cache is dropped at the very start of `logout()` by `PartnershipRepository.clearPartnershipCache()`, and the hook clears the eager Provider singletons — `MoodState`, `HomepageState`, `BucketState`, `GameState`, `DriveState`, `ProfileState` — so no in-memory field survives into a second account in the same process.
 
 Two keys deliberately **survive** logout: `app_language_code` and the theme mode (`app_theme_mode`). They are user preferences, not account data, and are re-applied at the next login.
 
