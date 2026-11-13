@@ -29,7 +29,7 @@ function detectDeviceType(deviceType, clientUserAgent) {
 }
 
 const updateInstallationId = asyncHandler(async (req, res) => {
-  const { installationId, locale } = req.body;
+  const { installationId, locale, notificationsEnabled } = req.body;
   const userId = req.user.profileId;
   const clientUserAgent =
     req.get("x-client-user-agent") || req.get("user-agent") || null;
@@ -46,6 +46,7 @@ const updateInstallationId = asyncHandler(async (req, res) => {
         last_ip: lastIp,
         session_id: req.auth?.claims?.session_id ?? null,
         ...(locale && { locale }),
+        ...(typeof notificationsEnabled === "boolean" && { notifications_enabled: notificationsEnabled }),
       },
       { onConflict: "installation_id" }
     ),

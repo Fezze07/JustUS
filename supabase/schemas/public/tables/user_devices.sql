@@ -9,6 +9,7 @@ CREATE TABLE "public"."user_devices" (
   "updated_at"   timestamp with time zone DEFAULT now(),
   "locale"       text,
   "session_id"   uuid,
+  "notifications_enabled" boolean DEFAULT true,
   CONSTRAINT "user_devices_installation_id_key" UNIQUE (installation_id),
   CONSTRAINT "user_devices_pkey" PRIMARY KEY (id),
   CONSTRAINT "user_devices_user_id_fkey" FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE

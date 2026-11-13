@@ -8,6 +8,8 @@ const updateInstallationSchema = z.object({
   installationId: z.string().min(16).max(512),
   deviceType: z.string().max(50).optional(),
   locale: z.string().max(10).optional(),
+  // Device-local toggle mirrored here so the push path can filter it out.
+  notificationsEnabled: z.boolean().optional(),
 });
 
 const revokeInstallationSchema = z.object({

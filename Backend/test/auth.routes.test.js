@@ -279,6 +279,39 @@ describe("auth routes", () => {
     );
   });
 
+  test("mirrors the notification toggle without resetting it when omitted", async () => {
+    const userDevicesQuery = createQueryBuilder();
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "user_devices") {
+        return userDevicesQuery;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const app = createApp();
+    await request(app)
+      .post("/api/v1/auth/installation-id")
+      .send({
+        installationId: "fid-that-is-long-enough-0004",
+        notificationsEnabled: false,
+      });
+
+    expect(userDevicesQuery.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ notifications_enabled: false }),
+      { onConflict: "installation_id" }
+    );
+
+    await request(app)
+      .post("/api/v1/auth/installation-id")
+      .send({ installationId: "fid-that-is-long-enough-0004" });
+
+    // An old client that never sends the field must not flip the row back on.
+    expect(userDevicesQuery.upsert.mock.calls.at(-1)[0]).not.toHaveProperty(
+      "notifications_enabled"
+    );
+  });
+
   test("rejects an empty installation id", async () => {
     const app = createApp();
 

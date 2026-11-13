@@ -143,6 +143,7 @@ describe("sendNotificationToUser targets installation ids", () => {
         user_id: 1,
         installation_id: "fid-dead-0001",
         device_type: "android",
+        notifications_enabled: true,
         locale: "en",
       },
     ];
@@ -183,6 +184,7 @@ describe("sendNotificationToUser targets installation ids", () => {
         user_id: 1,
         installation_id: "fid-live-0001",
         device_type: "android",
+        notifications_enabled: true,
         locale: "en",
       },
     ];
@@ -209,6 +211,39 @@ describe("sendNotificationToUser targets installation ids", () => {
     expect(mockDb.rows).toHaveLength(1);
   });
 
+  test("skips an installation whose owner disabled notifications", async () => {
+    mockDb.rows = [
+      {
+        id: 1,
+        user_id: 1,
+        installation_id: "fid-off-0001",
+        device_type: "android",
+        notifications_enabled: false,
+        locale: "en",
+      },
+      {
+        id: 2,
+        user_id: 1,
+        installation_id: "fid-on-0001",
+        device_type: "android",
+        notifications_enabled: true,
+        locale: "en",
+      },
+    ];
+    mockSendMulticast.mockResolvedValueOnce({
+      configured: true,
+      successCount: 1,
+      failureCount: 0,
+      responses: [{ success: true }],
+    });
+
+    await sendNotificationToUser({ userId: 1, type: "partner", title: "Hi" });
+
+    expect(mockSendMulticast).toHaveBeenCalledWith(
+      expect.objectContaining({ fids: ["fid-on-0001"] })
+    );
+  });
+
   test("retries a transient FCM failure before giving up", async () => {
     mockDb.rows = [
       {
@@ -216,6 +251,7 @@ describe("sendNotificationToUser targets installation ids", () => {
         user_id: 1,
         installation_id: "fid-retry-0001",
         device_type: "android",
+        notifications_enabled: true,
         locale: "en",
       },
     ];
@@ -246,6 +282,7 @@ describe("sendNotificationToUser targets installation ids", () => {
         user_id: 1,
         installation_id: "fid-en-0001",
         device_type: "android",
+        notifications_enabled: true,
         locale: "en",
       },
       {

@@ -270,6 +270,12 @@ class AuthState extends BaseState
     }
   }
 
+  /// Pushes the device-local notification toggle to the backend by
+  /// re-registering this installation, so disabled devices stop receiving push.
+  Future<void> syncNotificationPreference() async {
+    await _registerInstallationId();
+  }
+
   Future<bool> login(String email, String password) async {
     return runSafe(() async {
       await _checkLoginRisk(email);

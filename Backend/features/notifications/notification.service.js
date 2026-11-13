@@ -34,6 +34,7 @@ async function fetchUserDevices(userId) {
       .from("user_devices")
       .select("id, installation_id, device_type, locale")
       .eq("user_id", userId)
+      .eq("notifications_enabled", true)
       .not("installation_id", "is", null),
     "DB_READ_001"
   );

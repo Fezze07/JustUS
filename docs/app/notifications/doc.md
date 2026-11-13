@@ -10,6 +10,8 @@ The system operates in three OS presentation modes:
 2. **Background / killed** (Android/iOS): the OS system tray renders the notification built from the FCM `notification` field, using the icon/channel metadata declared in the Android manifest and the server-localized title/body.
 3. **Background isolate handler** (`main.dart`): registered with `@pragma('vm:entry-point')` for data-only messages — **currently unreachable with the production payload** because the backend always includes a `notification` field (F-PN3).
 
+Because the toggle is device-local, the backend cannot filter it from the FCM payload alone. Each installation row stores `user_devices.notifications_enabled` (default `true`), mirrored on every registration from the device preference; `fetchUserDevices` only selects rows where it is `true`, so a disabled device is never targeted in any app state. This is deliberately preferred over data-only payloads, whose background delivery iOS does not guarantee.
+
 **Two localization passes** exist:
 
 1. **Server-side** (`notification.utils.js`): the per-device `locale` stored in `user_devices` selects localized title/body from a `LOCALIZATIONS[locale]` map.
@@ -32,7 +34,7 @@ Feature action (Supabase mutation succeeds)
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
                                 └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
                                       └─ sendNotificationToUser(receiverId, type, key, params)  service:59-105
-                                            ├─ fetchUserDevices → isDeliverableDevice filter   service:30-41,22-28
+                                            ├─ fetchUserDevices → isDeliverableDevice filter   service:30-42,22-29
                                             ├─ group fids by device.locale ('en' default)      utils:214-224
                                             ├─ per-locale batch ≤ 500 fids                     utils:272-293
                                             │     └─ sendMulticastNotification(buildFcmMessage)  fcm-key.js
@@ -126,6 +128,7 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 | Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
 | FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn` | Re-registers the new FID |
 | App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; sends the app locale, not the system locale |
+| Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it |
 | **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Deletes the row; see below |
 
 ### Backend upsert — `POST /api/v1/auth/installation-id`
@@ -134,13 +137,21 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 
 ```js
 assertDbSuccess(await adminSupabase.from("user_devices").upsert(
-  { user_id, installation_id, user_agent, device_type, last_ip, ...(locale && { locale }) },
+  {
+    user_id, installation_id, user_agent, device_type, last_ip,
+    session_id,
+    ...(locale && { locale }),
+    ...(typeof notificationsEnabled === "boolean" && {
+      notifications_enabled: notificationsEnabled,
+    }),
+  },
   { onConflict: "installation_id" }
 ));
 ```
 
 - `installation_id` is `UNIQUE` — if an installation id is registered by a different user, the `user_id` of the existing row is overwritten (a device transfer reassigns ownership).
 - `device_type` is inferred from `x-client-user-agent`/`user-agent` when the body omits it.
+- `notificationsEnabled` is optional (`auth.schemas.js`); the repository always sends the current device preference. When a legacy client omits it, the column is left untouched, so an upsert never flips a disabled device back on.
 - Route chain: `authenticated()` → `limited(authRateLimit)` → `signed("auth-installation-id")` → `validated({body})` (`auth.routes.js`).
 
 `authRateLimit`: `{ipMax: 20, userMax: 10, window: 60_000 ms}`.
@@ -244,7 +255,7 @@ notifySchema = z.object({
    - `type === 'partner'` → receiver is the active or cancellation partner; otherwise the sender must have an accepted partner and `receiverId` must equal it. The receiver is taken from the partnership, never from the body, so a partnerless sender is rejected with `AUTH-FAIL-004`.
 
 2. **`sendNotificationToUser(...)`** (`:59-105`) — thin orchestrator; the delivery machinery lives in `notification.utils.js`.
-   - `fetchUserDevices(userId)` (`:30-41`): selects `installation_id, device_type, locale` where the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`).
+   - `fetchUserDevices(userId)` (`:31-42`): selects `installation_id, device_type, locale` where `notifications_enabled = true` and the row has a non-null installation id, then filters via `isDeliverableDevice` (drops empty/`windows`/`macos`/`linux`). A device whose owner turned the toggle off is therefore excluded in every app state, including background/killed.
    - FIDs grouped by `device.locale || 'en'` in `groupByLocale` (`notification.utils.js:214-224`) — per-locale messages.
    - Delivery in batches of `FCM_BATCH_SIZE = 500` via `deliverToBatches` (`notification.utils.js:272-293`).
    - Retry loop: 3 attempts, `500ms * attempt` backoff, only for transient errors; permanent invalid-FID codes abort immediately (`sendBatchWithRetry`, `notification.utils.js:226-241`).
@@ -465,6 +476,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | FID registration at login | IMPLEMENTED (same `_registerInstallationId()` guard; `auth.schemas.js` also rejects the empty string via `min(16)`) |
 | FID change re-registration | IMPLEMENTED (`onRegistered`) |
 | Locale sync on resume / language change | IMPLEMENTED |
+| Notification toggle enforcement in background/killed state | IMPLEMENTED (`user_devices.notifications_enabled`, default `true`; `fetchUserDevices` filters it, toggle re-registers via `syncNotificationPreference()`) |
 | Installation id revocation at logout (`POST /auth/installation-id-revoke`) | IMPLEMENTED (best-effort row delete, scoped to the caller) |
 | Other-device installation id revocation on password write (`POST /auth/installation-id-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
 | Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`device_purge_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
@@ -499,11 +511,11 @@ Three negative-path tests exercise `POST /api/v1/notify/partner`:
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
 
-`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, and to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
+`Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, to persist `notificationsEnabled`, to leave the column untouched when a legacy client omits it, to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 
 The `sendNotificationController` is fully mocked in the route suite — FCM multicast and retry/backoff have no test. `Backend/test/notification.service.test.js` covers the locale fallback (unknown/missing device locale → English) and `resolveNotificationTarget`: a partnerless sender is rejected with `403 AUTH-FAIL-004` before any `logs_notifications` row is written, the receiver is taken from the partnership, and a body `receiverId` that differs from the partner is rejected.
 
-`Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it; further send-path cases cover a transient multicast failure being retried once and then delivered, and a `configured: false` response aborting the remaining locale batches.
+`Backend/test/notification.service.test.js` covers `deleteInvalidInstallations` against an in-memory `user_devices` table: an installation id invalidated for user A but reassigned to user B is left untouched (`user_id` scoping), the caller's own row is deleted, and an all-falsy installation id list returns `0` without querying. The scoping assertion is falsifiable — dropping the `.eq("user_id", ...)` predicate makes the first test fail. A send-path case asserts the FCM message carries `fids` and that a `messaging/installation-id-not-registered` per-message error deletes the row, while a non-dead-FID error keeps it; another asserts a row with `notifications_enabled: false` is excluded while an enabled row is sent; further send-path cases cover a transient multicast failure being retried once and then delivered, and a `configured: false` response aborting the remaining locale batches.
 
 ### Flutter
 
@@ -519,7 +531,7 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 
 - **Fire-and-forget**: every repository notification is `unawaited(notifyPartnerOnce(...))` and creates a transient `ApiService` (`base_repository.dart:167`). Failures are logged with `AnsiLogger` only; there is no retry, queue, or offline-outbox. Mutation visibility is instead guaranteed by Supabase Realtime echoes.
 - **iOS push certificates**: the OS FCM flow (background-killed) requires APNs credentials configured in Firebase; they are assumed by the backend config and not verifiable from code.
-- **`user_devices` schema**: `supabase/schemas/public/tables/user_devices.sql` is the source of truth; it contains the `locale`, `updated_at` and `session_id` columns.
+- **`user_devices` schema**: `supabase/schemas/public/tables/user_devices.sql` is the source of truth; it contains the `locale`, `updated_at`, `session_id` and `notifications_enabled` columns.
 - **Cross-doc references**:
   - Navigation: notification taps are handled by `MainShellState` (see Notification-driven navigation in `navigation/doc.md`).
   - Storage **F-SC4** (resolved): `app_language_code` is preserved across logout (`StorageService.clearAll()` re-persists it), so notification localization keeps working after re-login.

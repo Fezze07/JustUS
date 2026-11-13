@@ -110,12 +110,16 @@ static Future<String> getInstallationId() async {
       last_ip: lastIp,
       session_id: req.auth?.claims?.session_id ?? null,
       ...(locale && { locale }),
+      ...(typeof notificationsEnabled === "boolean" && {
+        notifications_enabled: notificationsEnabled,
+      }),
     },
     { onConflict: "installation_id" }
   );
   ```
 
 - The upsert records the session that registered the installation id (`req.auth.claims.session_id`, resolved by the auth middleware) into `user_devices.session_id`. That session link is what lets the retention sweep prune rows whose session is gone even when the client-side logout revoke never lands — see [Logout](#logout) and [Notification Cleanup](#notification-cleanup). No FK constraint on the column: `auth.sessions` rows can disappear before the sweep runs, and a FK would auto-null the very pointer the sweep needs. Registrations from legacy clients without a `session_id` claim store `NULL` and fall back to the age-based purge.
+- `notifications_enabled` defaults to `true`. The client sends the device-local toggle on every registration; a legacy body without it omits the column from the upsert, so the stored preference is preserved rather than reset.
 
 #### Multi-User Device Replacement Behavior
 Because `onConflict: "installation_id"` is used, if User A logs out and User B logs in on the **same physical device**:

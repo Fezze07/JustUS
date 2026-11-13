@@ -350,6 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         onChanged: (enabled) async {
                           setState(() => _notificationsEnabled = enabled);
                           await StorageService.setNotificationsEnabled(enabled);
+                          await authState.syncNotificationPreference();
                         },
                         activeThumbColor: context.palette.onPrimary,
                         activeTrackColor: context.palette.primary,

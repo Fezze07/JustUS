@@ -91,14 +91,20 @@ class UpdateInstallationRequest {
   final String installationId;
   final String? deviceType;
   final String? locale;
+  final bool? notificationsEnabled;
 
   UpdateInstallationRequest(
-      {required this.installationId, this.deviceType, this.locale});
+      {required this.installationId,
+      this.deviceType,
+      this.locale,
+      this.notificationsEnabled});
 
   Map<String, dynamic> toJson() => {
         'installationId': installationId,
         if (deviceType != null) 'deviceType': deviceType,
         if (locale != null) 'locale': locale,
+        if (notificationsEnabled != null)
+          'notificationsEnabled': notificationsEnabled,
       };
 }
 

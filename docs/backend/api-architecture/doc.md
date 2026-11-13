@@ -97,7 +97,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 #### `POST /api/v1/auth/installation-id`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-installation-id")` $\rightarrow$ `validated({ body: updateInstallationSchema })`
-- **Database Behavior**: Upserts `user_devices` table with `installation_id`, `user_id`, `locale`, `user_agent`, `last_ip`.
+- **Database Behavior**: Upserts `user_devices` table with `installation_id`, `user_id`, `locale`, `user_agent`, `last_ip`, and `notifications_enabled` when the body carries the optional toggle. Omitting `notificationsEnabled` leaves the existing value untouched.
 
 #### `POST /api/v1/auth/installation-id-revoke`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `signed("auth-installation-id-revoke")` $\rightarrow$ `validated({ body: revokeInstallationSchema })`
