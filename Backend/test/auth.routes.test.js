@@ -451,6 +451,10 @@ describe("auth routes", () => {
     expect(response.body.bindingSecret.length).toBeGreaterThan(0);
     expect(Array.isArray(response.body.anomalies)).toBe(true);
 
+    const [storedPayload] = sessionBindingsQuery.upsert.mock.calls[0];
+    expect(storedPayload.session_id).toBe("session-1");
+    expect(storedPayload.binding_secret).toBe(response.body.bindingSecret);
+
     expect(adminSupabase.rpc).toHaveBeenCalledWith(
       "device_revoke_duplicate_session",
       expect.objectContaining({
@@ -459,6 +463,78 @@ describe("auth routes", () => {
         p_fingerprint: expect.any(String),
       })
     );
+  });
+
+  test("fails closed without a binding secret when the session bind upsert fails", async () => {
+    const sessionBindingsQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      upsert: jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: "session_bindings unavailable" },
+      }),
+    });
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "session_bindings") return sessionBindingsQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    adminSupabase.rpc.mockResolvedValue({ data: 0, error: null });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/session-bind")
+      .set("X-Device-Fingerprint", "device-fingerprint-123")
+      .send({ deviceFingerprint: "device-fingerprint-123" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("DB-WRITE-001");
+    expect(response.body.bindingSecret).toBeUndefined();
+  });
+
+  test("fails closed when stale-session revocation fails", async () => {
+    const sessionBindingsQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    });
+
+    adminSupabase.from.mockImplementation((table) => {
+      if (table === "session_bindings") return sessionBindingsQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    adminSupabase.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "revocation RPC unavailable" },
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/session-bind")
+      .set("X-Device-Fingerprint", "device-fingerprint-123")
+      .send({ deviceFingerprint: "device-fingerprint-123" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("DB-WRITE-001");
+    expect(response.body.bindingSecret).toBeUndefined();
+    expect(sessionBindingsQuery.upsert).not.toHaveBeenCalled();
+  });
+
+  test("rejects a session bind when the token carries no session id", async () => {
+    const authMiddleware = require("../middleware/authMiddleware");
+    authMiddleware.mockImplementationOnce((req, _res, next) => {
+      req.user = { id: "auth-user-1", profileId: 42, publicEmail: "user@example.com" };
+      req.auth = { claims: {} };
+      next();
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/session-bind")
+      .set("X-Device-Fingerprint", "device-fingerprint-123")
+      .send({ deviceFingerprint: "device-fingerprint-123" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("API-VALIDATION-001");
+    expect(response.body.bindingSecret).toBeUndefined();
+    expect(adminSupabase.from).not.toHaveBeenCalled();
   });
 
   test("revokes stale duplicate session for same user and device fingerprint on new login", async () => {

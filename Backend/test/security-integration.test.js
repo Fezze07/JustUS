@@ -50,7 +50,7 @@ jest.mock("../features/user/user.controller", () => ({
   wipeUserDataController: jest.fn((req, res) => res.status(200).json({ success: true })),
 }));
 
-const { adminSupabase, authSupabase, resetRateLimitState } = require("../all_imports");
+const { adminSupabase, authSupabase, resetRateLimitState, trackSession } = require("../all_imports");
 const { createApp } = require("../app");
 const { completeUploadController, redirectToSignedDownloadController } = require("../features/media/media.controller");
 
@@ -795,6 +795,79 @@ describe("Security Integration Tests", () => {
       const response = await request(app)
         .post("/api/v1/users/wipe")
         .set("Authorization", `Bearer ${token}`)
+        .set("x-request-timestamp", timestamp.toString())
+        .set("x-request-nonce", nonce)
+        .set("x-request-signature", signature)
+        .send(payload);
+
+      expect(response.status).toBe(200);
+    });
+
+    test("PASS: the binding secret stored by trackSession verifies a signed request", async () => {
+      const sessionBindingsQuery = createQueryBuilder({
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
+      });
+
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "session_bindings") return sessionBindingsQuery;
+        throw new Error(`Unexpected table: ${table}`);
+      });
+      adminSupabase.rpc.mockResolvedValue({ data: 0, error: null });
+
+      const session = await trackSession({
+        userId: 42,
+        authUserId: "auth-user-1",
+        sessionId: "session-123",
+        deviceFingerprint: "device-123",
+        countryCode: "IT",
+      });
+
+      const [stored] = sessionBindingsQuery.upsert.mock.calls[0];
+      expect(stored.session_id).toBe("session-123");
+      expect(stored.binding_secret).toBe(session.bindingSecret);
+
+      authSupabase.auth.getUser.mockResolvedValue({
+        data: { user: { id: "auth-user-1" } },
+        error: null,
+      });
+      adminSupabase.rpc.mockResolvedValue({ data: true, error: null });
+      adminSupabase.from.mockImplementation((table) => {
+        if (table === "users") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: mockProfile, error: null }),
+          });
+        }
+        if (table === "session_bindings") {
+          return createQueryBuilder({
+            maybeSingle: jest.fn().mockResolvedValue({ data: stored, error: null }),
+          });
+        }
+        if (table === "request_nonces") {
+          return createQueryBuilder({
+            insert: jest.fn().mockResolvedValue({ data: {}, error: null }),
+          });
+        }
+        return createQueryBuilder();
+      });
+
+      const token = generateMockJWT(validUserPayload);
+      const timestamp = Date.now();
+      const nonce = "session-bind-secret-nonce";
+      const payload = { email: "partner@example.com", partnershipCode: "ABC123" };
+      const { signature } = signRequest({
+        secret: stored.binding_secret,
+        method: "POST",
+        path: "/api/v1/auth/invite",
+        timestamp,
+        nonce,
+        payload,
+      });
+
+      const response = await request(app)
+        .post("/api/v1/auth/invite")
+        .set("Authorization", `Bearer ${token}`)
+        .set("X-Device-Fingerprint", "device-123")
         .set("x-request-timestamp", timestamp.toString())
         .set("x-request-nonce", nonce)
         .set("x-request-signature", signature)

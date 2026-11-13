@@ -300,6 +300,7 @@ function validateSessionBinding(sessionBinding, clientContext) {
 4. Generates a fresh 32-byte hex `bindingSecret` for every new binding.
 5. Invokes `clearFailedLogins()` to reset failed login counters for the IP / device / email key.
 6. Returns `{ success: true, anomalies, bindingSecret }`.
+7. Fails closed: a missing `session_id` rejects with `API-VALIDATION-001`; a failed stale-session revocation or `session_bindings` upsert rejects with `DB-WRITE-001` and no `bindingSecret`. The secret is therefore returned only after the row that stores it is confirmed.
 
 ---
 

@@ -114,7 +114,7 @@ The Flutter client uses a **hybrid architecture** by design:
 
 #### `POST /api/v1/auth/session-bind`
 - **Middleware Chain**: `authenticated()` $\rightarrow$ `limited(authRateLimit)` $\rightarrow$ `freshNonce("auth-session-bind")` $\rightarrow$ `validated({ body: sessionBindSchema })`
-- **Behavior**: generates a fresh `binding_secret`, hashes `device_fingerprint`, upserts `session_bindings` (revoking any stale session of the same user + device first), returns `{ success, anomalies, bindingSecret }`. The secret is rotated on **every** call; the client stores it only if the response arrives, so a lost response leaves the client signing with the previous secret until `ApiService` re-binds on the resulting `SEC-AUTH-002`.
+- **Behavior**: generates a fresh `binding_secret`, hashes `device_fingerprint`, upserts `session_bindings` (revoking any stale session of the same user + device first), returns `{ success, anomalies, bindingSecret }`. The secret is rotated on **every** call; the client stores it only if the response arrives, so a lost response leaves the client signing with the previous secret until `ApiService` re-binds on the resulting `SEC-AUTH-002`. It fails closed: a token without a `session_id` returns `400 API-VALIDATION-001`; a failed stale-session revocation or `session_bindings` upsert returns `500 DB-WRITE-001` and no `bindingSecret`.
 
 #### `POST /api/v1/auth/invite-user`
 - **Controller**: `inviteUserController` ([`auth.routes.js`](file:///f:/JustUS/Backend/features/auth/auth.routes.js), [`auth.controller.js`](file:///f:/JustUS/Backend/features/auth/auth.controller.js))

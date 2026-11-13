@@ -51,7 +51,7 @@ The exact execution order of middleware in the application pipeline is determine
   5. Reject a signature that is not 64 lowercase hex characters, then compare the expected and supplied HMACs in constant time (`crypto.timingSafeEqual`).
   6. Call `consumeNonce` to record nonce usage.
 - **Failure Behavior**: Throws `SEC-AUTH-002` (401: missing session binding/headers, expired timestamp, invalid signature), `API-VALIDATION-001` (400: non-numeric timestamp) or `SEC-BLOCK-001` (429: replayed nonce).
-- **Storage & Expiration**: Session secret stored in PostgreSQL `session_bindings.binding_secret`.
+- **Storage & Expiration**: Session secret stored in PostgreSQL `session_bindings.binding_secret`. The server issues a secret only after the `session_bindings` upsert succeeds; a missing session id, a revocation-RPC failure or an upsert failure aborts `/auth/session-bind` (`API-VALIDATION-001` / `DB-WRITE-001`, 500) without returning a secret, so the client never signs with a value the server did not store.
 - **Bypass Possibilities**: Requests on routes not wrapped with `signed(...)` skip HMAC verification. Every authenticated mutating route is signed; the only unsigned mutating routes are `/auth/login-risk-check` and `/auth/login-attempt` (pre-auth by necessity) and `/auth/session-bind` (uses `freshNonce` and is the call that creates the signing secret). `Backend/test/signing-boundary.test.js` pins the full mutating route table, including these exceptions, so a new route cannot join the wrong set silently.
 - **Multi-Instance Behavior**: HMAC verification is stateless given the session `bindingSecret` in database/request; works across multi-instance nodes.
 

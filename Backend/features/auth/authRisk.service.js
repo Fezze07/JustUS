@@ -4,6 +4,8 @@ const {
   buildClientContext,
   generateBindingSecret,
   sha256,
+  AppError,
+  assertDbSuccess,
 } = require("../../all_imports");
 
 const loginAttempts = new Map();
@@ -117,33 +119,40 @@ setInterval(sweepExpiredLoginAttempts, 15 * 60 * 1000).unref();
  */
 async function trackSession(params) {
   const { userId, authUserId, sessionId } = params;
+
+  if (!sessionId) {
+    throw new AppError({
+      errorKey: "API_VALIDATION_001",
+      message: "Missing session id",
+    });
+  }
+
   const clientContext = buildClientContextFromParams(params);
 
   // Each new session gets a fresh binding_secret — never reuse a previous one.
   const bindingSecret = generateBindingSecret();
 
-  try {
-    const [previous] = await Promise.all([
-      fetchPreviousBinding(sessionId),
-      revokeStaleDeviceSession(authUserId, clientContext.deviceFingerprintHash, sessionId),
-    ]);
+  const [previous] = await Promise.all([
+    fetchPreviousBinding(sessionId),
+    revokeStaleDeviceSession(authUserId, clientContext.deviceFingerprintHash, sessionId),
+  ]);
 
-    const payload = buildSessionPayload(clientContext, sessionId, bindingSecret, authUserId, params);
-    await adminSupabase.from("session_bindings").upsert(payload, { onConflict: "session_id" });
+  const payload = buildSessionPayload(clientContext, sessionId, bindingSecret, authUserId, params);
+  assertDbSuccess(
+    await adminSupabase.from("session_bindings").upsert(payload, { onConflict: "session_id" }),
+    "DB_WRITE_001"
+  );
 
-    const anomalies = detectSessionAnomalies(previous, params);
-    for (const anomaly of anomalies) {
-      await logSecurity({
-        type: anomaly,
-        path: "/api/v1/auth/session-bind",
-        user_id: userId,
-      });
-    }
-
-    return { anomalies, bindingSecret, clientContext };
-  } catch {
-    return { anomalies: [], bindingSecret, clientContext };
+  const anomalies = detectSessionAnomalies(previous, params);
+  for (const anomaly of anomalies) {
+    await logSecurity({
+      type: anomaly,
+      path: "/api/v1/auth/session-bind",
+      user_id: userId,
+    });
   }
+
+  return { anomalies, bindingSecret, clientContext };
 }
 
 function buildClientContextFromParams({ deviceFingerprint }) {
@@ -168,11 +177,14 @@ function buildClientContextFromParams({ deviceFingerprint }) {
 async function revokeStaleDeviceSession(authUserId, fingerprintHash, keepSessionId) {
   if (!authUserId || !fingerprintHash || !keepSessionId) return;
 
-  await adminSupabase.rpc("device_revoke_duplicate_session", {
-    p_user_id:     authUserId,
-    p_fingerprint: fingerprintHash,
-    p_keep_session: keepSessionId,
-  });
+  assertDbSuccess(
+    await adminSupabase.rpc("device_revoke_duplicate_session", {
+      p_user_id:     authUserId,
+      p_fingerprint: fingerprintHash,
+      p_keep_session: keepSessionId,
+    }),
+    "DB_WRITE_001"
+  );
 }
 
 async function fetchPreviousBinding(sessionId) {
