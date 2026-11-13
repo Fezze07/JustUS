@@ -195,7 +195,7 @@ The exact execution order of middleware in the application pipeline is determine
 
 - **Threat Addressed**: Cross-domain unauthorized browser requests.
 - **Implementation Location**: [`utils/http/corsUtils.js`](file:///f:/JustUS/Backend/utils/http/corsUtils.js), [`app.js:24`](file:///f:/JustUS/Backend/app.js#L24).
-- **Request Flow**: Checks `Origin` header. Compares against `env.allowedOrigins`.
+- **Request Flow**: Checks `Origin` header. Compares against `env.allowedOrigins`. An empty allowlist denies every origin (fail closed); in development, localhost and `192.168.*` origins are still allowed.
 - **Allowed Headers**: `Authorization`, `Content-Type`, `X-Request-Id`, `X-Request-Timestamp`, `X-Request-Nonce`, `X-Request-Signature`, `X-Idempotency-Key`, `Idempotency-Key`, `X-Device-Fingerprint`, `X-Client-User-Agent`, `X-Client-User-Agent-Hash`.
 - **Failure Behavior**: If origin not allowed, returns `AppError({ errorKey: "SEC_AUTH_001", message: "Origin not allowed" })`.
 

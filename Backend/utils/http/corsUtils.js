@@ -35,7 +35,6 @@ function handleCors(req, res, next, allowedOrigins) {
 
 /** Verifica se un'origine è consentita, supportando wildcard `://*` e IP privati in dev */
 function _isOriginAllowed(origin, allowedOrigins) {
-  if (allowedOrigins.length === 0) return true;
   if (allowedOrigins.includes("*")) return true;
   if (allowedOrigins.includes(origin)) return true;
 
