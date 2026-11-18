@@ -63,9 +63,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with TabScreenMixin {
                   const SizedBox(height: 16),
                   Text(
                     context.loc.drive_noFavorites,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: context.palette.canvas,
-                        ),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
