@@ -137,6 +137,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('the avatar picker offers only camera and gallery',
+      (tester) async {
+    await pumpProfile(tester, hasPartner: true);
+
+    await tester.tap(find.byType(VPAvatar).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scatta foto'), findsOneWidget);
+    expect(find.text('Dalla galleria'), findsOneWidget);
+    expect(find.text('Audio'), findsNothing);
+    expect(find.text('Documento (PDF)'), findsNothing);
+  });
+
   testWidgets('the cancellation button is hidden without a partner',
       (tester) async {
     await pumpProfile(tester, hasPartner: false);

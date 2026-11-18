@@ -65,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _pickProfilePhoto() async {
     final XFile? image = await MediaPickerService.showPickerSheet(
       context,
+      imagesOnly: true,
       maxWidth: 512,
       maxHeight: 512,
     );

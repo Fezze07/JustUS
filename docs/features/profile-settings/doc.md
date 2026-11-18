@@ -263,7 +263,7 @@ The Profile & Settings subsystem crosses all architectural layers:
 
 ### Frontend
 - [`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart)
-  - `_pickProfilePhoto()`: Opens `MediaPickerService` bottom sheet (camera + gallery) capped at 512x512.
+  - `_pickProfilePhoto()`: Opens the `MediaPickerService` bottom sheet with `imagesOnly: true` (camera + gallery only) capped at 512x512.
   - `_showTextEditDialog()`: Generic localized edit dialog (TextField, validation, max length 60).
   - `_editDisplayName()`: Opens the edit dialog and calls `ProfileState.updateDisplayName`.
   - `_showWipeConfirmation()`: Displays wipe dialog, suppresses realtime sync, invokes wipe, then either refreshes the channel (success) or resumes realtime processing (failure), clearing provider states only on success.

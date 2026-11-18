@@ -109,9 +109,9 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
 ### Detailed Component Steps
 
 1. **File Selection & Picker Bottom Sheet**
-   - File: [media_picker_service.dart:15-113](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L15-L113)
+   - File: [media_picker_service.dart:41-122](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart#L41-L122)
    - User taps the FAB (`+` icon) on `DriveScreen`.
-   - `MediaPickerService.showPickerSheet(context)` opens a modal bottom sheet offering "Take Photo" (`ImageSource.camera`), "From Gallery" (`ImageSource.gallery`), "Audio" (`FileType.audio`), and "Document (PDF)" (`FileType.custom` with `['pdf']` extensions).
+   - `MediaPickerService.showPickerSheet(context)` opens a modal bottom sheet offering "Take Photo" (`ImageSource.camera`), "From Gallery" (`ImageSource.gallery`), "Audio" (`FileType.audio`), and "Document (PDF)" (`FileType.custom` with `['pdf']` extensions). The same sheet is used by the profile avatar with `imagesOnly: true`, which hides the audio and PDF tiles.
    - Uses `image_picker` for camera/gallery; `file_picker` for audio/PDF; returns an `XFile` with a MIME type (inferred from the file extension when the platform does not provide one).
 
 2. **Client Validation & Compression Order**

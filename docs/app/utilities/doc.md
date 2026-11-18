@@ -44,12 +44,12 @@ The utilities covered include:
 
 ### 2. MediaPickerService
 
-* **Responsibility**: Wraps `image_picker` package to provide simple camera and gallery selection helpers and a pre-styled modal bottom sheet.
+* **Responsibility**: Wraps `image_picker` package to provide simple camera and gallery selection helpers and a pre-styled modal bottom sheet. Callers that need images only (the profile avatar) hide the audio/PDF tiles.
 * **API**:
-  - `static Future<XFile?> showPickerSheet(BuildContext context, {double? maxWidth, double? maxHeight})`
+  - `static Future<XFile?> showPickerSheet(BuildContext context, {bool imagesOnly = false, double? maxWidth, double? maxHeight})`
 * **Dependencies**: `image_picker`, `file_picker`, `flutter/material.dart`, `VPSheet`, `VpWidgets`, `context.palette`, `context.loc`.
-* **Callers**: Used in `DriveScreen` ([`drive_screen.dart:35`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L35)) and `ProfileScreen` ([`profile_screen.dart:46`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L46), passing `maxWidth`/`maxHeight` of 512).
-* **Expected Usage**: Prompt users with camera/gallery choice for uploading assets (e.g. drive items or profile pictures).
+* **Callers**: Used in `DriveScreen` ([`drive_screen.dart:55`](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart#L55), all four sources) and `ProfileScreen` ([`profile_screen.dart:66`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L66), passing `imagesOnly: true` with `maxWidth`/`maxHeight` of 512).
+* **Expected Usage**: Prompt users with camera/gallery choice for uploading assets (e.g. drive items or profile pictures); pass `imagesOnly` for surfaces whose upload endpoint accepts images only.
 * **Error Behavior**: Returns `null` if the user cancels or if camera/gallery access fails/denied without internal exception handling.
 * **Lifecycle Assumptions**: Checks `context.mounted` before dismissing `Navigator.pop(context)` inside bottom sheet tiles.
 
@@ -210,11 +210,7 @@ The utilities covered include:
 
 ### Duplicated Utility Logic Across Application
 
-1. **User Profile Image & Image Picker Duplication**:
-   - `MediaPickerService` ([`media_picker_service.dart`](file:///f:/JustUS/Flutter/lib/shared/utils/ui/media_picker_service.dart)) provides camera/gallery modal sheet logic.
-   - However, in `ProfileScreen` ([`profile_screen.dart`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart)), image picking logic is implemented directly using `ImagePicker()` inline rather than calling `MediaPickerService`.
-
-2. **Date Formatting Utilities**:
+1. **Date Formatting Utilities**:
    - `AppDateUtils.formatToYMD` provides simple `YYYY-MM-DD` formatting.
    - However, multiple widgets (e.g. `MoodScreen`, `DriveItemScreen`) perform ad-hoc `DateTime` string formatting or manual parsing without relying on `AppDateUtils`.
 
@@ -242,7 +238,7 @@ The utilities covered include:
 | Utility | Location | Status | Key Finding / Issue |
 | :--- | :--- | :--- | :--- |
 | **BaseState** | `shared/utils/state/base_state.dart` | IMPLEMENTED | Combines notification throttling, result handling, and cache fetching logic into a single base class; the companion `StateMessageListener` mixin renders `message` to a snackbar. |
-| **MediaPickerService** | `shared/utils/ui/media_picker_service.dart` | PARTIALLY IMPLEMENTED | Used only in `DriveScreen`. `ProfileScreen` bypasses it and instantiates `ImagePicker` inline. |
+| **MediaPickerService** | `shared/utils/ui/media_picker_service.dart` | IMPLEMENTED | Shared by `DriveScreen` (camera/gallery/audio/PDF) and `ProfileScreen` (`imagesOnly: true`, 512px cap); `imagesOnly` hides the audio and PDF tiles. |
 | **LogoutUtils** | `shared/utils/auth/logout_utils.dart` | IMPLEMENTED | Clean utility used consistently across `ProfileScreen` and `PartnerScreen`. |
 | **Validators** | `shared/utils/ui/validators.dart` | IMPLEMENTED | Used in login and registration screens. Safe regex validation. |
 | **DialogUtils** | `shared/utils/ui/dialog_utils.dart` | IMPLEMENTED | Clean wrapper around error and invite dialogs. |

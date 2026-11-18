@@ -40,6 +40,7 @@ class MediaPickerService {
 
   static Future<XFile?> showPickerSheet(
     BuildContext context, {
+    bool imagesOnly = false,
     double? maxWidth,
     double? maxHeight,
   }) async {
@@ -82,32 +83,36 @@ class MediaPickerService {
               if (context.mounted) Navigator.pop(context);
             },
           ),
-          ListTile(
-            leading:
-                Icon(Icons.library_music, color: context.palette.accentPurple),
-            title: Text(
-              context.loc.drive_fromAudio,
-              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
+          if (!imagesOnly) ...[
+            ListTile(
+              leading:
+                  Icon(Icons.library_music, color: context.palette.accentPurple),
+              title: Text(
+                context.loc.drive_fromAudio,
+                style:
+                    VpWidgets.googleFont(color: context.palette.contentPrimary),
+              ),
+              onTap: () async {
+                pickedFile = await pickFileWith(FileType.audio);
+                if (context.mounted) Navigator.pop(context);
+              },
             ),
-            onTap: () async {
-              pickedFile = await pickFileWith(FileType.audio);
-              if (context.mounted) Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.description, color: context.palette.accentAqua),
-            title: Text(
-              context.loc.drive_fromDocuments,
-              style: VpWidgets.googleFont(color: context.palette.contentPrimary),
+            ListTile(
+              leading: Icon(Icons.description, color: context.palette.accentAqua),
+              title: Text(
+                context.loc.drive_fromDocuments,
+                style:
+                    VpWidgets.googleFont(color: context.palette.contentPrimary),
+              ),
+              onTap: () async {
+                pickedFile = await pickFileWith(
+                  FileType.custom,
+                  allowedExtensions: ['pdf'],
+                );
+                if (context.mounted) Navigator.pop(context);
+              },
             ),
-            onTap: () async {
-              pickedFile = await pickFileWith(
-                FileType.custom,
-                allowedExtensions: ['pdf'],
-              );
-              if (context.mounted) Navigator.pop(context);
-            },
-          ),
+          ],
         ],
       ),
     );
