@@ -114,7 +114,6 @@
   "home_daysTogether": "GIORNI INSIEME",
   "home_currentMoodTitle": "IL NOSTRO MOOD ATTUALE",
   "home_updateStatus": "Aggiorna stato",
-  "home_viewAll": "Vedi tutto",
   "home_bucketListTitle": "La nostra lista dei desideri",
   "home_bucketListSubtitleDynamic": "{count, plural, =1{1 obiettivo in sospeso} other{{count} obiettivi in sospeso}}",
   "@home_bucketListSubtitleDynamic": {

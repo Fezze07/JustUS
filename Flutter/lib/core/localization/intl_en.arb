@@ -84,7 +84,6 @@
   "home_daysTogether": "DAYS TOGETHER",
   "home_currentMoodTitle": "OUR CURRENT MOOD",
   "home_updateStatus": "Update Status",
-  "home_viewAll": "View All",
   "home_bucketListTitle": "Our Bucket List",
   "home_bucketListSubtitleDynamic": "{count, plural, =1{1 goal pending} other{{count} goals pending}}",
   "@home_bucketListSubtitleDynamic": {

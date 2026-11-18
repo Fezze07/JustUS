@@ -20,6 +20,10 @@ class GameScreen extends TabScreen {
 
 class _GameScreenState extends State<GameScreen>
     with TabScreenMixin, StateMessageListener<GameState, GameScreen> {
+  static const int _historyPageSize = 5;
+
+  int _visibleHistoryCount = _historyPageSize;
+
   @override
   GameState get messageSource => context.read<GameState>();
 
@@ -101,8 +105,6 @@ class _GameScreenState extends State<GameScreen>
                             children: [
                               VPSectionHeader(
                                 title: context.loc.game_historyTitle,
-                                actionLabel: context.loc.home_viewAll,
-                                onActionTap: () {},
                                 padding: EdgeInsets.zero,
                               ),
                               const SizedBox(height: 16),
@@ -120,7 +122,9 @@ class _GameScreenState extends State<GameScreen>
                                   ),
                                 )
                               else
-                                ...history.take(5).map((item) {
+                                ...history
+                                    .take(_visibleHistoryCount)
+                                    .map((item) {
                                   String status;
                                   Color badgeColor;
                                   IconData icon;
@@ -159,6 +163,23 @@ class _GameScreenState extends State<GameScreen>
                                     ),
                                   );
                                 }),
+                              if (history.length > _visibleHistoryCount)
+                                Center(
+                                  child: TextButton.icon(
+                                    onPressed: () => setState(() =>
+                                        _visibleHistoryCount +=
+                                            _historyPageSize),
+                                    icon: Icon(Icons.expand_more,
+                                        color: context.palette.primary),
+                                    label: Text(
+                                      context.loc.mood_showMore,
+                                      style: VpWidgets.googleFont(
+                                        color: context.palette.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ],
                           );
                         },

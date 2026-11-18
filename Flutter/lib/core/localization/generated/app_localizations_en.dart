@@ -272,9 +272,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get home_updateStatus => 'Update Status';
 
   @override
-  String get home_viewAll => 'View All';
-
-  @override
   String get home_bucketListTitle => 'Our Bucket List';
 
   @override

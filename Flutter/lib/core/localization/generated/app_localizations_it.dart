@@ -273,9 +273,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get home_updateStatus => 'Aggiorna stato';
 
   @override
-  String get home_viewAll => 'Vedi tutto';
-
-  @override
   String get home_bucketListTitle => 'La nostra lista dei desideri';
 
   @override

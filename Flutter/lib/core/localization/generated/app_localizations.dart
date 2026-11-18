@@ -602,12 +602,6 @@ abstract class AppLocalizations {
   /// **'Aggiorna stato'**
   String get home_updateStatus;
 
-  /// No description provided for @home_viewAll.
-  ///
-  /// In it, this message translates to:
-  /// **'Vedi tutto'**
-  String get home_viewAll;
-
   /// No description provided for @home_bucketListTitle.
   ///
   /// In it, this message translates to:
