@@ -259,6 +259,7 @@ Source: `Flutter/lib/features/bucket_list/screens/bucket_list_screen.dart`
 - Add dialog: `AlertDialog` with TextField (text) + ChoiceChip row (category). Default: `Travel`.
 - Toggle: custom checkbox via `GestureDetector`. `BucketState.toggleDone` flips the item optimistically and rolls back on failure. `unawaited`.
 - Delete: `Dismissible` swipe right-to-left. Optimistic via `_pendingDeletes`. `unawaited`.
+- Created-on line: `AppDateUtils.tryParse(createdAt)?.toLocal()` formatted with `MaterialLocalizations.formatMediumDate`, so each locale gets its own medium date; a malformed timestamp falls back to the raw date portion.
 
 ### 9.2 Homepage Preview
 

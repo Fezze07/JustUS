@@ -249,6 +249,7 @@ class _BucketListScreenState extends State<BucketListScreen>
 
   Widget _buildBucketItem(BucketItem item, BucketState state) {
     final isDone = item.done;
+    final createdAt = AppDateUtils.tryParse(item.createdAt)?.toLocal();
 
     return Dismissible(
       key: Key(item.id.toString()),
@@ -370,8 +371,12 @@ class _BucketListScreenState extends State<BucketListScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    context.loc
-                        .bucket_createdOn(item.createdAt.split('T').first),
+                    context.loc.bucket_createdOn(
+                      createdAt == null
+                          ? item.createdAt.split('T').first
+                          : MaterialLocalizations.of(context)
+                              .formatMediumDate(createdAt),
+                    ),
                     style: VpWidgets.googleFont(
                       fontSize: 12,
                       color: context.palette.contentDisabled,
