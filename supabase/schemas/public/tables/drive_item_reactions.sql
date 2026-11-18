@@ -20,6 +20,11 @@ CREATE INDEX idx_drive_item_reactions_emoji_id ON public.drive_item_reactions US
 
 CREATE INDEX idx_drive_item_reactions_item_id ON public.drive_item_reactions USING btree (item_id);
 
+CREATE TRIGGER touch_public_drive_items_from_reaction
+  AFTER INSERT OR UPDATE OR DELETE ON public.drive_item_reactions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.touch_drive_item_from_reaction();
+
 CREATE POLICY "drive_item_reactions_delete_own" ON "public"."drive_item_reactions"
   FOR DELETE
   TO PUBLIC

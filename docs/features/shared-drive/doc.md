@@ -66,7 +66,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 3. **Database Layer (Supabase / PostgreSQL)**:
    - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `file_type_id`, `metadata` (JSONB), `created_at`, `updated_at`. Do not add `filename` / `user_id` / `partner_id` columns: `name` and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so duplicating them would need a data migration.
    - `public.favorites`: Stores user favorites (`user_id`, `item_id`).
-   - `public.drive_item_reactions`: Stores emoji reactions (`id`, `item_id`, `user_id`, `emoji_id`).
+   - `public.drive_item_reactions`: Stores emoji reactions (`id`, `item_id`, `user_id`, `emoji_id`). The `touch_public_drive_items_from_reaction` trigger bumps the parent `drive_items.updated_at` on every insert, update or delete, so reaction changes move the incremental sync cursor.
    - `v_drive_dashboard`: Security invoker database view returning drive items for the calling user's partnership, joined with user favorites (`is_favorite` boolean) and aggregated emoji reactions (`reactions` JSONB array).
 
 ---
@@ -271,6 +271,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 - It reads `drive_items` directly (not `v_drive_dashboard`), so the revalidation no longer materializes the view (joins over `drive_file_types`, `favorites` and the `drive_item_reactions` aggregate) only to learn two scalars. The partnership filter and RLS are the same as the view's.
 - Grants: `authenticated`, `postgres`, `service_role`; `PUBLIC` is revoked, so the function is not callable by `anon`.
 - Why both signals: `updated_at > checkpoint` sees inserts/updates but is blind to deletions, so the row count is what catches them.
+- Reaction changes are real item changes: `touch_public_drive_items_from_reaction` updates the parent `drive_items` row on every reaction insert, emoji change and delete, so the existing `set_public_drive_items_updated_at` trigger moves `max_updated_at` and a reaction made while the app was closed is picked up by the next cold start.
 - `DriveRepository.fetchChangeProbe()` calls it. If the function is missing on the server (`PGRST202`) it falls back to the historical pair (`select(updated_at) … limit 1` + `count()` on the view) so a not-yet-migrated database degrades to two requests instead of never revalidating.
 - `DriveState` memoizes the probe for 10 s (`_probeTtl`) and shares it between the change gate and `syncDriveItems`, so one revalidation cycle costs **one** round trip. The memoized value is dropped on every local cache write (upload, delete, favorite, reaction) and in `clear()` (logout / partnership switch), so it can never leak across users.
 
@@ -313,6 +314,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
   - Upserts into `public.drive_item_reactions` on `(user_id, item_id)`, so a new emoji replaces the caller's previous reaction instead of raising `23505`.
   - Fires partner push notification `notifyPartnerOnce('reactionAdded')`.
 - State Management: `DriveState.addReaction` replaces the emoji the caller sent earlier in the current session before adding the new one; the next refresh reconciles the list with `v_drive_dashboard`.
+- Sync Cursor: the `AFTER INSERT OR UPDATE OR DELETE` trigger `touch_public_drive_items_from_reaction` calls `touch_drive_item_from_reaction()`, which updates the parent `drive_items.updated_at`; insert, emoji change and delete all count as drive item changes for the probe and the incremental query.
 - View Integration: `v_drive_dashboard` aggregates reactions into a JSONB array of emoji strings returned with each drive item payload.
 
 ---

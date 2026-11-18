@@ -266,6 +266,13 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Action:** Raises `API-VALIDATION-015` / SQLSTATE `42501` when a caller other than `postgres` / `service_role` changes `auth_id` or `email`. Other columns (for example `updated_at`) stay writable.
 * **Side Effects:** A client can no longer rewrite its `auth_id` (to a random UUID or `NULL`), which would make `public.user_current_id()` return `NULL` and lock the row out of every RLS predicate. Insert-time provisioning by `user_create_from_auth()` is unaffected.
 
+### Trigger 5: Drive Reaction Cursor (`touch_public_drive_items_from_reaction`)
+* **Event:** `AFTER INSERT OR UPDATE OR DELETE ON public.drive_item_reactions`
+* **Target Function:** `touch_drive_item_from_reaction()` (`SECURITY INVOKER`, `SET search_path TO 'public'`, returns `trigger`)
+* **Grants:** Execution REVOKED from `PUBLIC`, `anon`. Granted to `authenticated`, `postgres`, `service_role`; PostgreSQL does not check `EXECUTE` when firing a trigger.
+* **Action:** Updates the parent `public.drive_items.updated_at`, choosing `OLD.item_id` on delete and `NEW.item_id` otherwise. The existing `set_public_drive_items_updated_at` trigger sets the final timestamp.
+* **Side Effects:** Reaction inserts, emoji changes and deletes now move the drive sync cursor, so `drive_change_probe().max_updated_at` and the `updated_at` incremental query see a reaction made while the app was closed. The update runs as the reactor under `drive_items_related`; a cascade delete from the parent finds no row and is a no-op.
+
 ---
 
 ## Non-Obvious Database-Side Behaviors
@@ -288,6 +295,7 @@ This document provides a technical specification and analysis of all **Supabase-
 
 - **Automated Sign-Up Trigger (`user_create_from_auth`):** **100% IMPLEMENTED**
 - **Game Completion Trigger (`game_update_question_status`):** **100% IMPLEMENTED**
+- **Drive Reaction Cursor Trigger (`touch_drive_item_from_reaction`):** **100% IMPLEMENTED**
 - **Security Invoker Views (`v_active_partnership`, `v_drive_dashboard`):** **100% IMPLEMENTED**
 - **RPC Stored Procedures & Validation:** **100% IMPLEMENTED**
 - **Log Cleanup (`logs_cleanup(p_days)`):** **IMPLEMENTED** (parameterized, `DEFAULT 90`; not `pg_cron`-scheduled — Node `retentionJob.js` is the single active driver)
