@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,11 +68,17 @@ class _MockRealtimeSyncService extends Mock implements RealtimeSyncService {}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() async {
+  setUp(() {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
-    await StorageService.saveAppVersion('v1.0.0');
+    PackageInfo.setMockInitialValues(
+      appName: 'JustUS',
+      packageName: 'com.fezze.justus',
+      version: '2.0.0',
+      buildNumber: '10',
+      buildSignature: '',
+    );
   });
 
   Future<(_FakePartnerRepository, PartnerState)> pumpProfile(
@@ -136,6 +143,17 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('the displayed version is read fresh, not from the cache',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({'app_version': 'v1.0.0'});
+    StorageService.resetForTest();
+
+    await pumpProfile(tester, hasPartner: true);
+
+    expect(find.text('Versione JustUS v2.0.0'), findsOneWidget);
+    expect(find.text('Versione JustUS v1.0.0'), findsNothing);
+  });
 
   testWidgets('the avatar picker offers only camera and gallery',
       (tester) async {

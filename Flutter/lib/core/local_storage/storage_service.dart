@@ -45,7 +45,6 @@ class StorageService {
   static const String _keyDeviceFingerprint = 'device_fingerprint';
   static const String _keyRequestBindingSecret = 'request_binding_secret';
   static const String _keyTimeline = 'mood_timeline';
-  static const String _keyAppVersion = 'app_version';
   static const String _keyNotificationsEnabled = 'notifications_enabled';
 
   static SharedPreferences? _prefs;
@@ -335,19 +334,6 @@ class StorageService {
     final p = await prefs;
 
     return p.getInt(_keyProfilePicVersion);
-  }
-
-  // -------------------- App Version --------------------
-
-  static Future<void> saveAppVersion(String version) async {
-    final p = await prefs;
-    await p.setString(_keyAppVersion, version);
-  }
-
-  static Future<String?> getAppVersion() async {
-    final p = await prefs;
-
-    return p.getString(_keyAppVersion);
   }
 
   // -------------------- Notifications --------------------

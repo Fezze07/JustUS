@@ -19,7 +19,7 @@ This document provides a reverse-engineering technical analysis of the end-to-en
 7. **Notification Preference Toggle**: VPSettingTile switch allowing users to toggle push/local notifications on or off, persisted locally via `StorageService` (`notifications_enabled`) and mirrored to `user_devices.notifications_enabled` so the backend stops targeting a disabled installation in foreground, background and terminated state.
 8. **Password Change Navigation**: Navigates to `/change-password` screen with current, new, and confirm password fields.
 9. **Session Disconnection (Logout)**: Displays confirmation dialog and terminates the active session, clearing the SDK session, cached data, and real-time WebSocket subscriptions.
-10. **App Version Display & Interactive Update Check**: Displays cached/live app version (`v{version}`) loaded from `SharedPreferences` key `app_version` (falling back to `package_info_plus`). Manual update checks display an immediate inline loading spinner on the tile and footer.
+10. **App Version Display & Interactive Update Check**: Displays the live app version (`v{version}`) read from `package_info_plus` on every screen load, with no local cache. Manual update checks display an immediate inline loading spinner on the tile and footer.
 11. **Account Data Wipe (Debug)**: In debug builds (`kDebugMode`), provides an operation to purge all user domain data (drive files, moods, game history, bucket items, miss-you records) from PostgreSQL, Cloudflare R2, and local storage without invalidating authentication tokens.
 12. **Partnership Cancellation Request**: When paired (`AuthState.hasPartner`), a danger-styled tile above Logout opens a simple confirmation dialog and calls `partnership_request_cancel`. The couple is frozen, the partner is pushed, and the requester lands on `PartnerScreen` in the waiting state; a cooldown/error response keeps the user on Profile.
 
@@ -181,7 +181,6 @@ The Profile & Settings subsystem crosses all architectural layers:
 | `FlutterSecureStorage` | `device_fingerprint` | Client Device UUID | **YES** | NO |
 | `FlutterSecureStorage` | `request_binding_secret` | HMAC Signing Secret | **YES** | NO |
 | `SharedPreferences` | `app_language_code` | Selected App Language Code | NO | NO |
-| `SharedPreferences` | `app_version` | Cached App Version String | NO | NO |
 | `SharedPreferences` | `notifications_enabled` | Notification Toggle Preference | NO | NO |
 | `SharedPreferences` | `user_profile` | Cached User Profile JSON | **YES** | **YES** |
 | `SharedPreferences` | `partner_profile` | Cached Partner Profile JSON | **YES** | **YES** |
@@ -330,7 +329,7 @@ No known bugs remain in the account-wipe flow. The R2 object cleanup and the del
 | Display Name Viewing | **IMPLEMENTED** | Displayed on profile screen |
 | Display Name Editing UI | **IMPLEMENTED** | "IDENTITY" setting group on the profile screen: edit dialog wired to `ProfileState.updateDisplayName`; partner devices see the change in realtime (`user_profiles` subscription) |
 | Language Selection & Persistence | **IMPLEMENTED** | `/localization` screen, `SharedPreferences`, dynamic locale |
-| App Version Display | **IMPLEMENTED** | `v{info.version}` displayed via `package_info_plus` |
+| App Version Display | **IMPLEMENTED** | `v{info.version}` read fresh from `package_info_plus` on every load; no cache |
 | Automatic Update Checker | **IMPLEMENTED** | Executed on `HomepageScreen` startup via `UpdateService`, silent by design; covered by `test/version_update_test.dart` |
 | Manual Update Check from Profile | **IMPLEMENTED** | Setting tile & app version tap trigger manual update check via `UpdateService` with `showNoUpdateToast: true`, so an up-to-date answer is reported instead of silently ignored; covered by `test/version_update_test.dart` |
 | Session Logout | **IMPLEMENTED** | Clears tokens, local storage, closes WebSocket connection |

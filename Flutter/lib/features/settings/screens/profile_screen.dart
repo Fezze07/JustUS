@@ -56,9 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _loadAppVersion() async {
-    final version = await StorageService.getAppVersion() ??
-        'v${(await PackageInfo.fromPlatform()).version}';
-    unawaited(StorageService.saveAppVersion(version));
+    final version = 'v${(await PackageInfo.fromPlatform()).version}';
     if (mounted) setState(() => _appVersion = version);
   }
 
