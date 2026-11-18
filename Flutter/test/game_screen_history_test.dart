@@ -8,6 +8,8 @@ import 'package:justus/all_imports.dart';
 import 'test_helpers/mock_secure_storage.dart';
 
 class _HistoryGameRepository extends GameRepository {
+  final List<int> historyOffsets = [];
+
   @override
   Future<ResultWrapper<GameNewQuestionResponse?>> fetchActiveQuestion() async {
     return Success(GameNewQuestionResponse(
@@ -22,8 +24,11 @@ class _HistoryGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
-    return Success(List.generate(
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
+    historyOffsets.add(offset);
+
+    final all = List.generate(
       7,
       (i) => GameHistoryItem(
         questionId: i + 1,
@@ -32,7 +37,9 @@ class _HistoryGameRepository extends GameRepository {
         partnerOption: 77,
         createdAt: '2026-05-0${i + 1}T00:00:00Z',
       ),
-    ));
+    );
+
+    return Success(all.skip(offset).take(limit).toList());
   }
 
   @override
@@ -51,11 +58,14 @@ void main() {
     StorageService.resetForTest();
   });
 
-  Future<void> pumpGame(WidgetTester tester) async {
+  Future<(_HistoryGameRepository, GameState)> pumpGame(
+      WidgetTester tester) async {
     await StorageService.saveUserId(42);
     await StorageService.savePartner(77, 'Partner');
 
-    final state = GameState(repository: _HistoryGameRepository());
+    final repository = _HistoryGameRepository();
+    final state = GameState(repository: repository);
+    addTearDown(state.dispose);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -76,20 +86,31 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+
+    return (repository, state);
   }
 
-  testWidgets('"Show more" reveals the next history batch', (tester) async {
-    await pumpGame(tester);
+  testWidgets('"Show more" fetches and appends the next history page',
+      (tester) async {
+    final (repository, state) = await pumpGame(tester);
 
     for (var i = 1; i <= 5; i++) {
       expect(find.text('Question $i'), findsOneWidget);
     }
     expect(find.text('Question 6'), findsNothing);
+    expect(repository.historyOffsets, [0]);
 
     await tester.ensureVisible(find.text('Show more'));
     await tester.tap(find.text('Show more'));
     await tester.pumpAndSettle();
+    // Let the async page load and its cache write settle.
+    await tester.pump();
+    await tester.pump();
 
+    expect(repository.historyOffsets, [0, 5],
+        reason: 'the page offset comes from the entries already loaded');
+    expect(state.history, hasLength(7),
+        reason: 'the second page is appended to the loaded list');
     expect(find.text('Question 6'), findsOneWidget);
     expect(find.text('Question 7'), findsOneWidget);
     expect(find.text('Show more'), findsNothing,

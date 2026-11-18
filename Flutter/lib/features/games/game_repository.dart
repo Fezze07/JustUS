@@ -17,6 +17,10 @@ typedef _GameFetchContext = ({
 });
 
 class GameRepository extends BaseRepository {
+  /// Games loaded per history page. History is paged on demand so the query
+  /// never grows with the couple's full lifetime of answers.
+  static const int historyPageSize = 5;
+
   final GameQuestionBankRepository _bankRepo;
 
   GameRepository({super.sbClient})
@@ -290,48 +294,51 @@ class GameRepository extends BaseRepository {
     );
   }
 
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  /// One page of the couple's game history, newest first.
+  ///
+  /// The page unit is the game (a `game_questions` row), not the answer: an
+  /// answer-row page could split a game across two pages. Each call therefore
+  /// reads at most [limit] games, plus their catalog texts.
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory({
+    int limit = historyPageSize,
+    int offset = 0,
+  }) async {
     return withCouple((uid, partnerId) async {
       final locale = await LanguageHelper.currentLocaleCode();
 
-      var query = sbClient.from('game_answers').select(
-          'game_id, selected_option, user_id, game_questions(id, question_code, created_at)');
-
-      if (partnerId != null) {
-        query = query.inFilter('user_id', [uid, partnerId]);
-      } else {
-        query = query.eq('user_id', uid);
-      }
-
-      final data = await query.order('created_at', ascending: false).toList();
+      final data = await sbClient
+          .from('game_questions')
+          .select(
+              'id, question_code, created_at, game_answers(selected_option, user_id)')
+          .inFilter('user_id_a', [uid, if (partnerId != null) partnerId])
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
 
       final Map<int, Map<String, dynamic>> historyMap = {};
 
       for (final row in data) {
-        final gameId = row['game_id'] as int;
-        final questionData = row['game_questions'];
-        if (questionData == null) continue;
+        final gameId = row['id'] as int;
+        final answers = (row['game_answers'] as List?) ?? const [];
 
-        final questionCode = questionData['question_code'] as String?;
-
-        historyMap.putIfAbsent(
-          gameId,
-          () => {
-            'id': gameId,
-            'question_code': questionCode,
-            'question': '',
-            'created_at': questionData['created_at'],
-            'user_option': null,
-            'partner_option': null,
-          },
-        );
-
-        final answerUserId = row['user_id'] as int;
-        if (answerUserId == uid) {
-          historyMap[gameId]!['user_option'] = row['selected_option'];
-        } else if (answerUserId == partnerId) {
-          historyMap[gameId]!['partner_option'] = row['selected_option'];
+        int? userOption;
+        int? partnerOption;
+        for (final answer in answers.cast<Map<String, dynamic>>()) {
+          final answerUserId = answer['user_id'] as int;
+          if (answerUserId == uid) {
+            userOption = answer['selected_option'] as int?;
+          } else if (answerUserId == partnerId) {
+            partnerOption = answer['selected_option'] as int?;
+          }
         }
+
+        historyMap[gameId] = {
+          'id': gameId,
+          'question_code': row['question_code'],
+          'question': '',
+          'created_at': row['created_at'],
+          'user_option': userOption,
+          'partner_option': partnerOption,
+        };
       }
 
       // Popola i testi delle domande dal catalogo per la lingua corrente:

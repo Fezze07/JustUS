@@ -25,7 +25,8 @@ class FakeGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     return const Success<List<GameHistoryItem>>([]);
   }
 
@@ -40,6 +41,29 @@ class FakeGameRepository extends GameRepository {
     reminderCalls++;
 
     return const Success<Map<String, dynamic>>({});
+  }
+}
+
+class PagedHistoryGameRepository extends FakeGameRepository {
+  final List<int> historyOffsets = [];
+
+  @override
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
+    historyOffsets.add(offset);
+
+    final all = List.generate(
+      7,
+      (i) => GameHistoryItem(
+        questionId: i + 1,
+        question: 'Question ${i + 1}',
+        userOption: 42,
+        partnerOption: 77,
+        createdAt: '2026-05-0${i + 1}T00:00:00Z',
+      ),
+    );
+
+    return Success(all.skip(offset).take(limit).toList());
   }
 }
 
@@ -102,6 +126,29 @@ void main() {
 
     await state.remindPartner();
     expect(repo.reminderCalls, 1, reason: 'the gate blocks a second send');
+  });
+
+  test('history pages are fetched on demand and stop at the end', () async {
+    final repo = PagedHistoryGameRepository();
+    final state = GameState(repository: repo);
+    addTearDown(state.dispose);
+
+    await state.fetchHistory(epoch: CacheService.checkpointEpoch);
+
+    expect(state.history, hasLength(GameRepository.historyPageSize));
+    expect(state.hasMoreHistory, isTrue);
+    expect(repo.historyOffsets, [0]);
+
+    await state.loadMoreHistory();
+
+    expect(state.history, hasLength(7));
+    expect(state.hasMoreHistory, isFalse);
+    expect(repo.historyOffsets, [0, 5],
+        reason: 'the next offset is the number of games already loaded');
+
+    await state.loadMoreHistory();
+    expect(repo.historyOffsets, [0, 5],
+        reason: 'no request once the history is complete');
   });
 
   test('fetchNewQuestion resets isLoading on NetworkError', () async {
@@ -352,7 +399,8 @@ class ColdStartGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     return const Success<List<GameHistoryItem>>([]);
   }
 
@@ -419,7 +467,8 @@ class LocaleRefreshGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     historyFetches++;
     // The server serves question texts in the CURRENT app locale, so switch
     // between the two variants to reproduce the stale-history-not-refetched
@@ -458,7 +507,8 @@ class ConfigurableFakeGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     return const Success<List<GameHistoryItem>>([]);
   }
 }
@@ -483,7 +533,8 @@ class CountingGameRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     return const Success<List<GameHistoryItem>>([]);
   }
 }

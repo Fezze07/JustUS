@@ -20,10 +20,6 @@ class GameScreen extends TabScreen {
 
 class _GameScreenState extends State<GameScreen>
     with TabScreenMixin, StateMessageListener<GameState, GameScreen> {
-  static const int _historyPageSize = 5;
-
-  int _visibleHistoryCount = _historyPageSize;
-
   @override
   GameState get messageSource => context.read<GameState>();
 
@@ -95,9 +91,10 @@ class _GameScreenState extends State<GameScreen>
                       const SizedBox(height: 48),
 
                       // History Section
-                      Selector<GameState, List<GameHistoryItem>>(
-                        selector: (_, s) => s.history,
-                        builder: (context, history, _) {
+                      Selector<GameState, (List<GameHistoryItem>, bool)>(
+                        selector: (_, s) => (s.history, s.hasMoreHistory),
+                        builder: (context, historyData, _) {
+                          final (history, hasMore) = historyData;
                           final profile = context.read<ProfileState>();
 
                           return Column(
@@ -122,9 +119,7 @@ class _GameScreenState extends State<GameScreen>
                                   ),
                                 )
                               else
-                                ...history
-                                    .take(_visibleHistoryCount)
-                                    .map((item) {
+                                ...history.map((item) {
                                   String status;
                                   Color badgeColor;
                                   IconData icon;
@@ -163,12 +158,12 @@ class _GameScreenState extends State<GameScreen>
                                     ),
                                   );
                                 }),
-                              if (history.length > _visibleHistoryCount)
+                              if (hasMore)
                                 Center(
                                   child: TextButton.icon(
-                                    onPressed: () => setState(() =>
-                                        _visibleHistoryCount +=
-                                            _historyPageSize),
+                                    onPressed: () => unawaited(context
+                                        .read<GameState>()
+                                        .loadMoreHistory()),
                                     icon: Icon(Icons.expand_more,
                                         color: context.palette.primary),
                                     label: Text(

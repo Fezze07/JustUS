@@ -63,6 +63,9 @@ class GameState extends BaseState with CheckpointMixin {
 
   GameNewQuestionResponse? _currentQuestion;
   List<GameHistoryItem> _history = [];
+  int _historyOffset = 0;
+  bool _hasMoreHistory = false;
+  bool _isLoadingMoreHistory = false;
   bool _isFetchingQuestion = false;
   bool _noQuestionAvailable = false;
   int? _currentUserId;
@@ -76,6 +79,7 @@ class GameState extends BaseState with CheckpointMixin {
 
   GameNewQuestionResponse? get currentQuestion => _currentQuestion;
   List<GameHistoryItem> get history => _history;
+  bool get hasMoreHistory => _hasMoreHistory;
   bool get isFetchingQuestion => _isFetchingQuestion;
   bool get noQuestionAvailable => _noQuestionAvailable;
 
@@ -112,7 +116,12 @@ class GameState extends BaseState with CheckpointMixin {
       // cache, otherwise the screen mixes locales.
       _currentQuestion = null;
     }
-    _history = await StorageService.getGameHistory();
+    // The cache may hold more than the first page; a cold start shows one page
+    // and pages older entries back on demand, mirroring the Mood timeline.
+    final cachedHistory = await StorageService.getGameHistory();
+    _history = cachedHistory.take(GameRepository.historyPageSize).toList();
+    _historyOffset = _history.length;
+    _hasMoreHistory = cachedHistory.length >= GameRepository.historyPageSize;
     notifyListeners();
   }
 
@@ -366,6 +375,7 @@ class GameState extends BaseState with CheckpointMixin {
           userOption: option,
           questionText: _currentQuestion!.question,
         );
+        _historyOffset = _history.length;
         await StorageService.saveGameHistory(_history);
 
         if (!wasPending) {
@@ -419,12 +429,40 @@ class GameState extends BaseState with CheckpointMixin {
     await result.handleAsync(
       onSuccess: (value) async {
         _history = value;
+        _historyOffset = value.length;
+        _hasMoreHistory = value.length >= GameRepository.historyPageSize;
         await StorageService.saveGameHistory(value);
         await _updateGameCheckpoint(epoch: epoch, token: writeToken);
         onSuccess?.call();
       },
     );
     notifyListeners();
+  }
+
+  /// Loads the next history page. The offset counts games already in memory,
+  /// so a locally inserted or deleted entry cannot make the next page skip one.
+  Future<void> loadMoreHistory() async {
+    if (_isLoadingMoreHistory || !_hasMoreHistory) return;
+
+    _isLoadingMoreHistory = true;
+
+    final result = await _repo.fetchGameHistory(offset: _historyOffset);
+
+    _isLoadingMoreHistory = false;
+
+    await result.handleAsync(
+      onSuccess: (value) async {
+        final knownIds = _history.map((item) => item.questionId).toSet();
+        _history = [
+          ..._history,
+          ...value.where((item) => !knownIds.contains(item.questionId)),
+        ];
+        _historyOffset = _history.length;
+        _hasMoreHistory = value.length >= GameRepository.historyPageSize;
+        notifyListeners();
+        await StorageService.saveGameHistory(_history);
+      },
+    );
   }
 
   Future<void> refreshFromRealtime() async {
@@ -457,6 +495,7 @@ class GameState extends BaseState with CheckpointMixin {
         deletePartnerOption: userId != _currentUserId,
         updateExistingOnly: true,
       );
+      _historyOffset = _history.length;
       await StorageService.saveGameHistory(_history);
     }
     notifyListeners();
@@ -482,6 +521,7 @@ class GameState extends BaseState with CheckpointMixin {
     }
 
     _history.removeWhere((h) => h.questionId == id);
+    _historyOffset = _history.length;
     await StorageService.saveGameHistory(_history);
     notifyListeners();
   }
@@ -543,6 +583,7 @@ class GameState extends BaseState with CheckpointMixin {
         userOption: isUser ? selectedOption : null,
         partnerOption: isPartner ? selectedOption : null,
       );
+      _historyOffset = _history.length;
       await StorageService.saveGameHistory(_history);
     } else {
       if (_currentQuestion != null && _currentQuestion!.id == gameId) {
@@ -552,6 +593,7 @@ class GameState extends BaseState with CheckpointMixin {
           partnerOption: isPartner ? selectedOption : null,
           questionText: _currentQuestion!.question,
         );
+        _historyOffset = _history.length;
         await StorageService.saveGameHistory(_history);
       } else {
         await fetchHistory(epoch: epoch, token: token);
@@ -590,6 +632,7 @@ class GameState extends BaseState with CheckpointMixin {
           userOption: value.userOption,
           partnerOption: value.partnerOption,
         );
+        _historyOffset = _history.length;
         await StorageService.saveGameHistory(_history);
         notifyListeners();
       },
@@ -599,6 +642,9 @@ class GameState extends BaseState with CheckpointMixin {
   void clear() {
     _currentQuestion = null;
     _history = [];
+    _historyOffset = 0;
+    _hasMoreHistory = false;
+    _isLoadingMoreHistory = false;
     _currentUserId = null;
     _isFetchingQuestion = false;
     _noQuestionAvailable = false;

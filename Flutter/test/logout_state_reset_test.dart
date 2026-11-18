@@ -23,7 +23,8 @@ class _CacheOnlyGameRepository extends GameRepository {
   Future<Map<String, dynamic>?> getActivePartnership() async => null;
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async =>
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+          {int limit = GameRepository.historyPageSize, int offset = 0}) async =>
       const Success<List<GameHistoryItem>>([]);
 
   @override

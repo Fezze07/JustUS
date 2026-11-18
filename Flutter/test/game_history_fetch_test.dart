@@ -67,17 +67,18 @@ const _absentCodes = [
   'q_abs_5',
 ];
 
+final _historyRanges = <(int, int)>[];
+
 sb.PostgrestList _historyRows() => [
       for (final (index, code) in _absentCodes.indexed)
         {
-          'game_id': index + 1,
-          'user_id': index.isEven ? 42 : 77,
-          'selected_option': (index % 3) + 1,
-          'game_questions': {
-            'id': index + 1,
-            'question_code': code,
-            'created_at': '2026-01-0${index + 1}T00:00:00Z',
-          },
+          'id': index + 1,
+          'question_code': code,
+          'created_at': '2026-01-0${index + 1}T00:00:00Z',
+          'game_answers': [
+            {'user_id': 42, 'selected_option': (index % 3) + 1},
+            {'user_id': 77, 'selected_option': (index % 3) + 2},
+          ],
         },
     ];
 
@@ -87,15 +88,17 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({'app_language_code': 'en'});
     PartnershipRepository.clearPartnershipCache();
+    _historyRanges.clear();
   });
 
-  test('with 5 codes absent from the bank only the chain-locale queries run '
+  test(
+      'with 5 codes absent from the bank only the chain-locale queries run '
       '(G4)', () async {
     final client = _MockClient();
     final answersFrom = _MockFrom();
     final bankFrom = _MockFrom();
 
-    when(() => client.from('game_answers')).thenAnswer((_) => answersFrom);
+    when(() => client.from('game_questions')).thenAnswer((_) => answersFrom);
     when(() => client.from('game_question_bank')).thenAnswer((_) => bankFrom);
 
     final answersAnswer = _CannedAnswer()..rows = _historyRows;
@@ -106,6 +109,13 @@ void main() {
     when(() => answersFilter.eq(any(), any())).thenAnswer((_) => answersFilter);
     when(() => answersFilter.order(any(), ascending: any(named: 'ascending')))
         .thenAnswer((_) => answersFilter);
+    when(() => answersFilter.range(any(), any())).thenAnswer((invocation) {
+      _historyRanges.add((
+        invocation.positionalArguments[0] as int,
+        invocation.positionalArguments[1] as int,
+      ));
+      return answersFilter;
+    });
 
     final bankAnswer = _CannedAnswer()..rows = () => const [];
     final bankFilter = _MockFilter(bankAnswer);
@@ -142,6 +152,8 @@ void main() {
     );
     // Absent codes resolve to the empty string, never to a thrown error.
     expect(history.map((h) => h.question), everyElement(isEmpty));
+    // The requested page reaches the query as an inclusive range.
+    expect(_historyRanges, [(0, GameRepository.historyPageSize - 1)]);
     // One `inFilter` column filter per chain-locale query — nothing more.
     expect(bankCodeFilters, hasLength(2));
     // Only the requested codes are filtered — no full-catalog downloads.
@@ -154,13 +166,14 @@ void main() {
     expect(bankLocales, ['en', 'it']);
   });
 
-  test('a fallback-only translation resolves texts from the chain without '
+  test(
+      'a fallback-only translation resolves texts from the chain without '
       'per-code queries (G4)', () async {
     final client = _MockClient();
     final answersFrom = _MockFrom();
     final bankFrom = _MockFrom();
 
-    when(() => client.from('game_answers')).thenAnswer((_) => answersFrom);
+    when(() => client.from('game_questions')).thenAnswer((_) => answersFrom);
     when(() => client.from('game_question_bank')).thenAnswer((_) => bankFrom);
 
     final answersAnswer = _CannedAnswer()..rows = _historyRows;
@@ -171,6 +184,13 @@ void main() {
     when(() => answersFilter.eq(any(), any())).thenAnswer((_) => answersFilter);
     when(() => answersFilter.order(any(), ascending: any(named: 'ascending')))
         .thenAnswer((_) => answersFilter);
+    when(() => answersFilter.range(any(), any())).thenAnswer((invocation) {
+      _historyRanges.add((
+        invocation.positionalArguments[0] as int,
+        invocation.positionalArguments[1] as int,
+      ));
+      return answersFilter;
+    });
 
     final bankLocales = <String>[];
     final bankAnswer = _CannedAnswer()
@@ -206,13 +226,14 @@ void main() {
     expect(perCodeMaybeSingleCalls, 0);
   });
 
-  test('a fully translated primary locale stops after a single bank query '
+  test(
+      'a fully translated primary locale stops after a single bank query '
       '(G4)', () async {
     final client = _MockClient();
     final answersFrom = _MockFrom();
     final bankFrom = _MockFrom();
 
-    when(() => client.from('game_answers')).thenAnswer((_) => answersFrom);
+    when(() => client.from('game_questions')).thenAnswer((_) => answersFrom);
     when(() => client.from('game_question_bank')).thenAnswer((_) => bankFrom);
 
     final answersAnswer = _CannedAnswer()..rows = _historyRows;
@@ -223,6 +244,13 @@ void main() {
     when(() => answersFilter.eq(any(), any())).thenAnswer((_) => answersFilter);
     when(() => answersFilter.order(any(), ascending: any(named: 'ascending')))
         .thenAnswer((_) => answersFilter);
+    when(() => answersFilter.range(any(), any())).thenAnswer((invocation) {
+      _historyRanges.add((
+        invocation.positionalArguments[0] as int,
+        invocation.positionalArguments[1] as int,
+      ));
+      return answersFilter;
+    });
 
     final bankLocales = <String>[];
     final bankAnswer = _CannedAnswer()

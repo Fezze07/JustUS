@@ -22,7 +22,8 @@ class GameBurstFakeRepository extends GameRepository {
   }
 
   @override
-  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory() async {
+  Future<ResultWrapper<List<GameHistoryItem>>> fetchGameHistory(
+      {int limit = GameRepository.historyPageSize, int offset = 0}) async {
     return const Success<List<GameHistoryItem>>([]);
   }
 
