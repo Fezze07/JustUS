@@ -314,7 +314,8 @@ class _MoodScreenState extends State<MoodScreen>
     if (timestamp != null) {
       final parsed = AppDateUtils.tryParse(timestamp)?.toLocal();
       if (parsed != null) {
-        final dateFormat = DateFormat('d MMMM', 'it');
+        final dateFormat = DateFormat(
+            'd MMMM', Localizations.localeOf(context).toLanguageTag());
         final timeFormat = DateFormat('HH:mm');
         content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,

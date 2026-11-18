@@ -70,6 +70,21 @@ class FakeMoodRepository extends MoodRepository {
   }
 }
 
+class TimelineMoodRepository extends FakeMoodRepository {
+  @override
+  Future<ResultWrapper<List<MoodEntry>>> fetchTimeline(
+      {int limit = 4, int offset = 0}) async {
+    return Success<List<MoodEntry>>([
+      MoodEntry(
+        id: 1,
+        userId: 42,
+        emoji: '😄',
+        createdAt: DateTime(2026, 11, 4, 12).toIso8601String(),
+      ),
+    ]);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -189,5 +204,34 @@ void main() {
         reason: 're-picking the current mood must be a no-op, not a re-post');
     expect(state.userMood, '😄',
         reason: 'the mood must be unchanged by the rejected pick');
+  });
+
+  testWidgets('timeline dates follow the app locale', (tester) async {
+    await StorageService.saveUserId(42);
+    await StorageService.savePartner(77, 'Partner');
+
+    final state = MoodState(repository: TimelineMoodRepository());
+
+    Future<void> pump(Locale locale) async {
+      await tester.pumpWidget(
+        ChangeNotifierProvider<MoodState>.value(
+          value: state,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: locale,
+            home: MoodScreen(
+                tabIndex: 2, tabNotifier: TabIndexNotifier()..index = 2),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pump(const Locale('en'));
+    expect(find.text('4 November'), findsOneWidget);
+
+    await pump(const Locale('it'));
+    expect(find.text('4 novembre'), findsOneWidget);
   });
 }

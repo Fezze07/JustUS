@@ -183,7 +183,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 - Page size: 4 items.
 - `fetchTimeline()` serves both the first page and every full refetch (init, pull-to-refresh, partner mood change). When older pages are already loaded it **merges** the fresh page with them — fresh page first, older entries kept, dedupe by `id` — and persists the merged list, so a refetch no longer collapses the visible/cached history to 4 entries; with only the first page in memory the fresh page replaces it so a shifted cache page cannot leave a gap. Residual: a row deleted server-side can linger in the merged tail until a cache clear (`mood_state.dart:215-256`).
 - `loadMoreTimeline()` resumes from `_timelineOffset` (the merged length) and appends the next batch of 4 items using `.range(offset, offset + limit - 1)`.
-- Renders entry timestamp formatted as `d MMMM` (e.g., "11 Settembre") and `HH:mm` (e.g., "20:45").
+- Renders entry timestamp formatted as `d MMMM` in the app locale (`Localizations.localeOf(context).toLanguageTag()`), e.g. "4 November" in English or "4 novembre" in Italian, plus `HH:mm` (e.g., "20:45").
 - Displays color-coded borders: `context.palette.primary` for user's own entries (`isMine: true`), `context.palette.accentPink` for partner's entries (`isMine: false`).
 
 ---
