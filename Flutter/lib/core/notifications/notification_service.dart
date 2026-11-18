@@ -259,6 +259,11 @@ class NotificationService {
           title: loc.notif_answerSubmitted_title,
           body: loc.notif_answerSubmitted_body(partnerName)
         );
+      case 'answerReminder':
+        return (
+          title: loc.notif_answerReminder_title,
+          body: loc.notif_answerReminder_body(partnerName)
+        );
       case 'newQuestion':
         return (
           title: loc.notif_newQuestion_title,

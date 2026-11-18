@@ -192,7 +192,7 @@ Unknown names return `null`. A programmatic `pushNamed` of an unknown name is a 
 Implemented in `MainShellState`:
 
 - `NotificationService` exposes `Stream<String?> get onNotificationTap` (notification_service.dart:36-38). Payloads are pushed from local-notification taps, `getNotificationAppLaunchDetails`, `FirebaseMessaging.onMessageOpenedApp` and `getInitialMessage`.
-- `MainShellState.initState` subscribes to `onNotificationTap` and drains `consumePendingPayload()` (main_shell.dart:42-46). `_handleNotificationPayload` (:55-105) switches tabs from `tabIndex`, from the notification key (`missyou`, `requestAccepted`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `bucketItemAdded`, `driveItemAdded`, `reactionAdded`) or from a route alias (`/homepage`, `/game`, `/bucket`, `/mood`, `/drive`). No screen-level deep link is attached.
+- `MainShellState.initState` subscribes to `onNotificationTap` and drains `consumePendingPayload()` (main_shell.dart:42-46). `_handleNotificationPayload` (:55-105) switches tabs from `tabIndex`, from the notification key (`missyou`, `requestAccepted`, `moodUpdated`, `answerSubmitted`, `answerReminder`, `newQuestion`, `bucketItemAdded`, `driveItemAdded`, `reactionAdded`) or from a route alias (`/homepage`, `/game`, `/bucket`, `/mood`, `/drive`). No screen-level deep link is attached.
 
 ---
 

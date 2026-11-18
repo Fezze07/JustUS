@@ -81,6 +81,7 @@ class MainShellState extends State<MainShell> {
           switchToTab(2);
           break;
         case 'answerSubmitted':
+        case 'answerReminder':
         case 'newQuestion':
         case '/game':
           switchToTab(1);

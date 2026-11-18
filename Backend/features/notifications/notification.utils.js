@@ -63,6 +63,10 @@ const LOCALIZATIONS = {
       title: "Nuova Domanda di Coppia",
       body: "È disponibile una nuova domanda.",
     }),
+    answerReminder: (p) => ({
+      title: "Promemoria risposta",
+      body: `${p.partnerName || "Il tuo partner"} sta aspettando la tua risposta`,
+    }),
     driveItemAdded: (p) => ({
       title: "Nuovo Ricordo Aggiunto",
       body: `${p.partnerName || "Il tuo partner"} ha aggiunto un ricordo`,
@@ -112,6 +116,10 @@ const LOCALIZATIONS = {
     newQuestion: () => ({
       title: "New Couple Question",
       body: "A new question is available.",
+    }),
+    answerReminder: (p) => ({
+      title: "Answer Reminder",
+      body: `${p.partnerName || "Your partner"} is waiting for your answer`,
     }),
     driveItemAdded: (p) => ({
       title: "New Memory Added",

@@ -32,14 +32,14 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): Game tab UI. Renders the current-question card (`GameNewQuestionResponse`), the Option A / Option B voting buttons, the "you vs partner" answer status avatars, and the last five history entries (`GameHistoryItem`) via `GameHistoryCard`. Empty states: `game_noQuestionAvailable` when the catalog has no question for the couple's locale, `game_allCaughtUp` otherwise.
-   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): `GameState extends BaseState with CheckpointMixin`. Owns `_currentQuestion`, `_history`, `_noQuestionAvailable` and the realtime handlers. Subscribes to `LanguageProvider` and refetches the active question + history (read-only) when the language changes; never inserts a question on a locale switch.
-   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): `GameRepository extends BaseRepository`. All data access goes through Supabase (no backend call): `fetchActiveQuestion` (read-only), `fetchNewGameQuestion` (create-from-catalog-if-missing), `submitAnswer`, `fetchAnswerStatus`, `hasNewGameActivity` (checkpoint gate), `fetchGameHistory`.
+   - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): Game tab UI. Renders the current-question card (`GameNewQuestionResponse`), the Option A / Option B voting buttons, the "you vs partner" answer status avatars, and the last five history entries (`GameHistoryItem`) via `GameHistoryCard`. Empty states: `game_noQuestionAvailable` when the catalog has no question for the couple's locale, `game_allCaughtUp` otherwise. Header bell: sends an `answerReminder` push while the user is waiting for the partner, disabled the rest of the time.
+   - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): `GameState extends BaseState with CheckpointMixin`. Owns `_currentQuestion`, `_history`, `_noQuestionAvailable` and the realtime handlers. Subscribes to `LanguageProvider` and refetches the active question + history (read-only) when the language changes; never inserts a question on a locale switch. Owns the reminder gate (`canRemindPartner`) and its 30-minute cooldown.
+   - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): `GameRepository extends BaseRepository`. Game data access goes through Supabase (no backend route): `fetchActiveQuestion` (read-only), `fetchNewGameQuestion` (create-from-catalog-if-missing), `submitAnswer`, `fetchAnswerStatus`, `hasNewGameActivity` (checkpoint gate), `fetchGameHistory`. `sendAnswerReminder` is the exception: it posts to the backend `/notify/partner` endpoint.
    - [game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart): `GameQuestionBankRepository` — catalog access: `fetchQuestionsByLocale`, `fetchQuestionText`, `fetchTextsForCodes`, `pickQuestionForGame`, all with locale fallback.
    - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): `GameQuestionBankItem` (catalog row), `GameNewQuestionResponse` (active question), `GameHistoryItem` (history row, with `isMatched`/`isDisagreed`), plus the shared helpers `resolvePlayerName` and `optionLabelFor`.
    - Realtime: [game_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/game_realtime_handler.dart) routes `game_questions`/`game_answers` events into `GameState`; `game_questions` **insert/delete** dispatch immediately, every other game event is buffered FIFO in `game_event_buffer.dart` and flushed in delivery order.
 
-2. **Database Layer (Supabase / PostgreSQL)**: see the schema section below. There is no Node.js/Express involvement in this feature.
+2. **Database Layer (Supabase / PostgreSQL)**: see the schema section below. Game data has no Node.js/Express involvement; the only backend call is the reminder push through the shared `/notify/partner` endpoint.
 
 ---
 
@@ -183,6 +183,13 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 - `game_questions` INSERT/DELETE are applied immediately; all other events go through the `GameEventBuffer` FIFO flush (trailing-edge 150 ms). This keeps a partner's answer INSERT and the subsequent `both_answered` UPDATE — which routinely land within the debounce window — applied in delivery order rather than keeping only the last event.
 - Self echoes are guarded: `handleQuestionInsert` ignores the client's own question id, and `handleAnswerInsert` ignores the current user's own insert.
 
+### 4. Partner answer reminder
+
+- The header bell is enabled only when the active question has `hasAnswered == true`, `partnerAnswered == false`, no reminder was already sent for that question, and no send is in flight (`GameState.canRemindPartner`).
+- Tap → `GameState.remindPartner()` → `GameRepository.sendAnswerReminder()` → `POST /notify/partner` with `notificationKey: 'answerReminder'` and `{partnerName}`. Success shows `game_reminderSent`; on another question or after the local 30-minute cooldown the bell re-enables.
+- The backend applies the same 30-minute window per sender through a key-scoped limiter, so a modified client cannot nudge faster; a repeat inside the window returns `SEC-BLOCK-001`, which the app localizes as a rate-limit error.
+- The receiver gets the localized push (server map + client ARB) and tapping it opens the Game tab.
+
 ---
 
 ## Implementation Status Matrix
@@ -200,4 +207,5 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 | Partner A/B option mapping | **IMPLEMENTED** | Random creator/partner order; display names |
 | Realtime answer sync + FIFO burst handling | **IMPLEMENTED** | `GameRealtimeHandler` + `GameEventBuffer` |
 | Server-side completion trigger | **IMPLEMENTED** | `tr_game_answers_update_question_status` → `'both_answered'` |
+| Partner answer reminder (bell) | **IMPLEMENTED** | Waiting-state gate, 30-minute client cooldown, backend 1/30 min key-scoped limit |
 | Catalog seed in the repository | **NOT IMPLEMENTED** | Rows must be loaded into `game_question_bank` out-of-band |

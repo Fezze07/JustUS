@@ -20,6 +20,7 @@ class GameState extends BaseState with CheckpointMixin {
 
   @override
   void dispose() {
+    _reminderCooldown?.cancel();
     _languageProvider?.removeListener(_onLanguageChanged);
     super.dispose();
   }
@@ -65,6 +66,9 @@ class GameState extends BaseState with CheckpointMixin {
   bool _isFetchingQuestion = false;
   bool _noQuestionAvailable = false;
   int? _currentUserId;
+  Timer? _reminderCooldown;
+  int? _remindedQuestionId;
+  bool _isSendingReminder = false;
 
   int _checkpointToken = 0;
 
@@ -74,6 +78,18 @@ class GameState extends BaseState with CheckpointMixin {
   List<GameHistoryItem> get history => _history;
   bool get isFetchingQuestion => _isFetchingQuestion;
   bool get noQuestionAvailable => _noQuestionAvailable;
+
+  /// True only while the user is waiting for the partner's answer and has not
+  /// already sent a reminder for this question.
+  bool get canRemindPartner {
+    final question = _currentQuestion;
+
+    return question != null &&
+        question.hasAnswered &&
+        !question.partnerAnswered &&
+        !_isSendingReminder &&
+        _remindedQuestionId != question.id;
+  }
 
   Future<void> init() async {
     final epoch = CacheService.checkpointEpoch;
@@ -364,6 +380,37 @@ class GameState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
+  /// Sends a nudge to the partner while their answer is still missing. The
+  /// bell disables itself until the 30-minute cooldown expires; the backend
+  /// enforces the same window.
+  Future<void> remindPartner() async {
+    final question = _currentQuestion;
+    if (question == null || !canRemindPartner) return;
+
+    _isSendingReminder = true;
+    notifyListeners();
+
+    final result = await _repo.sendAnswerReminder();
+    _isSendingReminder = false;
+
+    await result.handleAsync(
+      onSuccess: (_) async {
+        if (_currentQuestion?.id != question.id) return;
+
+        _remindedQuestionId = question.id;
+        _reminderCooldown?.cancel();
+        _reminderCooldown = Timer(const Duration(minutes: 30), () {
+          if (_remindedQuestionId == question.id) {
+            _remindedQuestionId = null;
+            notifyListeners();
+          }
+        });
+        setMessage(LanguageHelper.appLoc.game_reminderSent);
+      },
+    );
+    notifyListeners();
+  }
+
   Future<void> fetchHistory(
       {required int epoch, int? token, void Function()? onSuccess}) async {
     final writeToken = token ?? _beginCheckpointToken();
@@ -555,6 +602,9 @@ class GameState extends BaseState with CheckpointMixin {
     _currentUserId = null;
     _isFetchingQuestion = false;
     _noQuestionAvailable = false;
+    _reminderCooldown?.cancel();
+    _remindedQuestionId = null;
+    _isSendingReminder = false;
     notifyListeners();
   }
 }

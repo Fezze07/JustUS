@@ -254,6 +254,8 @@
   "game_tryFetchingAgain": "New question",
   "game_invalidOption": "Error: invalid option",
   "game_answerSent": "Answer sent!",
+  "game_remindPartner": "Send a reminder",
+  "game_reminderSent": "Reminder sent!",
   "game_noQuestionAvailable": "No question available",
   "update_availableTitle": "Update available!",
   "update_newVersion": "A new version of JustUS is available.",
@@ -390,6 +392,15 @@
   "notif_answerSubmitted_title": "New Answer",
   "notif_answerSubmitted_body": "{partnerName} answered the question",
   "@notif_answerSubmitted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_answerReminder_title": "Answer Reminder",
+  "notif_answerReminder_body": "{partnerName} is waiting for your answer",
+  "@notif_answerReminder_body": {
     "placeholders": {
       "partnerName": {
         "type": "String"

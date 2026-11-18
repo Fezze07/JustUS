@@ -19,7 +19,7 @@ Because the toggle is device-local, the backend cannot filter it from the FCM pa
 
 The client path wins in foreground; the server path matters only for the system-tray background/killed rendering.
 
-Eleven event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`, `cancellationRequested`, `cancellationDeclined`, `cancellationAccepted`. Each is sent fire-and-forget after a successful Supabase mutation via `unawaited(notifyPartnerOnce(...))`.
+Twelve event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `answerSubmitted`, `answerReminder`, `newQuestion`, `driveItemAdded`, `reactionAdded`, `bucketItemAdded`, `cancellationRequested`, `cancellationDeclined`, `cancellationAccepted`. Most are sent fire-and-forget after a successful Supabase mutation via `unawaited(notifyPartnerOnce(...))`; `answerReminder` is sent from the game screen's bell instead.
 
 ---
 
@@ -29,7 +29,7 @@ Eleven event types are defined: `requestAccepted`, `missyou`, `moodUpdated`, `an
 Feature action (Supabase mutation succeeds)
   └─ unawaited(notifyPartnerOnce(notificationKey, params))      base_repository.dart:163-174
         └─ transient ApiService.notifyPartner()                 api_service.dart:387-399
-              └─ POST /api/v1/notify/partner (JWT + HMAC + rate limit 12/min)   notify.routes.js:24-33
+              └─ POST /api/v1/notify/partner (JWT + HMAC + rate limit 12/min, answerReminder 1/30 min)   notify.routes.js:24-45
                     └─ sendNotificationController
                           └─ dispatchNotification(type='partner', senderId)   notify.controller.js
                                 └─ resolveNotificationTarget → partnership_get_accepted_partner(senderId)  service:129-154
@@ -288,13 +288,14 @@ notifySchema = z.object({
 | 2 | `missyou` | MissYouRepository | `sendMissYou` after RPC `missyou_send` (`missyou_repository.dart:12-15`) | `{partnerName}` | `notif_missyou_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
 | 3 | `moodUpdated` | MoodRepository | `updateMood` after RPC `mood_set` (`mood_repository.dart:15-21`) | `{partnerName, emojiChar}` | `notif_moodUpdated_title/body({partnerName})` — emoji param unused | PARTIALLY IMPLEMENTED |
 | 4 | `answerSubmitted` | GameRepository | `submitAnswer` after `game_answers` upsert (`game_repository.dart:51-54`) | `{partnerName}` | `notif_answerSubmitted_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 5 | `newQuestion` | GameRepository | `fetchNewGameQuestion` after `game_questions` insert (`game_repository.dart:120-123`) | `{}` (no name) | `notif_newQuestion_title/body` (no params) | PARTIALLY IMPLEMENTED |
-| 6 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 7 | `reactionAdded` | DriveRepository | `addReaction` after `drive_item_reactions` upsert (`drive_repository.dart:161-172`) | `{partnerName, emojiChar}` | `notif_reactionAdded_title/body({partnerName, emojiChar})` | PARTIALLY IMPLEMENTED |
-| 8 | `bucketItemAdded` | BucketRepository | `addBucketItem` after `bucket_items` insert (`bucket_repository.dart:49-52`) | `{partnerName}` | `notif_bucketItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
-| 9 | `cancellationRequested` | PartnershipRepository | `requestCancellation` after `partnership_request_cancel` RPC success; resolved via `getCancellationPartnerId` (row cancelled) | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
-| 10 | `cancellationDeclined` | PartnershipRepository | `revertCancellation` after `partnership_cancel_revert` (partner decline or requester restore) — normal partner path | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
-| 11 | `cancellationAccepted` | Backend (accept endpoint) | After `partnership_cancel_accept` deletes the row | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 5 | `answerReminder` | GameRepository | Game screen bell, only while the user has answered and the partner has not (`game_state.dart`) | `{partnerName}` | `notif_answerReminder_title/body({partnerName})` | IMPLEMENTED |
+| 6 | `newQuestion` | GameRepository | `fetchNewGameQuestion` after `game_questions` insert (`game_repository.dart:120-123`) | `{}` (no name) | `notif_newQuestion_title/body` (no params) | PARTIALLY IMPLEMENTED |
+| 7 | `driveItemAdded` | DriveRepository | `uploadDriveItemToR2` after successful upload (`drive_repository.dart:73-76`) | `{partnerName}` | `notif_driveItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 8 | `reactionAdded` | DriveRepository | `addReaction` after `drive_item_reactions` upsert (`drive_repository.dart:161-172`) | `{partnerName, emojiChar}` | `notif_reactionAdded_title/body({partnerName, emojiChar})` | PARTIALLY IMPLEMENTED |
+| 9 | `bucketItemAdded` | BucketRepository | `addBucketItem` after `bucket_items` insert (`bucket_repository.dart:49-52`) | `{partnerName}` | `notif_bucketItemAdded_title/body({partnerName})` | PARTIALLY IMPLEMENTED |
+| 10 | `cancellationRequested` | PartnershipRepository | `requestCancellation` after `partnership_request_cancel` RPC success; resolved via `getCancellationPartnerId` (row cancelled) | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 11 | `cancellationDeclined` | PartnershipRepository | `revertCancellation` after `partnership_cancel_revert` (partner decline or requester restore) — normal partner path | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
+| 12 | `cancellationAccepted` | Backend (accept endpoint) | After `partnership_cancel_accept` deletes the row | `{partnerName}` | server + client localized (EN/IT) | IMPLEMENTED |
 
 - All sends are fire-and-forget (`unawaited(notifyPartnerOnce(...))`) and swallow errors (`base_repository.dart:163-174`). No notification is retried, and the sender gets no feedback that the delivery failed.
 - **No payload carries an explicit destination**: `MainShellState` maps each `notificationKey` to a tab (tap handling section below).
@@ -305,6 +306,7 @@ notifySchema = z.object({
 - **`requestAccepted`**: fired from `acceptPartnerRequest` (rpc), a UI-triggered accept. The request *creation* (`invite`) and **rejection do not notify** — the architecture doc (F11) records the rejection asymmetry.
 - **`missyou`**: no throttling client-side; holding the miss-you button queues one `notifyPartnerOnce` per `sendMissYou` RPC success — the 12/min user rate limit is the only cap.
 - **`moodUpdated`**: `emojiChar` is passed in params but the ARB body `notif_moodUpdated_body({partnerName})` does not interpolate it, and the server template omits it too — the emoji payload is effectively unused in both localization passes.
+- **`answerReminder`**: user-triggered from the game screen's bell, which is enabled only while the active question is waiting (`hasAnswered && !partnerAnswered`). The client allows one reminder per question; the backend enforces one per 30 minutes per sender with a key-scoped limiter, so a modified client cannot nudge faster. The success snackbar uses `game_reminderSent`.
 - **`newQuestion`**: the only type sent with **no** `partnerName`; the ARB body is parameter-less (`È disponibile una nuova domanda.` / `A new question is available.`). Fired on `fetchNewGameQuestion` only when the sender's client actually creates the `game_questions` row; a partner's client that discovers the row (Realtime insert or cold-start read) returns the existing question without notifying.
 - **`reactionAdded`**: the only type whose ARB body uses two params (`{partnerName}`, `{emojiChar}`); rendered with the actual reaction emoji.
 
@@ -372,7 +374,7 @@ Payloads are pushed from four places:
 |---|---|
 | `tabIndex` 0–6 | that tab |
 | `moodUpdated`, `/mood` | tab 2 |
-| `answerSubmitted`, `newQuestion`, `/game` | tab 1 |
+| `answerSubmitted`, `answerReminder`, `newQuestion`, `/game` | tab 1 |
 | `bucketItemAdded`, `/bucket` | tab 3 |
 | `driveItemAdded`, `reactionAdded`, `/drive` | tab 4 |
 | `missyou`, `requestAccepted`, `/homepage` | tab 0 |
@@ -481,7 +483,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | Other-device installation id revocation on password write (`POST /auth/installation-id-revoke-all`) | IMPLEMENTED (best-effort, keeps caller's row, every other row deleted) |
 | Stale registration cleanup (dead-session prune + age fallback) | IMPLEMENTED (`device_purge_dead_sessions()` RPC via the retention job, `USER_DEVICE_RETENTION_DAYS = 30` age purge as fallback) |
 | Backend `POST /notify/partner` route + zod validation | IMPLEMENTED |
-| JWT auth + rate limiting (30/ip, 12/user per 60 s) | IMPLEMENTED |
+| JWT auth + rate limiting (30/ip, 12/user per 60 s; `answerReminder` 1/user per 30 min) | IMPLEMENTED |
 | Request signing on notify endpoint | IMPLEMENTED (`signed("notify-send")` + `requireSignature: true`) |
 | Partner resolution via `partnership_get_accepted_partner` RPC | IMPLEMENTED |
 | Server-side localization (server map, it/en) | IMPLEMENTED |
@@ -489,7 +491,7 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 | FCM retry (3 attempts, backoff) | IMPLEMENTED |
 | Invalid installation id cleanup | IMPLEMENTED (delete scoped to the caller's `user_id` + `installation_id`) |
 | `notification` field for OS system-tray rendering | IMPLEMENTED |
-| Client-side ARB localization (11 keys) | IMPLEMENTED (unknown keys fall back to the server text; emoji param unused for `moodUpdated`) |
+| Client-side ARB localization (12 keys) | IMPLEMENTED (unknown keys fall back to the server text; emoji param unused for `moodUpdated`) |
 | Foreground local-notification rendering | IMPLEMENTED (iOS foreground renders only the local notification) |
 | Stable notification IDs (hash of server `notificationId`) | IMPLEMENTED |
 | Notification tap → destination navigation | IMPLEMENTED (`onNotificationTap` listener in `MainShellState`) |
@@ -505,11 +507,12 @@ Findings use the `F-PN` prefix (Push Notifications); navigation findings use `F-
 
 ### Backend (`Backend/test/notify.routes.test.js`)
 
-Three negative-path tests exercise `POST /api/v1/notify/partner`:
+The suite exercises `POST /api/v1/notify/partner`:
 
 1. Rejects unauthenticated requests (401, `AUTH-FAIL-002`).
 2. Rejects invalid payloads (400, `API-VALIDATION-001`) — sends the legacy `{title, body}` shape, which fails the `notificationKey`-required schema.
 3. Rate limit: 12 requests succeed, the 13th is blocked (429, `SEC-BLOCK-001`).
+4. Reminder cooldown: a second `answerReminder` within 30 minutes is blocked (429, `SEC-BLOCK-001`), while a different notification key from the same user still passes.
 
 `Backend/test/auth.routes.test.js` covers the installation id lifecycle endpoints: the `POST /auth/installation-id-revoke` delete is asserted to be scoped by both `installation_id` and `user_id`, a DB failure surfaces `500 DB-WRITE-001`, and a malformed installation id is rejected with `400 API-VALIDATION-001`. `POST /auth/installation-id-revoke-all` is asserted to delete every row but the one whose installation id is in the body (`eq user_id`, `neq installation_id`), with the same failure and validation cases; `POST /auth/installation-id` is asserted to register the row with the caller's `session_id` so the retention sweep can prune it later, to persist `notificationsEnabled`, to leave the column untouched when a legacy client omits it, to reject the empty string with `400 API-VALIDATION-001` because it fails `min(16)`, and to sniff `device_type` from the client user-agent (ios-before-macos precedence) unless the body sends an explicit `deviceType`. The retention sweep itself (`Backend/test/retentionJob.test.js`) asserts the job calls `device_purge_dead_sessions()` and still ages out unrefreshed rows, and `supabase/test/prune_user_devices_dead_sessions.test.sql` proves the RPC keeps live/sessionless rows and deletes gone/expired-session rows.
 

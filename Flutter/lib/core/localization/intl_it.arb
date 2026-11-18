@@ -284,6 +284,8 @@
   "game_tryFetchingAgain": "Nuova domanda",
   "game_invalidOption": "Errore: opzione non valida",
   "game_answerSent": "Risposta inviata!",
+  "game_remindPartner": "Invia un promemoria",
+  "game_reminderSent": "Promemoria inviato!",
   "game_noQuestionAvailable": "Nessuna domanda disponibile",
   "update_availableTitle": "Aggiornamento disponibile!",
   "update_newVersion": "È disponibile una nuova versione di JustUS.",
@@ -420,6 +422,15 @@
   "notif_answerSubmitted_title": "Nuova risposta",
   "notif_answerSubmitted_body": "{partnerName} ha risposto alla domanda",
   "@notif_answerSubmitted_body": {
+    "placeholders": {
+      "partnerName": {
+        "type": "String"
+      }
+    }
+  },
+  "notif_answerReminder_title": "Promemoria risposta",
+  "notif_answerReminder_body": "{partnerName} sta aspettando la tua risposta",
+  "@notif_answerReminder_body": {
     "placeholders": {
       "partnerName": {
         "type": "String"

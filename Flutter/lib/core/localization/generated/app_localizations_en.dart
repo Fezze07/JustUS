@@ -741,6 +741,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get game_answerSent => 'Answer sent!';
 
   @override
+  String get game_remindPartner => 'Send a reminder';
+
+  @override
+  String get game_reminderSent => 'Reminder sent!';
+
+  @override
   String get game_noQuestionAvailable => 'No question available';
 
   @override
@@ -985,6 +991,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String notif_answerSubmitted_body(String partnerName) {
     return '$partnerName answered the question';
+  }
+
+  @override
+  String get notif_answerReminder_title => 'Answer Reminder';
+
+  @override
+  String notif_answerReminder_body(String partnerName) {
+    return '$partnerName is waiting for your answer';
   }
 
   @override

@@ -749,6 +749,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get game_answerSent => 'Risposta inviata!';
 
   @override
+  String get game_remindPartner => 'Invia un promemoria';
+
+  @override
+  String get game_reminderSent => 'Promemoria inviato!';
+
+  @override
   String get game_noQuestionAvailable => 'Nessuna domanda disponibile';
 
   @override
@@ -1001,6 +1007,14 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String notif_answerSubmitted_body(String partnerName) {
     return '$partnerName ha risposto alla domanda';
+  }
+
+  @override
+  String get notif_answerReminder_title => 'Promemoria risposta';
+
+  @override
+  String notif_answerReminder_body(String partnerName) {
+    return '$partnerName sta aspettando la tua risposta';
   }
 
   @override

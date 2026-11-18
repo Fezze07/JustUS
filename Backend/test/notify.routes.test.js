@@ -210,6 +210,29 @@ describe("notify routes", () => {
     expect(other.status).toBe(200);
   });
 
+  test("caps answer reminders at one per 30 minutes without blocking other keys", async () => {
+    const app = createApp();
+    const send = (notificationKey) =>
+      request(app)
+        .post("/api/v1/notify/partner")
+        .set("Authorization", "Bearer fake-token")
+        .set("x-test-profile-id", "3501")
+        .send(validPayload({ notificationKey }));
+
+    expect((await send("answerReminder")).status).toBe(200);
+
+    const blocked = await send("answerReminder");
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe("SEC-BLOCK-001");
+    expect(blocked.headers["retry-after"]).toBeDefined();
+
+    // The reminder rule is key-scoped: another notification still passes.
+    expect((await send("missyou")).status).toBe(200);
+
+    // Only the two accepted sends reached the controller.
+    expect(sendNotificationController).toHaveBeenCalledTimes(2);
+  });
+
   // notify.send is createIpUserRateLimit({ ipMax: 30, userMax: 12 }): the user
   // rule is exercised above, the IP rule was not exercised at all. It is pinned
   // here because it is the constraint that caps how many requests this whole

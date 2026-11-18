@@ -176,40 +176,57 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _buildNotificationButton() {
-    return Stack(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: context.palette.surface,
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: context.palette.accentPurple.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(
-                  color: context.palette.shadowStrong,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4)),
-            ],
-          ),
-          child: Icon(Icons.notifications,
-              color: context.palette.contentPrimary, size: 24),
-        ),
-        Positioned(
-          top: 12,
-          right: 12,
-          child: Container(
-            width: 10,
-            height: 10,
+    return Selector<GameState, bool>(
+      selector: (_, state) => state.canRemindPartner,
+      builder: (context, canRemind, _) => Stack(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: context.palette.accentBlue,
+              color: context.palette.surface,
               shape: BoxShape.circle,
-              border: Border.all(color: context.palette.canvas, width: 2),
+              border: Border.all(
+                  color: context.palette.accentPurple.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(
+                    color: context.palette.shadowStrong,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4)),
+              ],
+            ),
+            child: IconButton(
+              tooltip: context.loc.game_remindPartner,
+              onPressed: canRemind
+                  ? () => unawaited(context.read<GameState>().remindPartner())
+                  : null,
+              icon: Icon(
+                Icons.notifications,
+                color: canRemind
+                    ? context.palette.contentPrimary
+                    : context.palette.contentDisabled,
+                size: 24,
+              ),
             ),
           ),
-        ),
-      ],
+          if (canRemind)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: IgnorePointer(
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: context.palette.accentBlue,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: context.palette.canvas, width: 2),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

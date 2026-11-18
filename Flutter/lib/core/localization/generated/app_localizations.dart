@@ -1496,6 +1496,18 @@ abstract class AppLocalizations {
   /// **'Risposta inviata!'**
   String get game_answerSent;
 
+  /// No description provided for @game_remindPartner.
+  ///
+  /// In it, this message translates to:
+  /// **'Invia un promemoria'**
+  String get game_remindPartner;
+
+  /// No description provided for @game_reminderSent.
+  ///
+  /// In it, this message translates to:
+  /// **'Promemoria inviato!'**
+  String get game_reminderSent;
+
   /// No description provided for @game_noQuestionAvailable.
   ///
   /// In it, this message translates to:
@@ -1927,6 +1939,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'{partnerName} ha risposto alla domanda'**
   String notif_answerSubmitted_body(String partnerName);
+
+  /// No description provided for @notif_answerReminder_title.
+  ///
+  /// In it, this message translates to:
+  /// **'Promemoria risposta'**
+  String get notif_answerReminder_title;
+
+  /// No description provided for @notif_answerReminder_body.
+  ///
+  /// In it, this message translates to:
+  /// **'{partnerName} sta aspettando la tua risposta'**
+  String notif_answerReminder_body(String partnerName);
 
   /// No description provided for @notif_newQuestion_title.
   ///

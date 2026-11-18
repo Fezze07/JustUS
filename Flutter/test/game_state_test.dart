@@ -7,6 +7,8 @@ import 'package:justus/all_imports.dart';
 import 'test_helpers/mock_secure_storage.dart';
 
 class FakeGameRepository extends GameRepository {
+  int reminderCalls = 0;
+
   @override
   Future<ResultWrapper<GameNewQuestionResponse>> fetchNewGameQuestion() async {
     return Success(
@@ -31,6 +33,13 @@ class FakeGameRepository extends GameRepository {
   Future<ResultWrapper<void>> submitAnswer(
       int questionId, int selectedOption) async {
     return const Success<void>(null);
+  }
+
+  @override
+  Future<ResultWrapper<Map<String, dynamic>>> sendAnswerReminder() async {
+    reminderCalls++;
+
+    return const Success<Map<String, dynamic>>({});
   }
 }
 
@@ -66,6 +75,33 @@ void main() {
 
     expect(state.message, loc.game_answerSent);
     expect(state.currentQuestion?.status, 'waiting');
+  });
+
+  test('the reminder is available only while waiting and once per question',
+      () async {
+    final repo = FakeGameRepository();
+    final state = GameState(repository: repo);
+    addTearDown(state.dispose);
+
+    await state.fetchNewQuestion();
+    expect(state.canRemindPartner, isFalse,
+        reason: 'the user has not answered yet');
+
+    await state.submitAnswer('A');
+    expect(state.canRemindPartner, isTrue);
+
+    final loc = await AppLocalizations.delegate.load(
+      Locale(await LanguageHelper.currentLocaleCode()),
+    );
+
+    await state.remindPartner();
+    expect(repo.reminderCalls, 1);
+    expect(state.message, loc.game_reminderSent);
+    expect(state.canRemindPartner, isFalse,
+        reason: 'one reminder per question, then the cooldown applies');
+
+    await state.remindPartner();
+    expect(repo.reminderCalls, 1, reason: 'the gate blocks a second send');
   });
 
   test('fetchNewQuestion resets isLoading on NetworkError', () async {

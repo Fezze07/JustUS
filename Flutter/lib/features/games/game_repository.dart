@@ -61,6 +61,15 @@ class GameRepository extends BaseRepository {
     });
   }
 
+  /// Nudges the partner to answer the active question. The backend enforces a
+  /// per-user cooldown on this key; the caller gates it on the waiting state.
+  Future<ResultWrapper<Map<String, dynamic>>> sendAnswerReminder() async {
+    return ApiService().notifyPartner(
+      notificationKey: 'answerReminder',
+      params: {'partnerName': await StorageService.getUsername() ?? ''},
+    );
+  }
+
   /// Read-only: returns the active question for the couple, or `Success(null)`
   /// when none exists. Never inserts and never notifies the partner — the
   /// "create if missing" behaviour lives in [fetchNewGameQuestion].
