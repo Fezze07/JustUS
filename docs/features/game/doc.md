@@ -149,7 +149,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 ### Selection rule (`pickQuestionForGame`)
 
 - Reads the whole catalogue for a locale in one query (`fetchQuestionsByLocale`), filters out already-played `question_code`s **client-side**, and picks a random entry.
-- Excludes codes the couple has already played (queried from `game_questions`). If the exclusion empties the pool, it falls back to the entire locale pool (so play never hard-stops) without a second DB round trip.
+- Excludes codes the couple has already played (queried within the candidate locale pool from `game_questions`, so the request is bounded by the catalog rather than by the lifetime history). If the exclusion empties the pool, it falls back to the entire locale pool (so play never hard-stops) without a second DB round trip.
 - Walks `LanguageHelper.localeChain(locale)` (e.g. `en → it`); the first locale that yields an item wins. A code with no translation in any chained locale stays empty in history.
 
 ### Text resolution

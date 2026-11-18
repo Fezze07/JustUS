@@ -112,9 +112,8 @@ void main() {
   group('the catalog is only partly translated (bank = it, app = en)', () {
     test('fetchQuestionText falls back to the app default locale', () async {
       final chain = _BankChain()
-        ..textFor = (locale) => locale == 'it'
-            ? {'text': 'Qual è il mio piatto preferito?'}
-            : null;
+        ..textFor = (locale) =>
+            locale == 'it' ? {'text': 'Qual è il mio piatto preferito?'} : null;
 
       final repo = GameQuestionBankRepository(sbClient: chain.client);
       final result = await repo.fetchQuestionText(
@@ -129,8 +128,8 @@ void main() {
     test('fetchQuestionText does not query the fallback when translated',
         () async {
       final chain = _BankChain()
-        ..textFor = (locale) =>
-            locale == 'en' ? {'text': 'English text'} : null;
+        ..textFor =
+            (locale) => locale == 'en' ? {'text': 'English text'} : null;
 
       final repo = GameQuestionBankRepository(sbClient: chain.client);
       final result = await repo.fetchQuestionText(
@@ -155,7 +154,8 @@ void main() {
       expect(chain.locales, ['en', 'it']);
     });
 
-    test('pickQuestionForGame picks from the fallback locale instead of '
+    test(
+        'pickQuestionForGame picks from the fallback locale instead of '
         'throwing', () async {
       final chain = _BankChain()
         ..rowsFor = (locale) => locale == 'it'
@@ -180,7 +180,8 @@ void main() {
       expect(chain.locales, ['en', 'it']);
     });
 
-    test('pickQuestionForGame returns Success(null) when no locale has any '
+    test(
+        'pickQuestionForGame returns Success(null) when no locale has any '
         'row', () async {
       final chain = _BankChain();
 
@@ -190,6 +191,44 @@ void main() {
       expect(result, isA<Success<GameQuestionBankItem?>>());
       expect(result.valueOrNull, isNull);
       expect(chain.locales, ['en', 'it']);
+    });
+
+    test('pickQuestionForGame excludes played codes within the current pool',
+        () async {
+      final chain = _BankChain()
+        ..rowsFor = (locale) => locale == 'en'
+            ? [
+                {
+                  'question_code': 'game_q_played',
+                  'locale': 'en',
+                  'text': 'Played question',
+                  'created_at': '2026-10-06T10:00:00Z',
+                  'updated_at': '2026-10-06T10:00:00Z',
+                },
+                {
+                  'question_code': 'game_q_new',
+                  'locale': 'en',
+                  'text': 'New question',
+                  'created_at': '2026-10-06T10:00:00Z',
+                  'updated_at': '2026-10-06T10:00:00Z',
+                },
+              ]
+            : const [];
+
+      final repo = GameQuestionBankRepository(sbClient: chain.client);
+      Set<String>? requestedCodes;
+      final result = await repo.pickQuestionForGame(
+        locale: 'en',
+        playedCodesFor: (codes) async {
+          requestedCodes = codes;
+          return {'game_q_played'};
+        },
+      );
+
+      expect(requestedCodes, {'game_q_played', 'game_q_new'},
+          reason: 'the lookup is scoped to the catalog pool, not the history');
+      expect(result.valueOrNull?.questionCode, 'game_q_new');
+      expect(chain.locales, ['en']);
     });
   });
 }

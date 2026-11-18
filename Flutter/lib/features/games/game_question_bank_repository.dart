@@ -86,18 +86,18 @@ class GameQuestionBankRepository extends BaseRepository {
   }
 
   /// Seleziona una nuova domanda per una partita.
-  /// Può escludere codici di domande già giocate se forniti in [excludeQuestionCodes].
+  /// [playedCodesFor] riceve i codici del pool del locale corrente e restituisce
+  /// quelli già giocati: la query delle partite resta così limitata al catalogo
+  /// e non cresce con lo storico della coppia.
   /// Prova prima il locale richiesto e, se non resta nulla, il locale
   /// predefinito dell'app.
   Future<ResultWrapper<GameQuestionBankItem?>> pickQuestionForGame({
     required String locale,
-    List<String> excludeQuestionCodes = const [],
+    Future<Set<String>> Function(Set<String> poolCodes)? playedCodesFor,
   }) async {
     return tryCall(() async {
-      final excludeSet = excludeQuestionCodes.toSet();
-
       for (final localeCode in LanguageHelper.localeChain(locale)) {
-        final bankItem = await _pickFromLocale(localeCode, excludeSet);
+        final bankItem = await _pickFromLocale(localeCode, playedCodesFor);
         if (bankItem != null) return bankItem;
       }
 
@@ -106,12 +106,12 @@ class GameQuestionBankRepository extends BaseRepository {
   }
 
   /// Recupera tutte le domande per [locale] e ne sceglie una casuale
-  /// escludendo i codici in [excludeSet] lato client.
+  /// escludendo lato client i codici restituiti da [playedCodesFor].
   /// Se dopo il filtro non resta nulla (tutte già giocate) sceglie
   /// dall'intero pool del locale, senza una seconda chiamata al DB.
   Future<GameQuestionBankItem?> _pickFromLocale(
     String locale,
-    Set<String> excludeSet,
+    Future<Set<String>> Function(Set<String> poolCodes)? playedCodesFor,
   ) async {
     final res = await fetchQuestionsByLocale(locale);
     final items = switch (res) {
@@ -122,10 +122,13 @@ class GameQuestionBankRepository extends BaseRepository {
 
     if (items.isEmpty) return null;
 
+    final played = playedCodesFor == null
+        ? const <String>{}
+        : await playedCodesFor(items.map((i) => i.questionCode).toSet());
+
     // Filtra lato client; se esclude tutto, usa l'intero pool (fallback).
-    final candidates = excludeSet.isEmpty
-        ? items
-        : items.where((i) => !excludeSet.contains(i.questionCode)).toList();
+    final candidates =
+        items.where((i) => !played.contains(i.questionCode)).toList();
 
     final pool = candidates.isNotEmpty ? candidates : items;
     return pool[Random().nextInt(pool.length)];

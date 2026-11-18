@@ -91,20 +91,22 @@ class GameRepository extends BaseRepository {
       if (existing != null) return existing;
 
       // Nessuna domanda attiva per la coppia: ne creiamo una nuova dal catalogo!
-      final playedQuestionsRes = await sbClient
-          .from('game_questions')
-          .select('question_code')
-          .eq('partnership_id', ctx.partnershipId)
-          .toList();
-
-      final playedQuestionCodes = playedQuestionsRes
-          .map((r) => r['question_code'] as String?)
-          .whereType<String>()
-          .toList();
-
+      // I codici già giocati si leggono solo per il pool del locale corrente:
+      // la query resta limitata al catalogo invece di crescere con lo storico.
       final bankItemRes = await _bankRepo.pickQuestionForGame(
         locale: ctx.locale,
-        excludeQuestionCodes: playedQuestionCodes,
+        playedCodesFor: (poolCodes) async {
+          final res = await sbClient
+              .from('game_questions')
+              .select('question_code')
+              .eq('partnership_id', ctx.partnershipId)
+              .inFilter('question_code', poolCodes.toList())
+              .toList();
+          return res
+              .map((r) => r['question_code'] as String?)
+              .whereType<String>()
+              .toSet();
+        },
       );
 
       final bankItem = bankItemRes.valueOrNull;
