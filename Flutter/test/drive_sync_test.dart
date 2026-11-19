@@ -27,15 +27,21 @@ class _FakeDriveRepository extends DriveRepository {
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
     fullFetchCalls += 1;
     return Success(fullSnapshot);
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
     incrementalFetchCalls += 1;
-    return Success(incrementalResult);
+    return Success(incrementalResult.skip(offset).take(limit).toList());
   }
 
   @override
@@ -229,7 +235,8 @@ void main() {
     state.clear();
   });
 
-  test('the open detail item follows the grid through sync and vanishes with it',
+  test(
+      'the open detail item follows the grid through sync and vanishes with it',
       () async {
     final repo = _FakeDriveRepository()
       ..serverCount = 1
@@ -253,7 +260,8 @@ void main() {
     await state.syncDriveItems();
 
     expect(state.singleItem, same(state.driveItems.single),
-        reason: 'the detail item must be derived from the grid list, not a copy');
+        reason:
+            'the detail item must be derived from the grid list, not a copy');
     expect(state.singleItem?.reactions, ['❤️']);
 
     // A partner delete arrives through the full realtime refresh.
@@ -341,6 +349,107 @@ void main() {
     await state.toggleFavorite(1);
     expect(state.message, LanguageHelper.appLoc.drive_favoriteRemoved);
     expect(state.favoriteItems, isEmpty);
+
+    state.clear();
+  });
+
+  test(
+      'a server total above the loaded page is not a deletion and does not '
+      'trigger a full refetch on every visit', () async {
+    final cached = [
+      for (var id = 30; id >= 1; id--)
+        _item(id, 'cached-$id.png', '2026-01-31T00:00:00.000Z'),
+    ];
+    final repo = _FakeDriveRepository()
+      ..serverCount = 45
+      ..maxUpdatedAt = '2026-01-31T00:00:00.000Z';
+    await StorageService.saveDriveItems(cached);
+    await CacheService.saveCheckpoint(
+        CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    expect(state.driveItems, hasLength(30));
+    expect(state.hasMore, isTrue);
+    expect(repo.fullFetchCalls, 0);
+    expect(repo.incrementalFetchCalls, 0);
+
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    expect(repo.fullFetchCalls, 0);
+    expect(repo.incrementalFetchCalls, 0);
+
+    state.clear();
+  });
+
+  test(
+      'incremental sync pages through a full first response before advancing '
+      'the checkpoint', () async {
+    final cached = [
+      _item(1, 'one.png', '2026-01-31T00:00:00.000Z'),
+      _item(2, 'two.png', '2026-01-31T00:00:00.000Z'),
+    ];
+    final changes = [
+      for (var id = 10; id < 10 + DriveRepository.drivePageSize; id++)
+        _item(id, 'changed-$id.png', '2026-02-01T00:00:00.000Z'),
+    ];
+    final repo = _FakeDriveRepository()
+      ..serverCount = DriveRepository.drivePageSize + cached.length
+      ..maxUpdatedAt = '2026-02-01T00:00:00.000Z'
+      ..incrementalResult = changes;
+    await StorageService.saveDriveItems(cached);
+    await CacheService.saveCheckpoint(
+        CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    expect(repo.incrementalFetchCalls, 2);
+    expect(repo.fullFetchCalls, 0);
+    expect(state.driveItems,
+        hasLength(DriveRepository.drivePageSize + cached.length));
+    expect(state.driveItems.first.id, DriveRepository.drivePageSize + 9);
+    expect(await CacheService.getCheckpoint(CacheService.kDriveItems),
+        '2026-02-01T00:00:00.000Z');
+
+    state.clear();
+  });
+
+  test('the incremental safety cap preserves the previous checkpoint',
+      () async {
+    final cached = [
+      _item(1, 'one.png', '2026-01-31T00:00:00.000Z'),
+    ];
+    final changes = [
+      for (var id = 10; id < 10 + DriveRepository.drivePageSize * 10; id++)
+        _item(id, 'changed-$id.png', '2026-02-01T00:00:00.000Z'),
+    ];
+    final firstPage = [
+      for (var id = 99; id > 99 - DriveRepository.drivePageSize; id--)
+        _item(id, 'newest-$id.png', '2026-02-01T00:00:00.000Z'),
+    ];
+    final repo = _FakeDriveRepository()
+      ..serverCount = changes.length
+      ..maxUpdatedAt = '2026-02-01T00:00:00.000Z'
+      ..incrementalResult = changes
+      ..fullSnapshot = firstPage;
+    await StorageService.saveDriveItems(cached);
+    await CacheService.saveCheckpoint(
+        CacheService.kDriveItems, '2026-01-31T00:00:00.000Z');
+
+    final state = DriveState(repository: repo);
+    await state.initialLoad();
+    await settleMicrotasks();
+
+    expect(repo.incrementalFetchCalls, 10);
+    expect(repo.fullFetchCalls, 1);
+    expect(state.driveItems, hasLength(DriveRepository.drivePageSize));
+    expect(await CacheService.getCheckpoint(CacheService.kDriveItems),
+        '2026-01-31T00:00:00.000Z');
 
     state.clear();
   });

@@ -49,8 +49,11 @@ class _FakeDriveRepository extends DriveRepository {
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
-    return Success(items);
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
+    return Success(items.skip(offset).take(limit).toList());
   }
 
   @override

@@ -49,11 +49,11 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
 ### Component Roles
 
 1. **Flutter Frontend**:
-   - [drive_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart): UI rendering for memories gallery grid and category filter chips (All, Photos, Videos, Likes) that filter the in-memory items locally (`Likes` = items flagged `isFavorite`), FAB upload trigger, pull-to-refresh, and upload progress banner. There is no selection mode and no header action.
+   - [drive_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_screen.dart): UI rendering for the memories grid, category filters over the loaded items (All, Photos, Videos, Likes), a visible Show more control for additional 30-item pages, FAB upload trigger, pull-to-refresh, and upload progress banner. There is no selection mode and no header action.
    - [drive_item_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/drive_item_screen.dart): Full-screen viewer supporting interactive zoom for images (`InteractiveViewer`), video playback (`VideoPlayerController`), audio streaming (`AudioPlayer`), emoji reaction picker modal, and favorite toggling.
-   - [favorites_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/favorites_screen.dart): Filtered view rendering media items marked as favorite by the current user.
-   - [drive_state.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart): State manager handling incremental sync, cache loading, optimistic deletions/favorites, reactions, and R2 upload triggers.
-   - [drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart): Interacts with `v_drive_dashboard` view, Supabase database, and `MediaService`.
+   - [favorites_screen.dart](file:///f:/JustUS/Flutter/lib/features/drive/screens/favorites_screen.dart): Independently paged view of media items marked as favorite by the current user.
+   - [drive_state.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart): State manager handling 30-item drive and favorites pages, incremental sync, cache loading, optimistic deletions/favorites, reactions, and R2 upload triggers.
+   - [drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart): Interacts with `v_drive_dashboard` through explicit, deterministically ordered pages, plus `MediaService`.
    - [media_service.dart](file:///f:/JustUS/Flutter/lib/core/media/media_service.dart): Orchestrates MIME validation, pre-compression size checks, media compression, presigned URL acquisition, direct HTTP PUT to Cloudflare R2, thumbnail generation/upload for image and video items, and backend upload completion.
    - [compression_service.dart](file:///f:/JustUS/Flutter/lib/core/media/compression_service.dart): Performs image compression (~80% quality JPEG), video compression (MediumQuality), video first-frame extraction, and low-res thumbnail generation (~320 px JPEG).
    - [media_cache_manager.dart](file:///f:/JustUS/Flutter/lib/core/media/media_cache_manager.dart): Custom `CacheManager` intercepting R2 storage keys, acquiring fresh signed URLs from backend, and caching media files locally on disk for up to 30 days.
@@ -162,11 +162,11 @@ User App (Flutter)            Node.js Backend             Cloudflare R2         
    - File: [drive_repository.dart:73-78](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L73-L78) & [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart)
    - Flutter triggers push notification `notifyPartnerOnce(notificationKey: 'driveItemAdded')`.
    - Supabase Realtime emits an `INSERT` event on `public.drive_items` (an `UPDATE` event on a retried completion).
-   - Partner's `RefetchRealtimeHandler.handle` catches the event, debounces for 150 ms, and calls `DriveState.refreshFromRealtime()`.
+   - Partner's `RefetchRealtimeHandler.handle` catches the event, debounces for 150 ms, and calls `DriveState.refreshFromRealtime()`, which resets the gallery to its bounded first page.
 
 7. **Gallery UI Update**
    - File: [drive_state.dart:185-190](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L185-L190)
-   - `DriveState` prepends newly created `DriveItem` to `_driveItems`, updates `_favoriteItems`, persists updated list to `StorageService.saveDriveItems()`, and notifies UI listeners.
+   - `DriveState` prepends newly created `DriveItem` to the loaded gallery page, updates any loaded favorites page, persists the loaded pages to `StorageService.saveDriveItems()`, and notifies UI listeners.
 
 ---
 
@@ -277,18 +277,14 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 
 ### Sync Pipeline
 
-- File: [drive_state.dart:44-136](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart#L44-L136) & [drive_repository.dart:44-82](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart#L44-L82)
+- File: [drive_state.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_state.dart) & [drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart)
 - **Checkpoint Key**: `CacheService.kDriveItems` (`chk_drive_items`).
 - **Execution Flow**:
   1. `DriveState.initialLoad()` invokes `loadWithChangeDetection()`.
-  2. Checks `_hasDriveChanges()` with the single-round-trip probe: `serverDate > checkpoint` → reset the checkpoint and re-sync; otherwise `itemCount != _driveItems.length` → reset the checkpoint and re-sync (deletion, F-SC7). A failed probe is treated as "cache still valid" so an unreachable server does not trigger a refetch on every visit.
-  3. If changes exist, `syncDriveItems()` reuses the memoized probe for its row count and executes `fetchDriveItemsIncremental()`:
-     - Queries `v_drive_dashboard` filtering `updated_at >= lastSyncTimestamp`.
-     - Merges new/updated records into `_driveItems` (overwriting existing items with matching IDs).
-     - Sorts list by `createdAt DESC`.
-     - Updates `_favoriteItems`.
-     - Persists merged list to `StorageService.saveDriveItems()`.
-     - Updates max timestamp checkpoint via `saveMaxTimestampCheckpointFromItems()`.
+  2. Checks `_hasDriveChanges()` with the single-round-trip probe. A newer timestamp triggers sync. A server count above the loaded count only enables Show more; it is not a deletion. A full refresh is reserved for a count lower than the loaded count or lower than the previously observed server total. A failed probe is treated as "cache still valid" so an unreachable server does not trigger a refetch on every visit.
+  3. `syncDriveItems()` reuses the memoized probe. An initial load or required refresh fetches the first page; `loadMore()` requests the next 30-item range, de-duplicates by id, and caches the loaded pages. Cold starts continue from the cached length.
+  4. Normal incremental sync queries `v_drive_dashboard` with `updated_at >= lastSyncTimestamp` in explicit 30-item pages. Completed pages merge by id, update loaded favorites, persist the cache, and advance the checkpoint. If ten pages are full, the state reloads page one but preserves the old checkpoint, so unseen changes are retried rather than skipped.
+  5. Realtime refresh also reloads page one, intentionally returning the gallery to its newest bounded page.
 
 ---
 
@@ -304,7 +300,7 @@ Favorites and emoji reactions are architecturally decoupled from media object st
   - If `isFavorite == true`: Inserts row into `public.favorites`.
   - If `isFavorite == false`: Deletes row matching `user_id` and `item_id`.
 - View Integration: `v_drive_dashboard` performs a `LEFT JOIN favorites` returning `is_favorite` (1 or 0) tailored to the calling user.
-- State Management: `DriveState` performs optimistic toggling and maintains a filtered getter `favoriteItems` rendered in `FavoritesScreen`.
+- State Management: `DriveState` performs optimistic toggling and `FavoritesScreen` reads its own 30-item pages from `v_drive_dashboard`; favorites are not derived from the currently loaded drive pages.
 
 ### Emoji Reactions Subsystem
 
@@ -357,8 +353,8 @@ During reverse-engineering analysis, the following technical findings were ident
 | Cloudflare R2 Presigned PUT URLs | **IMPLEMENTED** | S3 `PutObjectCommand` (300s lifetime) |
 | Cloudflare R2 Presigned GET Redirect | **IMPLEMENTED** | `GET /api/v1/media/file` (300s lifetime) |
 | Local Media Disk Cache | **IMPLEMENTED** | `MediaCacheManager` (30-day stale period) |
-| Incremental Sync & Checkpoints | **IMPLEMENTED** | `v_drive_dashboard` query on `updated_at > checkpoint` |
-| Favorites Subsystem | **IMPLEMENTED** | `public.favorites` + `v_drive_dashboard` join |
+| Paginated Drive Sync & Checkpoints | **IMPLEMENTED** | 30-item deterministic pages; a ten-page incremental cap resets page one without advancing the cursor |
+| Paginated Favorites Subsystem | **IMPLEMENTED** | Dedicated 30-item `v_drive_dashboard` pages filtered by `is_favorite` |
 | Emoji Reactions Subsystem | **IMPLEMENTED** | `public.drive_item_reactions` + `emoji_get_or_create` |
 | Profile Picture Upload | **IMPLEMENTED** | Custom R2 folder `profile/` + `user_profiles` update |
 | R2 Storage Deletion Cleanup | **IMPLEMENTED** | `POST /api/v1/media/delete` deletes row first + best-effort R2 object; orphan safety net via `retentionJob.sweepStaleOrphanObjects` (24 h); wipe purges all user-prefix objects |

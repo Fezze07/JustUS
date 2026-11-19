@@ -6,30 +6,115 @@
 import 'package:justus/all_imports.dart';
 
 class DriveState extends BaseState with CheckpointMixin {
+  static const int _maxIncrementalPages = 10;
+
   DriveState({DriveRepository? repository})
       : _repo = repository ?? DriveRepository();
 
   final DriveRepository _repo;
 
   List<DriveItem> _driveItems = [];
+  int _driveOffset = 0;
+  bool _hasMore = false;
+  bool _isLoadingMore = false;
   int? _selectedItemId;
   bool _isUploading = false;
   bool _isSyncing = false;
   List<DriveItem> _favoriteItems = [];
+  int _favoriteOffset = 0;
+  bool _hasMoreFavorites = false;
+  bool _isLoadingMoreFavorites = false;
+  bool _favoritesLoaded = false;
+  bool _pendingFullRefresh = false;
+  int? _serverItemCount;
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
   final Map<int, String> _myReactionEmoji = {};
 
   List<DriveItem> get driveItems => _driveItems;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
   DriveItem? get singleItem {
     final id = _selectedItemId;
     if (id == null) return null;
     for (final item in _driveItems) {
       if (item.id == id) return item;
     }
+    for (final item in _favoriteItems) {
+      if (item.id == id) return item;
+    }
     return null;
   }
+
   bool get isUploading => _isUploading;
   List<DriveItem> get favoriteItems => _favoriteItems;
+  bool get hasMoreFavorites => _hasMoreFavorites;
+  bool get isLoadingMoreFavorites => _isLoadingMoreFavorites;
+
+  int _compareDriveItems(DriveItem a, DriveItem b) {
+    final byCreated = b.createdAt.compareTo(a.createdAt);
+    return byCreated != 0 ? byCreated : b.id.compareTo(a.id);
+  }
+
+  void _mergeDriveItems(List<DriveItem> incoming) {
+    final incomingIds = incoming.map((item) => item.id).toSet();
+    final kept =
+        _driveItems.where((item) => !incomingIds.contains(item.id)).toList();
+    _driveItems = [...kept, ...incoming]..sort(_compareDriveItems);
+  }
+
+  void _applyToFavorites(Iterable<DriveItem> changed) {
+    if (_favoriteItems.isEmpty) return;
+
+    final before = _favoriteItems.length;
+    final byId = {for (final item in changed) item.id: item};
+    _favoriteItems = _favoriteItems
+        .map((item) => byId[item.id] ?? item)
+        .where((item) => item.isFavorite == 1)
+        .toList()
+      ..sort(_compareDriveItems);
+
+    // Removed rows shrink the server-side page window: keep the next offset
+    // aligned so a later page does not skip a favorite.
+    final removed = before - _favoriteItems.length;
+    if (removed > 0) {
+      _favoriteOffset -= removed;
+      if (_favoriteOffset < 0) _favoriteOffset = 0;
+    }
+  }
+
+  void _addFavorite(DriveItem item) {
+    if (_favoriteItems.any((favorite) => favorite.id == item.id)) {
+      _applyToFavorites([item]);
+      return;
+    }
+
+    final withinLoadedWindow = !_favoritesLoaded ||
+        !_hasMoreFavorites ||
+        _favoriteItems.isEmpty ||
+        _compareDriveItems(item, _favoriteItems.last) <= 0;
+    if (!withinLoadedWindow) return;
+
+    _favoriteItems = [..._favoriteItems, item]..sort(_compareDriveItems);
+    if (_favoritesLoaded) _favoriteOffset = _favoriteItems.length;
+  }
+
+  void _removeFavorite(int itemId) {
+    final before = _favoriteItems.length;
+    _favoriteItems = _favoriteItems.where((item) => item.id != itemId).toList();
+    if (_favoriteItems.length < before && _favoriteOffset > 0) {
+      _favoriteOffset--;
+    }
+  }
+
+  void _updateHasMore({required int pageLength, int? serverCount}) {
+    if (pageLength == 0) {
+      _hasMore = false;
+    } else if (serverCount != null) {
+      _hasMore = _driveItems.length < serverCount;
+    } else {
+      _hasMore = pageLength >= DriveRepository.drivePageSize;
+    }
+  }
 
   /// Persists the current `_driveItems` snapshot through the serialized write
   /// queue (F-SC12): the snapshot is captured at call time and every write
@@ -41,10 +126,6 @@ class DriveState extends BaseState with CheckpointMixin {
     return _cacheWriteQueue.enqueue(
       () => StorageService.saveDriveItems(snapshot),
     );
-  }
-
-  void _rebuildFavorites() {
-    _favoriteItems = _driveItems.where((item) => item.isFavorite == 1).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -92,7 +173,7 @@ class DriveState extends BaseState with CheckpointMixin {
     try {
       await loadWithChangeDetection(
         loadFromCache: _loadFromCache,
-        hasChanges: () => _hasDriveChanges(epoch: epoch),
+        hasChanges: _hasDriveChanges,
         fetchFromNetwork: () => syncDriveItems(epoch: epoch),
       );
     } finally {
@@ -102,61 +183,59 @@ class DriveState extends BaseState with CheckpointMixin {
 
   /// Returns true when the local list must be re-synced.
   ///
-  /// Both probe signals must agree with the local state before the cache is
-  /// trusted: the `updated_at` cursor cannot observe deletions, so the row
-  /// count is what catches them (F-SC7).
-  Future<bool> _hasDriveChanges({required int epoch}) async {
+  /// The probe's `updated_at` cursor catches inserts/updates; its row count
+  /// catches deletions, which the cursor cannot see (F-SC7). A loaded page is
+  /// smaller than the server total by design, so only a drop below the loaded
+  /// count or the previously known server total is a deletion.
+  Future<bool> _hasDriveChanges() async {
     final probe = await _fetchProbe();
     if (probe == null) return false;
 
     final checkpoint =
         await CacheService.getCheckpoint(CacheService.kDriveItems);
-    if (checkpoint == null) return true;
+    final serverCount = probe.itemCount;
+    final previousServerCount = _serverItemCount;
+    if (serverCount != null) _serverItemCount = serverCount;
+
+    final loadedExceedsServer = serverCount != null &&
+        _driveItems.isNotEmpty &&
+        serverCount < _driveItems.length;
+    final serverCountDropped = serverCount != null &&
+        previousServerCount != null &&
+        serverCount < previousServerCount;
+    if (loadedExceedsServer || serverCountDropped) {
+      _pendingFullRefresh = true;
+    }
+    if (serverCount != null) {
+      _hasMore = _driveItems.length < serverCount;
+    }
 
     final serverMax = probe.maxUpdatedAt;
-    if (serverMax == null) {
-      // No rows on server — if the checkpoint says we had data before, it was
-      // deleted
-      return checkpoint != CacheService.kCheckpointEmpty;
+    // An empty server has nothing to load, and its EMPTY checkpoint must not
+    // force a refetch on every visit.
+    if (serverMax == null) return _pendingFullRefresh;
+
+    if (checkpoint == null || checkpoint == CacheService.kCheckpointEmpty) {
+      return true;
     }
 
     final serverDate = DateTime.tryParse(serverMax);
-    final checkpointDate = checkpoint == CacheService.kCheckpointEmpty
-        ? null
-        : DateTime.tryParse(checkpoint);
-
+    final checkpointDate = DateTime.tryParse(checkpoint);
     if (serverDate != null &&
         checkpointDate != null &&
         serverDate.isAfter(checkpointDate)) {
-      await _resetCheckpoint(epoch: epoch);
       return true;
     }
 
-    final serverCount = probe.itemCount;
-    if (serverCount != null &&
-        _driveItems.isNotEmpty &&
-        serverCount != _driveItems.length) {
-      await _resetCheckpoint(epoch: epoch);
-      return true;
-    }
-
-    return false;
-  }
-
-  Future<void> _resetCheckpoint({required int epoch}) {
-    return CacheService.saveCheckpoint(
-      CacheService.kDriveItems,
-      CacheService.kCheckpointEmpty,
-      epoch: epoch,
-    );
+    return _pendingFullRefresh;
   }
 
   Future<void> _loadFromCache() async {
     final cached = await StorageService.getDriveItems();
     if (cached.isNotEmpty) {
-      _driveItems = List.from(cached)
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      _rebuildFavorites();
+      _driveItems = List.from(cached)..sort(_compareDriveItems);
+      _driveOffset = _driveItems.length;
+      _hasMore = cached.length >= DriveRepository.drivePageSize;
       notifyListeners();
     }
   }
@@ -172,67 +251,167 @@ class DriveState extends BaseState with CheckpointMixin {
     await runSafe(() async {
       // Same probe as the change gate: on the initial-load path it is memoized,
       // so the deletion check costs no extra round trip.
-      final serverCount = (await _fetchProbe())?.itemCount;
+      final probe = await _fetchProbe();
+      final serverCount = probe?.itemCount;
+      final previousServerCount = _serverItemCount;
+      if (serverCount != null) _serverItemCount = serverCount;
 
-      // A row-count mismatch against the local cache means items were deleted
-      // server-side — the incremental `updated_at` cursor cannot see deletions,
-      // so full-refetch (the merge below then drops the stale local rows).
-      final needsFullRefresh = _driveItems.isNotEmpty &&
-          serverCount != null &&
-          serverCount != _driveItems.length;
+      final serverCountDropped = serverCount != null &&
+          previousServerCount != null &&
+          serverCount < previousServerCount;
+      final loadedExceedsServer = serverCount != null &&
+          _driveItems.isNotEmpty &&
+          serverCount < _driveItems.length;
+      var needsFullRefresh = _driveItems.isEmpty ||
+          _pendingFullRefresh ||
+          serverCountDropped ||
+          loadedExceedsServer;
+      var incrementalCapReached = false;
+      _pendingFullRefresh = false;
 
-      final result = needsFullRefresh
-          ? await _repo.fetchDriveItems()
-          : await _repo.fetchDriveItemsIncremental();
+      if (!needsFullRefresh) {
+        final changes = <DriveItem>[];
+        var offset = 0;
 
-      await handleResult(result, onSuccess: (value) async {
-        if (needsFullRefresh) {
-          // Whole-list refetch: the server is the source of truth, so replace
-          // instead of merging — otherwise rows deleted server-side would be
-          // kept by the `kept + value` incremental merge.
-          _driveItems = List<DriveItem>.from(value)
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          _rebuildFavorites();
-          await _persistDriveCache();
-          _invalidateProbe();
+        for (var page = 0; page < _maxIncrementalPages; page++) {
+          final incremental =
+              await _repo.fetchDriveItemsIncremental(offset: offset);
+          final value = incremental.valueOrNull;
+          if (value == null) {
+            await handleResult(incremental);
+            return;
+          }
 
-          await saveMaxTimestampCheckpointFromItems(
-            checkpointKey: CacheService.kDriveItems,
-            items: value,
-            timestampField: (item) => (item as DriveItem).updatedAt,
-            epoch: effectiveEpoch,
-          );
-          return;
+          changes.addAll(value);
+          if (value.length < DriveRepository.drivePageSize) {
+            if (changes.isNotEmpty) {
+              _mergeDriveItems(changes);
+              _applyToFavorites(changes);
+              await _persistDriveCache();
+              _invalidateProbe();
+
+              await saveMaxTimestampCheckpointFromItems(
+                checkpointKey: CacheService.kDriveItems,
+                items: changes,
+                timestampField: (item) => (item as DriveItem).updatedAt,
+                epoch: effectiveEpoch,
+              );
+            } else if (await CacheService.getCheckpoint(
+                    CacheService.kDriveItems) ==
+                null) {
+              await CacheService.saveCheckpoint(
+                CacheService.kDriveItems,
+                DateTime.now().toUtc().toIso8601String(),
+                epoch: effectiveEpoch,
+              );
+            }
+
+            if (serverCount != null) {
+              _hasMore = _driveItems.length < serverCount;
+            }
+            return;
+          }
+
+          offset += value.length;
         }
 
-        if (value.isNotEmpty) {
-          final updatedIds = value.map((e) => e.id).toSet();
-          final kept =
-              _driveItems.where((e) => !updatedIds.contains(e.id)).toList();
-          _driveItems = [...kept, ...value]
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          _rebuildFavorites();
-          await _persistDriveCache();
-          _invalidateProbe();
+        // Do not advance the checkpoint: the cap means some changed rows were
+        // not observed. Page one refreshes the visible gallery while a later
+        // sync safely retries from the previous cursor.
+        incrementalCapReached = true;
+        needsFullRefresh = true;
+      }
 
-          await saveMaxTimestampCheckpointFromItems(
-            checkpointKey: CacheService.kDriveItems,
-            items: value,
-            timestampField: (item) => (item as DriveItem).updatedAt,
-            epoch: effectiveEpoch,
-          );
-        } else if (await CacheService.getCheckpoint(CacheService.kDriveItems) ==
-            null) {
-          await CacheService.saveCheckpoint(
-            CacheService.kDriveItems,
-            DateTime.now().toUtc().toIso8601String(),
-            epoch: effectiveEpoch,
-          );
+      final result = await _repo.fetchDriveItems();
+      await handleResult(result, onSuccess: (value) async {
+        _driveItems = List<DriveItem>.from(value)..sort(_compareDriveItems);
+        _driveOffset = value.length;
+        _updateHasMore(pageLength: value.length, serverCount: serverCount);
+        _applyToFavorites(value);
+        await _persistDriveCache();
+        _invalidateProbe();
+        if (!incrementalCapReached) {
+          await _saveDriveCheckpointFromProbe(probe, value, effectiveEpoch);
         }
       });
     }, showLoading: false);
 
     _isSyncing = false;
+    notifyListeners();
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+
+    await runSafe(() async {
+      final serverCount = _serverItemCount;
+      final result = await _repo.fetchDriveItems(offset: _driveOffset);
+
+      await handleResult(result, onSuccess: (value) async {
+        _mergeDriveItems(value);
+        _driveOffset += value.length;
+        _updateHasMore(pageLength: value.length, serverCount: serverCount);
+        _applyToFavorites(value);
+        await _persistDriveCache();
+        _invalidateProbe();
+        notifyListeners();
+      });
+    }, showLoading: false);
+
+    _isLoadingMore = false;
+    notifyListeners();
+  }
+
+  Future<void> loadFavorites() async {
+    if (_isLoadingMoreFavorites) return;
+    _isLoadingMoreFavorites = true;
+    notifyListeners();
+
+    await runSafe(() async {
+      final result = await _repo.fetchFavoriteDriveItems();
+
+      await handleResult(result, onSuccess: (value) async {
+        // Refetch the first page on every favorites visit: a partner's toggle
+        // can land outside the loaded window, and the reset keeps the list
+        // fresh the same way the drive grid resets on realtime events.
+        _favoriteItems = List<DriveItem>.from(value)..sort(_compareDriveItems);
+        _favoriteOffset = value.length;
+        _hasMoreFavorites = value.length >= DriveRepository.drivePageSize;
+        _favoritesLoaded = true;
+        notifyListeners();
+      });
+    }, showLoading: false);
+
+    _isLoadingMoreFavorites = false;
+    notifyListeners();
+  }
+
+  Future<void> loadMoreFavorites() async {
+    if (_isLoadingMoreFavorites || !_favoritesLoaded || !_hasMoreFavorites) {
+      return;
+    }
+    _isLoadingMoreFavorites = true;
+    notifyListeners();
+
+    await runSafe(() async {
+      final result =
+          await _repo.fetchFavoriteDriveItems(offset: _favoriteOffset);
+
+      await handleResult(result, onSuccess: (value) async {
+        final knownIds = _favoriteItems.map((item) => item.id).toSet();
+        _favoriteItems = [
+          ..._favoriteItems,
+          ...value.where((item) => !knownIds.contains(item.id)),
+        ]..sort(_compareDriveItems);
+        _favoriteOffset += value.length;
+        _hasMoreFavorites = value.length >= DriveRepository.drivePageSize;
+        notifyListeners();
+      });
+    }, showLoading: false);
+
+    _isLoadingMoreFavorites = false;
     notifyListeners();
   }
 
@@ -242,15 +421,20 @@ class DriveState extends BaseState with CheckpointMixin {
     final epoch = CacheService.checkpointEpoch;
 
     await runSafe(() async {
+      final probe = await _fetchProbe();
+      final serverCount = probe?.itemCount;
+      if (serverCount != null) _serverItemCount = serverCount;
+
       final result = await _repo.fetchDriveItems();
 
       await handleResult(result, onSuccess: (value) async {
-        _driveItems = value
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _rebuildFavorites();
+        _driveItems = List<DriveItem>.from(value)..sort(_compareDriveItems);
+        _driveOffset = value.length;
+        _updateHasMore(pageLength: value.length, serverCount: serverCount);
+        _applyToFavorites(value);
         await _persistDriveCache();
         _invalidateProbe();
-        await _updateDriveCheckpointFromItems(epoch: epoch);
+        await _saveDriveCheckpointFromProbe(probe, value, epoch);
       });
     }, showLoading: false);
 
@@ -258,11 +442,24 @@ class DriveState extends BaseState with CheckpointMixin {
     notifyListeners();
   }
 
-  Future<void> _updateDriveCheckpointFromItems({required int epoch}) async {
-    await saveMaxTimestampCheckpointFromItems(
-      checkpointKey: CacheService.kDriveItems,
-      items: _driveItems,
-      timestampField: (item) => (item as DriveItem).updatedAt,
+  Future<void> _saveDriveCheckpointFromProbe(
+    DriveChangeProbe? probe,
+    List<DriveItem> fallbackItems,
+    int epoch,
+  ) async {
+    if (probe == null) {
+      await saveMaxTimestampCheckpointFromItems(
+        checkpointKey: CacheService.kDriveItems,
+        items: fallbackItems,
+        timestampField: (item) => (item as DriveItem).updatedAt,
+        epoch: epoch,
+      );
+      return;
+    }
+
+    await CacheService.saveCheckpoint(
+      CacheService.kDriveItems,
+      probe.maxUpdatedAt ?? CacheService.kCheckpointEmpty,
       epoch: epoch,
     );
   }
@@ -271,12 +468,11 @@ class DriveState extends BaseState with CheckpointMixin {
   // Load single item into detail view
   // ---------------------------------------------------------------------------
   void loadSingleItem(int itemId) {
-    _selectedItemId = _driveItems
-        .firstWhere(
-          (item) => item.id == itemId,
-          orElse: () => _driveItems.first,
-        )
-        .id;
+    final exists = _driveItems.any((item) => item.id == itemId) ||
+        _favoriteItems.any((item) => item.id == itemId);
+    if (!exists) return;
+
+    _selectedItemId = itemId;
     notifyListeners();
   }
 
@@ -308,8 +504,8 @@ class DriveState extends BaseState with CheckpointMixin {
       await handleResult(
         result,
         onSuccess: (value) async {
-          _driveItems = [value, ..._driveItems];
-          _rebuildFavorites();
+          _driveItems = [value, ..._driveItems]..sort(_compareDriveItems);
+          _driveOffset++;
           await _persistDriveCache();
           _invalidateProbe();
           setMessage(LanguageHelper.appLoc.drive_uploadComplete);
@@ -326,8 +522,15 @@ class DriveState extends BaseState with CheckpointMixin {
   // ---------------------------------------------------------------------------
   Future<bool> deleteItem(int id) async {
     final currentList = List<DriveItem>.from(_driveItems);
+    final currentOffset = _driveOffset;
+    final currentFavorites = List<DriveItem>.from(_favoriteItems);
+    final currentFavoriteOffset = _favoriteOffset;
+    final index = _driveItems.indexWhere((item) => item.id == id);
+    final wasInLoadedWindow = index != -1 && index < _driveOffset;
+
     _driveItems = _driveItems.where((item) => item.id != id).toList();
-    _rebuildFavorites();
+    if (wasInLoadedWindow && _driveOffset > 0) _driveOffset--;
+    _removeFavorite(id);
     await _persistDriveCache();
     _invalidateProbe();
     notifyListeners();
@@ -337,7 +540,9 @@ class DriveState extends BaseState with CheckpointMixin {
 
       if (result is! Success) {
         _driveItems = currentList;
-        _rebuildFavorites();
+        _driveOffset = currentOffset;
+        _favoriteItems = currentFavorites;
+        _favoriteOffset = currentFavoriteOffset;
         await _persistDriveCache();
         _invalidateProbe();
         throw result;
@@ -358,16 +563,17 @@ class DriveState extends BaseState with CheckpointMixin {
         onSuccess: (_) async {
           final previous = _myReactionEmoji[itemId];
           _myReactionEmoji[itemId] = emoji;
-          _driveItems = _driveItems.map((item) {
-            if (item.id == itemId) {
-              final reactions = List<String>.from(item.reactions);
-              if (previous != null) reactions.remove(previous);
-              reactions.add(emoji);
-              return item.copyWith(reactions: reactions);
-            }
-            return item;
-          }).toList();
-          _rebuildFavorites();
+
+          DriveItem withReaction(DriveItem item) {
+            if (item.id != itemId) return item;
+            final reactions = List<String>.from(item.reactions);
+            if (previous != null) reactions.remove(previous);
+            reactions.add(emoji);
+            return item.copyWith(reactions: reactions);
+          }
+
+          _driveItems = _driveItems.map(withReaction).toList();
+          _favoriteItems = _favoriteItems.map(withReaction).toList();
           await _persistDriveCache();
           _invalidateProbe();
           setMessage(LanguageHelper.appLoc.drive_reactionAdded);
@@ -381,14 +587,25 @@ class DriveState extends BaseState with CheckpointMixin {
   // ---------------------------------------------------------------------------
   Future<void> toggleFavorite(int itemId) async {
     final idx = _driveItems.indexWhere((item) => item.id == itemId);
-    if (idx == -1) return;
+    final favoriteIdx = _favoriteItems.indexWhere((item) => item.id == itemId);
+    // A favorite opened from the Favorites tab may live outside the loaded
+    // drive pages, so resolve the item from either list.
+    final item = idx != -1
+        ? _driveItems[idx]
+        : (favoriteIdx != -1 ? _favoriteItems[favoriteIdx] : null);
+    if (item == null) return;
 
-    final item = _driveItems[idx];
     final isCurrentlyFavorite = item.isFavorite == 1;
     final updatedItem = item.copyWith(isFavorite: isCurrentlyFavorite ? 0 : 1);
+    final previousFavorites = List<DriveItem>.from(_favoriteItems);
+    final previousFavoriteOffset = _favoriteOffset;
 
-    _driveItems[idx] = updatedItem;
-    _rebuildFavorites();
+    if (idx != -1) _driveItems[idx] = updatedItem;
+    if (updatedItem.isFavorite == 1) {
+      _addFavorite(updatedItem);
+    } else {
+      _removeFavorite(itemId);
+    }
     await _persistDriveCache();
     _invalidateProbe();
     notifyListeners();
@@ -397,8 +614,9 @@ class DriveState extends BaseState with CheckpointMixin {
       final result = await _repo.toggleFavorite(itemId, !isCurrentlyFavorite);
 
       if (!result.isSuccess) {
-        _driveItems[idx] = item;
-        _rebuildFavorites();
+        if (idx != -1) _driveItems[idx] = item;
+        _favoriteItems = previousFavorites;
+        _favoriteOffset = previousFavoriteOffset;
         await _persistDriveCache();
         _invalidateProbe();
         throw result;
@@ -414,7 +632,16 @@ class DriveState extends BaseState with CheckpointMixin {
 
   void clear() {
     _driveItems = [];
-    _rebuildFavorites();
+    _driveOffset = 0;
+    _hasMore = false;
+    _isLoadingMore = false;
+    _favoriteItems = [];
+    _favoriteOffset = 0;
+    _hasMoreFavorites = false;
+    _isLoadingMoreFavorites = false;
+    _favoritesLoaded = false;
+    _pendingFullRefresh = false;
+    _serverItemCount = null;
     _selectedItemId = null;
     _myReactionEmoji.clear();
     // The memoized probe is user-scoped: never let it survive a logout or a

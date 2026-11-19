@@ -61,17 +61,38 @@ class _CacheOnlyDriveRepository extends DriveRepository {
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
     itemFetchCalls += 1;
 
     return const Success<List<DriveItem>>([]);
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
     itemFetchCalls += 1;
 
     return const Success<List<DriveItem>>([]);
+  }
+
+  @override
+  Future<ResultWrapper<List<DriveItem>>> fetchFavoriteDriveItems({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
+    final cached = await StorageService.getDriveItems();
+    return Success(
+      cached
+          .where((item) => item.isFavorite == 1)
+          .skip(offset)
+          .take(limit)
+          .toList(),
+    );
   }
 }
 
@@ -210,6 +231,7 @@ void main() {
       oldRecord: const {},
     );
     await drive.initialLoad();
+    await drive.loadFavorites();
     await profile.loadProfile(force: true);
 
     expect(callbackCalls, 0);

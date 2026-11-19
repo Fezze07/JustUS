@@ -66,6 +66,7 @@ void main() {
     when(() => filter.gt(any(), any())).thenAnswer((_) => filter);
     when(() => filter.order(any(), ascending: any(named: 'ascending')))
         .thenAnswer((_) => filter);
+    when(() => filter.range(any(), any())).thenAnswer((_) => filter);
 
     final result =
         await DriveRepository(sbClient: client).fetchDriveItemsIncremental();
@@ -74,5 +75,67 @@ void main() {
     // The boundary row is requested: inclusive lower bound on the checkpoint.
     verify(() => filter.gte('updated_at', checkpoint)).called(1);
     verifyNever(() => filter.gt('updated_at', any()));
+    verify(() => filter.range(0, DriveRepository.drivePageSize - 1)).called(1);
+  });
+
+  test('fetchDriveItems requests one bounded page ordered by created_at and id',
+      () async {
+    final client = _MockClient();
+    final from = _MockFrom();
+    final filter = _MockFilter(_rows);
+
+    when(() => client.from('v_drive_dashboard')).thenAnswer((_) => from);
+    when(() => from.select(any())).thenAnswer((_) => filter);
+    when(() => filter.order(any(), ascending: any(named: 'ascending')))
+        .thenAnswer((_) => filter);
+    when(() => filter.range(any(), any())).thenAnswer((_) => filter);
+
+    final result = await DriveRepository(sbClient: client).fetchDriveItems();
+
+    expect(result.valueOrNull, hasLength(1));
+    verify(() => filter.order('created_at', ascending: false)).called(1);
+    verify(() => filter.order('id', ascending: false)).called(1);
+    verify(() => filter.range(0, DriveRepository.drivePageSize - 1)).called(1);
+  });
+
+  test('fetchDriveItems pages from the requested offset', () async {
+    final client = _MockClient();
+    final from = _MockFrom();
+    final filter = _MockFilter(_rows);
+
+    when(() => client.from('v_drive_dashboard')).thenAnswer((_) => from);
+    when(() => from.select(any())).thenAnswer((_) => filter);
+    when(() => filter.order(any(), ascending: any(named: 'ascending')))
+        .thenAnswer((_) => filter);
+    when(() => filter.range(any(), any())).thenAnswer((_) => filter);
+
+    await DriveRepository(sbClient: client)
+        .fetchDriveItems(limit: 15, offset: 30);
+
+    verify(() => filter.range(30, 44)).called(1);
+  });
+
+  test(
+      'fetchFavoriteDriveItems filters by favorite and requests one bounded page',
+      () async {
+    final client = _MockClient();
+    final from = _MockFrom();
+    final filter = _MockFilter(_rows);
+
+    when(() => client.from('v_drive_dashboard')).thenAnswer((_) => from);
+    when(() => from.select(any())).thenAnswer((_) => filter);
+    when(() => filter.eq(any(), any())).thenAnswer((_) => filter);
+    when(() => filter.order(any(), ascending: any(named: 'ascending')))
+        .thenAnswer((_) => filter);
+    when(() => filter.range(any(), any())).thenAnswer((_) => filter);
+
+    final result =
+        await DriveRepository(sbClient: client).fetchFavoriteDriveItems();
+
+    expect(result.valueOrNull, hasLength(1));
+    verify(() => filter.eq('is_favorite', true)).called(1);
+    verify(() => filter.order('created_at', ascending: false)).called(1);
+    verify(() => filter.order('id', ascending: false)).called(1);
+    verify(() => filter.range(0, DriveRepository.drivePageSize - 1)).called(1);
   });
 }

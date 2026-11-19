@@ -242,6 +242,46 @@ class _DriveScreenState extends State<DriveScreen>
                     },
                   ),
 
+                  Selector<DriveState, (bool, bool)>(
+                    selector: (_, s) => (s.hasMore, s.isLoadingMore),
+                    builder: (context, more, _) {
+                      if (!more.$1) {
+                        return const SliverToBoxAdapter(
+                            child: SizedBox.shrink());
+                      }
+
+                      return SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Center(
+                            child: TextButton.icon(
+                              onPressed: more.$2
+                                  ? null
+                                  : () => unawaited(
+                                      context.read<DriveState>().loadMore()),
+                              icon: more.$2
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : Icon(Icons.expand_more,
+                                      color: context.palette.primary),
+                              label: Text(
+                                context.loc.mood_showMore,
+                                style: VpWidgets.googleFont(
+                                  color: context.palette.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
                   // Bottom padding
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ],

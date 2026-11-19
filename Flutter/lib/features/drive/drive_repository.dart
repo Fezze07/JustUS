@@ -6,24 +6,34 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:justus/all_imports.dart';
 
 class DriveRepository extends BaseRepository {
+  static const int drivePageSize = 30;
+
   final MediaService _mediaService;
 
   DriveRepository({super.sbClient, MediaService? mediaService})
       : _mediaService = mediaService ?? MediaService();
 
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems({
+    int limit = drivePageSize,
+    int offset = 0,
+  }) async {
     return tryCall(() async {
       final data = await sbClient
           .from('v_drive_dashboard')
           .select()
           .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .range(offset, offset + limit - 1)
           .toList();
 
       return data.map((d) => DriveItem.fromJson(d)).toList();
     });
   }
 
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental({
+    int limit = drivePageSize,
+    int offset = 0,
+  }) async {
     return tryCall(() async {
       final lastSyncTimestamp =
           await CacheService.getCheckpoint(CacheService.kDriveItems);
@@ -35,7 +45,29 @@ class DriveRepository extends BaseRepository {
         query = query.gte('updated_at', lastSyncTimestamp);
       }
 
-      final data = await query.order('created_at', ascending: false).toList();
+      final data = await query
+          .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .range(offset, offset + limit - 1)
+          .toList();
+
+      return data.map((d) => DriveItem.fromJson(d)).toList();
+    });
+  }
+
+  Future<ResultWrapper<List<DriveItem>>> fetchFavoriteDriveItems({
+    int limit = drivePageSize,
+    int offset = 0,
+  }) async {
+    return tryCall(() async {
+      final data = await sbClient
+          .from('v_drive_dashboard')
+          .select()
+          .eq('is_favorite', true)
+          .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .range(offset, offset + limit - 1)
+          .toList();
 
       return data.map((d) => DriveItem.fromJson(d)).toList();
     });

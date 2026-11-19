@@ -34,13 +34,19 @@ class _GatedSerialDriveRepository extends DriveRepository {
       ));
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems() async {
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItems({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async {
     await gate.future;
     return Success(serverSnapshot);
   }
 
   @override
-  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental() async =>
+  Future<ResultWrapper<List<DriveItem>>> fetchDriveItemsIncremental({
+    int limit = DriveRepository.drivePageSize,
+    int offset = 0,
+  }) async =>
       const Success<List<DriveItem>>([]);
 
   @override
@@ -102,7 +108,8 @@ void main() {
     await refreshFuture;
     await settleMicrotasks();
 
-    expect(state.driveItems.map((i) => i.id), [1, 2]);
+    // Equal created_at: the id tie-breaker orders newest-first, deterministically.
+    expect(state.driveItems.map((i) => i.id), [2, 1]);
 
     // The cache must exactly equal the final in-memory list.
     final persisted = await StorageService.getDriveItems();
