@@ -144,6 +144,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Scegli il tuo Mood'), findsOneWidget);
+    expect(repo.fetchRecentCoupleEmojisCalls, 2,
+        reason: 'the picker must load its bounded recent-emoji list');
+    expect(find.text('🎉'), findsWidgets,
+        reason: 'a repository recent emoji must be available in the picker');
 
     await tester.tap(find.text('😀').first);
     await tester.pumpAndSettle();

@@ -75,13 +75,12 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
 
   Future<void> _loadUserEmojis() async {
     final repo = context.read<MoodState>().repository;
-    final result = await repo.fetchMoods();
+    final result = await repo.fetchRecentCoupleEmojis();
     if (mounted) {
-      final moods = result.valueOrNull;
-      if (moods != null) {
-        final uniqueEmojis = moods.map((e) => e.emoji).toSet().toList();
+      final emojis = result.valueOrNull;
+      if (emojis != null) {
         setState(() {
-          _userEmojis = uniqueEmojis;
+          _userEmojis = emojis;
           _isLoadingEmojis = false;
         });
       } else {

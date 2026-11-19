@@ -108,20 +108,6 @@ class MoodRepository extends BaseRepository {
     });
   }
 
-  Future<ResultWrapper<List<MoodEntry>>> fetchMoods() async {
-    return withCouple((uid, partnerId) async {
-      final ids = [uid];
-      if (partnerId != null) ids.add(partnerId);
-
-      final data = await _fetchMoodsForUsers(ids);
-
-      return data
-          .map((m) =>
-              MoodEntry.fromJson(m as Map<String, dynamic>, currentUserId: uid))
-          .toList();
-    });
-  }
-
   Future<bool> hasNewMoods(int uid, int? partnerId) {
     return hasChanges(
       table: 'moods',

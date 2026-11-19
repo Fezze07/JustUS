@@ -32,7 +32,7 @@ The mood subsystem allows users to select or input Unicode emojis to express the
 
 1. **Flutter Frontend**:
    - [mood_screen.dart](file:///f:/JustUS/Flutter/lib/features/mood/screens/mood_screen.dart): Renders recent emojis horizontal bar, update status button, timeline list with date/time formatting, and load more pagination.
-   - [emoji_picker_sheet.dart](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart): Modal bottom sheet rendering single-emoji custom text field and 49 predefined default + user historical emojis grid.
+   - [emoji_picker_sheet.dart](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart): Modal bottom sheet rendering a single-emoji custom text field and a grid of predefined defaults plus unique emojis from the couple's 10 most recent mood rows.
    - [mood_state.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_state.dart): State manager maintaining `_userMood`, `_partnerMood`, `_recentEmojis`, and `_timeline`. Implements optimistic UI updates and rollback on failure.
    - [mood_repository.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart): Interacts with Supabase database (`mood_set` RPC, queries on `moods` joined with `emojis`) and triggers FCM notifications (`notifyPartnerOnce`).
    - [mood_models.dart](file:///f:/JustUS/Flutter/lib/features/mood/mood_models.dart): Data models `MoodEntry` and `MoodResponse`.
@@ -161,7 +161,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 
 ### 1. Default & User Emojis
 - **Default Emojis**: A static array of 49 curated Unicode emojis (`_defaultEmojis`) is defined in [emoji_picker_sheet.dart:20-69](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart#L20-L69).
-- **User Emojis**: `_loadUserEmojis()` calls `MoodRepository.fetchMoods()`, extracts all distinct emojis previously recorded by the couple (`moods.map((e) => e.emoji).toSet().toList()`), and prepends them to the picker grid before the default emojis ([emoji_picker_sheet.dart:77-111](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart#L77-L111)).
+- **User Emojis**: `_loadUserEmojis()` calls `MoodRepository.fetchRecentCoupleEmojis()`, which returns unique emojis from the couple's 10 most recent mood rows in recency order, and prepends them to the picker grid before the default emojis ([emoji_picker_sheet.dart:77-103](file:///f:/JustUS/Flutter/lib/features/mood/widgets/emoji_picker_sheet.dart#L77-L103)).
 
 ### 2. Custom Text & Single-Emoji Validation
 - Users can input any valid Unicode emoji in the text field in `EmojiPickerSheet`.
@@ -171,7 +171,7 @@ User Action (Select Emoji in Sheet or Custom Input)
 - Fetched via `MoodRepository.fetchRecentCoupleEmojis()` ([mood_repository.dart:86-109](file:///f:/JustUS/Flutter/lib/features/mood/mood_repository.dart#L86-L109)).
 - Queries `public.moods` for both couple members (`user_id IN (uid, partnerId)`), ordered by `created_at DESC`, limited to 10 rows.
 - Deduplicates emojis while preserving chronological recency.
-- Displayed horizontally in `MoodScreen` recents bar (`_buildRecentItem`).
+- Displayed horizontally in `MoodScreen`'s recents bar (`_buildRecentItem`) and at the start of `EmojiPickerSheet`'s grid.
 
 ### 4. Partner Sharing & Visibility
 - Ownership is determined by `public.moods.user_id`.
