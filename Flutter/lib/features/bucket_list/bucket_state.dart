@@ -17,6 +17,9 @@ class BucketState extends BaseState
 
   List<BucketItem> _items = [];
   final Set<int> _knownIds = {};
+  int _offset = 0;
+  bool _hasMore = false;
+  bool _isLoadingMore = false;
   bool _isInitLoading = false;
   final CacheWriteQueue _cacheWriteQueue = CacheWriteQueue();
   int _pendingCacheEpoch = 0;
@@ -31,6 +34,9 @@ class BucketState extends BaseState
   int _itemsVersion = 0;
 
   List<BucketItem> get items => _items;
+  int get offset => _offset;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
 
   @override
   void dispose() {
@@ -77,6 +83,8 @@ class BucketState extends BaseState
   Future<void> _loadFromCache() async {
     _items = await StorageService.getBucketList();
     _knownIds.addAll(_items.map((i) => i.id));
+    _offset = _items.length;
+    _hasMore = _items.length >= BucketRepository.bucketPageSize;
     notifyListeners();
   }
 
@@ -113,6 +121,8 @@ class BucketState extends BaseState
         _knownIds
           ..clear()
           ..addAll(_items.map((i) => i.id));
+        _offset = _items.length;
+        _hasMore = value.length >= BucketRepository.bucketPageSize;
         await _flushCache(epoch: epoch);
       });
     });
@@ -129,9 +139,38 @@ class BucketState extends BaseState
         _knownIds
           ..clear()
           ..addAll(_items.map((i) => i.id));
+        _offset = _items.length;
+        _hasMore = value.length >= BucketRepository.bucketPageSize;
         await _flushCache(epoch: epoch);
       });
     }, showLoading: false);
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+
+    final epoch = CacheService.checkpointEpoch;
+    final offset = _items.length;
+
+    await runSafe(() async {
+      final result = await _repository.fetchBucketList(
+        offset: offset,
+      );
+      await handleResult(result, onSuccess: (value) async {
+        final newItems =
+            value.where((item) => !_knownIds.contains(item.id)).toList();
+        _knownIds.addAll(newItems.map((i) => i.id));
+        _items = [..._items, ...newItems];
+        _offset = _items.length;
+        _hasMore = value.length >= BucketRepository.bucketPageSize;
+        await _flushCache(epoch: epoch);
+      });
+    }, showLoading: false);
+
+    _isLoadingMore = false;
+    notifyListeners();
   }
 
   // --- Mutations (fire-and-forget, Realtime is source of truth) ---
@@ -215,6 +254,7 @@ class BucketState extends BaseState
         final item = BucketItem.fromJson(newRecord);
         if (!_knownIds.add(item.id)) return;
         _items = [item, ..._items];
+        _offset = _items.length;
         changed = true;
       case 'update':
         final item = BucketItem.fromJson(newRecord);
@@ -228,6 +268,7 @@ class BucketState extends BaseState
         final id = (oldRecord['id'] as num?)?.toInt();
         if (id == null || !_knownIds.remove(id)) return;
         _items = _items.where((i) => i.id != id).toList();
+        _offset = _items.length;
         changed = true;
     }
 
@@ -262,6 +303,9 @@ class BucketState extends BaseState
     _itemsVersion++;
     _items = [];
     _knownIds.clear();
+    _offset = 0;
+    _hasMore = false;
+    _isLoadingMore = false;
     notifyListeners();
   }
 }

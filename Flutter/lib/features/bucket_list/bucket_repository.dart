@@ -5,6 +5,8 @@ import 'package:justus/all_imports.dart';
 class BucketRepository extends BaseRepository {
   BucketRepository({super.sbClient});
 
+  static const int bucketPageSize = 50;
+
   Future<bool> hasNewBucketItems(int partnershipId) {
     return hasChanges(
       table: 'bucket_items',
@@ -15,7 +17,10 @@ class BucketRepository extends BaseRepository {
     );
   }
 
-  Future<ResultWrapper<List<BucketItem>>> fetchBucketList() async {
+  Future<ResultWrapper<List<BucketItem>>> fetchBucketList({
+    int limit = bucketPageSize,
+    int offset = 0,
+  }) async {
     return tryCall(() async {
       final partnershipData = await getActivePartnership();
       final partnershipId = partnershipData?['partnership_id'] as int?;
@@ -26,6 +31,7 @@ class BucketRepository extends BaseRepository {
           .select('id, text, done, created_at, updated_at, category, partnership_id')
           .eq('partnership_id', partnershipId)
           .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1)
           .toList();
 
       return data.map((b) => BucketItem.fromJson(b)).toList();

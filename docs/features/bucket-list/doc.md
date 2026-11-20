@@ -85,9 +85,13 @@ getActivePartnership() → resolves partnership_id
    FROM bucket_items
    WHERE partnership_id = $partnershipId
    ORDER BY created_at DESC
+   RANGE $offset, $offset + $limit - 1
 ```
 
-- Returns all items (done and not-done), newest-first.
+- Returns paginated items (done and not-done), newest-first. Default page size is `BucketRepository.bucketPageSize = 50`.
+- Explicit bounds prevent silent 1,000-row PostgREST truncation. Older items remain reachable via `BucketState.loadMore()`.
+- Initial load and realtime resync query page 0; "Show more" (`mood_showMore`) footer appears when `hasMore` is true.
+- Offset is derived from the loaded list length (`_items.length`), with deduplication by item ID.
 - `partnership_id` included in SELECT — `BucketItem.partnershipId` reflects the owning partnership after fetch.
 - No active partnership → empty list returned (no error).
 
@@ -343,6 +347,7 @@ All F-BL audit findings are resolved — F-BL1 (dead `BucketItemTile`, deleted),
 | Modify scope (toggle/delete) by `partnership_id` | IMPLEMENTED |
 | Category fallback equals filter sentinel | IMPLEMENTED |
 | Local cache (SharedPreferences) | IMPLEMENTED |
+| Paged read / load-more pagination (50 items/page) | IMPLEMENTED |
 | Incremental sync — inserts only | IMPLEMENTED |
 | Homepage preview (up to 4 pending items) | IMPLEMENTED |
 | Push notification on add | PARTIALLY IMPLEMENTED |

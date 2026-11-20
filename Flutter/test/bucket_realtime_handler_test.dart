@@ -28,7 +28,10 @@ class _FakeBucketRepository extends BucketRepository {
   }
 
   @override
-  Future<ResultWrapper<List<BucketItem>>> fetchBucketList() async {
+  Future<ResultWrapper<List<BucketItem>>> fetchBucketList({
+    int limit = BucketRepository.bucketPageSize,
+    int offset = 0,
+  }) async {
     fetchBucketListCalls++;
     return const Success<List<BucketItem>>([]);
   }

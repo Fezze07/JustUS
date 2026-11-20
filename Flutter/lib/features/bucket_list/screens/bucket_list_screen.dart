@@ -174,14 +174,18 @@ class _BucketListScreenState extends State<BucketListScreen>
                 onRefresh: () => loadData(force: true),
                 color: context.palette.primary,
                 backgroundColor: context.palette.canvas,
-                child: Selector<BucketState, (List<BucketItem>, bool)>(
-                  selector: (_, s) => (s.items, s.isLoading),
+                child: Selector<BucketState, (List<BucketItem>, bool, bool, bool)>(
+                  selector: (_, s) =>
+                      (s.items, s.isLoading, s.hasMore, s.isLoadingMore),
                   builder: (context, bucketData, child) {
                     final items = bucketData.$1
                         .where((item) => !_pendingDeletes.contains(item.id))
                         .toList();
+                    final isLoading = bucketData.$2;
+                    final hasMore = bucketData.$3;
+                    final isLoadingMore = bucketData.$4;
 
-                    if (bucketData.$2 && items.isEmpty) {
+                    if (isLoading && items.isEmpty) {
                       return ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
@@ -210,6 +214,8 @@ class _BucketListScreenState extends State<BucketListScreen>
                             child: _buildEmptyState(
                                 context.loc.bucket_emptyCategory),
                           ),
+                          if (hasMore)
+                            _buildShowMoreButton(context, isLoadingMore),
                         ],
                       );
                     }
@@ -218,9 +224,12 @@ class _BucketListScreenState extends State<BucketListScreen>
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 8),
-                      itemCount: filteredItems.length,
+                      itemCount: filteredItems.length + (hasMore ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
+                        if (index >= filteredItems.length) {
+                          return _buildShowMoreButton(context, isLoadingMore);
+                        }
                         final item = filteredItems[index];
 
                         return _buildBucketItem(
@@ -232,6 +241,33 @@ class _BucketListScreenState extends State<BucketListScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShowMoreButton(BuildContext context, bool isLoadingMore) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: TextButton.icon(
+          onPressed: isLoadingMore
+              ? null
+              : () => unawaited(context.read<BucketState>().loadMore()),
+          icon: isLoadingMore
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(Icons.expand_more, color: context.palette.primary),
+          label: Text(
+            context.loc.mood_showMore,
+            style: VpWidgets.googleFont(
+              color: context.palette.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ),
     );

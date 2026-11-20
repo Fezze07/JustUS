@@ -16,7 +16,10 @@ class _GatedBucketRepository extends BucketRepository {
   final List<Map<String, dynamic>> snapshot;
 
   @override
-  Future<ResultWrapper<List<BucketItem>>> fetchBucketList() async {
+  Future<ResultWrapper<List<BucketItem>>> fetchBucketList({
+    int limit = BucketRepository.bucketPageSize,
+    int offset = 0,
+  }) async {
     await gate.future;
     return Success(snapshot.map(BucketItem.fromJson).toList());
   }
