@@ -19,6 +19,8 @@
 --     (`API-VALIDATION-012`);
 --   * the cancellation fields are read-only on a non-status update, so a raw
 --     PATCH cannot pre-seed or tamper with them;
+--   * a raw accepted -> cancelled PATCH respects the 24h decline cooldown and
+--     rejects expiries outside the next 7 days;
 --   * any other status change is rejected (`API-VALIDATION-012`);
 --   * pending -> accepted is still recipient-only (`API-VALIDATION-008`);
 --   * a partner decline records `cancel_declined_at`, while a requester
@@ -79,6 +81,25 @@ END $$;
 --   erin-frank  accepted  (RPC request and cooldown; declined 25h ago so the
 --                          first RPC call is allowed)
 -- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('00000000-0000-0000-0000-000000000101', 'alice@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000102', 'bob@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000103', 'carol@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000104', 'dave@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000105', 'erin@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000106', 'frank@cancellation-test.local'),
+  ('00000000-0000-0000-0000-000000000107', 'grace@cancellation-test.local');
+DELETE FROM public.users
+WHERE auth_id IN (
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000102',
+  '00000000-0000-0000-0000-000000000103',
+  '00000000-0000-0000-0000-000000000104',
+  '00000000-0000-0000-0000-000000000105',
+  '00000000-0000-0000-0000-000000000106',
+  '00000000-0000-0000-0000-000000000107'
+);
+
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9101, '00000000-0000-0000-0000-000000000101', 'alice@cancellation-test.local'),
   (9102, '00000000-0000-0000-0000-000000000102', 'bob@cancellation-test.local'),
@@ -486,6 +507,18 @@ BEGIN
 END $$;
 
 -- C3. a non-member cannot revert (raw and RPC).
+RESET ROLE;
+RESET request.jwt.claims;
+ALTER TABLE public.partnerships DISABLE TRIGGER guard_public_partnerships_status;
+UPDATE public.partnerships
+   SET cancel_declined_at = now() - interval '25 hours'
+ WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+ALTER TABLE public.partnerships ENABLE TRIGGER guard_public_partnerships_status;
+SELECT set_config('test.declined_at',
+  (SELECT cancel_declined_at::text FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104), true);
+
+SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
 DO $$
 DECLARE
@@ -602,6 +635,12 @@ END $$;
 
 -- C6. a requester restore keeps the stored decline timestamp.
 RESET ROLE;
+RESET request.jwt.claims;
+ALTER TABLE public.partnerships DISABLE TRIGGER guard_public_partnerships_status;
+UPDATE public.partnerships
+   SET cancel_declined_at = now() - interval '25 hours'
+ WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+ALTER TABLE public.partnerships ENABLE TRIGGER guard_public_partnerships_status;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
 DO $$
@@ -631,6 +670,13 @@ BEGIN
   END IF;
 END $$;
 
+RESET ROLE;
+ALTER TABLE public.partnerships DISABLE TRIGGER guard_public_partnerships_status;
+UPDATE public.partnerships
+   SET cancel_declined_at = now()
+ WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+ALTER TABLE public.partnerships ENABLE TRIGGER guard_public_partnerships_status;
+
 -- ---------------------------------------------------------------------------
 -- D. 24h cooldown after a partner decline
 -- ---------------------------------------------------------------------------
@@ -653,6 +699,32 @@ BEGIN
 
   IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
     RAISE EXCEPTION 'D1 failed: the refused request changed the row';
+  END IF;
+END $$;
+
+-- D1b. a raw PATCH cannot bypass the 24h decline cooldown.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000104"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9103 AND user_id_2 = 9104;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships
+       SET status = 'cancelled',
+           cancel_requested_by = 9104,
+           cancel_expires_at = now() + interval '7 days'
+     WHERE id = %s$q$, v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'D1b failed: a raw request inside the cooldown gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'D1b failed: the raw request inside the cooldown changed the row';
   END IF;
 END $$;
 
@@ -852,6 +924,34 @@ BEGIN
   IF v_state IS DISTINCT FROM '42501' THEN
     RAISE EXCEPTION 'E6 failed: cancelled -> pending gave %, expected 42501',
       coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+END $$;
+
+-- E7. cannot set a cancellation expiry more than 7 days ahead.
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000101"}';
+DO $$
+DECLARE
+  v_id integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_id FROM public.partnerships
+    WHERE user_id_1 = 9101 AND user_id_2 = 9102;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships
+       SET status = 'cancelled',
+           cancel_requested_by = 9101,
+           cancel_expires_at = now() + interval '100 years'
+     WHERE id = %s$q$, v_id));
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'E7 failed: a 100-year expiry gave %, expected 42501',
+      coalesce(v_state, 'no error (the update was allowed)');
+  END IF;
+
+  IF (SELECT status FROM public.partnerships WHERE id = v_id) IS DISTINCT FROM 'accepted'
+     OR (SELECT cancel_requested_by FROM public.partnerships WHERE id = v_id) IS NOT NULL
+     OR (SELECT cancel_expires_at FROM public.partnerships WHERE id = v_id) IS NOT NULL THEN
+    RAISE EXCEPTION 'E7 failed: the 100-year expiry changed the cancellation state';
   END IF;
 END $$;
 

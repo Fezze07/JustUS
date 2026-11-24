@@ -5,6 +5,7 @@ CREATE TABLE "public"."users" (
   "updated_at" timestamp with time zone DEFAULT now(),
   "auth_id"    uuid,
   CONSTRAINT "users_auth_id_key" UNIQUE (auth_id),
+  CONSTRAINT "users_auth_id_fkey" FOREIGN KEY (auth_id) REFERENCES auth.users(id) ON DELETE CASCADE,
   CONSTRAINT "users_email_key" UNIQUE (email),
   CONSTRAINT "users_pkey" PRIMARY KEY (id)
 );

@@ -55,6 +55,15 @@ BEGIN
       RAISE EXCEPTION 'API-VALIDATION-010: Only a member can request cancellation, recording themselves and an expiry'
         USING ERRCODE = '42501';
     END IF;
+    IF OLD.cancel_declined_at > now() - interval '24 hours' THEN
+      RAISE EXCEPTION 'API-VALIDATION-013: This partnership was declined less than 24 hours ago'
+        USING ERRCODE = '42501';
+    END IF;
+    IF NEW.cancel_expires_at <= now()
+       OR NEW.cancel_expires_at > now() + interval '7 days' THEN
+      RAISE EXCEPTION 'API-VALIDATION-014: Cancellation expiry must be within the next 7 days'
+        USING ERRCODE = '42501';
+    END IF;
     RETURN NEW;
   END IF;
 
