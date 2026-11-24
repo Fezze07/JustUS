@@ -17,30 +17,6 @@
 
 ---
 
-## Query-bounds audit
-
-- [x] **Q1/Q2 Drive list, incremental sync and favorites** (original IDs from `report.md` before its remaining findings were renumbered)
-  - **Sources**: `report.md`, `docs/features/shared-drive/doc.md`, `docs/app/storage-and-caching/doc.md`.
-  - **Status: ✅ FIXED (2026-11-20, on `dev`)** — chose 30-item deterministic pages for the gallery and independent favorites, because this makes older rows explicitly reachable without trusting PostgREST's implicit cap; incremental changes page through ten bounded responses and retain the prior checkpoint at the safety cap, so unseen rows cannot be skipped · **Verification**: `flutter analyze` → no issues; `flutter test` → passed · **Residual**: a burst exceeding ten full incremental pages refreshes page one and retries from the previous checkpoint on a later sync; it is intentionally not checkpointed until a complete bounded change set is observed.
-
-- [x] **Q1 Mood picker full-history read** (original ID in `report.md` before the remaining findings were renumbered)
-  - **Sources**: `report.md`, `docs/features/mood/doc.md`.
-  - **Status: ✅ FIXED (2026-11-20, on `dev`)** — reused `fetchRecentCoupleEmojis()` for the picker because its 10-row query supplies the intended recent choices without reading the couple's full mood history; removed the unbounded `fetchMoods()` API · **Verification**: pending `flutter analyze` and `flutter test` · **Residual**: the picker intentionally shows only unique emojis from the 10 most recent mood rows; all 49 defaults remain available.
-
-- [x] **Q2 Pending invitations expire after 30 days** (report Q2)
-  - **Sources**: `report.md`, `docs/features/partnership/doc.md`.
-  - **Status: ✅ FIXED (2026-11-24, on `dev`)** — chose the report's product-rule option: `partnership_get_pending_invitations()` and `partnership_accept()` ignore pending rows older than 30 days, `partnership_request()` purges the caller's expired rows before its duplicate check (so an expired invite cannot block a re-invite), and `retentionJob.sweepExpiredInvitations()` deletes them on startup and every 6 hours · **Verification**: `Backend` `npm test` → 305 pass / 27 suites, lint 0 errors (4 warnings, one new `max-lines` on `retentionJob.js`); applied the three SQL functions to the linked project and confirmed the 30-day predicate via `pg_get_functiondef`; SQL assertions added in `rls_user_isolation` §D3 and `rls_partnership_creation` §I but not executed locally (no `psql`/`DATABASE_URL`; the remote project's `users_auth_id_fkey` rejects the fake-auth-id fixtures) · **Residual**: a raw PostgREST `PATCH` of `status` is still allowed by `partnership_guard_status` for a row older than 30 days; the app/RPC path is closed, and the retention sweep removes the row within 6 hours. No new item.
-
-- [x] **Q3 Question catalogue selection at 1,000+ rows per locale** (report Q3)
-  - **Sources**: `report.md`, `docs/features/game/doc.md`, `docs/supabase/database-logic/doc.md`.
-  - **Files**: `Flutter/lib/features/games/game_question_bank_repository.dart:69-85`, `Flutter/lib/features/games/game_repository.dart:94-97`, `supabase/schemas/public/functions/game_pick_question.sql` (new).
-  - **Defect**: `fetchQuestionsByLocale()` reads the whole locale catalogue without a bound. At 1,000+ rows PostgREST returns an arbitrary 1,000 and drops the rest, so the extra questions can never be selected; the played-code `IN (...)` lookup also grows with the pool and can exceed the API URL limit. The report's 500-row `.limit()` recommendation would hide questions instead of fixing the read.
-  - **Fix**: replace the client pool fetch + played-code query with a `SECURITY INVOKER` RPC `game_pick_question(p_partnership_id, p_locales)` that returns one random row: first locale in the chain with rows, unplayed codes first, random replay only when that locale is exhausted. One row per pick, no catalogue cap, no pool-sized `IN`.
-  - **Acceptance**: the RPC returns an unplayed row when one exists; falls back to a played row in the first locale with rows; returns null for an empty/unknown locale; a non-member gets null. `flutter analyze` clean, `flutter test` green, SQL test passes on the linked project, function applied remotely.
-  - **Status: ✅ FIXED (2026-11-24, on `dev`)** — chose the one-row RPC over the report's `.limit()` guard because a 500/1,000-row cap would hide catalogue rows instead of serving them; `game_pick_question(p_partnership_id, p_locales)` returns the first locale with rows, unplayed codes first, random replay only when that locale is exhausted, and the Dart repository now calls it with the partnership id and locale chain (deleting `fetchQuestionsByLocale` and the pool-sized `IN (...)` played-code query) · **Verification**: `flutter analyze` → no issues; `flutter test` → 439 pass; applied the function to the linked project and `supabase/test/game_pick_question.test.sql` → passed A–E (unplayed first, locale skip, replay fallback, empty locale, non-member) · **Residual**: the catalogue still has no in-repo seed (21.10), so rows remain out-of-band; `.pgdelta-export.json` remains stale overall (21.5) though the new function is listed; `random()` over the locale rows is fine at 1k–10k, a much larger catalogue would want `TABLESAMPLE` or a precomputed key.
-
----
-
 ## Phase 0 — Ground truth & safety net
 
 - [ ] **0.1 Re-run the baseline before touching anything**
@@ -49,7 +25,7 @@
   - Acceptance: the numbers match this header; any drift is recorded before the first fix.
 
 - [ ] **0.2 Confirm the migration/apply path before any SQL item**
-  - `supabase/schemas/**` is the source of truth; there are no tracked migrations. Applying a schema change means `npx supabase@3.0.0 db query --remote --yes --file <script>.sql` (fix-workflow §1.9).
+  - `supabase/schemas/**` is the source of truth; there are no tracked migrations. Applying a schema change means `npx supabase@3.3.0 db query --remote --yes --file <script>.sql` (fix-workflow §1.9).
   - Acceptance: the linked project is reachable, or every Phase 21 item is explicitly left `Unverified` with the query that still needs to run.
 
 ---
