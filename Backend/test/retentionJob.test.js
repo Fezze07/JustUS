@@ -53,6 +53,7 @@ jest.mock("../config/db", () => {
   };
   const rangeCalls = [];
   const selectCalls = [];
+  const deleteCalls = [];
 
   const createSelectQuery = (tableName) => {
     const query = {
@@ -80,12 +81,17 @@ jest.mock("../config/db", () => {
     delete: jest.fn().mockReturnThis(),
     select: jest.fn(() => queryBuilder),
     not: jest.fn(() => queryBuilder),
-    lt: jest.fn().mockResolvedValue({ error: null, count: 1 }),
+    eq: jest.fn().mockReturnThis(),
+    lt: jest.fn((column, value) => {
+      deleteCalls.push({ table: queryBuilder._table, column, value });
+      return Promise.resolve({ error: null, count: 1 });
+    }),
   };
 
-  const fromMock = jest.fn((tableName) =>
-    tableState[tableName] ? createSelectQuery(tableName) : queryBuilder
-  );
+  const fromMock = jest.fn((tableName) => {
+    queryBuilder._table = tableName;
+    return tableState[tableName] ? createSelectQuery(tableName) : queryBuilder;
+  });
 
   return {
     adminSupabase: {
@@ -96,12 +102,14 @@ jest.mock("../config/db", () => {
     __tableState: tableState,
     __rangeCalls: rangeCalls,
     __selectCalls: selectCalls,
+    __deleteCalls: deleteCalls,
     __resetTables: () => {
       const rows = initialRows();
       tableState.drive_items = { rows: rows.drive_items, error: null, errorByFrom: {} };
       tableState.user_profiles = { rows: rows.user_profiles, error: null, errorByFrom: {} };
       rangeCalls.length = 0;
       selectCalls.length = 0;
+      deleteCalls.length = 0;
     },
   };
 });
@@ -112,6 +120,7 @@ const {
   __tableState,
   __rangeCalls,
   __selectCalls,
+  __deleteCalls,
   __resetTables,
 } = require("../config/db");
 const { startRetentionJobs, stopRetentionJobs, fetchReferencedKeys } = require("../core/jobs/retentionJob");
@@ -148,8 +157,8 @@ describe("retentionJob - all cleanup jobs", () => {
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_api_errors");
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_auth_failures");
     expect(adminSupabase.from).toHaveBeenCalledWith("logs_notifications");
-    const logCutoffCalls = __queryBuilder.lt.mock.calls.filter(
-      (call) => call[0] === "created_at"
+    const logCutoffCalls = __deleteCalls.filter(
+      (call) => call.table.startsWith("logs_") && call.column === "created_at"
     );
     expect(logCutoffCalls).toHaveLength(5);
 
@@ -164,7 +173,19 @@ describe("retentionJob - all cleanup jobs", () => {
     const expectedUserDeviceCutoff = now - 30 * 24 * 60 * 60 * 1000;
     expect(Math.abs(userDeviceCutoff - expectedUserDeviceCutoff)).toBeLessThan(5000);
 
-    // 4. R2 stale multipart upload sweep test
+    // 4. Partnership invitation sweep test (pending rows older than 30 days)
+    const invitationCutoff = __deleteCalls.find(
+      (call) => call.table === "partnerships" && call.column === "created_at"
+    );
+    expect(invitationCutoff).toBeDefined();
+    expect(__queryBuilder.eq).toHaveBeenCalledWith("status", "pending");
+    const expectedInvitationCutoff = now - 30 * 24 * 60 * 60 * 1000;
+    expect(
+      Math.abs(new Date(invitationCutoff.value).getTime() - expectedInvitationCutoff)
+    ).toBeLessThan(5000);
+    expect(logInfo).toHaveBeenCalledWith("retention.invitations", { deleted: 1 });
+
+    // 5. R2 stale multipart upload sweep test
     expect(mockS3Send).toHaveBeenCalled();
     const abortCalls = mockS3Send.mock.calls.filter(
       call => call[0]._type === "abort_multipart"
@@ -177,7 +198,7 @@ describe("retentionJob - all cleanup jobs", () => {
       })
     );
 
-    // 5. R2 orphan object sweep test
+    // 6. R2 orphan object sweep test
     expect(__selectCalls).toContainEqual({
       table: "drive_items",
       columns: "name, metadata",

@@ -33,6 +33,7 @@ CREATE OR REPLACE FUNCTION public.partnership_get_pending_invitations ()
     )
   WHERE (p.user_id_1 = public.user_current_id() OR p.user_id_2 = public.user_current_id())
     AND p.status = 'pending'
+    AND p.created_at >= now() - interval '30 days'
   ORDER BY p.created_at DESC;
 $function$;
 

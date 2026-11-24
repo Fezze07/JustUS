@@ -50,7 +50,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Execution Conditions & Validation Rules:**
   1. Identifies the sender via `override_sender_id` (backend-supplied) or `public.user_current_id()`.
   2. Raises EXCEPTION if user is not authenticated (`API-VALIDATION-003`).
-  3. Checks if user is already in a `'pending'`, `'accepted'` or `'cancelled'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`).
+  3. Deletes the caller's `pending` rows older than 30 days, then checks if the user is still in a `'pending'`, `'accepted'` or `'cancelled'` partnership. Raises EXCEPTION if true (`API-VALIDATION-004`). An expired invitation therefore neither blocks a new request nor collides with a re-invite to the same recipient.
   4. Looks up recipient matching BOTH `lower(btrim(email)) = lower(btrim(partner_email))` and `partnership_code = UPPER(btrim(partner_code))`, so casing and surrounding whitespace in the request never cause a false mismatch. Raises EXCEPTION if not found (`API-VALIDATION-005`).
   5. Prevents self-invitation (`v_partner_id = v_current_user_id`). Raises EXCEPTION (`API-VALIDATION-006`).
   6. Rejects a recipient who already holds an `accepted` or `cancelled` partnership (`API-VALIDATION-004`), because that row could never be accepted. A recipient with only `pending` rows is allowed: several simultaneous invitations are legitimate.
@@ -68,7 +68,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Inputs:** `p_partnership_id` (`integer`).
 * **Outputs:** `void`.
 * **Tables Touched:** `public.partnerships` (UPDATE).
-* **Execution Conditions:** Updates row where `id = p_partnership_id`, caller is member (`user_id_1` or `user_id_2`), and `status = 'pending'`. Sets `status = 'accepted'` and `anniversary_date = CURRENT_DATE`. When the row is pending and the caller is `user_id_2`, a different `accepted` or `cancelled` partnership of the caller raises `API-VALIDATION-012` with SQLSTATE `42501` and leaves the row pending.
+* **Execution Conditions:** Updates row where `id = p_partnership_id`, caller is member (`user_id_1` or `user_id_2`), `status = 'pending'`, and `created_at >= now() - interval '30 days'`. Sets `status = 'accepted'` and `anniversary_date = CURRENT_DATE`. An expired invitation (older than 30 days) is a no-op. When the row is pending and the caller is `user_id_2`, a different `accepted` or `cancelled` partnership of the caller raises `API-VALIDATION-012` with SQLSTATE `42501` and leaves the row pending.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
 * **Side Effects:** Mutates partnership state to `'accepted'`.
 
@@ -173,7 +173,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Inputs:** None (scoped to `public.user_current_id()`).
 * **Outputs:** table rows of `invitation_id`, `status`, `created_at`, `partner_id`, `partner_display_name`, `is_received` (true when the caller is the recipient).
 * **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
-* **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2` and `status = 'pending'`. Returns 0 rows otherwise.
+* **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2`, `status = 'pending'`, and `created_at >= now() - interval '30 days'`. Returns 0 rows otherwise. Expired pending rows are permanently removed by the backend retention job (`retentionJob.sweepExpiredInvitations`, startup + every 6 hours).
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart), `getPendingInvitations`).
 * **Failure Behavior:** Never returns unrelated users; the only identity fields exposed are `display_name` and `email` of the pending counterpart.
 

@@ -72,6 +72,12 @@ Background retention tasks are managed by [`retentionJob.js`](file:///f:/JustUS/
 - **Interval**: Every 6 hours (`CANCEL_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`).
 - **Logic**: Calls the `partnership_expire_cancellations()` RPC, which reverts every row whose `cancel_expires_at <= now()` to `accepted` and clears `cancel_requested_by` / `cancel_expires_at`; `cancel_declined_at` is preserved. Logs `retention.cancellations` with the reverted count. The same RPC runs lazily inside `partnership_get_cancellation`, so a user opening the app after the 7-day deadline sees the restored pair immediately instead of waiting for the next tick. Expiry is silent — no push.
 
+### 6. Partnership Invitation Sweep (`sweepExpiredInvitations`)
+- **Target Table**: `public.partnerships` rows with `status = 'pending'`.
+- **Interval**: Every 6 hours (`INVITATION_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000`), plus once on startup.
+- **Threshold**: Deletes pending rows older than 30 days (`INVITATION_RETENTION_DAYS = 30`).
+- **Logic**: `DELETE FROM partnerships WHERE status = 'pending' AND created_at < cutoff`; logs `retention.invitations` with the deleted count. `partnership_get_pending_invitations()` and `partnership_accept()` independently ignore rows older than 30 days, and `partnership_request()` purges the caller's expired rows before its duplicate check, so expiry applies even between sweeps. Expiry is silent — no push.
+
 ---
 
 ## Discrepancy & Verification Matrix

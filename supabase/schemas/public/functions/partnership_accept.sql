@@ -34,7 +34,8 @@ BEGIN
   SET status = 'accepted', anniversary_date = current_date
   WHERE id = p_partnership_id
     AND user_id_2 = v_caller_id
-    AND status = 'pending';
+    AND status = 'pending'
+    AND created_at >= now() - interval '30 days';
 END;
 $function$;
 

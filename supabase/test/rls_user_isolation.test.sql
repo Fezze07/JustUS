@@ -171,6 +171,35 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- D3. an invitation older than 30 days is expired: the RPC hides it and it
+--     cannot be accepted. The fixture is restored for the later sections.
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+UPDATE public.partnerships
+  SET created_at = now() - interval '31 days'
+  WHERE id = 9002;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000003"}';
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.partnership_get_pending_invitations()) <> 0 THEN
+    RAISE EXCEPTION 'D3 failed: an expired invitation is still returned by the RPC';
+  END IF;
+
+  PERFORM public.partnership_accept(9002);
+
+  IF (SELECT status FROM public.partnerships WHERE id = 9002) IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'D3 failed: an expired invitation was accepted';
+  END IF;
+END $$;
+
+RESET ROLE;
+UPDATE public.partnerships
+  SET created_at = now()
+  WHERE id = 9002;
+
+-- ---------------------------------------------------------------------------
 -- E. the pending counterpart grants no direct full-row read access
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000001"}';

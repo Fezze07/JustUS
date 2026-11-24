@@ -6,6 +6,7 @@
  *   - user_devices → delete rows whose auth.sessions link is dead (session
  *     deleted at logout or past its not_after) plus unrefreshed rows after
  *     USER_DEVICE_RETENTION_DAYS (30 days)
+ *   - partnerships (pending invitations) → delete after INVITATION_RETENTION_DAYS (30 days)
  *   - request_nonces → delete rows past their expires_at (default: daily sweep)
  *   - R2 incomplete multipart uploads → abort after MULTIPART_MAX_AGE_MS (default 48 h)
  *   - R2 orphaned finalized objects → delete after ORPHAN_MAX_AGE_MS (default 24 h)
@@ -32,9 +33,11 @@ const {
 
 const LOG_RETENTION_DAYS = env.logRetentionDays;
 const USER_DEVICE_RETENTION_DAYS = 30;
+const INVITATION_RETENTION_DAYS = 30;
 const NONCE_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
 const LOG_SWEEP_INTERVAL_MS   = 24 * 60 * 60 * 1000;      // every 24 h
 const USER_DEVICE_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 h
+const INVITATION_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h
 const MULTIPART_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;  // every 6 h
 const MULTIPART_MAX_AGE_MS = 48 * 60 * 60 * 1000;         // 48 h
 const ORPHAN_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;      // every 6 h
@@ -198,6 +201,26 @@ async function sweepStaleMultipartUploads() {
   }
 }
 
+// ── Partnership invitation expiry ─────────────────────────────────────────────
+
+async function sweepExpiredInvitations() {
+  const cutoff = new Date(Date.now() - INVITATION_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    const { error, count } = await adminSupabase
+      .from("partnerships")
+      .delete({ count: "exact" })
+      .eq("status", "pending")
+      .lt("created_at", cutoff);
+
+    if (error) throw error;
+    if (count > 0) {
+      logInfo("retention.invitations", { deleted: count });
+    }
+  } catch (err) {
+    await logError({ error: { message: err.message, name: err.name }, event: "retention.invitations.failed" });
+  }
+}
+
 // ── Partnership cancellation expiry ───────────────────────────────────────────
 
 async function sweepExpiredCancellations() {
@@ -333,6 +356,7 @@ async function startRetentionJobs() {
     sweepStaleUserDevices(),
     sweepStaleMultipartUploads(),
     sweepStaleOrphanObjects(),
+    sweepExpiredInvitations(),
     sweepExpiredCancellations(),
   ]);
 
@@ -342,15 +366,18 @@ async function startRetentionJobs() {
     setInterval(sweepStaleUserDevices, USER_DEVICE_SWEEP_INTERVAL_MS),
     setInterval(sweepStaleMultipartUploads, MULTIPART_SWEEP_INTERVAL_MS),
     setInterval(sweepStaleOrphanObjects, ORPHAN_SWEEP_INTERVAL_MS),
+    setInterval(sweepExpiredInvitations, INVITATION_SWEEP_INTERVAL_MS),
     setInterval(sweepExpiredCancellations, CANCEL_SWEEP_INTERVAL_MS),
   ];
 
   logInfo("retention.started", {
     logRetentionDays: LOG_RETENTION_DAYS,
     userDeviceRetentionDays: USER_DEVICE_RETENTION_DAYS,
+    invitationRetentionDays: INVITATION_RETENTION_DAYS,
     nonceSweepIntervalH: NONCE_SWEEP_INTERVAL_MS / 3_600_000,
     r2MultipartMaxAgeH: MULTIPART_MAX_AGE_MS / 3_600_000,
     r2OrphanMaxAgeH: ORPHAN_MAX_AGE_MS / 3_600_000,
+    invitationSweepIntervalH: INVITATION_SWEEP_INTERVAL_MS / 3_600_000,
     cancellationSweepIntervalH: CANCEL_SWEEP_INTERVAL_MS / 3_600_000,
   });
 

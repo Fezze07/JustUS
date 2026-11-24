@@ -19,6 +19,7 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 | **Node.js R2 Multipart Sweep** | Cloudflare R2 incomplete multipart uploads | Every 6h via `retentionJob.js` (`sweepStaleMultipartUploads`) | **48 hours** (`MULTIPART_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Node.js R2 Orphaned-Object Sweep** | Cloudflare R2 finalized objects under `uploads/` + `profile/` not referenced by `drive_items.name` / `drive_items.metadata.thumbnail` / `user_profiles.profile_pic_url` | Every 6h via `retentionJob.js` (`sweepStaleOrphanObjects`) | **24 hours** (`ORPHAN_MAX_AGE_MS`) | **ACTIVE** | None |
 | **Node.js Partnership Cancellation Sweep** | `public.partnerships` rows with `status = 'cancelled'` | Every 6h via `retentionJob.js` (`sweepExpiredCancellations`) + lazily on `partnership_get_cancellation` | `cancel_expires_at <= now()` (7 days from the request) | **ACTIVE** | Reverts to `accepted`, clears the cancel fields, keeps `cancel_declined_at`; no push |
+| **Node.js Partnership Invitation Sweep** | `public.partnerships` rows with `status = 'pending'` | Every 6h via `retentionJob.js` (`sweepExpiredInvitations`) + on startup | `created_at < now() - interval '30 days'` (`INVITATION_RETENTION_DAYS = 30`) | **ACTIVE** | Deletes expired invitations; the read RPC and accept RPC already ignore them; no push |
 | **Flutter Media Cache** | Local R2 image/video files | Automated via `MediaCacheManager` (`flutter_cache_manager`) | **30 days** (`stalePeriod`) / **300 objects** | **ACTIVE** | None |
 | **Flutter Local Checkpoints** | `SharedPreferences` checkpoint keys | Cleared on user logout / data wipe | Indefinite until manual clear or logout | **ACTIVE** | None |
 
@@ -111,6 +112,15 @@ It specifically resolves the reported discrepancy between PostgreSQL log retenti
 * **Cutoff Period**: 24 hours (`ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000`).
 * **Grace Window Rationale**: A 24 h cutoff is well above the 300 s presigned-PUT lifetime, so uploads in flight (PUT done, `/complete` pending) are never swept.
 * **Effectiveness**: **ACTIVE & NECESSARY**. Acts as the safety net for the best-effort R2 cleanup in `POST /api/v1/media/delete` and for aborted upload-completions (todo 5.3, done 2026-09-23), guaranteeing no unbounded orphan accumulation.
+
+---
+
+### 3c. Partnership Invitation Expiry
+* **Target Table**: `public.partnerships` rows with `status = 'pending'`.
+* **Mechanism**: `sweepExpiredInvitations()` in Node.js `retentionJob.js` deletes pending rows whose `created_at` is older than 30 days (`INVITATION_RETENTION_DAYS`). The sweep runs once on startup and then every 6 hours (`INVITATION_SWEEP_INTERVAL_MS`), and logs `retention.invitations` with the deleted count.
+* **Read/accept behavior**: `partnership_get_pending_invitations()` returns only pending rows created within the last 30 days, and `partnership_accept()` refuses an older row, so expiry takes effect immediately even before the sweep. `partnership_request()` purges the caller's expired rows before its duplicate check, so an expired invitation cannot block a new request or collide with a re-invite to the same recipient.
+* **Failure Mode**: a failed delete logs `retention.invitations.failed` and does not stop the other retention jobs; the expired row remains hidden from the RPC and unactionable through accept in the meantime.
+* **Effectiveness**: **ACTIVE**. Bounds the pending-invitation list by a 30-day window instead of relying on the PostgREST 1,000-row cap.
 
 ---
 

@@ -422,6 +422,43 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- I. an expired pending invitation is purged by the next partnership_request,
+--    so it neither blocks the sender nor collides with the re-invite.
+-- ---------------------------------------------------------------------------
+RESET request.jwt.claims;
+INSERT INTO public.users (id, auth_id, email) VALUES
+  (9007, '00000000-0000-0000-0000-000000000007', 'eve@partnership-test.local'),
+  (9008, '00000000-0000-0000-0000-000000000008', 'grace@partnership-test.local');
+
+INSERT INTO public.user_profiles (user_id, display_name, partnership_code) VALUES
+  (9007, 'Eve', 'EVE777'),
+  (9008, 'Grace', 'GRACE8');
+
+INSERT INTO public.partnerships (id, user_id_1, user_id_2, status, created_at) VALUES
+  (9010, 9007, 9008, 'pending', now() - interval '31 days');
+
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  v_id integer;
+BEGIN
+  SELECT public.partnership_request('grace@partnership-test.local', 'GRACE8', 9007) INTO v_id;
+
+  IF v_id IS NULL THEN
+    RAISE EXCEPTION 'I failed: partnership_request returned no id';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.partnerships WHERE id = 9010) THEN
+    RAISE EXCEPTION 'I failed: the expired invitation was not purged';
+  END IF;
+
+  IF (SELECT count(*) FROM public.partnerships
+       WHERE user_id_1 = 9007 AND user_id_2 = 9008 AND status = 'pending') <> 1 THEN
+    RAISE EXCEPTION 'I failed: the re-invite did not leave exactly one pending row';
+  END IF;
+END $$;
+
 ROLLBACK;
 
-SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C partnership_request creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly, H membership is immutable)' AS result;
+SELECT 'partnership-creation: passed (A client inserts denied, A-post no rows, B anon denied, C partnership_request creates the row, D recipient accepts, E sender cannot accept, F final state, G sender cannot set status directly, H membership is immutable, I expired invitation purged)' AS result;
