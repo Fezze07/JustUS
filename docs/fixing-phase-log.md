@@ -2,7 +2,7 @@
 
 **What this is**: the permanent record of the closed fixing work on `dev` — every item and the decisions of record. Nothing open is tracked here (that lives in `todo.md`).
 
-**Relationship to `todo.md`**: `todo.md` is the *live worklist* (untracked, never committed, see `.agents/skills/fix-workflow/SKILL.md`). This file is the *closed history*: what was found, what was decided, and where the reasoning now lives. When `todo.md` is retired, this file plus `git log` are what remain.
+**Relationship to `todo.md`**: `todo.md` is the *live worklist* (tracked, see `.agents/skills/fix-workflow/SKILL.md`). This file is the *closed history*: what was found, what was decided, and where the reasoning now lives. When `todo.md` is retired, this file plus `git log` are what remain.
 
 **How it was produced**: a layered scan of the codebase (docs-vs-code drift, dead code, RLS/data layer, backend services, client state, cross-layer contracts, test gaps) that produced one item per independently-fixable defect, each with `file:line` evidence, a concrete fix and an observable acceptance criterion. Items were fixed one at a time, each with its own commit.
 
