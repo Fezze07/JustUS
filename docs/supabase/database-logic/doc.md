@@ -202,6 +202,20 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ---
 
+### `game_pick_question(p_partnership_id integer, p_locales text[])`
+* **SQL Source:** `supabase/schemas/public/functions/game_pick_question.sql`
+* **Purpose:** Returns one random `game_question_bank` row for a couple, preferring a question neither partner has played. The one-row result replaces the old client-side "fetch the whole locale catalogue, then filter played codes" path, so the catalogue can grow past the PostgREST 1,000-row cap without hiding questions.
+* **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+* **Inputs:** `p_partnership_id` (`integer`), `p_locales` (`text[]`, ordered locale chain).
+* **Outputs:** `public.game_question_bank` — one row (`question_code`, `locale`, `text`, `created_at`, `updated_at`), or `NULL`.
+* **Selection Rule:** Rows are ordered by `array_position(p_locales, locale)` (first locale with rows wins), then by whether the couple already has a `game_questions` row for that `question_code` (`false` first), then `random()`; `LIMIT 1`. A locale with no rows is skipped; if every code in the winning locale is played, a random played row is returned rather than falling through to a later locale.
+* **Execution Condition:** `partnership_is_member(p_partnership_id)` must be true; otherwise the query returns no row. RLS on `game_questions` also limits the played-code lookup to the caller's partnerships.
+* **Tables Touched:** `game_question_bank` (READ), `game_questions` (READ), `partnerships` (READ via `partnership_is_member`).
+* **Caller:** Flutter Frontend ([game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart)).
+
+---
+
 ### `partnership_generate_code()`
 * **SQL Source:** `supabase/schemas/public/functions/partnership_generate_code.sql`
 * **Purpose:** Generates a random 6-character uppercase alphanumeric code and verifies unicity against `user_profiles`.

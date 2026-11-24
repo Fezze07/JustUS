@@ -154,7 +154,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 ```
 
 1. **Flutter Client Layer:**
-   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_question_bank` (read-only catalog), `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`, and calls the `partnership_get_pending_invitations` RPC for pending-request identity.
+   - Directly queries `v_active_partnership`, `v_drive_dashboard`, `moods`, `missyou`, `bucket_items`, `game_question_bank` (read-only catalog), `game_questions`, `game_answers`, `drive_items`, `favorites`, `drive_item_reactions`, and calls the `partnership_get_pending_invitations` RPC for pending-request identity and the `game_pick_question` RPC for one-row question selection.
    - All Flutter direct requests pass through Supabase PostgREST with user JWT context, evaluating RLS policies.
 
 2. **Backend Server Layer:**

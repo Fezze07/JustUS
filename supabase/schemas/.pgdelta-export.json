@@ -69,6 +69,7 @@
     "public/functions/util_set_updated_at.sql",
     "public/functions/mood_set.sql",
     "public/functions/game_update_question_status.sql",
+    "public/functions/game_pick_question.sql",
     "public/functions/util_update_updated_at.sql",
     "_cluster/publications.sql"
   ],
@@ -104,6 +105,7 @@
     "public/functions/util_set_updated_at.sql",
     "public/functions/mood_set.sql",
     "public/functions/game_update_question_status.sql",
+    "public/functions/game_pick_question.sql",
     "public/functions/util_update_updated_at.sql",
     "public/schema.sql",
     "public/sequences/bucket_items_id_seq.sql",

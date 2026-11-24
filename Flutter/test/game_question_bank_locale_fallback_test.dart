@@ -8,28 +8,18 @@ class _MockClient extends Mock implements sb.SupabaseClient {}
 
 class _MockFrom extends Mock implements sb.SupabaseQueryBuilder {}
 
-/// Answers handed to `await`: the builders are `@immutable`, so the mocks keep
-/// them in a holder instead of a field of their own.
-class _CannedAnswer {
-  sb.PostgrestList Function()? rows;
-  sb.PostgrestMap? Function()? row;
-}
+/// Awaited RPC answer: the real builder resolves through `then`, so the fake
+/// implements it instead of returning a canned future.
+class _FakeRpc extends Mock implements sb.PostgrestFilterBuilder<dynamic> {
+  _FakeRpc(this.result);
 
-/// `then` is implemented for real (mocktail's canned response never resolves
-/// under `await`), so awaiting the builder yields whatever the chain has read.
-class _MockFilter extends Mock
-    implements sb.PostgrestFilterBuilder<sb.PostgrestList> {
-  _MockFilter(this.answer);
-
-  final _CannedAnswer answer;
+  final Object? result;
 
   @override
-  Future<R> then<R>(
-    Function(sb.PostgrestList value) onValue, {
-    Function? onError,
-  }) async {
+  Future<R> then<R>(Function(Object? value) onValue,
+      {Function? onError}) async {
     try {
-      return await onValue(answer.rows?.call() ?? const []) as R;
+      return await onValue(result) as R;
     } catch (error, stackTrace) {
       if (onError == null) rethrow;
       return onError(error, stackTrace) as R;
@@ -37,11 +27,16 @@ class _MockFilter extends Mock
   }
 }
 
+class _MockFilter extends Mock
+    implements sb.PostgrestFilterBuilder<sb.PostgrestList> {}
+
+/// `then` is implemented for real (mocktail's canned response never resolves
+/// under `await`), so awaiting the single-row builder yields the stored row.
 class _MockSingle extends Mock
     implements sb.PostgrestTransformBuilder<sb.PostgrestMap?> {
   _MockSingle(this.answer);
 
-  final _CannedAnswer answer;
+  final sb.PostgrestMap? Function() answer;
 
   @override
   Future<R> then<R>(
@@ -49,7 +44,7 @@ class _MockSingle extends Mock
     Function? onError,
   }) async {
     try {
-      return await onValue(answer.row?.call()) as R;
+      return await onValue(answer()) as R;
     } catch (error, stackTrace) {
       if (onError == null) rethrow;
       return onError(error, stackTrace) as R;
@@ -57,13 +52,14 @@ class _MockSingle extends Mock
   }
 }
 
-/// The bank query chain exactly as the repository issues it —
-/// `from().select().eq(…)` — recording the locales it asks for, so a test can
-/// answer differently for `en` (missing translation) and `it` (translated).
+/// The text query chain exactly as the repository issues it —
+/// `from().select().eq(…).maybeSingle()` — recording the locales it asks for,
+/// so a test can answer differently for `en` (missing translation) and `it`
+/// (translated).
 class _BankChain {
   _BankChain() {
-    filter = _MockFilter(answer);
-    single = _MockSingle(answer);
+    filter = _MockFilter();
+    single = _MockSingle(() => textFor(locales.last));
 
     when(() => client.from('game_question_bank')).thenAnswer((_) => from);
     when(() => from.select(any())).thenAnswer((_) => filter);
@@ -78,21 +74,16 @@ class _BankChain {
       return filter;
     });
     when(() => filter.maybeSingle()).thenAnswer((_) => single);
-
-    answer.rows = () => rowsFor(locales.last);
-    answer.row = () => textFor(locales.last);
   }
 
   final _MockClient client = _MockClient();
   final _MockFrom from = _MockFrom();
-  final _CannedAnswer answer = _CannedAnswer();
   late final _MockFilter filter;
   late final _MockSingle single;
 
   /// Locales queried, in order — the fallback is observable through it.
   final List<String> locales = [];
 
-  sb.PostgrestList Function(String locale) rowsFor = (_) => const [];
   sb.PostgrestMap? Function(String locale) textFor = (_) => null;
 }
 
@@ -153,82 +144,50 @@ void main() {
       expect(result.valueOrNull, isNull);
       expect(chain.locales, ['en', 'it']);
     });
+  });
 
-    test(
-        'pickQuestionForGame picks from the fallback locale instead of '
-        'throwing', () async {
-      final chain = _BankChain()
-        ..rowsFor = (locale) => locale == 'it'
-            ? [
-                {
-                  'question_code': 'game_q_000001',
-                  'locale': 'it',
-                  'text': 'Domanda italiana',
-                  'created_at': '2026-10-06T10:00:00Z',
-                  'updated_at': '2026-10-06T10:00:00Z',
-                },
-              ]
-            : const [];
+  group('pickQuestionForGame uses the catalog RPC', () {
+    test('sends the partnership and locale chain and maps the row', () async {
+      final client = _MockClient();
+      when(() => client.rpc('game_pick_question', params: {
+            'p_partnership_id': 7,
+            'p_locales': ['en', 'it'],
+          })).thenAnswer((_) => _FakeRpc({
+            'question_code': 'game_q_000001',
+            'locale': 'it',
+            'text': 'Domanda italiana',
+            'created_at': '2026-10-06T10:00:00Z',
+            'updated_at': '2026-10-06T10:00:00Z',
+          }));
 
-      final repo = GameQuestionBankRepository(sbClient: chain.client);
-      final result = await repo.pickQuestionForGame(locale: 'en');
+      final repo = GameQuestionBankRepository(sbClient: client);
+      final result = await repo.pickQuestionForGame(
+        partnershipId: 7,
+        locale: 'en',
+      );
 
       final bankItem = result.valueOrNull;
       expect(bankItem, isNotNull);
-      expect(bankItem!.text, 'Domanda italiana');
+      expect(bankItem!.questionCode, 'game_q_000001');
       expect(bankItem.locale, 'it');
-      expect(chain.locales, ['en', 'it']);
+      expect(bankItem.text, 'Domanda italiana');
     });
 
-    test(
-        'pickQuestionForGame returns Success(null) when no locale has any '
-        'row', () async {
-      final chain = _BankChain();
+    test('returns Success(null) when the RPC returns no row', () async {
+      final client = _MockClient();
+      when(() => client.rpc('game_pick_question', params: {
+            'p_partnership_id': 7,
+            'p_locales': ['en', 'it'],
+          })).thenAnswer((_) => _FakeRpc(null));
 
-      final repo = GameQuestionBankRepository(sbClient: chain.client);
-      final result = await repo.pickQuestionForGame(locale: 'en');
+      final repo = GameQuestionBankRepository(sbClient: client);
+      final result = await repo.pickQuestionForGame(
+        partnershipId: 7,
+        locale: 'en',
+      );
 
       expect(result, isA<Success<GameQuestionBankItem?>>());
       expect(result.valueOrNull, isNull);
-      expect(chain.locales, ['en', 'it']);
-    });
-
-    test('pickQuestionForGame excludes played codes within the current pool',
-        () async {
-      final chain = _BankChain()
-        ..rowsFor = (locale) => locale == 'en'
-            ? [
-                {
-                  'question_code': 'game_q_played',
-                  'locale': 'en',
-                  'text': 'Played question',
-                  'created_at': '2026-10-06T10:00:00Z',
-                  'updated_at': '2026-10-06T10:00:00Z',
-                },
-                {
-                  'question_code': 'game_q_new',
-                  'locale': 'en',
-                  'text': 'New question',
-                  'created_at': '2026-10-06T10:00:00Z',
-                  'updated_at': '2026-10-06T10:00:00Z',
-                },
-              ]
-            : const [];
-
-      final repo = GameQuestionBankRepository(sbClient: chain.client);
-      Set<String>? requestedCodes;
-      final result = await repo.pickQuestionForGame(
-        locale: 'en',
-        playedCodesFor: (codes) async {
-          requestedCodes = codes;
-          return {'game_q_played'};
-        },
-      );
-
-      expect(requestedCodes, {'game_q_played', 'game_q_new'},
-          reason: 'the lookup is scoped to the catalog pool, not the history');
-      expect(result.valueOrNull?.questionCode, 'game_q_new');
-      expect(chain.locales, ['en']);
     });
   });
 }

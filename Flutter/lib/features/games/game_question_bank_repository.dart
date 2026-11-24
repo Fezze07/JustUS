@@ -1,26 +1,7 @@
-import 'dart:math';
-
 import 'package:justus/all_imports.dart';
 
 class GameQuestionBankRepository extends BaseRepository {
   GameQuestionBankRepository({super.sbClient});
-
-  static const _kColumns =
-      'question_code, locale, text, created_at, updated_at';
-
-  /// Recupera tutte le domande disponibili dal catalogo per un determinato locale (es: 'it', 'en').
-  Future<ResultWrapper<List<GameQuestionBankItem>>> fetchQuestionsByLocale(
-      String locale) async {
-    return tryCall(() async {
-      final data = await sbClient
-          .from('game_question_bank')
-          .select(_kColumns)
-          .eq('locale', locale)
-          .toList();
-
-      return data.map((q) => GameQuestionBankItem.fromJson(q)).toList();
-    });
-  }
 
   /// Recupera il testo di una specifica domanda data la coppia (questionCode, locale).
   /// Se il locale richiesto non ha righe si riprova sul locale predefinito
@@ -85,52 +66,21 @@ class GameQuestionBankRepository extends BaseRepository {
     });
   }
 
-  /// Seleziona una nuova domanda per una partita.
-  /// [playedCodesFor] riceve i codici del pool del locale corrente e restituisce
-  /// quelli già giocati: la query delle partite resta così limitata al catalogo
-  /// e non cresce con lo storico della coppia.
-  /// Prova prima il locale richiesto e, se non resta nulla, il locale
-  /// predefinito dell'app.
+  /// Seleziona una nuova domanda per una partita tramite la RPC
+  /// `game_pick_question`: il DB restituisce una sola riga del locale
+  /// richiesto, preferendo i codici non ancora giocati dalla coppia.
   Future<ResultWrapper<GameQuestionBankItem?>> pickQuestionForGame({
+    required int partnershipId,
     required String locale,
-    Future<Set<String>> Function(Set<String> poolCodes)? playedCodesFor,
   }) async {
     return tryCall(() async {
-      for (final localeCode in LanguageHelper.localeChain(locale)) {
-        final bankItem = await _pickFromLocale(localeCode, playedCodesFor);
-        if (bankItem != null) return bankItem;
-      }
+      final row = await sbClient.rpc('game_pick_question', params: {
+        'p_partnership_id': partnershipId,
+        'p_locales': LanguageHelper.localeChain(locale),
+      });
 
-      return null;
+      if (row == null) return null;
+      return GameQuestionBankItem.fromJson(row as Map<String, dynamic>);
     });
-  }
-
-  /// Recupera tutte le domande per [locale] e ne sceglie una casuale
-  /// escludendo lato client i codici restituiti da [playedCodesFor].
-  /// Se dopo il filtro non resta nulla (tutte già giocate) sceglie
-  /// dall'intero pool del locale, senza una seconda chiamata al DB.
-  Future<GameQuestionBankItem?> _pickFromLocale(
-    String locale,
-    Future<Set<String>> Function(Set<String> poolCodes)? playedCodesFor,
-  ) async {
-    final res = await fetchQuestionsByLocale(locale);
-    final items = switch (res) {
-      Success(value: final v) => v,
-      GenericError() => throw ErrorHandler.toAppError(res),
-      NetworkError() => throw AppError.network(),
-    };
-
-    if (items.isEmpty) return null;
-
-    final played = playedCodesFor == null
-        ? const <String>{}
-        : await playedCodesFor(items.map((i) => i.questionCode).toSet());
-
-    // Filtra lato client; se esclude tutto, usa l'intero pool (fallback).
-    final candidates =
-        items.where((i) => !played.contains(i.questionCode)).toList();
-
-    final pool = candidates.isNotEmpty ? candidates : items;
-    return pool[Random().nextInt(pool.length)];
   }
 }

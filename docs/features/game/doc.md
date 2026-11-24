@@ -35,7 +35,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
    - [game_screen.dart](file:///f:/JustUS/Flutter/lib/features/games/screens/game_screen.dart): Game tab UI. Renders the current-question card (`GameNewQuestionResponse`), the Option A / Option B voting buttons, the "you vs partner" answer status avatars, and the history entries (`GameHistoryItem`) via `GameHistoryCard`: the first page (five games), then a `mood_showMore` button ("Show more") fetches and appends the next page from the server. Empty states: `game_noQuestionAvailable` when the catalog has no question for the couple's locale, `game_allCaughtUp` otherwise. Header bell: sends an `answerReminder` push while the user is waiting for the partner, disabled the rest of the time.
    - [game_state.dart](file:///f:/JustUS/Flutter/lib/features/games/game_state.dart): `GameState extends BaseState with CheckpointMixin`. Owns `_currentQuestion`, `_history`, `_historyOffset`, `_hasMoreHistory`, `_noQuestionAvailable` and the realtime handlers. `loadMoreHistory()` fetches the next page; the offset is the number of games already loaded, so local inserts/deletes cannot make the next page skip a game. Subscribes to `LanguageProvider` and refetches the active question + history (read-only) when the language changes; never inserts a question on a locale switch. Owns the reminder gate (`canRemindPartner`) and its 30-minute cooldown.
    - [game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart): `GameRepository extends BaseRepository`. Game data access goes through Supabase (no backend route): `fetchActiveQuestion` (read-only), `fetchNewGameQuestion` (create-from-catalog-if-missing), `submitAnswer`, `fetchAnswerStatus`, `hasNewGameActivity` (checkpoint gate), `fetchGameHistory` (paged by game, newest first: `game_questions` page of `historyPageSize` = 5 with embedded `game_answers`, `.range(offset, offset + limit - 1)`). `sendAnswerReminder` is the exception: it posts to the backend `/notify/partner` endpoint.
-   - [game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart): `GameQuestionBankRepository` — catalog access: `fetchQuestionsByLocale`, `fetchQuestionText`, `fetchTextsForCodes`, `pickQuestionForGame`, all with locale fallback.
+   - [game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart): `GameQuestionBankRepository` — catalog access: `fetchQuestionText`, `fetchTextsForCodes`, and `pickQuestionForGame` (one-row `game_pick_question` RPC), all with locale fallback.
    - [game_models.dart](file:///f:/JustUS/Flutter/lib/features/games/game_models.dart): `GameQuestionBankItem` (catalog row), `GameNewQuestionResponse` (active question), `GameHistoryItem` (history row, with `isMatched`/`isDisagreed`), plus the shared helpers `resolvePlayerName` and `optionLabelFor`.
    - Realtime: [game_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/handlers/game_realtime_handler.dart) routes `game_questions`/`game_answers` events into `GameState`; `game_questions` **insert/delete** dispatch immediately, every other game event is buffered FIFO in `game_event_buffer.dart` and flushed in delivery order.
 
@@ -103,10 +103,9 @@ The game engages linked couples with relationship quiz questions ("Who is more l
    │
    └── GameState.fetchNewQuestion → GameRepository.fetchNewGameQuestion:
          ├── if an active question already exists → return it (no insert, no notification)
-         ├── SELECT game_questions.question_code WHERE partnership_id = ? (played codes)
-         ├── pickQuestionForGame(locale, excludeCodes) from game_question_bank:
-         │     walks the locale chain; picks a random row excluding already-played codes;
-         │     if every code is excluded it falls back to the whole locale pool
+         ├── RPC game_pick_question(partnership_id, locale chain):
+         │     one row from the first locale with rows; unplayed codes first;
+         │     if every code in that locale is played, a random played row
          ├── if the catalog (and fallback locale) is empty → Success(null)
          │     → GameState sets noQuestionAvailable and clears any cached question
          ├── random swap: userIdA / userIdB = (child, partner) or (partner, child)
@@ -148,9 +147,10 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 
 ### Selection rule (`pickQuestionForGame`)
 
-- Reads the whole catalogue for a locale in one query (`fetchQuestionsByLocale`), filters out already-played `question_code`s **client-side**, and picks a random entry.
-- Excludes codes the couple has already played (queried within the candidate locale pool from `game_questions`, so the request is bounded by the catalog rather than by the lifetime history). If the exclusion empties the pool, it falls back to the entire locale pool (so play never hard-stops) without a second DB round trip.
-- Walks `LanguageHelper.localeChain(locale)` (e.g. `en → it`); the first locale that yields an item wins. A code with no translation in any chained locale stays empty in history.
+- Calls `game_pick_question(p_partnership_id, p_locales)` once. The SQL function returns **one** random catalog row, so the catalogue size never enters the response and cannot be truncated by the PostgREST 1,000-row cap.
+- Walks the locale chain in order (e.g. `en → it`). The first locale that has rows wins; a locale with no rows is skipped. Within that locale, `question_code`s the couple has already played sort last, so an unplayed row is returned whenever one exists. If every code in that locale is played, the function returns a random played row (play never hard-stops) instead of falling through to a later locale.
+- The RPC is `SECURITY INVOKER` and requires an accepted partnership membership; a non-member or an empty chain returns `null`, which the repository maps to `Success(null)`.
+- A code with no translation in any chained locale stays empty in history.
 
 ### Text resolution
 
@@ -199,7 +199,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 | Static Supabase question catalog (`game_question_bank`) | **IMPLEMENTED** | PK `(question_code, locale)`, SELECT-only RLS |
 | No AI / no external provider / no backend route | **IMPLEMENTED** | `Backend/features/ai/**` deleted; `api_service.dart` has no `generateAiQuestion` |
 | `question_code` stable reference | **IMPLEMENTED** | Written only on insert (`game_repository.dart`), never regenerated |
-| Random question without repeats | **IMPLEMENTED** | `pickQuestionForGame` excludes played codes, falls back to the full pool |
+| Random question without repeats | **IMPLEMENTED** | `game_pick_question` RPC excludes played codes in SQL, falls back to a random played row |
 | Locale-aware text with fallback chain | **IMPLEMENTED** | `LanguageHelper.localeChain` in the bank repository |
 | Runtime language switch | **IMPLEMENTED** | `GameState` read-only refetch on `LanguageProvider` change |
 | Read-only active-question fetch | **IMPLEMENTED** | `fetchActiveQuestion` never inserts/notifies |
