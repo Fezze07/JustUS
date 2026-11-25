@@ -130,6 +130,7 @@
 
 ### 22.4 Delete the unused `LanguageHelper` statics (🟢 LOW)
 - `Flutter/lib/core/localization/language_helper.dart:91-102` — `languageForLocale` and `LanguageHelper.isSupported` have no callers in `Flutter/lib`, `Flutter/test`, `Backend`, `supabase`, `docs` or scripts. Delete both. Acceptance: repo-wide grep returns only the generated `AppLocalizations.isSupported`; analyze clean.
+- **Status: ✅ FIXED (2026-11-25, on `dev`)** — deleted `languageForLocale` and `LanguageHelper.isSupported` from `Flutter/lib/core/localization/language_helper.dart` · **Verification**: `rg -n "languageForLocale|isSupported" Flutter/lib Flutter/test Backend supabase docs scripts` returned only `Flutter/lib/core/localization/generated/app_localizations.dart:2044` (`AppLocalizations.isSupported`); `flutter analyze` clean (`No issues found!`) · **Residual**: none.
 
 ---
 

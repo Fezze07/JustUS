@@ -88,19 +88,6 @@ abstract final class LanguageHelper {
     return fallbackLocale;
   }
 
-  static AppLanguage languageForLocale(Locale locale) {
-    final resolvedLocale = resolveLocale(locale);
-
-    return supportedLanguages.firstWhere(
-      (language) => language.code == resolvedLocale.languageCode,
-      orElse: () => supportedLanguages.first,
-    );
-  }
-
-  static bool isSupported(String languageCode) {
-    return supportedLanguages.any((language) => language.code == languageCode);
-  }
-
   static AppLocalizations? _appLoc;
 
   static AppLocalizations get appLoc {
