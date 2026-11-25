@@ -153,20 +153,9 @@ async function dispatchNotification({ type, senderId, payload }) {
   });
 }
 
-async function getReceiverInstallationId(userId) {
-  const devices = await fetchUserDevices(userId);
-  const installationId = devices[0]?.installation_id;
-  if (!installationId) {
-    throw new AppError({ errorKey: "DB_NOT_FOUND_001", message: "Receiver not found or has no valid installation id" });
-  }
-
-  return installationId;
-}
-
 module.exports = {
   dispatchNotification,
   resolveNotificationTarget,
-  getReceiverInstallationId,
   sendNotificationToUser,
   fetchUserDevices,
   deleteInvalidInstallations,
