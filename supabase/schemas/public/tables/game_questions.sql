@@ -25,6 +25,8 @@ CREATE INDEX idx_game_questions_user_id_b ON public.game_questions USING btree (
 
 CREATE INDEX idx_game_questions_question_code ON public.game_questions USING btree (question_code);
 
+CREATE UNIQUE INDEX idx_game_questions_one_active_per_partnership ON public.game_questions USING btree (partnership_id) WHERE (status IS DISTINCT FROM 'both_answered');
+
 CREATE POLICY "game_questions_related" ON "public"."game_questions"
   FOR ALL
   TO PUBLIC

@@ -212,7 +212,20 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Selection Rule:** Rows are ordered by `array_position(p_locales, locale)` (first locale with rows wins), then by whether the couple already has a `game_questions` row for that `question_code` (`false` first), then `random()`; `LIMIT 1`. A locale with no rows is skipped; if every code in the winning locale is played, a random played row is returned rather than falling through to a later locale.
 * **Execution Condition:** `partnership_is_member(p_partnership_id)` must be true; otherwise the query returns no row. RLS on `game_questions` also limits the played-code lookup to the caller's partnerships.
 * **Tables Touched:** `game_question_bank` (READ), `game_questions` (READ), `partnerships` (READ via `partnership_is_member`).
-* **Caller:** Flutter Frontend ([game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart)).
+* **Caller:** Flutter Frontend ([game_question_bank_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_question_bank_repository.dart)) and `game_get_or_create_question`.
+
+---
+
+### `game_get_or_create_question(p_partnership_id integer, p_locales text[])`
+* **SQL Source:** `supabase/schemas/public/functions/game_get_or_create_question.sql`
+* **Purpose:** Atomically returns the partnership's active (`status IS DISTINCT FROM 'both_answered'`) `game_questions` row or picks and inserts a new `'pending'` row, preventing concurrent clients from creating two active questions for the same couple.
+* **Security Context:** `SECURITY INVOKER`, `SET search_path TO 'public'`
+  - **Execution Grants:** Revoked from `PUBLIC`, `anon`; granted to `authenticated`, `postgres`, `service_role`.
+* **Inputs:** `p_partnership_id` (`integer`), `p_locales` (`text[]`, ordered locale chain).
+* **Outputs:** `jsonb` (`id`, `question_code`, `question`, `status`, `user_id_a`, `user_id_b`, `created`, `has_answered`, `partner_answered`), or `NULL`.
+* **Atomicity & Locking:** Acquires `FOR UPDATE` on the `accepted` `partnerships` row for `(p_partnership_id, user_current_id())` before checking `game_questions`; backed by the partial unique index `idx_game_questions_one_active_per_partnership`. If an active row exists, returns it with `created = false` and current answer flags; otherwise calls `game_pick_question(p_partnership_id, p_locales)`, randomizes `user_id_a` / `user_id_b`, inserts `'pending'`, and returns `created = true`.
+* **Tables Touched:** `partnerships` (READ + `FOR UPDATE`), `game_questions` (READ, INSERT), `game_question_bank` (READ), `game_answers` (READ).
+* **Caller:** Flutter Frontend ([game_repository.dart](file:///f:/JustUS/Flutter/lib/features/games/game_repository.dart)).
 
 ---
 

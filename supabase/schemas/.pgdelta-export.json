@@ -77,6 +77,7 @@
     "public/functions/partnership_reject.sql",
     "public/functions/partnership_request_cancel.sql",
     "public/functions/touch_drive_item_from_reaction.sql",
+    "public/functions/game_get_or_create_question.sql",
     "_cluster/publications.sql"
   ],
   "profile": "supabase",
@@ -95,6 +96,7 @@
     "public/functions/device_revoke_duplicate_session.sql",
     "public/functions/drive_change_probe.sql",
     "public/functions/emoji_get_or_create.sql",
+    "public/functions/game_get_or_create_question.sql",
     "public/functions/game_pick_question.sql",
     "public/functions/game_update_question_status.sql",
     "public/functions/logs_cleanup.sql",

@@ -168,7 +168,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 ### 1. A/B option mapping
 
 - Options do **not** represent arbitrary answers; each represents one partner.
-- `fetchNewGameQuestion` assigns `userIdA`/`userIdB` to the creator and the partner in a **random** order (`Random().nextBool()`), so neither partner is always Option A.
+- `fetchNewGameQuestion` delegates to `game_get_or_create_question`, which assigns `userIdA`/`userIdB` to the two partners in a **random** order (`random() < 0.5`), so neither partner is always Option A.
 - Labels come from `resolvePlayerName` (self → own name / `common_youTitle`; partner → partner display name / `common_partner`) wrapped by `optionLabelFor` (falls back to `game_optionA`/`game_optionB` when a user id is null).
 
 ### 2. Voting
@@ -200,6 +200,7 @@ The game engages linked couples with relationship quiz questions ("Who is more l
 | No AI / no external provider / no backend route | **IMPLEMENTED** | `Backend/features/ai/**` deleted; `api_service.dart` has no `generateAiQuestion` |
 | `question_code` stable reference | **IMPLEMENTED** | Written only on insert (`game_repository.dart`), never regenerated |
 | Random question without repeats | **IMPLEMENTED** | `game_pick_question` RPC excludes played codes in SQL, falls back to a random played row |
+| Atomic active-question creation | **IMPLEMENTED** | `game_get_or_create_question` RPC locks the partnership (`FOR UPDATE`) + partial unique index `idx_game_questions_one_active_per_partnership` |
 | Locale-aware text with fallback chain | **IMPLEMENTED** | `LanguageHelper.localeChain` in the bank repository |
 | Runtime language switch | **IMPLEMENTED** | `GameState` read-only refetch on `LanguageProvider` change |
 | Read-only active-question fetch | **IMPLEMENTED** | `fetchActiveQuestion` never inserts/notifies |

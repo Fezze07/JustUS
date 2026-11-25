@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/widgets.dart';
 
 import 'package:justus/all_imports.dart';
@@ -87,60 +86,44 @@ class GameRepository extends BaseRepository {
   Future<ResultWrapper<GameNewQuestionResponse?>> fetchNewGameQuestion() async {
     return withUser((uid) async {
       final ctx = await _buildGameFetchContext(uid);
-      final existing = await _fetchActiveQuestionFor(ctx);
-      if (existing != null) return existing;
+      final row = await sbClient.rpc('game_get_or_create_question', params: {
+        'p_partnership_id': ctx.partnershipId,
+        'p_locales': LanguageHelper.localeChain(ctx.locale),
+      });
 
-      // Nessuna domanda attiva per la coppia: ne creiamo una nuova dal catalogo!
-      final bankItemRes = await _bankRepo.pickQuestionForGame(
-        partnershipId: ctx.partnershipId,
-        locale: ctx.locale,
-      );
-
-      final bankItem = bankItemRes.valueOrNull;
-      if (bankItem == null) {
-        // Success(null) = catalogo vuoto: segnale "nessuna domanda
-        // disponibile", non un errore. Gli errori veri (GenericError)
-        // continuano come prima.
-        if (bankItemRes is Success) {
-          return null;
-        }
-        throw const AppError(
-          code: ErrorCodes.apiFail001,
-          message: 'Unable to fetch a new question from the catalog',
+      if (row == null) return null;
+      final data = row as Map<String, dynamic>;
+      final questionCode = data['question_code'] as String?;
+      final questionText = (data['question'] as String?) ??
+          await _resolveQuestionText(questionCode, ctx.locale);
+      if (questionText.isEmpty) {
+        throw AppError(
+          code: ErrorCodes.dbNotFound001,
+          message: 'Failed to resolve question text for code: $questionCode',
         );
       }
 
-      // Determinazione casuale dell'ordine di User A e User B
-      final isSwap = Random().nextBool();
-      final userIdA = isSwap ? ctx.partnerId : uid;
-      final userIdB = isSwap ? uid : ctx.partnerId;
+      if (data['created'] == true) {
+        unawaited(notifyPartnerOnce(
+          notificationKey: 'newQuestion',
+          params: {},
+        ));
+      }
 
-      final inserted = await sbClient
-          .from('game_questions')
-          .insert({
-            'partnership_id': ctx.partnershipId,
-            'question_code': bankItem.questionCode,
-            'status': 'pending',
-            'user_id_a': userIdA,
-            'user_id_b': userIdB,
-          })
-          .select('id, question_code, status, user_id_a, user_id_b, created_at')
-          .single();
-
-      unawaited(notifyPartnerOnce(
-        notificationKey: 'newQuestion',
-        params: {},
-      ));
+      final userIdA = (data['user_id_a'] as num?)?.toInt();
+      final userIdB = (data['user_id_b'] as num?)?.toInt();
 
       return GameNewQuestionResponse(
-        id: inserted['id'] as int,
-        question: bankItem.text,
-        questionCode: bankItem.questionCode,
-        status: inserted['status'] as String?,
+        id: (data['id'] as num).toInt(),
+        question: questionText,
+        questionCode: questionCode,
+        status: data['status'] as String?,
         userIdA: userIdA,
         userIdB: userIdB,
-        optionA: ctx.nameFor(userIdA),
-        optionB: ctx.nameFor(userIdB),
+        optionA: optionLabelFor(userIdA, ctx.optionALabel, ctx.nameFor),
+        optionB: optionLabelFor(userIdB, ctx.optionBLabel, ctx.nameFor),
+        hasAnswered: (data['has_answered'] as bool?) ?? false,
+        partnerAnswered: (data['partner_answered'] as bool?) ?? false,
       );
     });
   }
