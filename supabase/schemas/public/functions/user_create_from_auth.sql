@@ -15,7 +15,11 @@ BEGIN
 
   -- Inserimento del profilo base con partnership_code generato
   INSERT INTO public.user_profiles (user_id, display_name, partnership_code)
-  VALUES (v_user_id, split_part(NEW.email, '@', 1), public.partnership_generate_code());
+  VALUES (
+    v_user_id,
+    COALESCE(NULLIF(btrim(NEW.raw_user_meta_data->>'username'), ''), split_part(NEW.email, '@', 1)),
+    public.partnership_generate_code()
+  );
 
   -- Recupero ID del ruolo 'user' (dovrebbe essere 1 come configurato prima)
   SELECT id INTO v_role_id FROM public.roles WHERE name = 'user';

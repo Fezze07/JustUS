@@ -249,7 +249,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Automated Workflow:**
   1. Inserts new record into `public.users (auth_id, email)` using `NEW.id` and `NEW.email`.
   2. Generates unique 6-character partnership code via `public.partnership_generate_code()`.
-  3. Inserts initial profile into `public.user_profiles` setting `display_name = split_part(email, '@', 1)` and `partnership_code`.
+  3. Inserts initial profile into `public.user_profiles` setting `display_name` to the trimmed `NEW.raw_user_meta_data->>'username'` (the name sent by the client at sign-up) and falling back to `split_part(email, '@', 1)` when that metadata is missing or blank, plus `partnership_code`.
   4. Fetches ID for role `'user'` from `public.roles`. If missing, inserts default role `'user'`.
   5. Assigns role to user in `public.user_roles (user_id, role_id)`.
 * **Side Effects:** Automatically initializes full public profile, partnership code, and RBAC role instantly upon Supabase Auth registration without client interaction.

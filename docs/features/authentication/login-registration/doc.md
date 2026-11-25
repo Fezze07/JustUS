@@ -32,7 +32,7 @@ Flutter UI (RegisterScreen)
    │        ├── Inserts record into auth.users
    │        └── Triggers PostgreSQL AFTER INSERT (`user_create_from_auth`)
    │               │
-   │               ├── Inserts public.users (auth_id, email, username)
+   │               ├── Inserts public.users (auth_id, email)
    │               ├── Inserts public.user_profiles (display_name, partnership_code)
    │               └── Assigns role 'user' in public.user_roles
    │
@@ -82,7 +82,7 @@ Flutter UI (RegisterScreen)
    - Trigger Event: `AFTER INSERT` calling `user_create_from_auth()`
    - Operation: Atomically creates public user records:
      - Inserts into `public.users` with `auth_id = NEW.id`
-     - Inserts into `public.user_profiles` generating an automatic unique `partnership_code` and setting `display_name = NEW.raw_user_meta_data->>'username'`
+     - Inserts into `public.user_profiles` generating an automatic unique `partnership_code` and setting `display_name` to the trimmed `NEW.raw_user_meta_data->>'username'` (the name sent by the client at sign-up), falling back to `split_part(email, '@', 1)` when the metadata is missing or blank
      - Inserts into `public.user_roles` with role `'user'`
 
 6. **Frontend State & Navigation Post-Registration**
