@@ -166,7 +166,7 @@ class AuthState extends BaseState
       }
     }
 
-    // Gestisci il passwordRecovery da link email
+    // Gestisci il passwordRecovery da link email e il signedOut remoto
     _authSubscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -178,6 +178,13 @@ class AuthState extends BaseState
             navContext,
             AppRoutes.resetPassword,
           ));
+        }
+      } else if (data.event == AuthChangeEvent.signedOut) {
+        if (isLoggedIn && !_isLoggingOut) {
+          AnsiLogger.auth(
+              'Remote signedOut event received. Forcing logout.',
+              tag: 'AuthState');
+          await logout();
         }
       }
     });
@@ -793,28 +800,36 @@ class AuthState extends BaseState
     super.dispose();
   }
 
+  bool _isLoggingOut = false;
+
   Future<void> logout() async {
-    PartnershipRepository.clearPartnershipCache();
-    await _revokeInstallationId();
+    if (_isLoggingOut) return;
+    _isLoggingOut = true;
     try {
-      await _authRepo.signOut();
-    } catch (e) {
-      AnsiLogger.error('Sign out failed: $e', tag: 'AuthState');
+      PartnershipRepository.clearPartnershipCache();
+      await _revokeInstallationId();
+      try {
+        await _authRepo.signOut();
+      } catch (e) {
+        AnsiLogger.error('Sign out failed: $e', tag: 'AuthState');
+      }
+      await CacheService.clearAll();
+      await StorageService.clearAll();
+      ApiService.clearHeadersCache();
+      await emptyAppMediaCaches();
+      _accessToken = null;
+      _username = null;
+      _userId = null;
+      _partnerId = null;
+      _partnershipId = null;
+      _partnerDisplayName = null;
+      _sentInvitations = [];
+      _receivedInvitations = [];
+      onClearFeatureStates?.call();
+      notifyListeners();
+    } finally {
+      _isLoggingOut = false;
     }
-    await CacheService.clearAll();
-    await StorageService.clearAll();
-    ApiService.clearHeadersCache();
-    await emptyAppMediaCaches();
-    _accessToken = null;
-    _username = null;
-    _userId = null;
-    _partnerId = null;
-    _partnershipId = null;
-    _partnerDisplayName = null;
-    _sentInvitations = [];
-    _receivedInvitations = [];
-    onClearFeatureStates?.call();
-    notifyListeners();
   }
 
   /// Strictly best-effort: it runs before `signOut()`, so the JWT, the binding
