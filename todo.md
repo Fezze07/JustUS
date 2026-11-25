@@ -29,131 +29,6 @@
 
 ---
 
-## Phase 21 — Schema, RLS & DB invariants (🟡 MEDIUM / 🟢 LOW)
-
-### 21.1 Add the documented `users.auth_id` FK (🟡 MEDIUM) ✅
-- **Sources**: `docs/supabase/schema/doc.md:37`.
-- **Files**: `supabase/schemas/public/tables/users.sql:1-10`, `supabase/schemas/public/functions/user_create_from_auth.sql:12-14`.
-- **Defect**: the column is `uuid` with only a UNIQUE constraint; the docs claim `users_auth_id_fkey ... ON DELETE CASCADE`. Deleting an auth user leaves the public row and couple data; a later signup with the same email hits `users_email_key` inside the trigger.
-- **Fix**: after cleaning orphans, add `FOREIGN KEY (auth_id) REFERENCES auth.users(id) ON DELETE CASCADE` (or an `AFTER DELETE` trigger if the auth schema cannot be referenced).
-- **Acceptance**: deleting an auth user removes the public row and cascaded app data; the same email can register again.
-- **Status: ✅ FIXED (2026-11-24, on `dev`)** — added the direct FK instead of an `AFTER DELETE` trigger because `auth.users` is referenceable, in `supabase/schemas/public/tables/users.sql:8`; the profile, partnership, mood, drive and device tables already cascade from `public.users` (audit logs are `SET NULL`), so one delete clears the app data and frees the email · **Verification**: applied to the linked project; `npx supabase@3.0.0 db query --remote` returned `users_auth_id_fkey FOREIGN KEY (auth_id) REFERENCES auth.users(id) ON DELETE CASCADE`; the cancellation test fixture now seeds the referenced `auth.users` rows before `public.users` (`supabase/test/rls_partnership_cancellation.test.sql:84-110`), confirming the constraint is enforced · **Residual**: `game_questions.user_id_a` / `user_id_b` still lack `ON DELETE` (S20), so a question row outside the user's partnership can still block the delete; no cascade assertion exists yet (23.4 open). SQL tests were not executed locally (no `psql`/`DATABASE_URL`).
-
-### 21.2 Enforce cooldown and expiry in the cancellation trigger (🟡 MEDIUM) ✅
-- **Sources**: `docs/features/partnership/doc.md:61` (24 h cooldown, 7-day expiry).
-- **Files**: `supabase/schemas/public/functions/partnership_guard_status.sql:51-58`, `supabase/schemas/public/functions/partnership_request_cancel.sql:27-35`, `supabase/schemas/public/tables/partnerships.sql:49-56`.
-- **Defect**: the RPC enforces `cancel_declined_at > now() - 24h` and writes `now() + 7 days`, but the trigger's `accepted → cancelled` branch only checks membership, requester and a non-null expiry. A direct PATCH can bypass the cooldown and set a 100-year expiry. Impact: a declined requester can re-spam immediately and freeze the pair in `cancelled` indefinitely.
-- **Fix**: move the cooldown check and a `now() < cancel_expires_at <= now() + 7 days` bound into the trigger branch.
-- **Acceptance**: a direct update within 24 h of a decline raises `42501`; a 100-year expiry raises `42501`; the RPC still sets exactly 7 days.
-- **Status: ✅ FIXED (2026-11-24, on `dev`)** — duplicated the RPC's rules in the trigger's `accepted → cancelled` branch (`supabase/schemas/public/functions/partnership_guard_status.sql:58-66`): the 24 h decline cooldown (`API-VALIDATION-013`) and `now() < cancel_expires_at <= now() + interval '7 days'` (`API-VALIDATION-014`), because a direct PATCH bypasses the RPC; `partnership_request_cancel()` still writes exactly 7 days (`partnership_request_cancel.sql:34`) · **Verification**: applied to the linked project; `npx supabase@3.0.0 db query --remote` confirmed both validation markers and the 7-day bound in the live function body; assertions D1b (`supabase/test/rls_partnership_cancellation.test.sql:705`) and E7 (`:930`) cover the cooldown and the out-of-range expiry · **Residual**: the RPC and trigger now duplicate the cooldown/expiry rules, so a future edit must change both; SQL tests were not executed locally (no `psql`/`DATABASE_URL`).
-
-### 21.3 Enforce one accepted partnership in the trigger (🟡 MEDIUM) ✅
-- **Files**: `supabase/schemas/public/functions/partnership_accept.sql:21-29`, `supabase/schemas/public/functions/partnership_guard_status.sql:43-59`, `supabase/schemas/public/tables/partnerships.sql:49-53`.
-- **Defect**: the RPC checks for another `accepted`/`cancelled` partnership, but the trigger's `pending → accepted` branch does not. Two direct PATCHes create two accepted rows; `v_active_partnership` returns two, `maybeSingle()` throws, and `mood_set` picks an arbitrary partnership.
-- **Fix**: add the same `EXISTS` single-partnership check to the trigger branch.
-- **Acceptance**: with two pending rows, the second direct accept raises `42501`; the RPC still accepts exactly one.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — mirrored the RPC's `EXISTS` guard in the trigger's `pending → accepted` branch (`supabase/schemas/public/functions/partnership_guard_status.sql:48-57`), because a direct `PATCH` bypasses `partnership_accept`; the caller must still be `user_id_2` (`-008`) and may hold no other `accepted` / `cancelled` row (`-012`) · **Verification**: applied the function to the linked project; `pg_get_functiondef` shows the `p2.status IN ('accepted', 'cancelled')` guard and the `API-VALIDATION-012` message; a rolled-back remote transaction with two pending rows for one recipient let the first direct `PATCH` through and returned `42501` on the second, while `partnership_accept` still accepted a single pending row; the duplicate accepted/cancelled check returned no rows; assertion I1b added in `supabase/test/rls_partnership_cancellation.test.sql:1366-1406` · **Residual**: the rule is duplicated in the RPC and the trigger, so a future edit must change both; the `cancelled → accepted` branch has no equivalent check, but the linked project holds no user with more than one `accepted` / `cancelled` row, so a revert cannot create a second active pairing from the current data. No new item.
-
-### 21.4 Persist the chosen username on signup (🟡 MEDIUM) ✅
-- **Sources**: `docs/features/authentication/login-registration/doc.md:85`.
-- **Files**: `supabase/schemas/public/functions/user_create_from_auth.sql:16-22`, `Flutter/lib/features/auth/auth_state.dart:370-372`.
-- **Defect**: Flutter sends `{'username': name}` in `signUp` metadata, but the trigger inserts `split_part(NEW.email, '@', 1)` and ignores `raw_user_meta_data`. A user who registers as "Alice" appears as the email local part.
-- **Fix**: `COALESCE(NULLIF(btrim(NEW.raw_user_meta_data->>'username'), ''), split_part(NEW.email, '@', 1))`.
-- **Acceptance**: registering with a name different from the email prefix stores that name; both auth docs state the same rule.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — the trigger now stores `COALESCE(NULLIF(btrim(NEW.raw_user_meta_data->>'username'), ''), split_part(NEW.email, '@', 1))` as `display_name` (`supabase/schemas/public/functions/user_create_from_auth.sql:16-22`), so the `{'username': name}` metadata the Flutter client already sends wins over the email local part, and blank or missing metadata still falls back · **Verification**: applied to the linked project; `pg_get_functiondef` shows the metadata read and the fallback; the new `supabase/test/user_signup_provisioning.test.sql` passed against the linked project (trimmed username stored, blank and missing metadata fall back) and left no fixture rows · **Residual**: the metadata is user-editable, but it only seeds a cosmetic display name (the profile editor already lets the user change it), never an authorization decision; profiles created before this fix keep their old name. SQL tests were not executed locally (no `psql`/`DATABASE_URL`); the new test ran remotely.
-
-### 21.5 Regenerate the pgdelta manifest (🟡 MEDIUM) ✅
-- **Files**: `supabase/schemas/.pgdelta-export.json`, `scripts/generate_pgdelta_manifest.js`.
-- **Defect**: manifest lists 68 files; the directory has 76. It still lists the deleted `public/functions/partnership_get_names.sql` and omits nine functions, including the cancellation RPCs and `device_purge_dead_sessions`. A diff can fail or generate `DROP FUNCTION` for live features.
-- **Fix**: remove the stale entry, regenerate the export, and add a files-vs-directory check.
-- **Acceptance**: 0 missing / 0 unlisted; `supabase db diff` is empty against the applied schema. **Unverified — needs linked DB query**: the applied remote schema.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `scripts/generate_pgdelta_manifest.js`, which rebuilds `files` from `supabase/schemas/**/*.sql`, drops stale entries and appends new ones to the end of their `loadOrder` group; `--check` exits 1 on drift. Ran it (78 files, 10 added, 1 removed: `partnership_get_names.sql`) and wired it into `.husky/pre-commit` (auto-fix + stage) and `scripts/test-all.sh`; the fix-workflow hook description now matches · **Verification**: `node scripts/generate_pgdelta_manifest.js --check` → up to date; a probe SQL file was reported missing by `--check`, added by the generator, then removed cleanly; `node --check` and `bash -n` pass; assertion: 78 files on disk = 78 in `files` = 78 in `loadOrder`, no duplicates; `supabase db schema declarative generate --remote --output-dir` lists every local file (the only extras are the CLI's `adp_wipes.sql` helper and the Supabase-managed `hypopg` / `index_advisor` extensions) · **Residual**: the hook needs Node on PATH and scans the working tree, so a partially staged schema file enters the manifest before the file itself is staged; `supabase db diff` was not run because it diffs the migrations baseline, which this repo does not track.
-
-### 21.6 Add retention indexes (🟢 LOW) ✅
-- `supabase/schemas/public/tables/request_nonces.sql`, the five log tables — no index on `request_nonces(expires_at)` or `created_at` for the swept log tables. Add btree indexes. Acceptance: `EXPLAIN` shows index scans; a seeded 100k-row sweep completes within the statement timeout.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `idx_request_nonces_expires_at` plus `idx_logs_api_access_created_at`, `idx_logs_api_errors_created_at`, `idx_logs_security_events_created_at` and `idx_logs_notifications_created_at` in the matching table files; `logs_auth_failures` already had `logs_auth_failures_created_idx (created_at DESC)`, so it was left unchanged · **Verification**: applied to the linked project; a rolled-back probe seeded 100k recent + 1k expired rows per table, and `EXPLAIN (FORMAT JSON) DELETE …` chose the new index (`Index Scan`) on all five; the 1k-row `logs_api_access` sweep deleted in 13.5 ms, and `supabase/test/retention_cleanup_old_logs.test.sql` passed · **Residual**: each index adds write cost to log/nonce inserts, and the planner may still seq-scan a small table until it grows. No local SQL run (no `psql`/`DATABASE_URL`); the probe ran remotely.
-
-### 21.7 Drop dead catalog tables and drive-file metadata (🟢 LOW) ✅
-- `supabase/schemas/public/tables/permissions.sql`, `roles_permissions.sql`, `drive_file_types.sql`, `drive_items.sql:12`, `views/v_drive_dashboard.sql:9-11,21`, `supabase/test/rls_policy_matrix.test.sql:120,184`, `supabase/test/rls_anon_blocked.test.sql:99-103,223-226` - capabilities are hardcoded in JS; the three catalogs are referenced only by SQL test fixtures, never by runtime code; `drive_file_types` is never written and the view's `ft` columns are ignored. Drop the three tables, `drive_items.file_type_id`, and the `ft` select/join; keep `roles`/`user_roles`, and update the two RLS test fixtures. Acceptance: repo-wide grep finds no runtime references; both RLS SQL tests are updated and still pass; `v_drive_dashboard` still returns the fields the client consumes.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — dropped `permissions`, `roles_permissions`, `drive_file_types`, `drive_items.file_type_id` with its FK and index, and the view's `ft` select/join, because capabilities are hardcoded in `Backend/features/auth/authorization.service.js` and no runtime code reads the catalogs; `roles`/`user_roles` stay · **Verification**: applied to the linked project (`public` tables 26 → 23, `to_regclass` null for all three, `file_type_id` column count 0); `v_drive_dashboard` returns `id,partnership_id,name,original_name,type,size,created_at,updated_at,is_favorite,reactions,metadata` and still serves the Flutter model; `rls_policy_matrix.test.sql` and `rls_anon_blocked.test.sql` both passed remotely with the 3-catalog allowlist; `node scripts/generate_pgdelta_manifest.js --check` → up to date (75 files); repo-wide grep finds no runtime reference outside `todo.md` and the historical audit · **Residual**: the 7 `permissions` and 13 `roles_permissions` rows were dropped with the tables (no runtime consumer); both RLS fixtures now seed `auth.users` before `public.users` (required since 21.1) and the anon test asserts fixture-scoped counts so it runs on the populated project. No new item.
-
-### 21.8 Fix the auth redirect allow-list (🟢 LOW) ✅
-- `supabase/config.toml:158-162`, `Flutter/lib/features/auth/auth_state.dart:88-101` — the exact allow-list has only `http://127.0.0.1:3000` and `https://127.0.0.1:3000`; the client sends `justus://auth/callback` and the server `/auth/callback`. Add the exact mobile and server callback URLs; correct the `https` localhost typo. Acceptance: GoTrue accepts each client redirect and a mobile confirmation link opens `justus://auth/callback`.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — replaced the mistyped `https://127.0.0.1:3000` entry with the three URLs `AuthState._emailRedirectTo` actually produces: `justus://auth/callback` (mobile), `https://justus-dev.serverfede.eu/auth/callback` (debug web/desktop) and `https://justus.serverfede.eu/auth/callback` (release web/desktop); `site_url` already allows `http://127.0.0.1:3000` exactly, so no separate localhost entry is kept. Pushed only `auth.additional_redirect_urls` to the linked project with a minimal `config push`, because the full local `config.toml` would also have changed ten unrelated auth/db/storage properties · **Verification**: `supabase config diff` now reports no drift on `auth.additional_redirect_urls` (0 updates for the minimal config; before the push the remote lacked only the dev callback); the linked GoTrue list is `["justus://auth/callback","https://justus.serverfede.eu/auth/callback","https://justus-dev.serverfede.eu/auth/callback"]`; `AndroidManifest.xml` declares the `justus://auth/callback` scheme and the `https://justus.serverfede.eu/auth/callback` app link, and `ApiConfig` supplies both server origins · **Residual**: iOS has no `CFBundleURLTypes` for the `justus` scheme, so the same confirmation link still dead-ends on iOS — tracked as 21.11; a custom `JUSTUS_DEV_SERVER_ORIGIN` / `JUSTUS_PROD_SERVER_ORIGIN` still needs its own callback added to the allow-list.
-
-### 21.9 Correct the Supabase docs contradictions (🟢 LOW) ✅
-- `docs/supabase/database-logic/doc.md:178` claims the pending-invitations RPC exposes email (it returns `partner_display_name` only); `:277` claims `logs_auth_failures` cascades on user delete (it is `ON DELETE SET NULL`) and omits `logs_notifications`; `docs/supabase/rls/doc.md:138,161,169` names `auth_sessions` instead of `session_bindings`/`auth.sessions`. Correct all five claims. Acceptance: docs match `pg_get_function_result` and the FK definitions.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — updated `docs/supabase/database-logic/doc.md` (`:178` to list `partner_display_name` only, `:298` to list `logs_notifications` as cascading and `logs_auth_failures` as `ON DELETE SET NULL`) and `docs/supabase/rls/doc.md` (`:135,158,166` from `auth_sessions` to `session_bindings`) · **Verification**: `rg -n "auth_sessions" docs/supabase/rls/doc.md` → 0 matches; cross-checked against `logs_auth_failures.sql:15` and `logs_notifications.sql:8` · **Residual**: none.
-
-### 21.10 Resolve the missing seed file (🟢 LOW) ✅
-- `supabase/config.toml:67-72` — seeding is enabled with `sql_paths = ["./seed.sql"]`, but `supabase/seed.sql` does not exist. Add the seed file or disable the `[db.seed]` entry. Acceptance: a fresh `db reset` completes and the intended catalog rows exist, or seeding is explicitly disabled.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — disabled `[db.seed]` (`enabled = false`, `sql_paths = []`) in `supabase/config.toml:67-72` per user choice, since `supabase/seed.sql` does not exist and no runtime catalog seeding is needed · **Verification**: `npx supabase@3.0.0 config diff` confirmed 0 local-only/seed drift (9 remote-prod-only/dev-vs-prod diffs: `auth.site_url`, `auth.captcha.*`, `auth.email.smtp.*` kept as-is) · **Residual**: `db reset` not run.
-
-### 21.11 Register the `justus://` URL scheme on iOS (🟡 MEDIUM) ✅
-- **Files**: `Flutter/ios/Runner/Info.plist`, `Flutter/android/app/src/main/AndroidManifest.xml:32-45`.
-- **Defect**: Android declares the `justus://auth/callback` intent filter and the HTTPS App Link, but iOS has no `CFBundleURLTypes` entry for the `justus` scheme. `AuthState._emailRedirectTo` returns `justus://auth/callback` on iOS, so a confirmation or password-recovery link cannot open the app there and dead-ends in the browser.
-- **Fix**: add a `CFBundleURLTypes` entry with `CFBundleURLSchemes = ["justus"]` and verify the confirmation link opens the app.
-- **Acceptance**: a confirmation email opened on an iOS device launches JustUS through `justus://auth/callback`.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `CFBundleURLTypes` (`CFBundleTypeRole = Editor`, `CFBundleURLName = $(PRODUCT_BUNDLE_IDENTIFIER)`, `CFBundleURLSchemes = ["justus"]`) to `Flutter/ios/Runner/Info.plist:25-36` · **Verification**: XML well-formedness verified via PowerShell `[xml](Get-Content Flutter/ios/Runner/Info.plist)`; on-device iOS launch not run (Windows host, no macOS/iOS device) · **Residual**: confirm `justus://auth/callback` opens the app on an iOS device/simulator.
-
-### 21.12 Index the cancellation-requester foreign key (🟢 LOW) ✅
-- **Sources**: Supabase performance advisor (linked project, 2026-11-24).
-- **Files**: `supabase/schemas/public/tables/partnerships.sql:16,27`.
-- **Defect**: `partnerships_cancel_requested_by_fkey` references `users(id)` but the table only declares the `user_id_2` index. The live advisor reports the FK as unindexed; deleting a user can scan all partnership rows as the table grows.
-- **Fix**: add a btree index on `public.partnerships(cancel_requested_by)` in the declarative schema and apply it to the linked project.
-- **Acceptance**: the remote index exists and the Supabase performance advisor no longer reports `partnerships_cancel_requested_by_fkey` as unindexed.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `CREATE INDEX idx_partnerships_cancel_requested_by ON public.partnerships USING btree (cancel_requested_by)` at `supabase/schemas/public/tables/partnerships.sql:28`, beside the existing `idx_partnerships_user2_id` index, because the `partnerships_cancel_requested_by_fkey` FK (`ON DELETE CASCADE`) was unindexed and deleting a user scanned the whole table · **Verification**: `npx supabase@3.0.0 db query --remote --yes --file` applied the index to the linked project; `pg_indexes` on `public.partnerships` returns `idx_partnerships_cancel_requested_by` as a btree on `cancel_requested_by` · **Residual**: none — the index now exists on the linked project, so `partnerships_cancel_requested_by_fkey` is no longer reported as unindexed by the advisor.
-
----
-
-## Phase 22 — Docs & dead-code hygiene (🟢 LOW; all open)
-
-### 22.1 Correct the feature docs (🟢 LOW)
-- **Sources**: the claims below are the source; the code is the truth.
-- **Files/claims**:
-  1. `docs/features/shared-drive/doc.md:28,241,348` — `/api/v1/media/download-signed` → `/api/v1/media/file`.
-  2. `docs/features/bucket-list/doc.md:28` — "There is no `updated_at` column" contradicts the table and lines 85/209/212; delete the sentence and describe the trigger.
-  3. `docs/app/architecture/doc.md:73` — "eleven providers"; `main.dart:130-146` creates ten.
-  4. `docs/app/architecture/doc.md:524` — `UpdateService` is "desktop only"; it runs on every non-web platform.
-  5. `docs/features/profile-settings/doc.md:129,283` — `debugWipeData()` lives on `UserRepository`; `ProfileState` exposes `wipeAppData()`.
-  6. `docs/features/profile-settings/doc.md:186` — `app_version` is marked "NO" cleared on logout; `StorageService.clearAll()` clears it.
-- **Fix**: update each claim to the current code/schema; do not keep history.
-- **Acceptance**: a grep finds no `download-signed`, no "no `updated_at`", no "eleven providers", no "desktop only", no `ProfileState.debugWipeData`, and the app_version row says `YES`.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — updated `docs/features/bucket-list/doc.md:28` to describe the `set_public_bucket_items_updated_at` trigger (`util_set_updated_at()`) and `docs/app/architecture/doc.md:73,524` to ten providers and all non-web platforms; `shared-drive/doc.md` (`/api/v1/media/file`) and `profile-settings/doc.md` (`UserRepository.debugWipeData()`, `ProfileState.wipeAppData()`, no `app_version` row) were already clean · **Verification**: `rg -n "download-signed|no .?updated_at|eleven providers|desktop only|ProfileState\.debugWipeData" docs/features/ docs/app/` returned 0 matches · **Residual**: `docs/audits/data-retention.md:134` still mentions `ProfileState.debugWipeData()` (out of 22.1 scope).
-
-### 22.2 Correct the backend/Supabase docs (🟢 LOW)
-- **Files/claims**:
-  1. `docs/backend/infrastructure/doc.md:19,84` — "138 modules"; `all_imports.js` has 133 getters.
-  2. `docs/supabase/schema/doc.md:9,16` — `supabase/schema/remote_schema.sql` does not exist; the declarative schema is the source of truth.
-  3. `docs/backend/api-architecture/doc.md:164` — `/app-version` reads `data/versions/app_version.json`, not an `app_versions` table.
-  4. `docs/backend/error-handling/doc.md:68` — `ErrorHandler._toAppError` does not exist; the method is `toAppError`.
-- **Fix**: correct the counts, remove the dead path, describe the JSON file, fix the method name.
-- **Acceptance**: `Test-Path supabase\schema\remote_schema.sql` is false and the doc no longer claims it; the getter count matches `Select-String -Pattern "^\\s*get \\w+\\(\\)"`; the version doc matches `versionService.js`.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — updated `docs/backend/infrastructure/doc.md:19,91` (`134 modules`), `docs/supabase/schema/doc.md:9,15` (removed `supabase/schema/remote_schema.sql`), `docs/backend/api-architecture/doc.md:164` (`data/versions/app_version.json` via `versionService.js`), and `docs/backend/error-handling/doc.md:68` (`ErrorHandler.toAppError`) · **Verification**: `(Select-String -Path Backend/all_imports.js -Pattern "^\s*get \w+\(\)").Count` = `134`, `Test-Path supabase\schema\remote_schema.sql` = `False`, `rg -n "138 modules|remote_schema\.sql|app_versions|_toAppError" docs/backend/ docs/supabase/` returned 0 matches · **Residual**: none.
-
-### 22.3 Delete the dead notification helper (🟢 LOW)
-- `Backend/features/notifications/notification.service.js:155-163,168` - `getReceiverInstallationId` has no callers. Delete the helper and its export. (The 40 never-destructured `all_imports.js` getters are generated by `tool/generate_imports.js`; regeneration re-adds them, so they are deliberately not tracked as dead code.) Acceptance: grep returns no references; Jest/eslint green.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — deleted `getReceiverInstallationId` and its export from `Backend/features/notifications/notification.service.js` · **Verification**: `rg -n "getReceiverInstallationId" Backend/features Backend/test Flutter supabase docs` returned 0 matches; `npm --prefix Backend test` (27/27 suites, 305/305 tests pass) and `npm --prefix Backend run lint` (0 errors, 4 pre-existing warnings) · **Residual**: none.
-
-### 22.4 Delete the unused `LanguageHelper` statics (🟢 LOW)
-- `Flutter/lib/core/localization/language_helper.dart:91-102` — `languageForLocale` and `LanguageHelper.isSupported` have no callers in `Flutter/lib`, `Flutter/test`, `Backend`, `supabase`, `docs` or scripts. Delete both. Acceptance: repo-wide grep returns only the generated `AppLocalizations.isSupported`; analyze clean.
-- **Status: ✅ FIXED (2026-11-25, on `dev`)** — deleted `languageForLocale` and `LanguageHelper.isSupported` from `Flutter/lib/core/localization/language_helper.dart` · **Verification**: `rg -n "languageForLocale|isSupported" Flutter/lib Flutter/test Backend supabase docs scripts` returned only `Flutter/lib/core/localization/generated/app_localizations.dart:2044` (`AppLocalizations.isSupported`); `flutter analyze` clean (`No issues found!`) · **Residual**: none.
-
----
-
-## Phase 23 — Regression tests (🟠 HIGH / 🟡 MEDIUM)
-
-The current suites are green with every finding present; these tests are the safety net, not a re-test of the acceptance lines above. Archived item IDs (17.x, 18.x, 19.x, 20.x) resolve in `docs/fixing-phase-log.md` § Item index.
-
-- [x] **23.1 Media auth + resolver tests (🟠 HIGH)** — cover 17.1/17.2: post-bind header map contains `Authorization` + `X-Device-Fingerprint`; `/media/file` resolves `drive_items.name`, `metadata.thumbnail` and `user_profiles.profile_pic_url`; unrelated-user and crafted-key requests are rejected. Acceptance: the tests fail if the fingerprint header or either resolver branch is removed.
-  - **Status: ✅ ALREADY CLEAN (verified 2026-11-25)** — `Flutter/test/protected_network_image_test.dart:26-42` already asserts `Authorization` and `X-Device-Fingerprint` headers on `ProtectedNetworkImage`, and `Backend/test/media.routes.test.js:90-250` already covers `drive_items.name`, `metadata->>thumbnail`, `user_profiles.profile_pic_url`, unrelated-user rejection, and crafted/legacy key rejection · **Verification**: `npm --prefix Backend test -- test/media.routes.test.js` (1/1 suite, 27/27 tests pass) and `flutter test test/protected_network_image_test.dart` (1/1 test passes).
-- [x] **23.2 Retention pagination + five-table prune tests (🟠 HIGH)** — cover 18.1/18.2: 1001-row pagination keeps the last referenced object; the sweep issues DELETEs for `logs_auth_failures`, `logs_notifications`, `logs_api_access`, `logs_api_errors`, `logs_security_events`. Acceptance: both tests are falsifiable (removing a page or a table breaks them).
-  - **Status: ✅ ALREADY CLEAN (verified 2026-11-25)** — `Backend/test/retentionJob.test.js` already tests 1001-row pagination for `drive_items` (`lines 322-341`) and `user_profiles` (`lines 347-365`) keeping the 1001st referenced object, and `runs all retention jobs on startup` (`lines 155-159`) asserts all five log tables (`logs_security_events`, `logs_api_access`, `logs_api_errors`, `logs_auth_failures`, `logs_notifications`) · **Verification**: `npm --prefix Backend test -- test/retentionJob.test.js` (1/1 suite, 10/10 tests pass).
-- [x] **23.3 Cross-account logout state test (🟡 MEDIUM)** — cover 19.3/19.4/19.5: A's partnership cache, sent/received invitations, `PartnerState` and an in-flight `ProfileState.loadProfile()` are all empty after logout and before B's first frame. Acceptance: the test fails if any teardown line is removed.
-  - **Status: ✅ ALREADY CLEAN (verified 2026-11-25)** — `Flutter/test/logout_unconditional_test.dart` (`sentInvitations`/`receivedInvitations`/`PartnerState`), `Flutter/test/logout_state_reset_test.dart` (partnership cache + cross-account reset), and `Flutter/test/profile_state_test.dart` (`clear invalidates an in-flight load so it cannot resurrect the profile`) already cover all assertions · **Verification**: `flutter test test/logout_unconditional_test.dart test/logout_state_reset_test.dart test/profile_state_test.dart` (16/16 tests pass).
-- [x] **23.4 SQL trigger invariant tests (🟡 MEDIUM)** — cover 21.1/21.2/21.3: auth-user delete cascades; direct PATCH within the cooldown or with an out-of-range expiry raises `42501`; a second direct accept raises `42501`. 21.2's cooldown and expiry assertions exist as D1b/E7 in `supabase/test/rls_partnership_cancellation.test.sql`; the cascade and second-accept assertions remain. Acceptance: each assertion fails against the current SQL and passes after the fix.
-  - **Status: ✅ FIXED (2026-11-25, on `dev`)** — `D1b` (cooldown), `E7` (expiry), and `I1b` (second direct accept raising `42501`, `rls_partnership_cancellation.test.sql:1396`) were already present; added `M1` (`auth.users` delete cascade to `public.users`) to `supabase/test/rls_partnership_cancellation.test.sql:1648-1660` · **Verification**: SQL test file not executed against a live Postgres/Supabase instance in this environment · **Residual**: run `supabase/test/rls_partnership_cancellation.test.sql` against a local/remote Supabase DB to verify `M1` execution.
-
 ## Phase 24 — First-use correctness & security (🟠 HIGH / 🟡 MEDIUM)
 
 ### 24.1 Make active game-question creation atomic (🟡 MEDIUM)
@@ -181,16 +56,6 @@ The current suites are green with every finding present; these tests are the saf
 
 ---
 
-## Finding-to-section index
-
-| Audit area | Todo sections |
-| :--- | :--- |
-| Schema, RLS & DB invariants | 21.1–21.12 |
-| Docs & dead-code hygiene | 22.1–22.4 |
-| Regression tests | 23.1–23.4 |
-
----
-
 ## Known non-bugs & deliberate decisions
 
 - **Shared media rate-limit bucket (40/user/min for reads, uploads and deletes)** — deliberate, recorded in `docs/audits/media-delete-audit.md` §F-5. Do not "fix" without a product decision.
@@ -208,4 +73,4 @@ The current suites are green with every finding present; these tests are the saf
 
 ## Not confirmed (do not track as fixes until reproduced)
 
-S6 mood recent chips · S7 first drive tile highlight · S9 302 forwards `Authorization` to R2 · S10 legacy token without `session_id` · S11 cancellation cleanup race · S12 timeout double-response · S13 idempotency caches errors · S14 custom rate-limit window · S15 logger stdout before sanitization · S16 pre-relationship moods · S17 crafted `drive_items` key (closed by 17.2) · S18 missing `seed.sql` (tracked as 21.10) · S19 hosted SQL test privileges · S20 `game_questions` FKs without `ON DELETE`
+S6 mood recent chips · S7 first drive tile highlight · S9 302 forwards `Authorization` to R2 · S10 legacy token without `session_id` · S11 cancellation cleanup race · S12 timeout double-response · S13 idempotency caches errors · S14 custom rate-limit window · S15 logger stdout before sanitization · S16 pre-relationship moods · S17 crafted `drive_items` key (closed by 17.2) · S18 missing `seed.sql` (archived as 21.10, see `docs/fixing-phase-log.md` § Item index) · S19 hosted SQL test privileges · S20 `game_questions` FKs without `ON DELETE`

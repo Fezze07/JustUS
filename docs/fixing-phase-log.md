@@ -32,6 +32,9 @@
 | 18 | Retention, failures & resource safety | 18.1–18.10 | All fixed. Paginated orphan/multipart sweeps, five-table log pruning, unref'ed map sweeps, `DB-READ-001` propagation, body-parser 4xx mapping, the Express 5 query write-back, fail-closed CORS, the capability-denial code, and the dead `R2_ACCOUNT_ID` config |
 | 19 | Auth, session & account state | 19.1–19.12 | All fixed. 19.11 closed as *already clean* (the hint was already correct). Fail-closed session binding, lockout expiry extension, account-switch cache and state teardown, generation-gated profile loads, transient auth errors separated from wrong credentials, and server-side notification-toggle enforcement |
 | 20 | Drive, bucket & UI correctness | 20.1–20.11 | All fixed. 20.4 closed as *already clean* (20.1 had removed the `firstWhere`). State-owned optimistic toggles, reaction upserts, working drive filters, localized bucket/mood dates, a working game reminder and paged history, and a reaction-driven sync cursor |
+| 21 | Schema, RLS & DB invariants | 21.1–21.12 | All fixed. `users.auth_id` cascade FK, cancellation trigger cooldown/expiry and single-partnership guards, signup username metadata, pgdelta manifest generator, retention and cancellation-FK indexes, dead catalog tables dropped, auth redirect allowlist and iOS scheme, seed disabled, and Supabase docs fixed |
+| 22 | Docs & dead-code hygiene | 22.1–22.4 | All fixed. Feature, backend and Supabase docs aligned with code; dead `getReceiverInstallationId` and `LanguageHelper` statics deleted |
+| 23 | Regression tests | 23.1–23.4 | All fixed. 23.1–23.3 closed as *already clean* (existing Flutter and Jest suites already covered them). Added `M1` auth-user delete cascade SQL assertion |
 
 ---
 
@@ -233,6 +236,26 @@
 | 20.9 | Avatar picker offers audio and documents | Fixed (`imagesOnly` flag on the picker sheet) | 2026-11-18 |
 | 20.10 | App version cached forever after first install | Fixed (cache and storage key removed) | 2026-11-18 |
 | 20.11 | Reaction changes bypass the drive sync cursor | Fixed (reaction trigger touches `drive_items.updated_at`) | 2026-11-18 |
+| 21.1 | Add the documented `users.auth_id` FK | Fixed (`users_auth_id_fkey` `ON DELETE CASCADE`) | 2026-11-24 |
+| 21.2 | Enforce cooldown and expiry in the cancellation trigger | Fixed (24 h cooldown and 7 d bound in `partnership_guard_status`) | 2026-11-24 |
+| 21.3 | Enforce one accepted partnership in the trigger | Fixed (`EXISTS` single-partnership guard in `pending → accepted`) | 2026-11-25 |
+| 21.4 | Persist the chosen username on signup | Fixed (`raw_user_meta_data->>'username'` with email fallback) | 2026-11-25 |
+| 21.5 | Regenerate the pgdelta manifest | Fixed (`generate_pgdelta_manifest.js` + pre-commit hook) | 2026-11-25 |
+| 21.6 | Add retention indexes | Fixed (btree indexes on `request_nonces` and four log tables) | 2026-11-25 |
+| 21.7 | Drop dead catalog tables and drive-file metadata | Fixed (three catalog tables, `file_type_id` and `ft` join dropped) | 2026-11-25 |
+| 21.8 | Fix the auth redirect allow-list | Fixed (`justus://auth/callback` and server callbacks in `config.toml`) | 2026-11-25 |
+| 21.9 | Correct the Supabase docs contradictions | Fixed (docs clarification; no code change) | 2026-11-25 |
+| 21.10 | Resolve the missing seed file | Fixed (`[db.seed]` disabled in `supabase/config.toml`) | 2026-11-25 |
+| 21.11 | Register the `justus://` URL scheme on iOS | Fixed (`CFBundleURLTypes` with `justus` scheme in `Info.plist`) | 2026-11-25 |
+| 21.12 | Index the cancellation-requester foreign key | Fixed (`idx_partnerships_cancel_requested_by` btree index) | 2026-11-25 |
+| 22.1 | Correct the feature docs | Fixed (docs clarification; no code change) | 2026-11-25 |
+| 22.2 | Correct the backend/Supabase docs | Fixed (docs clarification; no code change) | 2026-11-25 |
+| 22.3 | Delete the dead notification helper | Fixed (`getReceiverInstallationId` and export deleted) | 2026-11-25 |
+| 22.4 | Delete the unused `LanguageHelper` statics | Fixed (`languageForLocale` and `LanguageHelper.isSupported` deleted) | 2026-11-25 |
+| 23.1 | Media auth + resolver tests | **Clean** — `ProtectedNetworkImage` and `/media/file` tests already present | 2026-11-25 |
+| 23.2 | Retention pagination + five-table prune tests | **Clean** — 1001-row pagination and five-table prune tests already present | 2026-11-25 |
+| 23.3 | Cross-account logout state test | **Clean** — logout cache, invitation and profile reset tests already present | 2026-11-25 |
+| 23.4 | SQL trigger invariant tests | Fixed (`M1` auth-user delete cascade assertion added) | 2026-11-25 |
 
 ---
 
