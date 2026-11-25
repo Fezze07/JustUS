@@ -161,7 +161,7 @@ The Flutter client uses a **hybrid architecture** by design:
 - Returns `{ status: "ok" }` health check.
 
 #### `GET /api/v1/app-version`
-- Queries `app_versions` table for latest app version info and minimum supported build number.
+- Reads `data/versions/app_version.json` (via `versionService.js`) for latest app version info and minimum supported build number.
 
 ---
 
