@@ -25,7 +25,7 @@ Source: [bucket_items.sql](file:///f:/JustUS/supabase/schemas/public/tables/buck
 | `created_at` | `timestamp with time zone` | YES | Set at INSERT by Supabase default |
 | `partnership_id` | `integer` | YES | FK → `partnerships.id` |
 
-There is no `updated_at` column. Toggle operations only update `done`; `created_at` remains unchanged. This has caching implications (§7.2).
+`updated_at` is maintained automatically on every update by the `set_public_bucket_items_updated_at` trigger (`util_set_updated_at()`).
 
 There is no `user_id` column. Items are partnership-scoped, not user-scoped. The owning user is **not stored** in the database.
 

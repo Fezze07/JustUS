@@ -70,7 +70,7 @@ MultiProvider(
 )
 ```
 
-All eleven providers are created **eagerly at startup**, regardless of which screen/tab the user will reach. Each feature state immediately builds its repositories (defaults -> own `ApiService`/`http.Client`).
+All ten providers are created **eagerly at startup**, regardless of which screen/tab the user will reach. Each feature state immediately builds its repositories (defaults -> own `ApiService`/`http.Client`).
 
 ---
 
@@ -521,7 +521,7 @@ A source-scan test must **fail loudly rather than pass vacuously**: if it resolv
 | `NotificationService` foreground + background | IMPLEMENTED |
 | `LanguageProvider` persistence + first-frame | IMPLEMENTED |
 | `ThemeProvider` persistence | IMPLEMENTED (restored pre-`runApp`; no selection UI yet) |
-| `UpdateService` version check | IMPLEMENTED (desktop only) |
+| `UpdateService` version check | IMPLEMENTED (all non-web platforms) |
 | `ErrorHandler` global + context | IMPLEMENTED |
 | Lazy tab widget construction | IMPLEMENTED |
 | Lazy tab state loading | IMPLEMENTED (via TabScreenMixin) |

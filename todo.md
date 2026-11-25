@@ -112,6 +112,7 @@
   6. `docs/features/profile-settings/doc.md:186` — `app_version` is marked "NO" cleared on logout; `StorageService.clearAll()` clears it.
 - **Fix**: update each claim to the current code/schema; do not keep history.
 - **Acceptance**: a grep finds no `download-signed`, no "no `updated_at`", no "eleven providers", no "desktop only", no `ProfileState.debugWipeData`, and the app_version row says `YES`.
+- **Status: ✅ FIXED (2026-11-25, on `dev`)** — updated `docs/features/bucket-list/doc.md:28` to describe the `set_public_bucket_items_updated_at` trigger (`util_set_updated_at()`) and `docs/app/architecture/doc.md:73,524` to ten providers and all non-web platforms; `shared-drive/doc.md` (`/api/v1/media/file`) and `profile-settings/doc.md` (`UserRepository.debugWipeData()`, `ProfileState.wipeAppData()`, no `app_version` row) were already clean · **Verification**: `rg -n "download-signed|no .?updated_at|eleven providers|desktop only|ProfileState\.debugWipeData" docs/features/ docs/app/` returned 0 matches · **Residual**: `docs/audits/data-retention.md:134` still mentions `ProfileState.debugWipeData()` (out of 22.1 scope).
 
 ### 22.2 Correct the backend/Supabase docs (🟢 LOW)
 - **Files/claims**:
