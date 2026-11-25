@@ -175,7 +175,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Tables Touched:** `partnerships` (READ), `user_profiles` (READ).
 * **Execution Condition:** Rows where the caller is `user_id_1` or `user_id_2`, `status = 'pending'`, and `created_at >= now() - interval '30 days'`. Returns 0 rows otherwise. Expired pending rows are permanently removed by the backend retention job (`retentionJob.sweepExpiredInvitations`, startup + every 6 hours).
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart), `getPendingInvitations`).
-* **Failure Behavior:** Never returns unrelated users; the only identity fields exposed are `display_name` and `email` of the pending counterpart.
+* **Failure Behavior:** Never returns unrelated users; the only identity field exposed is `partner_display_name` of the pending counterpart.
 
 ---
 
@@ -295,7 +295,7 @@ This document provides a technical specification and analysis of all **Supabase-
    - The application client never generates partnership codes. Code generation happens entirely inside PostgreSQL via MD5 random substring loop on user sign-up.
 
 2. **Cascade Deletions:**
-   - Deleting a user in `public.users` cascades to `user_profiles`, `user_roles`, `user_devices`, `partnerships`, `moods`, `favorites`, `game_answers`, `drive_item_reactions`, and `logs_auth_failures`.
+   - Deleting a user in `public.users` cascades to `user_profiles`, `user_roles`, `user_devices`, `partnerships`, `moods`, `favorites`, `game_answers`, `drive_item_reactions`, and `logs_notifications` (`logs_auth_failures` uses `ON DELETE SET NULL`).
 
 3. **View Security Invoker Policy Resolution:**
    - Views `v_active_partnership` and `v_drive_dashboard` enforce `security_invoker = true`. If a policy on `partnerships` or `drive_items` changes, view output immediately reflects the modified RLS restriction without rebuilding the view definition.

@@ -132,7 +132,7 @@ Row Level Security is **ENABLED** on all 23 tables in the `public` schema.
 +-------------------------------------------------------+
 |                Supabase Data API / RLS                |
 |  - Validates auth.uid() & user_current_id()          |
-|  - Blocks auth_sessions, request_nonces, logs_*       |
+|  - Blocks session_bindings, request_nonces, logs_*    |
 |  - Evaluates table policies & security invoker views  |
 +-------------------------------------------------------+
 
@@ -155,7 +155,7 @@ Row Level Security is **ENABLED** on all 23 tables in the `public` schema.
    - All Flutter direct requests pass through Supabase PostgREST with user JWT context, evaluating RLS policies.
 
 2. **Backend Server Layer:**
-   - Operates with `service_role` key to manage `auth_sessions`, `request_nonces`, API audit logs (`logs_api_access`, `logs_api_errors`, `logs_security_events`, `logs_auth_failures`), and execute SECURITY DEFINER procedures (`debug_wipe_couple_data`).
+   - Operates with `service_role` key to manage `session_bindings`, `request_nonces`, API audit logs (`logs_api_access`, `logs_api_errors`, `logs_security_events`, `logs_auth_failures`), and execute SECURITY DEFINER procedures (`debug_wipe_couple_data`).
    - Bypasses RLS by design for platform security middleware.
 
 ---
@@ -163,7 +163,7 @@ Row Level Security is **ENABLED** on all 23 tables in the `public` schema.
 ## Implementation Status
 
 - **RLS Activation on All Tables:** **100% IMPLEMENTED** (23/23 tables)
-- **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
+- **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`session_bindings`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`partnership_is_member`, `partnership_is_partner`, and `private.is_related_user` all require `status = 'accepted'`)
 - **Client-Uncreatable Partnerships:** **IMPLEMENTED** (`partnerships` has no INSERT policy and no `anon` INSERT grant — rows are created only by the backend through `partnership_request`; `partnership_accept` accepts only when the caller is `user_id_2`, the `guard_public_partnerships_status` trigger rejects a `status` change by the sender and any change to `user_id_1` / `user_id_2`, and it only permits the cancellation transitions (member request `-010`, member revert `-011`, unchanged cancelled row `-012`), so a client can neither forge nor re-point an `accepted` partnership)
