@@ -89,11 +89,12 @@
 ### 21.10 Resolve the missing seed file (🟢 LOW)
 - `supabase/config.toml:67-72` — seeding is enabled with `sql_paths = ["./seed.sql"]`, but `supabase/seed.sql` does not exist. Add the seed file or disable the `[db.seed]` entry. Acceptance: a fresh `db reset` completes and the intended catalog rows exist, or seeding is explicitly disabled.
 
-### 21.11 Register the `justus://` URL scheme on iOS (🟡 MEDIUM)
+### 21.11 Register the `justus://` URL scheme on iOS (🟡 MEDIUM) ✅
 - **Files**: `Flutter/ios/Runner/Info.plist`, `Flutter/android/app/src/main/AndroidManifest.xml:32-45`.
 - **Defect**: Android declares the `justus://auth/callback` intent filter and the HTTPS App Link, but iOS has no `CFBundleURLTypes` entry for the `justus` scheme. `AuthState._emailRedirectTo` returns `justus://auth/callback` on iOS, so a confirmation or password-recovery link cannot open the app there and dead-ends in the browser.
 - **Fix**: add a `CFBundleURLTypes` entry with `CFBundleURLSchemes = ["justus"]` and verify the confirmation link opens the app.
 - **Acceptance**: a confirmation email opened on an iOS device launches JustUS through `justus://auth/callback`.
+- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `CFBundleURLTypes` (`CFBundleTypeRole = Editor`, `CFBundleURLName = $(PRODUCT_BUNDLE_IDENTIFIER)`, `CFBundleURLSchemes = ["justus"]`) to `Flutter/ios/Runner/Info.plist:25-36` · **Verification**: XML well-formedness verified via PowerShell `[xml](Get-Content Flutter/ios/Runner/Info.plist)`; on-device iOS launch not run (Windows host, no macOS/iOS device) · **Residual**: confirm `justus://auth/callback` opens the app on an iOS device/simulator.
 
 ---
 
