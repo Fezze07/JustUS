@@ -103,10 +103,10 @@ class _FakeAuthState extends AuthState {
   int? get partnershipId => 5;
 
   @override
-  Future<void> fetchSentInvitations() async {}
+  Future<void> fetchInvitations() async {}
 
   @override
-  Future<void> fetchReceivedInvitations() async {}
+  Future<void> fetchSentInvitations() async {}
 
   @override
   Future<void> refreshPartnershipFromRealtime() async {}

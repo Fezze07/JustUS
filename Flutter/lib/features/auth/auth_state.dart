@@ -586,13 +586,14 @@ class AuthState extends BaseState
     });
   }
 
-  /// Fetches pending outgoing (sent) partnership requests from Supabase.
-  Future<void> fetchSentInvitations() async {
+  /// Fetches all pending partnership invitations (sent and received) from
+  /// Supabase in a single RPC call, splitting the result into the two lists.
+  Future<void> fetchInvitations() async {
     await _fetchInvitations();
   }
 
-  /// Fetches pending incoming (received) partnership requests from Supabase.
-  Future<void> fetchReceivedInvitations() async {
+  /// Fetches pending outgoing (sent) partnership requests from Supabase.
+  Future<void> fetchSentInvitations() async {
     await _fetchInvitations();
   }
 
@@ -628,8 +629,7 @@ class AuthState extends BaseState
         throw result;
       }
       AnsiLogger.auth('RPC partnership_accept success', tag: 'AuthState');
-      await fetchSentInvitations();
-      await fetchReceivedInvitations();
+      await _fetchInvitations();
 
       AnsiLogger.auth('Fetching active partnership info...', tag: 'AuthState');
       final partnershipResult = await _partnershipRepo.getPartnership();
@@ -654,8 +654,7 @@ class AuthState extends BaseState
       if (result.isError) {
         throw result;
       }
-      await fetchSentInvitations();
-      await fetchReceivedInvitations();
+      await _fetchInvitations();
       setMessage(LanguageHelper.appLoc.partner_requestRejected);
     });
   }

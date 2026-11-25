@@ -30,8 +30,7 @@ class _PartnerScreenState extends State<PartnerScreen>
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(context.read<ProfileState>().loadProfile());
-      unawaited(context.read<AuthState>().fetchSentInvitations());
-      unawaited(context.read<AuthState>().fetchReceivedInvitations());
+      unawaited(context.read<AuthState>().fetchInvitations());
       unawaited(context.read<PartnerState>().fetchPartnership());
     });
   }
@@ -85,8 +84,7 @@ class _PartnerScreenState extends State<PartnerScreen>
 
                   return RefreshIndicator(
                     onRefresh: () async {
-                      await authState.fetchSentInvitations();
-                      await authState.fetchReceivedInvitations();
+                      await authState.fetchInvitations();
                       await partnerState.fetchPartnership();
                     },
                     color: context.palette.primary,
