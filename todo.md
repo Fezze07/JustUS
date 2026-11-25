@@ -3,9 +3,7 @@
 > **Purpose**: the live worklist for verified defects. Everything already closed is archived in [`docs/fixing-phase-log.md`](docs/fixing-phase-log.md) (→ Outcome by phase, → Item index, → Decisions of record).
 > **This file is tracked and committed with each fix.** Rules for working an item: `.agents/skills/fix-workflow/SKILL.md`.
 > **How to use**: tick `[ ]` → `[x]` as you complete an item. Each item lists the source doc(s), target `file:line`, the exact defect, the concrete fix and acceptance criteria.
-> **Audit source**: [`.agents/codebase-audit-2026-11-04.md`](.agents/codebase-audit-2026-11-04.md). Every item below was re-verified against the live tree on 2026-11-04 (branch `dev`); nothing here is copied from a doc without checking the code.
->
-> **Finding-ID prefixes**: `17.x` media delivery, `18.x` retention/backend safety, `21.x` schema/RLS/DB invariants, `22.x` docs/dead code, `23.x` regression tests.
+> **Finding-ID prefixes**: `17.x` media delivery, `18.x` retention/backend safety, `21.x` schema/RLS/DB invariants, `22.x` docs/dead code, `23.x` regression tests, `24.x` first-use correctness/security, `25.x` validation and CI.
 >
 > **Priority tags**:
 > - 🔴 `CRITICAL` — breaks core flows or leaks data for real users
@@ -13,16 +11,17 @@
 > - 🟡 `MEDIUM` — degraded UX / correctness under specific conditions
 > - 🟢 `LOW` — cleanup, dead code, docs, test coverage
 
-**Baseline re-verified 2026-11-03** (`flutter test` → **386 pass** in `Flutter/test` · `flutter analyze` → clean · `npx jest --runInBand` in `Backend` → **258 pass / 22 suites** · `npm run lint` in `Backend` → 0 errors, 3 pre-existing warnings). SQL tests were not run locally (no `psql`/`DATABASE_URL`); live Supabase state is marked `Unverified — needs linked DB query`.
+**Latest audit baseline (2026-11-24, branch `dev`)**: Flutter analysis clean and **439 tests passed**; `Backend/npm test` **305 passed / 27 suites**, lint 0 errors / 4 warnings; backend syntax and circular-dependency checks passed; duplication scan exited 0 (with reported clones). `npm run validate` could not start in this Windows PowerShell environment because `bash` is unavailable. SQL scripts were not run locally (no `bash` or `psql`); read-only checks against the linked Supabase project are documented in the audit. The Android debug build did not complete with the installed JDK 26; a build on the CI's JDK 21 and a signed release build remain unverified.
 
 ---
 
 ## Phase 0 — Ground truth & safety net
 
 - [ ] **0.1 Re-run the baseline before touching anything**
-  - Commands: `cd Flutter && flutter analyze && flutter test`; `cd Backend && npx jest --runInBand && npm run lint`.
-  - Expected today: 386 Flutter pass, analyze clean, 258 Jest pass / 22 suites, 0 lint errors.
-  - Acceptance: the numbers match this header; any drift is recorded before the first fix.
+  - Commands: `cd Flutter && flutter analyze && flutter test`; `cd Backend && npm test && npm run check && npm run madge:circular`; root `npm run scan:duplicates`.
+  - Latest observed: 439 Flutter tests pass and analysis is clean; 305 backend tests / 27 suites pass, lint has 0 errors / 4 warnings; syntax, circular-dependency and duplication commands exit 0.
+  - `npm run validate` currently stops before checks on this Windows host because it invokes `bash`; SQL tests were not run locally.
+  - Acceptance: the baseline is reproducible in the chosen CI environment, including SQL tests, and any runner limitations are resolved or documented.
 
 - [ ] **0.2 Confirm the migration/apply path before any SQL item**
   - `supabase/schemas/**` is the source of truth; there are no tracked migrations. Applying a schema change means `npx supabase@3.3.0 db query --remote --yes --file <script>.sql` (fix-workflow §1.9).
@@ -97,6 +96,14 @@
 - **Acceptance**: a confirmation email opened on an iOS device launches JustUS through `justus://auth/callback`.
 - **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `CFBundleURLTypes` (`CFBundleTypeRole = Editor`, `CFBundleURLName = $(PRODUCT_BUNDLE_IDENTIFIER)`, `CFBundleURLSchemes = ["justus"]`) to `Flutter/ios/Runner/Info.plist:25-36` · **Verification**: XML well-formedness verified via PowerShell `[xml](Get-Content Flutter/ios/Runner/Info.plist)`; on-device iOS launch not run (Windows host, no macOS/iOS device) · **Residual**: confirm `justus://auth/callback` opens the app on an iOS device/simulator.
 
+### 21.12 Index the cancellation-requester foreign key (🟢 LOW) ✅
+- **Sources**: Supabase performance advisor (linked project, 2026-11-24).
+- **Files**: `supabase/schemas/public/tables/partnerships.sql:16,27`.
+- **Defect**: `partnerships_cancel_requested_by_fkey` references `users(id)` but the table only declares the `user_id_2` index. The live advisor reports the FK as unindexed; deleting a user can scan all partnership rows as the table grows.
+- **Fix**: add a btree index on `public.partnerships(cancel_requested_by)` in the declarative schema and apply it to the linked project.
+- **Acceptance**: the remote index exists and the Supabase performance advisor no longer reports `partnerships_cancel_requested_by_fkey` as unindexed.
+- **Status: ✅ FIXED (2026-11-25, on `dev`)** — added `CREATE INDEX idx_partnerships_cancel_requested_by ON public.partnerships USING btree (cancel_requested_by)` at `supabase/schemas/public/tables/partnerships.sql:28`, beside the existing `idx_partnerships_user2_id` index, because the `partnerships_cancel_requested_by_fkey` FK (`ON DELETE CASCADE`) was unindexed and deleting a user scanned the whole table · **Verification**: `npx supabase@3.0.0 db query --remote --yes --file` applied the index to the linked project; `pg_indexes` on `public.partnerships` returns `idx_partnerships_cancel_requested_by` as a btree on `cancel_requested_by` · **Residual**: none — the index now exists on the linked project, so `partnerships_cancel_requested_by_fkey` is no longer reported as unindexed by the advisor.
+
 ---
 
 ## Phase 22 — Docs & dead-code hygiene (🟢 LOW; all open)
@@ -147,27 +154,40 @@ The current suites are green with every finding present; these tests are the saf
 - [x] **23.4 SQL trigger invariant tests (🟡 MEDIUM)** — cover 21.1/21.2/21.3: auth-user delete cascades; direct PATCH within the cooldown or with an out-of-range expiry raises `42501`; a second direct accept raises `42501`. 21.2's cooldown and expiry assertions exist as D1b/E7 in `supabase/test/rls_partnership_cancellation.test.sql`; the cascade and second-accept assertions remain. Acceptance: each assertion fails against the current SQL and passes after the fix.
   - **Status: ✅ FIXED (2026-11-25, on `dev`)** — `D1b` (cooldown), `E7` (expiry), and `I1b` (second direct accept raising `42501`, `rls_partnership_cancellation.test.sql:1396`) were already present; added `M1` (`auth.users` delete cascade to `public.users`) to `supabase/test/rls_partnership_cancellation.test.sql:1648-1660` · **Verification**: SQL test file not executed against a live Postgres/Supabase instance in this environment · **Residual**: run `supabase/test/rls_partnership_cancellation.test.sql` against a local/remote Supabase DB to verify `M1` execution.
 
+## Phase 24 — First-use correctness & security (🟠 HIGH / 🟡 MEDIUM)
+
+### 24.1 Make active game-question creation atomic (🟡 MEDIUM)
+- **Sources**: no doc — current-code review.
+- **Files**: `Flutter/lib/features/games/game_repository.dart:87-91,118-123,186-191`, `Flutter/lib/features/games/game_state.dart:241-243`, `Flutter/lib/features/games/screens/game_screen.dart:345`, `supabase/schemas/public/tables/game_questions.sql:9-12`.
+- **Defect**: each device checks for an active question and then inserts in separate requests; `_isFetchingQuestion` only serializes one `GameState` instance. When both partners press “try again” together, both can observe no active row and insert different pending questions. The table has no uniqueness constraint for one active question per partnership, and the reader returns only the newest row; before Realtime converges the clients (or while one is offline), an answer to the other row can become detached from the visible game.
+- **Fix**: move “return the active question or create one” into one database transaction/RPC, with a partnership-level lock or equivalent uniqueness guarantee, and return the winning row to both callers.
+- **Unverified — needs** two authenticated staging clients; no live concurrent reproduction was run.
+- **Acceptance**: a concurrency test starts two create requests for the same partnership behind a barrier; both receive the same question ID and exactly one active question row exists.
+
+### 24.2 Fail closed when Android release signing is missing (🟠 HIGH)
+- **Sources**: `README.md:177` documents APK distribution and in-app updates.
+- **Files**: `Flutter/android/app/build.gradle.kts:11-12,53-57`, `.gitignore:26`.
+- **Defect**: on a clean checkout without the ignored `key.properties`, `release` silently uses the debug signing config. APKs built on different machines may have different debug certificates, so a real couple cannot install the next release over the existing app; debug signing is also not a production release identity.
+- **Fix**: make release builds fail unless a protected production keystore is explicitly configured; never silently substitute the debug key.
+- **Acceptance**: a release build without signing configuration fails with a clear message; two consecutive configured releases report the same expected certificate and Android installs the second as an update to the first.
+
+### 24.3 Keep partnership routing state consistent (🟡 MEDIUM)
+- **Sources**: no doc — current-code review.
+- **Files**: `Flutter/lib/features/auth/auth_state.dart:351-363,670-683`, `Flutter/lib/shared/utils/auth/auth_navigation_utils.dart:29-43`, `Flutter/lib/features/partnership/partner_state.dart:92-105`, `Flutter/lib/features/home/screens/main_shell.dart:130-147`.
+- **Defect**: if the partnership read in `AuthState.login()` fails, it is swallowed and login still succeeds with `AuthState.hasPartner == false`. The route helper performs another read and can select `MainShell` using `PartnerState.partner != null`, but `MainShell` checks only `AuthState.hasPartner` and redirects back to `PartnerScreen`. `PartnerState._applyPartnership()` updates its own state and storage without reconciling `AuthState`, so a transient failure followed by a successful retry can leave the user unable to enter the shared app.
+- **Fix**: make post-auth partnership resolution update one canonical state before selecting a route; have the shell and route helper use the same resolved membership state. Do not treat a failed lookup as proof that the user has no partner.
+- **Unverified — needs** a focused Flutter regression test for the failure-then-success sequence; the state mismatch is verified statically, but no runtime reproduction was run.
+- **Acceptance**: a test makes the login-time partnership read fail and the route-time read succeed; routing settles in `MainShell`, `AuthState` and `PartnerState` agree on the partnership, and the shell does not redirect back to `PartnerScreen`.
+
 ---
 
 ## Finding-to-section index
 
 | Audit area | Todo sections |
 | :--- | :--- |
-| Schema, RLS & DB invariants | 21.1–21.10 |
+| Schema, RLS & DB invariants | 21.1–21.12 |
 | Docs & dead-code hygiene | 22.1–22.4 |
 | Regression tests | 23.1–23.4 |
-
----
-
-## Suggested fix order (batch plan)
-
-> Update it as findings are fixed; re-verify each item's "Acceptance" line before ticking. **Commit this file with the fix.**
-
-1. **Sprint A — regression safety net for retention**: 23.2 (covers archived 18.1/18.2). The sweep code is fixed; this test guards against a future unpaginated read or a dropped table.
-2. **Sprint B — media regression tests**: 23.1 (covers archived 17.1/17.2). The header and resolver are fixed; this test keeps both branches from regressing.
-3. **Sprint C — auth/session regression test**: 23.3 (covers archived 19.3/19.4/19.5). The teardown is fixed; this test keeps cross-account state from returning.
-4. **Sprint D — enforce DB invariants**: 21.1 ✅ → 21.2 ✅ → 21.3 ✅ → 21.4 ✅ → 21.5 ✅ (+23.4). Each SQL item must be applied to the linked project before it is ticked.
-5. **Ongoing — low-severity sweep**: Phase 22 plus the remaining 21.9–21.11 rows. Safe to batch by file, one commit per item.
 
 ---
 
@@ -180,6 +200,9 @@ The current suites are green with every finding present; these tests are the saf
 - **Homepage does not use `TabScreenMixin`; Profile is not wired to realtime** — documented in `docs/app/architecture/doc.md:460-464` and `docs/app/state-management/doc.md:140`.
 - **`debug_` table/function prefix** — deliberate (phase 10.17).
 - **Nonce fail-open, `session_is_live` fail-open, orphan-sweep read-failure skip** — accepted decisions #36, #37, #45 in `docs/fixing-phase-log.md`.
+- **Authenticated `SECURITY DEFINER` partnership read RPCs** — the live advisor flags `partnership_get_cancellation()` and `partnership_get_pending_invitations()`, but both functions filter through `user_current_id()` (`users.auth_id = auth.uid()`) and return only the caller's own partnership rows; anonymous execution is revoked. Do not revoke without preserving the client flow.
+- **Supabase RLS status** — a read-only live catalog query found RLS enabled on all 26 public tables. This does not replace per-policy behavior tests.
+- **Unused-index advisor notices** — not treated as removal tasks: low/zero usage on this project's current traffic is not proof an index is dead.
 
 ---
 

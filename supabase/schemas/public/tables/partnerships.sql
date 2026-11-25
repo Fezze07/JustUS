@@ -25,6 +25,7 @@ ALTER TABLE "public"."partnerships"
 ALTER SEQUENCE "public"."partnerships_id_seq" OWNED BY "public"."partnerships"."id";
 
 CREATE INDEX idx_partnerships_user2_id ON public.partnerships USING btree (user_id_2);
+CREATE INDEX idx_partnerships_cancel_requested_by ON public.partnerships USING btree (cancel_requested_by);
 
 CREATE TRIGGER set_public_partnerships_updated_at
   BEFORE UPDATE ON public.partnerships
