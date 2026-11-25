@@ -74,6 +74,11 @@ if ! (cd "$ROOT_DIR/Backend" && run node tool/generate_imports.js); then
   err "Backend import generation failed."
   exit 1
 fi
+log "Generating pgdelta manifest..."
+if ! (cd "$ROOT_DIR" && run node scripts/generate_pgdelta_manifest.js); then
+  err "pgdelta manifest generation failed."
+  exit 1
+fi
 
 log "------------------------------------------------"
 log "Starting analysis, tests and duplication check in parallel..."

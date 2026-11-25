@@ -92,13 +92,14 @@ The commit re-runs all of this anyway (§6) — so use this section to get a fas
 
 ## 6. Commit rules
 
-`.husky/pre-commit` is exactly:
+`.husky/pre-commit` runs the pgdelta manifest generator, then stages the manifest and the two barrel files:
 
-    git add Flutter/lib/all_imports.dart Backend/all_imports.js
+    node scripts/generate_pgdelta_manifest.js
+    git add supabase/schemas/.pgdelta-export.json Flutter/lib/all_imports.dart Backend/all_imports.js
 
 Two things to expect:
 
-- **The hook stages the two barrel files itself.** If your change added or removed anything `lib/` exports, the regenerated `all_imports.*` belongs in the same commit — check `git status` afterwards and include what the hook added.
+- **The hook regenerates and stages the pgdelta manifest, and stages the two barrel files.** If your change added or removed a `supabase/schemas/**/*.sql` file, the hook adds or removes its manifest entry; if it added or removed anything `lib/` exports, the regenerated `all_imports.*` belongs in the same commit — check `git status` afterwards and include what the hook added. Run `node scripts/generate_pgdelta_manifest.js --check` to see drift without writing.
 
 - Commit code + every updated doc + `todo.md` together.
 - Message: `type(scope): short summary`, ≤ 15 words, imperative, matching the existing log (`fix(nav): …`, `feat(auth): …`, `chore(dead-code): …`, `refactor(theme): …`).

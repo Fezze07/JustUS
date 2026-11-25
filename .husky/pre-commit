@@ -1,1 +1,2 @@
-git add Flutter/lib/all_imports.dart Backend/all_imports.js
+node scripts/generate_pgdelta_manifest.js
+git add supabase/schemas/.pgdelta-export.json Flutter/lib/all_imports.dart Backend/all_imports.js
