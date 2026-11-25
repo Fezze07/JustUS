@@ -45,6 +45,16 @@ BEGIN
       RAISE EXCEPTION 'API-VALIDATION-008: Only the invited partner can accept a partnership request'
         USING ERRCODE = '42501';
     END IF;
+    IF EXISTS (
+      SELECT 1
+      FROM public.partnerships p2
+      WHERE p2.id <> NEW.id
+        AND p2.status IN ('accepted', 'cancelled')
+        AND (p2.user_id_1 = v_caller_id OR p2.user_id_2 = v_caller_id)
+    ) THEN
+      RAISE EXCEPTION 'API-VALIDATION-012: A user may only be in one active partnership'
+        USING ERRCODE = '42501';
+    END IF;
     RETURN NEW;
   END IF;
 

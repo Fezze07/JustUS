@@ -68,7 +68,7 @@ This document provides a technical specification and analysis of all **Supabase-
 * **Inputs:** `p_partnership_id` (`integer`).
 * **Outputs:** `void`.
 * **Tables Touched:** `public.partnerships` (UPDATE).
-* **Execution Conditions:** Updates row where `id = p_partnership_id`, caller is member (`user_id_1` or `user_id_2`), `status = 'pending'`, and `created_at >= now() - interval '30 days'`. Sets `status = 'accepted'` and `anniversary_date = CURRENT_DATE`. An expired invitation (older than 30 days) is a no-op. When the row is pending and the caller is `user_id_2`, a different `accepted` or `cancelled` partnership of the caller raises `API-VALIDATION-012` with SQLSTATE `42501` and leaves the row pending.
+* **Execution Conditions:** Updates row where `id = p_partnership_id`, caller is member (`user_id_1` or `user_id_2`), `status = 'pending'`, and `created_at >= now() - interval '30 days'`. Sets `status = 'accepted'` and `anniversary_date = CURRENT_DATE`. An expired invitation (older than 30 days) is a no-op. When the row is pending and the caller is `user_id_2`, a different `accepted` or `cancelled` partnership of the caller raises `API-VALIDATION-012` with SQLSTATE `42501` and leaves the row pending. The `guard_public_partnerships_status` trigger applies the same check to a direct `UPDATE` of a pending row.
 * **Caller:** Flutter Frontend ([partnership_repository.dart](file:///f:/JustUS/Flutter/lib/features/partnership/partnership_repository.dart)).
 * **Side Effects:** Mutates partnership state to `'accepted'`.
 

@@ -22,7 +22,9 @@
 --   * a raw accepted -> cancelled PATCH respects the 24h decline cooldown and
 --     rejects expiries outside the next 7 days;
 --   * any other status change is rejected (`API-VALIDATION-012`);
---   * pending -> accepted is still recipient-only (`API-VALIDATION-008`);
+--   * pending -> accepted is still recipient-only (`API-VALIDATION-008`) and
+--     refuses a recipient who already holds another accepted/cancelled row
+--     (`API-VALIDATION-012`);
 --   * a partner decline records `cancel_declined_at`, while a requester
 --     restore, the service-role expiry path and every other update preserve
 --     it, so a client cannot clear or forge the cooldown;
@@ -1359,6 +1361,48 @@ BEGIN
     RAISE EXCEPTION 'I1 failed: the pending row was accepted despite existing partnership';
   END IF;
   DELETE FROM public.partnerships WHERE id = v_pid;
+END $$;
+
+-- I1b. two pending rows: the first direct accept succeeds, the second is
+-- rejected by the guard trigger (B.7).
+RESET ROLE;
+RESET request.jwt.claims;
+INSERT INTO public.partnerships (user_id_1, user_id_2, status) VALUES
+  (9101, 9107, 'pending'),
+  (9105, 9107, 'pending');
+DO $$
+DECLARE
+  v_first integer;
+  v_second integer;
+  v_state text;
+BEGIN
+  SELECT id INTO v_first FROM public.partnerships WHERE user_id_1 = 9101 AND user_id_2 = 9107;
+  SELECT id INTO v_second FROM public.partnerships WHERE user_id_1 = 9105 AND user_id_2 = 9107;
+
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims TO '{"sub":"00000000-0000-0000-0000-000000000107"}';
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships SET status = 'accepted' WHERE id = %s$q$, v_first));
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'I1b failed: the first direct accept gave %, expected success', v_state;
+  END IF;
+
+  v_state := pg_temp.rls_try(format($q$
+    UPDATE public.partnerships SET status = 'accepted' WHERE id = %s$q$, v_second));
+  RESET ROLE;
+  RESET request.jwt.claims;
+  IF v_state IS DISTINCT FROM '42501' THEN
+    RAISE EXCEPTION 'I1b failed: the second direct accept gave %, expected 42501', coalesce(v_state, 'no error');
+  END IF;
+  IF (SELECT status FROM public.partnerships WHERE id = v_first) IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'I1b failed: the first direct accept did not stick';
+  END IF;
+  IF (SELECT status FROM public.partnerships WHERE id = v_second) IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'I1b failed: the second row was accepted despite the active partnership';
+  END IF;
+
+  DELETE FROM public.partnerships WHERE id IN (v_first, v_second);
 END $$;
 
 -- I2. a cancelled sender cannot start a new pairing (B.8).
