@@ -285,10 +285,10 @@ App entry navigation routing is governed by `SplashScreen` ([splash_screen.dart:
 1. App launches and calls `AuthState.init()` (capped at 8 s; a timeout or initialization error is logged only and does not change the destination).
 2. `AuthNavigationUtils.determinePostAuthRouteName` checks `AuthState.isLoggedIn`:
    - `false` -> `AppRoutes.login`.
-   - `true` -> Execute `PartnerState.fetchPartnership()`.
-3. Checks `PartnerState.partner`:
-   - `partner != null` (Accepted partnership exists) -> `AppRoutes.mainShell`.
-   - `partner == null` (No active partnership) -> `AppRoutes.partner`.
+   - `true` -> Execute `PartnerState.fetchPartnership()` and reconcile `AuthState.syncPartnership(partnerState.partnershipInfo)` (ignoring `null` on failed lookups).
+3. Checks `AuthState.hasPartner`:
+   - `true` (Accepted partnership exists) -> `AppRoutes.mainShell`.
+   - `false` (No active partnership) -> `AppRoutes.partner`.
 4. `SplashScreen` calls `Navigator.pushReplacementNamed` with the returned name.
 
 ---

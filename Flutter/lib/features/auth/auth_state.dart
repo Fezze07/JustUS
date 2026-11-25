@@ -358,15 +358,7 @@ class AuthState extends BaseState
       // Step 5: Fetch partner info via v_active_partnership (single source of truth)
       try {
         final partnershipResult = await _partnershipRepo.getPartnership();
-        final partnership = partnershipResult.valueOrNull;
-
-        if (partnership?.partner != null) {
-          await setPartner(
-            partnerId: partnership!.partner!.id,
-            displayName: partnership.partner!.username,
-            partnershipId: partnership.partnershipId,
-          );
-        }
+        await syncPartnership(partnershipResult.valueOrNull);
       } catch (_) {}
     });
   }
@@ -689,29 +681,32 @@ class AuthState extends BaseState
     notifyListeners();
   }
 
+  /// Reconciles [AuthState] with a fetched [PartnershipResponse]. A null
+  /// response (e.g. a failed lookup) is ignored so transient errors never
+  /// clear an existing partner.
+  Future<void> syncPartnership(PartnershipResponse? partnership) async {
+    if (partnership == null) return;
+
+    final partner = partnership.partner;
+    if (partner != null && partnership.status == 'accepted') {
+      await setPartner(
+        partnerId: partner.id,
+        displayName: partner.username,
+        partnershipId: partnership.partnershipId,
+      );
+    } else {
+      _partnerId = null;
+      _partnershipId = null;
+      _partnerDisplayName = null;
+      await StorageService.clearPartner();
+      notifyListeners();
+    }
+  }
+
   Future<void> refreshPartnershipFromRealtime() async {
     try {
       final partnershipResult = await _partnershipRepo.getPartnership();
-      final partnership = partnershipResult.valueOrNull;
-      if (partnership == null) return;
-
-      final partner = partnership.partner;
-      if (partner != null && partnership.status == 'accepted') {
-        _partnerId = partner.id;
-        _partnershipId = partnership.partnershipId;
-        _partnerDisplayName = partner.username;
-        await StorageService.savePartner(partner.id, partner.username);
-        if (partnership.partnershipId != null) {
-          await StorageService.savePartnershipId(partnership.partnershipId!);
-        }
-      } else {
-        _partnerId = null;
-        _partnershipId = null;
-        _partnerDisplayName = null;
-        await StorageService.clearPartner();
-      }
-
-      notifyListeners();
+      await syncPartnership(partnershipResult.valueOrNull);
     } catch (e) {
       AnsiLogger.error('realtime partnership refresh error: $e',
           tag: 'AuthState');
