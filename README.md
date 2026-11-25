@@ -174,7 +174,7 @@ Reference documentation lives in [`docs/`](docs/) and is kept in sync with the c
 ---
 
 ## 🔔 Auto-Update System
-The application includes a built-in update mechanism. The latest release metadata is defined in `app_version.json` (on the backend's data directory, `$JUSTUS_DATA_DIR/versions/app_version.json`) and served via `GET /api/v1/app-version`. The APK is distributed exclusively through GitHub Releases; the `apk_url` field points to the release asset URL. When a newer build is available, the app prompts the user to download it from the GitHub Release.
+The application includes a built-in update mechanism. The latest release metadata is defined in `app_version.json` (on the backend's data directory, `$JUSTUS_DATA_DIR/versions/app_version.json`) and served via `GET /api/v1/app-version`. The APK is distributed exclusively through GitHub Releases; the `apk_url` field points to the release asset URL. When a newer build is available, the app prompts the user to download it from the GitHub Release. Release builds require `Flutter/android/key.properties` (git-ignored) pointing to the production keystore so consecutive releases share the same signing certificate; release builds fail closed without it.
 
 ---
 
