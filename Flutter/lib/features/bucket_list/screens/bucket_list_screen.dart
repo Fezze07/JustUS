@@ -9,6 +9,57 @@ import 'package:provider/provider.dart';
 
 import 'package:justus/all_imports.dart';
 
+/// Bespoke category-tinted pill that replaces the Material ChoiceChip in both
+/// the filter bar and the add-item dialog. Identical shape, color logic, and
+/// interaction in every context — no more design drift.
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+
+  /// The hue that tints this pill. For "All", pass `palette.primary`.
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.18)
+              : context.palette.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(
+            color: selected
+                ? color
+                : color.withValues(alpha: 0.28),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: VpWidgets.googleFont(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            color: selected ? color : color.withValues(alpha: 0.65),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BucketListScreen extends TabScreen {
   const BucketListScreen(
       {super.key, required super.tabIndex, required super.tabNotifier});
@@ -64,22 +115,11 @@ class _BucketListScreenState extends State<BucketListScreen>
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
                 children: BucketCategory.items
-                    .map((cat) => ChoiceChip(
-                          label: Text(
-                              BucketCategory.localizedLabel(cat, context.loc)),
+                    .map((cat) => _CategoryPill(
+                          label: BucketCategory.localizedLabel(cat, context.loc),
+                          color: BucketCategory.colorFor(context, cat),
                           selected: selectedAddCategory == cat,
-                          selectedColor: BucketCategory.colorFor(context, cat),
-                          backgroundColor: context.palette.canvas,
-                          labelStyle: TextStyle(
-                            color: selectedAddCategory == cat
-                                ? context.palette.onAccent
-                                : BucketCategory.colorFor(context, cat),
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => selectedAddCategory = cat);
-                            }
-                          },
+                          onTap: () => setState(() => selectedAddCategory = cat),
                         ))
                     .toList(),
               ),
@@ -137,29 +177,15 @@ class _BucketListScreenState extends State<BucketListScreen>
                 children: BucketCategory.withAll
                     .map((cat) => Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(BucketCategory.localizedLabel(
-                                cat, context.loc)),
-                            selected: _selectedCategory == cat,
-                            selectedColor: cat == BucketCategory.all
-                                ? context.palette.accentBlue
+                          child: _CategoryPill(
+                            label: BucketCategory.localizedLabel(
+                                cat, context.loc),
+                            color: cat == BucketCategory.all
+                                ? context.palette.primary
                                 : BucketCategory.colorFor(context, cat),
-                            backgroundColor: context.palette.surface,
-                            labelStyle: VpWidgets.googleFont(
-                              color: _selectedCategory == cat
-                                  ? context.palette.onAccent
-                                  : cat == BucketCategory.all
-                                      ? context.palette.contentSecondary
-                                      : BucketCategory.colorFor(context, cat),
-                              fontWeight: _selectedCategory == cat
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedCategory = cat);
-                              }
-                            },
+                            selected: _selectedCategory == cat,
+                            onTap: () =>
+                                setState(() => _selectedCategory = cat),
                           ),
                         ))
                     .toList(),

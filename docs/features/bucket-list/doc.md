@@ -258,9 +258,9 @@ Clearing checkpoint forces `hasChanges` → `true` → mandatory network fetch.
 Source: `Flutter/lib/features/bucket_list/screens/bucket_list_screen.dart`
 
 - Tab index: 3 in `MainShell`.
-- Category filter: horizontal scrollable chips (`_selectedCategory` local state); client-side filter.
+- Category filter: horizontal scrollable `_CategoryPill` row (`_selectedCategory` local state); client-side filter.
 - Item list: `ListView.separated` with `AlwaysScrollableScrollPhysics`.
-- Add dialog: `AlertDialog` with TextField (text) + ChoiceChip row (category). Default: `Travel`.
+- Add dialog: `VPDialog` with `VPTextField` (text) + `_CategoryPill` wrap (category). Default: `Travel`.
 - Toggle: custom checkbox via `GestureDetector`. `BucketState.toggleDone` flips the item optimistically and rolls back on failure. `unawaited`.
 - Delete: `Dismissible` swipe right-to-left. Optimistic via `_pendingDeletes`. `unawaited`.
 - Created-on line: `AppDateUtils.tryParse(createdAt)?.toLocal()` formatted with `MaterialLocalizations.formatMediumDate`, so each locale gets its own medium date; a malformed timestamp falls back to the raw date portion.
