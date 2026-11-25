@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document presents a comprehensive audit and analysis of the **Row Level Security (RLS)** policies configured across all 26 public database tables in the JustUS platform.
+This document presents a comprehensive audit and analysis of the **Row Level Security (RLS)** policies configured across all 23 public database tables in the JustUS platform.
 
 The analysis evaluates table-level access controls, user ownership enforcement, partner data sharing rules, backend privilege boundaries, and security vulnerabilities identified in policy logic.
 
@@ -10,7 +10,7 @@ The analysis evaluates table-level access controls, user ownership enforcement, 
 
 ## RLS Enforcement Status Matrix
 
-Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
+Row Level Security is **ENABLED** on all 23 tables in the `public` schema.
 
 | Table Name | RLS Status | SELECT Policy | INSERT Policy | UPDATE Policy | DELETE Policy | Target Roles |
 | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
@@ -29,10 +29,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 | `user_devices` | **ENABLED** | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | Self (`user_id = user_current_id()`) | `PUBLIC` |
 | `user_roles` | **ENABLED** | Self (`user_id = user_current_id()`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `roles` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
-| `permissions` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
-| `roles_permissions` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `emojis` | **ENABLED** | Public (`true`) | Authenticated Users | Denied (Default) | Denied (Default) | `PUBLIC` |
-| `drive_file_types` | **ENABLED** | Public (`true`) | Denied (Default) | Denied (Default) | Denied (Default) | `PUBLIC` |
 | `session_bindings` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
 | `request_nonces` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
 | `logs_api_access` | **ENABLED** | Denied (`USING (false)`) | Denied (`CHECK (false)`) | Denied (`USING (false)`) | Denied (`USING (false)`) | `authenticated` (Bypassed by `service_role`) |
@@ -165,7 +162,7 @@ Row Level Security is **ENABLED** on all 26 tables in the `public` schema.
 
 ## Implementation Status
 
-- **RLS Activation on All Tables:** **100% IMPLEMENTED** (26/26 tables)
+- **RLS Activation on All Tables:** **100% IMPLEMENTED** (23/23 tables)
 - **Backend Infrastructure Protection:** **100% IMPLEMENTED** (`auth_sessions`, `logs_*` closed to users)
 - **Security Invoker Views:** **100% IMPLEMENTED** (`v_active_partnership`, `v_drive_dashboard`)
 - **Strict Relationship Validation (`status = 'accepted'`):** **IMPLEMENTED** (`partnership_is_member`, `partnership_is_partner`, and `private.is_related_user` all require `status = 'accepted'`)

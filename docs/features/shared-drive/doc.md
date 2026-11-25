@@ -64,7 +64,7 @@ The Shared Drive serves as a private, shared cloud gallery ("Violet Archive") fo
    - [media.controller.js](file:///f:/JustUS/Backend/features/media/media.controller.js): Route handlers `presignUploadController`, `completeUploadController`, and `redirectToSignedDownloadController`.
 
 3. **Database Layer (Supabase / PostgreSQL)**:
-   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `file_type_id`, `metadata` (JSONB), `created_at`, `updated_at`. Do not add `filename` / `user_id` / `partner_id` columns: `name` and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so duplicating them would need a data migration.
+   - `public.drive_items`: Main metadata table storing media items. Columns: `id`, `partnership_id`, `name` (R2 storage key), `original_name`, `type`, `mime_type`, `size`, `metadata` (JSONB), `created_at`, `updated_at`. Do not add `filename` / `user_id` / `partner_id` columns: `name` and `partnership_id` already back `v_drive_dashboard` and the Flutter model, so duplicating them would need a data migration.
    - `public.favorites`: Stores user favorites (`user_id`, `item_id`).
    - `public.drive_item_reactions`: Stores emoji reactions (`id`, `item_id`, `user_id`, `emoji_id`). The `touch_public_drive_items_from_reaction` trigger bumps the parent `drive_items.updated_at` on every insert, update or delete, so reaction changes move the incremental sync cursor.
    - `v_drive_dashboard`: Security invoker database view returning drive items for the calling user's partnership, joined with user favorites (`is_favorite` boolean) and aggregated emoji reactions (`reactions` JSONB array).
@@ -268,7 +268,7 @@ The 15 MB limit (`15 * 1024 * 1024` bytes) is a deliberate hard cap on **source 
 ### Revalidation Probe
 
 - RPC: `public.drive_change_probe()` ([drive_change_probe.sql](file:///f:/JustUS/supabase/schemas/public/functions/drive_change_probe.sql)) — `STABLE SECURITY INVOKER`, returns a single row `{max_updated_at, item_count}`.
-- It reads `drive_items` directly (not `v_drive_dashboard`), so the revalidation no longer materializes the view (joins over `drive_file_types`, `favorites` and the `drive_item_reactions` aggregate) only to learn two scalars. The partnership filter and RLS are the same as the view's.
+- It reads `drive_items` directly (not `v_drive_dashboard`), so the revalidation no longer materializes the view (joins over `favorites` and the `drive_item_reactions` aggregate) only to learn two scalars. The partnership filter and RLS are the same as the view's.
 - Grants: `authenticated`, `postgres`, `service_role`; `PUBLIC` is revoked, so the function is not callable by `anon`.
 - Why both signals: `updated_at > checkpoint` sees inserts/updates but is blind to deletions, so the row count is what catches them.
 - Reaction changes are real item changes: `touch_public_drive_items_from_reaction` updates the parent `drive_items` row on every reaction insert, emoji change and delete, so the existing `set_public_drive_items_updated_at` trigger moves `max_updated_at` and a reaction made while the app was closed is picked up by the next cold start.

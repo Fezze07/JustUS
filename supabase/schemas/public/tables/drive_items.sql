@@ -9,8 +9,6 @@ CREATE TABLE "public"."drive_items" (
   "created_at"     timestamp with time zone DEFAULT now(),
   "updated_at"     timestamp with time zone DEFAULT now(),
   "partnership_id" integer,
-  "file_type_id"   bigint,
-  CONSTRAINT "drive_items_file_type_id_fkey" FOREIGN KEY (file_type_id) REFERENCES public.drive_file_types(id) ON DELETE SET NULL,
   CONSTRAINT "drive_items_name_key" UNIQUE (name),
   CONSTRAINT "drive_items_pkey" PRIMARY KEY (id),
   CONSTRAINT "drive_items_partnership_id_fkey" FOREIGN KEY (partnership_id) REFERENCES public.partnerships(id) ON DELETE CASCADE
@@ -20,8 +18,6 @@ ALTER TABLE "public"."drive_items"
   ENABLE ROW LEVEL SECURITY;
 
 ALTER SEQUENCE "public"."drive_items_id_seq" OWNED BY "public"."drive_items"."id";
-
-CREATE INDEX idx_drive_items_file_type_id ON public.drive_items USING btree (file_type_id);
 
 CREATE INDEX idx_drive_items_partnership_id ON public.drive_items USING btree (partnership_id);
 

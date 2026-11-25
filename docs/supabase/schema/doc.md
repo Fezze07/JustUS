@@ -18,7 +18,7 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 
 ---
 
-## Table & Constraint Specifications (26 Tables)
+## Table & Constraint Specifications (23 Tables)
 
 ### 1. Core Users & Partnership Domain
 
@@ -116,15 +116,14 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **`game_answers`:** `game_id` (`integer`, FK -> `game_questions.id` ON DELETE CASCADE), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `selected_option` (`integer`), `created_at` / `updated_at` (`timestamp with time zone`). PRIMARY KEY: `(game_id, user_id)`. Trigger `tr_game_answers_update_question_status` (AFTER INSERT OR UPDATE -> `game_update_question_status()` sets the parent `game_questions.status` to `'both_answered'` once both partners have answered).
 - **`game_answers` RLS:** `game_answers_manage_own` (INSERT WITH CHECK self + game in accepted partnership), `game_answers_update_own` (UPDATE USING self, WITH CHECK self + game in accepted partnership), `game_answers_delete_own` (DELETE self), `game_answers_related_select` (SELECT through the parent game in an accepted partnership).
 
-#### `drive_items`, `drive_item_reactions`, `favorites`, `drive_file_types`, `emojis`
-- **`drive_items`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `name` (`text` NOT NULL, UNIQUE), `original_name`, `type` (`character varying`), `mime_type`, `size` (`bigint`), `file_type_id` (`bigint`, FK -> `drive_file_types.id`), `metadata` (`jsonb`), `created_at`, `updated_at`. UNIQUE `(name)` (`drive_items_name_key`) makes `/media/complete` idempotent.
+#### `drive_items`, `drive_item_reactions`, `favorites`, `emojis`
+- **`drive_items`:** `id` (`integer`, PK), `partnership_id` (`integer`, FK -> `partnerships.id` ON DELETE CASCADE), `name` (`text` NOT NULL, UNIQUE), `original_name`, `type` (`character varying`), `mime_type`, `size` (`bigint`), `metadata` (`jsonb`), `created_at`, `updated_at`. UNIQUE `(name)` (`drive_items_name_key`) makes `/media/complete` idempotent.
 - **`drive_items` RLS:** `drive_items_related` (FOR ALL, `USING` + `WITH CHECK` on `partnership_is_member(partnership_id)`).
 - **`drive_item_reactions`:** `id` (`integer`, PK), `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), `emoji_id` (FK -> `emojis.id` ON DELETE CASCADE), `created_at`. UNIQUE `(user_id, item_id)`; the client upserts on this constraint so changing an emoji updates the caller's existing reaction instead of raising `23505`. Trigger `touch_public_drive_items_from_reaction` (AFTER INSERT OR UPDATE OR DELETE) runs `touch_drive_item_from_reaction()`, which touches the parent `drive_items` row so the `updated_at` cursor sees reaction changes.
 - **`drive_item_reactions` RLS:** `drive_item_reactions_manage_own` (INSERT WITH CHECK self + item in accepted partnership), `drive_item_reactions_update_own` (UPDATE USING self, WITH CHECK self + item in accepted partnership), `drive_item_reactions_delete_own` (DELETE self), `drive_item_reactions_related_select` (SELECT through the parent item in an accepted partnership).
 - **`favorites`:** `user_id` (FK -> `users.id`), `item_id` (FK -> `drive_items.id` ON DELETE CASCADE), PRIMARY KEY `(user_id, item_id)`.
 - **`favorites` RLS:** `favorites_own` (FOR ALL, USING + WITH CHECK self AND item in accepted partnership).
 - **`emojis`:** `id` (`bigint`, PK), `emoji_char` (`text` NOT NULL UNIQUE).
-- **`drive_file_types`:** `id` (`bigint`, PK), `extension` (`text` NOT NULL UNIQUE), `mime_type`, `icon_slug`.
 
 ---
 
@@ -144,10 +143,8 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - **Columns:** `id` (`bigint`, PK), `user_id` (`integer`, FK -> `users.id` ON DELETE CASCADE), `installation_id` (`text` UNIQUE), `device_type`, `user_agent`, `last_ip`, `locale`, `session_id`, `notifications_enabled` (`boolean`, default `true`), `created_at`, `updated_at`.
 - **RLS:** own rows only (`user_id = user_current_id()` on SELECT/INSERT/UPDATE/DELETE).
 
-#### `roles`, `permissions`, `roles_permissions`, `user_roles`
+#### `roles`, `user_roles`
 - **`roles`:** `id` (`bigint`, PK), `name` (`text` NOT NULL UNIQUE).
-- **`permissions`:** `id` (`bigint`, PK), `slug` (`text` NOT NULL UNIQUE), `description`.
-- **`roles_permissions`:** `id` (`bigint`, PK), `role_id` (FK -> `roles.id` ON DELETE CASCADE), `permission_id` (FK -> `permissions.id` ON DELETE CASCADE).
 - **`user_roles`:** `user_id` (FK -> `users.id` ON DELETE CASCADE), `role_id` (FK -> `roles.id` ON DELETE CASCADE), PRIMARY KEY `(user_id, role_id)`.
 
 ---
@@ -174,7 +171,7 @@ All five log tables carry a btree index on `created_at`, and `request_nonces` ca
 ### 2. `v_drive_dashboard`
 - **SQL Source:** `supabase/schemas/public/views/v_drive_dashboard.sql`
 - **Security:** `WITH (security_invoker = true)`.
-- **Query:** Joins `drive_items`, `drive_file_types`, `favorites`, and aggregate `drive_item_reactions` count filtered by active partnership.
+- **Query:** Joins `drive_items` with `favorites` and the aggregated `drive_item_reactions` / `emojis` reactions, filtered by active partnership.
 
 ---
 

@@ -15,7 +15,7 @@
 --   * every table carrying an anon/public policy is seeded as superuser and
 --     then read as anon, so the "0 rows" result cannot be an artefact of the
 --     table being empty;
---   * the five intentional public catalogs are asserted to be readable, so the
+--   * the three intentional public catalogs are asserted to be readable, so the
 --     sweep cannot be made to pass by simply breaking every policy;
 --   * anon must not be able to write to any seeded table.
 --
@@ -46,6 +46,14 @@ END $$;
 --   9001 alice <-> 9002 bob : 9001 accepted partnership
 -- One row in every table that an anon policy could otherwise expose.
 -- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'alice@anon-test.local'),
+  ('00000000-0000-0000-0000-000000000002', 'bob@anon-test.local');
+DELETE FROM public.users
+WHERE auth_id IN (
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002'
+);
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9001, '00000000-0000-0000-0000-000000000001', 'alice@anon-test.local'),
   (9002, '00000000-0000-0000-0000-000000000002', 'bob@anon-test.local');
@@ -88,19 +96,12 @@ INSERT INTO public.drive_item_reactions (user_id, item_id) VALUES
 INSERT INTO public.user_devices (user_id, installation_id, device_type) VALUES
   (9001, 'anon-sweep-installation-id', 'mobile');
 
--- user_roles references roles, so it can only be seeded now that the roles
--- catalog row exists.
 INSERT INTO public.logs_notifications (user_id, type, status) VALUES
   (9001, 'push', 'anon-sweep');
 
--- One row in each of the five public catalogs, so the anon-read assertions in
+-- One row in each of the three public catalogs, so the anon-read assertions in
 -- section C are not satisfied by an empty table.
 INSERT INTO public.roles (name) VALUES ('anon-sweep-role');
-INSERT INTO public.permissions (slug, description) VALUES ('anon-sweep-perm', 'anon sweep');
-INSERT INTO public.roles_permissions (role_id, permission_id)
-  SELECT r.id, p.id FROM public.roles r, public.permissions p
-  WHERE r.name = 'anon-sweep-role' AND p.slug = 'anon-sweep-perm';
-INSERT INTO public.drive_file_types (extension, mime_type) VALUES ('anonswp', 'application/octet-stream');
 INSERT INTO public.emojis (emoji_char) VALUES ('anon-sweep-emoji');
 
 -- user_roles references roles, so it is seeded only now that the roles catalog
@@ -212,24 +213,13 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- C: the five public catalogs must still be readable, otherwise the sweep above
+-- C: the three public catalogs must still be readable, otherwise the sweep above
 --    could be satisfied by breaking the schema rather than protecting it.
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
   IF (SELECT count(*) FROM public.roles WHERE name = 'anon-sweep-role') <> 1 THEN
     RAISE EXCEPTION 'C failed: anon cannot read the roles catalog';
-  END IF;
-  IF (SELECT count(*) FROM public.permissions WHERE slug = 'anon-sweep-perm') <> 1 THEN
-    RAISE EXCEPTION 'C failed: anon cannot read the permissions catalog';
-  END IF;
-  IF (SELECT count(*) FROM public.roles_permissions rp
-      JOIN public.roles r ON r.id = rp.role_id
-      WHERE r.name = 'anon-sweep-role') <> 1 THEN
-    RAISE EXCEPTION 'C failed: anon cannot read the roles_permissions catalog';
-  END IF;
-  IF (SELECT count(*) FROM public.drive_file_types WHERE extension = 'anonswp') <> 1 THEN
-    RAISE EXCEPTION 'C failed: anon cannot read the drive_file_types catalog';
   END IF;
   IF (SELECT count(*) FROM public.emojis WHERE emoji_char = 'anon-sweep-emoji') <> 1 THEN
     RAISE EXCEPTION 'C failed: anon cannot read the emojis catalog';
@@ -308,10 +298,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.missyou WHERE id = 9001) THEN
     RAISE EXCEPTION 'E failed: an anon delete removed a missyou row';
   END IF;
-  IF (SELECT count(*) FROM public.users) <> 2
-     OR (SELECT count(*) FROM public.partnerships) <> 1
-     OR (SELECT count(*) FROM public.moods) <> 1
-     OR (SELECT count(*) FROM public.favorites) <> 1 THEN
+  -- Fixture-scoped counts: the linked project may already hold real rows, so a
+  -- whole-table count would fail for unrelated data.
+  IF (SELECT count(*) FROM public.users WHERE id IN (9001, 9002)) <> 2
+     OR (SELECT count(*) FROM public.partnerships WHERE id = 9001) <> 1
+     OR (SELECT count(*) FROM public.moods WHERE user_id IN (9001, 9002)) <> 1
+     OR (SELECT count(*) FROM public.favorites WHERE user_id = 9001 AND item_id = 9001) <> 1 THEN
     RAISE EXCEPTION 'E failed: a row count changed, so a write leaked through';
   END IF;
 END $$;

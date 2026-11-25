@@ -25,11 +25,11 @@ This document provides a technical specification and analysis of all **Supabase-
 
 ### `v_drive_dashboard`
 * **SQL Source:** `supabase/schemas/public/views/v_drive_dashboard.sql`
-* **Purpose:** Aggregates drive files and folders with file type metadata, current user bookmark status (`is_favorite`), and aggregated user emoji reactions (`reactions`).
+* **Purpose:** Aggregates drive files and folders with current user bookmark status (`is_favorite`) and aggregated user emoji reactions (`reactions`).
 * **Security Context:** `WITH (security_invoker = true)`
 * **Inputs:** Implicitly relies on `public.user_current_id()`.
-* **Outputs:** `id`, `partnership_id`, `name`, `original_name`, `type`, `size`, `created_at`, `updated_at`, `extension`, `mime_type`, `icon_slug`, `is_favorite` (boolean), `reactions` (JSON array of `{ user_id, emoji_char }`).
-* **Tables Touched:** `public.drive_items` (READ), `public.drive_file_types` (READ), `public.favorites` (READ), `public.drive_item_reactions` (READ), `public.emojis` (READ).
+* **Outputs:** `id`, `partnership_id`, `name`, `original_name`, `type`, `size`, `created_at`, `updated_at`, `is_favorite` (boolean), `reactions` (JSON array of `{ user_id, emoji_char }`), `metadata` (JSONB).
+* **Tables Touched:** `public.drive_items` (READ), `public.favorites` (READ), `public.drive_item_reactions` (READ), `public.emojis` (READ).
 * **Execution Condition:** Filtered by `public.partnership_is_member(d.partnership_id)`.
 * **Caller:** Flutter Frontend ([drive_repository.dart](file:///f:/JustUS/Flutter/lib/features/drive/drive_repository.dart)).
 * **Side Effects:** None (Read-only view).

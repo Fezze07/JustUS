@@ -20,7 +20,7 @@
 --   3. every FOR ALL policy carries an explicit WITH CHECK, which is the fix
 --      from finding 2.3;
 --   4. the only tables an unauthenticated role may read without restriction are
---      the six public catalogs;
+--      the three public catalogs;
 --   5. any other policy reachable by anon/public must be gated on the caller's
 --      identity, so an accidental USING (true) on user data fails here;
 --   6. the only DELETE-granting policy on `partnerships` is the pending-only
@@ -108,7 +108,7 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- 4: the set of tables readable by anon without any restriction is exactly the
---    six public catalogs, and nothing else.
+--    three public catalogs, and nothing else.
 --
 --    A policy is treated as unrestricted when its USING expression is the bare
 --    literal true, which is how the catalog tables are declared.
@@ -117,7 +117,7 @@ DO $$
 DECLARE
   r            record;
   v_unrestr    text := '';
-  v_expected   text[] := ARRAY['drive_file_types', 'emojis', 'game_question_bank', 'permissions', 'roles', 'roles_permissions'];
+  v_expected   text[] := ARRAY['emojis', 'game_question_bank', 'roles'];
   v_found      text[] := '{}';
   i            int;
 BEGIN
@@ -179,9 +179,9 @@ BEGIN
       AND btrim(coalesce(qual, '')) <> 'true'
     ORDER BY tablename, cmd, policyname
   LOOP
-    -- Skip the six catalogs; only their SELECT policies are unrestricted, and
+    -- Skip the three catalogs; only their SELECT policies are unrestricted, and
     -- those were excluded above by the USING (true) filter.
-    IF r.tablename = ANY (ARRAY['drive_file_types', 'emojis', 'game_question_bank', 'permissions', 'roles', 'roles_permissions']) THEN
+    IF r.tablename = ANY (ARRAY['emojis', 'game_question_bank', 'roles']) THEN
       CONTINUE;
     END IF;
 
@@ -204,6 +204,14 @@ END $$;
 --    Done at the top level because SET ROLE is a utility command and cannot be
 --    issued as a static statement inside a plpgsql block.
 -- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('00000000-0000-0000-0000-000000000101', 'a@matrix-test.local'),
+  ('00000000-0000-0000-0000-000000000102', 'b@matrix-test.local');
+DELETE FROM public.users
+WHERE auth_id IN (
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000102'
+);
 INSERT INTO public.users (id, auth_id, email) VALUES
   (9101, '00000000-0000-0000-0000-000000000101', 'a@matrix-test.local'),
   (9102, '00000000-0000-0000-0000-000000000102', 'b@matrix-test.local');

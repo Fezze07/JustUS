@@ -6,9 +6,6 @@ CREATE VIEW "public"."v_drive_dashboard" WITH (security_invoker=true) AS  SELECT
     d.size,
     d.created_at,
     d.updated_at,
-    ft.extension,
-    ft.mime_type,
-    ft.icon_slug,
     (EXISTS ( SELECT 1
            FROM public.favorites f
           WHERE ((f.item_id = d.id) AND (f.user_id = public.user_current_id())))) AS is_favorite,
@@ -17,8 +14,7 @@ CREATE VIEW "public"."v_drive_dashboard" WITH (security_invoker=true) AS  SELECT
              JOIN public.emojis e ON ((e.id = r.emoji_id)))
           WHERE (r.item_id = d.id)) AS reactions,
     d.metadata
-   FROM (public.drive_items d
-     LEFT JOIN public.drive_file_types ft ON ((ft.id = d.file_type_id)))
+   FROM public.drive_items d
   WHERE public.partnership_is_member(d.partnership_id);
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."v_drive_dashboard" TO "anon", "authenticated", "postgres", "service_role";
