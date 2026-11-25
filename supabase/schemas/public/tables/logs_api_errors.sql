@@ -13,6 +13,8 @@ CREATE TABLE "public"."logs_api_errors" (
 ALTER TABLE "public"."logs_api_errors"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX idx_logs_api_errors_created_at ON public.logs_api_errors USING btree (created_at);
+
 CREATE INDEX idx_logs_api_errors_device_id ON public.logs_api_errors USING btree (device_id);
 
 CREATE POLICY "backend_only_error_logs" ON "public"."logs_api_errors"

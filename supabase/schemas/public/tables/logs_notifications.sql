@@ -13,6 +13,8 @@ ALTER TABLE "public"."logs_notifications"
 
 ALTER SEQUENCE "public"."notifications_logs_id_seq" OWNED BY "public"."logs_notifications"."id";
 
+CREATE INDEX idx_logs_notifications_created_at ON public.logs_notifications USING btree (created_at);
+
 CREATE INDEX idx_logs_notifications_user_id ON public.logs_notifications USING btree (user_id);
 
 CREATE POLICY "notifications_select_own" ON "public"."logs_notifications"

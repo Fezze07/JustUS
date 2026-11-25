@@ -14,6 +14,8 @@ CREATE TABLE "public"."logs_api_access" (
 ALTER TABLE "public"."logs_api_access"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX idx_logs_api_access_created_at ON public.logs_api_access USING btree (created_at);
+
 CREATE INDEX idx_logs_api_access_device_id ON public.logs_api_access USING btree (device_id);
 
 CREATE POLICY "backend_only_access_logs" ON "public"."logs_api_access"

@@ -13,6 +13,8 @@ CREATE TABLE "public"."logs_security_events" (
 ALTER TABLE "public"."logs_security_events"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX idx_logs_security_events_created_at ON public.logs_security_events USING btree (created_at);
+
 CREATE INDEX idx_logs_security_events_device_id ON public.logs_security_events USING btree (device_id);
 
 CREATE POLICY "backend_only_security_events" ON "public"."logs_security_events"

@@ -160,6 +160,8 @@ This document presents the reverse-engineering analysis of the **Supabase Postgr
 - `logs_notifications`: `id` (`integer`, PK), `user_id` (FK -> `users.id`), `type`, `status`, `created_at`.
 - `logs_security_events`: `id` (`bigint`, PK), `request_id` (`uuid`), `device_id` (FK -> `user_devices.id`), `type` (`text` NOT NULL), `path`, `error_json` (`jsonb`), `created_at`.
 
+All five log tables carry a btree index on `created_at`, and `request_nonces` carries one on `expires_at`, so the retention sweeps filter without a sequential scan.
+
 ---
 
 ## Database Views

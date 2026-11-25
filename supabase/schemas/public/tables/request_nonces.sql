@@ -12,6 +12,8 @@ CREATE TABLE "public"."request_nonces" (
 ALTER TABLE "public"."request_nonces"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX idx_request_nonces_expires_at ON public.request_nonces USING btree (expires_at);
+
 CREATE POLICY "backend_only_request_nonces" ON "public"."request_nonces"
   FOR ALL
   TO "authenticated"
