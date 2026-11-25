@@ -119,7 +119,7 @@ class AuthRepository extends BaseRepository {
       locale: locale,
       // The toggle is device-local, so every registration also mirrors it to
       // the backend for the push filter.
-      notificationsEnabled: await StorageService.getNotificationsEnabled(),
+      notificationsEnabled: await NotificationService.effectivelyEnabled(),
     ));
     if (result is GenericError<UpdateInstallationResponse>) {
       return GenericError(message: result.message, code: result.code);

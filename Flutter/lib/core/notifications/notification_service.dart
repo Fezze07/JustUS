@@ -174,7 +174,7 @@ class NotificationService {
   Future<void> showRemoteMessage(RemoteMessage message,
       {bool isBackground = false}) async {
     if (kIsWeb) return;
-    if (!await StorageService.getNotificationsEnabled()) return;
+    if (!await NotificationService.effectivelyEnabled()) return;
 
     if (!_localInitialized) {
       await initLocalNotifications(isBackground: isBackground);
@@ -343,6 +343,27 @@ class NotificationService {
       notificationDetails: details,
       payload: payload,
     );
+  }
+
+  /// Returns true only when both the in-app toggle and the OS-level
+  /// notification permission are enabled.  On platforms without FCM support
+  /// (desktop, web), only the in-app toggle is checked.
+  static Future<bool> effectivelyEnabled() async {
+    if (!await StorageService.getNotificationsEnabled()) return false;
+    if (kIsWeb ||
+        !(defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      return true;
+    }
+    try {
+      final settings =
+          await FirebaseMessaging.instance.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      // Firebase unavailable (tests, unsupported builds) — trust the toggle.
+      return true;
+    }
   }
 
   Future<void> _requestRemoteNotificationPermission() async {
