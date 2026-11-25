@@ -32,6 +32,7 @@ class _PartnerScreenState extends State<PartnerScreen>
       unawaited(context.read<ProfileState>().loadProfile());
       unawaited(context.read<AuthState>().fetchSentInvitations());
       unawaited(context.read<AuthState>().fetchReceivedInvitations());
+      unawaited(context.read<PartnerState>().fetchPartnership());
     });
   }
 
