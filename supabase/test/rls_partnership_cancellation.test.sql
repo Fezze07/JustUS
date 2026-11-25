@@ -1644,6 +1644,20 @@ BEGIN
   END IF;
 END $$;
 
+-- M1. deleting auth.users cascades to public.users (21.1).
+DO $$
+DECLARE
+  v_auth_id uuid;
+BEGIN
+  SELECT auth_user_id INTO v_auth_id FROM public.users WHERE id = 9103;
+
+  DELETE FROM auth.users WHERE id = v_auth_id;
+
+  IF EXISTS (SELECT 1 FROM public.users WHERE id = 9103) THEN
+    RAISE EXCEPTION 'M1 failed: public.users row 9103 outlived auth.users delete';
+  END IF;
+END $$;
+
 ROLLBACK;
 
-SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, I cancelled sender cannot start a new pairing, I paired/cancelled recipient cannot be invited, final state)' AS result;
+SELECT 'partnership-cancellation: passed (A request by either member, A RPC request by either member/non-member/anon/second request, A-post non-member/anon unchanged, B accepted/cancelled delete denied for both members, B pending delete works, B anon denied/no anon DELETE or TRUNCATE, C requester/partner revert via RPC, C partner decline timestamp, C raw PATCH cannot clear/forge it, C non-member denied raw/RPC, C revert of non-cancelled denied raw/RPC, C service-role revert keeps it, C requester restore keeps it, D cooldown blocks then allows, E tamper denied, E ordinary update allowed, G expiry reverts only expired, G expiry backend-only, K requester/partner read, K non-member empty, K lazy expiry, L push partner both ways/NULL/client denied, F requester cannot accept, F partner accepts and cascades, F expired accept rejected, J mood cascade, J mood_set partnership attach/null, J mood policy foreign/pending rejected, I paired recipient cannot accept a second request, I cancelled sender cannot start a new pairing, I paired/cancelled recipient cannot be invited, M auth.users delete cascade, final state)' AS result;
