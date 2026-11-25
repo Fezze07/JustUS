@@ -86,8 +86,9 @@
 - `docs/supabase/database-logic/doc.md:178` claims the pending-invitations RPC exposes email (it returns `partner_display_name` only); `:277` claims `logs_auth_failures` cascades on user delete (it is `ON DELETE SET NULL`) and omits `logs_notifications`; `docs/supabase/rls/doc.md:138,161,169` names `auth_sessions` instead of `session_bindings`/`auth.sessions`. Correct all five claims. Acceptance: docs match `pg_get_function_result` and the FK definitions.
 - **Status: ✅ FIXED (2026-11-25, on `dev`)** — updated `docs/supabase/database-logic/doc.md` (`:178` to list `partner_display_name` only, `:298` to list `logs_notifications` as cascading and `logs_auth_failures` as `ON DELETE SET NULL`) and `docs/supabase/rls/doc.md` (`:135,158,166` from `auth_sessions` to `session_bindings`) · **Verification**: `rg -n "auth_sessions" docs/supabase/rls/doc.md` → 0 matches; cross-checked against `logs_auth_failures.sql:15` and `logs_notifications.sql:8` · **Residual**: none.
 
-### 21.10 Resolve the missing seed file (🟢 LOW)
+### 21.10 Resolve the missing seed file (🟢 LOW) ✅
 - `supabase/config.toml:67-72` — seeding is enabled with `sql_paths = ["./seed.sql"]`, but `supabase/seed.sql` does not exist. Add the seed file or disable the `[db.seed]` entry. Acceptance: a fresh `db reset` completes and the intended catalog rows exist, or seeding is explicitly disabled.
+- **Status: ✅ FIXED (2026-11-25, on `dev`)** — disabled `[db.seed]` (`enabled = false`, `sql_paths = []`) in `supabase/config.toml:67-72` per user choice, since `supabase/seed.sql` does not exist and no runtime catalog seeding is needed · **Verification**: `npx supabase@3.0.0 config diff` confirmed 0 local-only/seed drift (9 remote-prod-only/dev-vs-prod diffs: `auth.site_url`, `auth.captcha.*`, `auth.email.smtp.*` kept as-is) · **Residual**: `db reset` not run.
 
 ### 21.11 Register the `justus://` URL scheme on iOS (🟡 MEDIUM) ✅
 - **Files**: `Flutter/ios/Runner/Info.plist`, `Flutter/android/app/src/main/AndroidManifest.xml:32-45`.
