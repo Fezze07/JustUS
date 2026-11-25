@@ -24,12 +24,28 @@ const { escapeHtml } = require("./htmlEscape");
  * @param {string}  [opts.icon] - Emoji icon shown above the heading. Defaults to ✅.
  * @param {string}  [opts.lang] - HTML lang attribute. Defaults to "it".
  * @param {string}  [opts.pageTitle] - Browser tab title. Defaults to "JustUS".
+ * @param {string}  [opts.ctaUrl] - Optional action button URL (e.g. app download link).
+ * @param {string}  [opts.ctaText] - Optional action button label. Defaults to "Scarica l'App".
  * @returns {string} A complete HTML document string.
  */
 
 // eslint-disable-next-line max-lines-per-function -- page markup is one block
-function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle = "JustUS" }) {
-    return `<!DOCTYPE html>
+function buildCallbackPage({
+  title,
+  body,
+  icon = "✅",
+  lang = "it",
+  pageTitle = "JustUS",
+  ctaUrl,
+  ctaText = "Scarica l'App",
+}) {
+  const ctaHtml = ctaUrl
+    ? `<div class="cta-container">
+        <a href="${escapeHtml(ctaUrl)}" target="_blank" rel="noopener noreferrer" class="cta-button">${escapeHtml(ctaText)}</a>
+      </div>`
+    : "";
+
+  return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
     <meta charset="UTF-8">
@@ -90,6 +106,24 @@ function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle =
             font-size: 16px;
             line-height: 1.6;
         }
+        .cta-container {
+            margin-top: 32px;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #bc61f5 0%, #7d35f2 100%);
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 14px;
+            box-shadow: 0 4px 14px rgba(188, 97, 245, 0.4);
+            transition: opacity 0.2s;
+        }
+        .cta-button:hover {
+            opacity: 0.9;
+        }
         .footer {
             padding: 32px 48px;
             background-color: #120e1f;
@@ -113,6 +147,7 @@ function buildCallbackPage({ title, body, icon = "✅", lang = "it", pageTitle =
             <div class="icon">${escapeHtml(icon)}</div>
             <h1>${escapeHtml(title)}</h1>
             <p>${escapeHtml(body)}</p>
+            ${ctaHtml}
         </div>
         <div class="footer">
             <p>JUST US &bull; ${new Date().getFullYear()}</p>
