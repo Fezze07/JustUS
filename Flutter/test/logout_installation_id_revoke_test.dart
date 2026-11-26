@@ -15,12 +15,25 @@ const String kTestInstallationId = 'fid-used-by-the-logout-tests-0123456789';
 class _RecordingAuthRepository extends AuthRepository {
   _RecordingAuthRepository({this.onRevoke});
 
-  final Future<void> Function(String installationId)? onRevoke;
+  Future<void> Function(String installationId)? onRevoke;
   final List<String> calls = [];
+  final List<String> registeredInstallationIds = [];
+  Completer<void>? updateGate;
 
   @override
   Future<void> signOut() async {
     calls.add('signOut');
+  }
+
+  @override
+  Future<ResultWrapper<void>> updateInstallationId(String installationId,
+      {String? locale}) async {
+    registeredInstallationIds.add(installationId);
+
+    final gate = updateGate;
+    if (gate != null) await gate.future;
+
+    return const Success(null);
   }
 
   @override
@@ -48,6 +61,7 @@ void main() {
     installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    LanguageHelper.setAppLocale(LanguageHelper.fallbackLocale);
     InstallationIdService.installationIdOverride =
         () async => kTestInstallationId;
   });
@@ -126,5 +140,58 @@ void main() {
     await auth.logout();
 
     expect(repo.calls, ['signOut']);
+  });
+
+  test('an onRegistered event during the revoke does not re-register', () async {
+    final repo = _RecordingAuthRepository();
+    final auth = AuthState(authRepo: repo);
+    await _login(auth);
+
+    repo.onRevoke = (_) async {
+      await auth.handleInstallationIdRegistered(kTestInstallationId);
+    };
+
+    await auth.logout();
+
+    expect(repo.registeredInstallationIds, isEmpty);
+    expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
+  });
+
+  test('logout waits for a registration already in flight', () async {
+    final repo = _RecordingAuthRepository();
+    final auth = AuthState(authRepo: repo);
+    await _login(auth);
+
+    final gate = Completer<void>();
+    repo.updateGate = gate;
+    final registration =
+        auth.handleInstallationIdRegistered(kTestInstallationId);
+    for (var i = 0; i < 20 && repo.registeredInstallationIds.isEmpty; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(repo.registeredInstallationIds, [kTestInstallationId]);
+
+    final logout = auth.logout();
+    for (var i = 0; i < 20 && repo.calls.isEmpty; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(repo.calls, isEmpty);
+
+    gate.complete();
+    await registration;
+    await logout;
+
+    expect(repo.calls, ['revoke:$kTestInstallationId', 'signOut']);
+  });
+
+  test('an FID rotation during an active session registers it', () async {
+    final repo = _RecordingAuthRepository();
+    final auth = AuthState(authRepo: repo);
+    await _login(auth);
+
+    await auth.handleInstallationIdRegistered(kTestInstallationId);
+
+    expect(repo.registeredInstallationIds, [kTestInstallationId]);
+    expect(repo.calls, isEmpty);
   });
 }

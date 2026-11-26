@@ -57,6 +57,14 @@
 - **Unverified — needs** a focused Flutter regression test for the failure-then-success sequence; the state mismatch is verified statically, but no runtime reproduction was run.
 - **Acceptance**: a test makes the login-time partnership read fail and the route-time read succeed; routing settles in `MainShell`, `AuthState` and `PartnerState` agree on the partnership, and the shell does not redirect back to `PartnerScreen`.
 
+### 24.4 Stop installation-id registration racing the logout revoke (🟠 HIGH)
+- [x] **Status: ✅ FIXED (2026-11-26, on `dev`)** — Routed every FID upsert through `AuthState._upsertInstallationId()` (`Flutter/lib/features/auth/auth_state.dart:269-293`) which refuses to start when `_isLoggingOut` and tracks its settled future in `_registrationsInFlight`; `handleInstallationIdRegistered()` (`:262-265`, the `onRegistered` listener) and `_registerInstallationId()` (`:247-256`) both check the flag, and `logout()` awaits `_waitForPendingRegistrations()` (`:858-866`, bounded by `_deviceRevokeTimeout`) before `_revokeInstallationId()` (`:826-830`). Chosen over a second post-revoke delete because ordering the in-flight upsert before the revoke is the only way to keep the delete last without an extra request. · **Verification**: `flutter analyze` clean; `flutter test` 451 passed, including 3 new cases in `Flutter/test/logout_installation_id_revoke_test.dart` (event during revoke → no upsert, in-flight registration awaited, FID rotation during an active session upserts). · **Residual**: if an in-flight registration outlives the 5 s wait, it can still land after the revoke and recreate the row; the next logout or the retention sweep (`device_purge_dead_sessions`) is the backstop. No live FCM rotation was exercised on a device.
+- **Sources**: no doc — current-code review; `docs/app/notifications/doc.md:129-132,177` and `docs/features/authentication/account-lifecycle/doc.md:85,193-195,322,329` describe the updated behavior.
+- **Files**: `Flutter/lib/features/auth/auth_state.dart:42,191-193,247-293,826-866`, `Flutter/test/logout_installation_id_revoke_test.dart`.
+- **Defect**: `_revokeInstallationId()` resolves the FID through `getInstallationId()`, which calls `FirebaseMessaging.instance.register()`; that emits `onRegistered` and the listener only checked `isLoggedIn`, so it fired `updateInstallationId()` during the logout and recreated the row the revoke was deleting.
+- **Fix**: ignore `onRegistered` while `_isLoggingOut`, and let a registration already in flight settle before the revoke so the delete stays last.
+- **Acceptance**: an `onRegistered` event delivered during the revoke produces no upsert, and normal FID rotation during an active session still registers.
+
 ---
 
 ## Known non-bugs & deliberate decisions

@@ -82,7 +82,7 @@ static Future<String> getInstallationId() async {
 1. **FID (Android / iOS / Web)**:
    - Evaluates `supportsFcm` (`Android`, `iOS`, or `Web`).
    - Calls `FirebaseMessaging.instance.register()` and awaits the single `onRegistered` stream (10 s timeout) for the Firebase Installation ID.
-   - The `InstallationIdService.onRegistered` getter subscribes to the same stream so the backend is updated when FCM rotates the FID.
+   - The `InstallationIdService.onRegistered` getter subscribes to the same stream so the backend is updated when FCM rotates the FID. Events are ignored while a logout is running (`_isLoggingOut`), so the `register()` that resolves the FID for the revoke cannot re-register the row being deleted.
 2. **Desktop Hardware UUID (Windows)**:
    - FCM is not supported on Windows Desktop in this application.
    - `getInstallationId()` returns `getDeviceFingerprint()`, which reads/generates a persistent UUID stored in secure storage (`StorageService.getOrCreateDeviceFingerprint()`).
@@ -191,6 +191,8 @@ Logout Initiated (Profile / Partner Screen)
 #### Why the revoke runs first
 
 `AuthState._revokeInstallationId()` ([auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart)) is the only network step of the teardown, so it has to run while the JWT, the HMAC binding secret and the device fingerprint are still in storage — the route is `authenticated()` + `signed()`. It is strictly best-effort and cannot affect the local logout:
+
+`logout()` first waits (bounded by the same timeout) for any registration already in flight, so its upsert lands before the delete, and it sets `_isLoggingOut` before that wait so no new registration can start. The `register()` inside `getInstallationId()` emits an `onRegistered` event; that event is dropped by the same flag instead of recreating the row.
 
 | Failure | Behavior |
 |---|---|
@@ -319,14 +321,14 @@ Two keys deliberately **survive** logout: `app_language_code` and the theme mode
 ## Notification Cleanup
 
 - **Backend Row**: `logout()` deletes this device's row from `user_devices` via `POST /api/v1/auth/installation-id-revoke` (`AuthState._revokeInstallationId()`), scoped to the logged-out `user_id`. Once the row is gone the backend has no installation id to target for that account, so server-initiated pushes stop arriving on the device.
-- **Local FCM Registration**: `logout()` still does **not** call `FirebaseMessaging.instance.deleteToken()`; the FCM registration itself stays valid on the device. That is harmless for targeting — with no `user_devices` row nothing is sent — and it keeps the next login cheap, since the same FID is re-registered by the upsert. The installation id is re-registered at app start, at login, and when `InstallationIdService.onRegistered` emits.
+- **Local FCM Registration**: `logout()` still does **not** call `FirebaseMessaging.instance.deleteToken()`; the FCM registration itself stays valid on the device. That is harmless for targeting — with no `user_devices` row nothing is sent — and it keeps the next login cheap, since the same FID is re-registered by the upsert. The installation id is re-registered at app start, at login, and when `InstallationIdService.onRegistered` emits, except during the logout teardown, where those events are ignored.
 - **Best-Effort**: an offline (or already-expired-session) logout skips the revoke and leaves the row behind. The cleanup then converges server-side without the client: the row still carries the `session_id` of the session it registered, and `sweepStaleUserDevices` prunes rows whose session is gone or lapsed at its next run (see [Logout](#logout)). An app killed before `signOut()` is the one case that outlives both the revoke and the session prune — that session is still alive, so the row waits for the 30-day age purge.
 
 ---
 
 ## Error Handling
 
-- **Logout Exceptions**: `AuthState.logout()` executes cleanup steps (`revokeInstallationId()`, `signOut()`, `clearAll()`, `clearHeadersCache()`) sequentially without throwing errors if individual sub-tasks encounter network or storage issues, ensuring local logout completion. The revoke is additionally bounded by a 5 s timeout.
+- **Logout Exceptions**: `AuthState.logout()` executes cleanup steps (`revokeInstallationId()`, `signOut()`, `clearAll()`, `clearHeadersCache()`) sequentially without throwing errors if individual sub-tasks encounter network or storage issues, ensuring local logout completion. The revoke is additionally bounded by a 5 s timeout, and the wait for an in-flight registration is bounded by the same timeout.
 - **Password Write Exceptions**: `AuthState._revokeOtherSessions()` swallows every error (and is bounded by a 5 s timeout), so the result reported for the change itself is never influenced by the revoke. The `updateUser` failures above it are what turn into `ChangePasswordResult.failure` / `false` — and in that case no revoke is attempted at all, since the password was not written.
 
 ---

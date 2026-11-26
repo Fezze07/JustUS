@@ -39,6 +39,7 @@ class AuthState extends BaseState
   bool _isSyncingLocale = false;
   bool _isSyncingNotificationPreference = false;
   bool _notificationPreferenceChangedWhileSyncing = false;
+  final Set<Future<void>> _registrationsInFlight = {};
 
   /// Trailing-edge window coalescing lifecycle-driven locale syncs.
   @override
@@ -188,14 +189,8 @@ class AuthState extends BaseState
         }
       }
     });
-    _installationIdSubscription =
-        InstallationIdService.onRegistered.listen((installationId) async {
-      if (installationId.isEmpty || !isLoggedIn) return;
-      await _authRepo.updateInstallationId(
-        installationId,
-        locale: await LanguageHelper.currentLocaleCode(),
-      );
-    });
+    _installationIdSubscription = InstallationIdService.onRegistered
+        .listen(handleInstallationIdRegistered);
 
     // Observe app lifecycle to sync locale changes at runtime
     WidgetsBinding.instance.addObserver(this);
@@ -250,16 +245,46 @@ class AuthState extends BaseState
   /// globally-UNIQUE `user_devices.installation_id` column across unrelated
   /// accounts as they log in and out (F-PN5).
   Future<ResultWrapper<void>?> _registerInstallationId({String? locale}) async {
-    if (!isLoggedIn || !InstallationIdService.supportsFcm) return null;
+    if (!isLoggedIn || _isLoggingOut || !InstallationIdService.supportsFcm) {
+      return null;
+    }
 
     final installationId = await InstallationIdService.getInstallationId();
-    if (installationId.isEmpty) return null;
+    if (installationId.isEmpty || _isLoggingOut) return null;
+
+    return _upsertInstallationId(installationId, locale: locale);
+  }
+
+  /// Handles an FID emitted by FCM. A `register()` triggered by the logout
+  /// revoke emits one too, so the logout guard is what keeps it from recreating
+  /// the row the revoke is about to delete.
+  @visibleForTesting
+  Future<void> handleInstallationIdRegistered(String installationId) async {
+    if (installationId.isEmpty || !isLoggedIn || _isLoggingOut) return;
+    await _upsertInstallationId(installationId);
+  }
+
+  /// Single funnel for installation-id upserts. The settled future is tracked
+  /// so [logout] can let an in-flight registration land before revoking.
+  Future<ResultWrapper<void>?> _upsertInstallationId(
+    String installationId, {
+    String? locale,
+  }) async {
+    if (_isLoggingOut) return null;
+    final resolvedLocale = locale ?? await LanguageHelper.currentLocaleCode();
+    if (_isLoggingOut) return null;
 
     try {
-      return await _authRepo.updateInstallationId(
+      final request = _authRepo.updateInstallationId(
         installationId,
-        locale: locale ?? await LanguageHelper.currentLocaleCode(),
+        locale: resolvedLocale,
       );
+      final settled = request.then<void>((_) {}, onError: (_, __) {});
+      _registrationsInFlight.add(settled);
+      unawaited(settled.whenComplete(() {
+        _registrationsInFlight.remove(settled);
+      }));
+      return await request;
     } catch (e) {
       AnsiLogger.error('updateInstallationId error: $e', tag: 'AuthState');
       return null;
@@ -801,6 +826,7 @@ class AuthState extends BaseState
     _isLoggingOut = true;
     try {
       PartnershipRepository.clearPartnershipCache();
+      await _waitForPendingRegistrations();
       await _revokeInstallationId();
       try {
         await _authRepo.signOut();
@@ -824,6 +850,17 @@ class AuthState extends BaseState
     } finally {
       _isLoggingOut = false;
     }
+  }
+
+  /// Lets a registration already in flight settle before the revoke, so its
+  /// upsert cannot land after the delete and recreate the row. Bounded so a
+  /// stalled request never delays the teardown.
+  Future<void> _waitForPendingRegistrations() async {
+    if (_registrationsInFlight.isEmpty) return;
+    try {
+      await Future.wait(_registrationsInFlight.toList())
+          .timeout(_deviceRevokeTimeout);
+    } catch (_) {}
   }
 
   /// Strictly best-effort: it runs before `signOut()`, so the JWT, the binding

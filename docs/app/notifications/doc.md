@@ -126,10 +126,10 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 |---|---|---|---|
 | App startup with a session | `auth_state.dart` | `_registerInstallationId()` | Skips desktop entirely |
 | Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
-| FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn` | Re-registers the new FID |
+| FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn && !_isLoggingOut` | Re-registers the new FID; events emitted during logout are dropped |
 | App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; sends the app locale, not the system locale |
 | Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it. Calls are single-flight: a second tap while one registration is pending re-sends the latest stored value after it settles, so the final server write matches the final switch position |
-| **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Deletes the row; see below |
+| **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Waits for an in-flight registration, then deletes the row; `onRegistered` events are dropped while `_isLoggingOut` |
 
 ### Backend upsert — `POST /api/v1/auth/installation-id`
 
@@ -174,7 +174,7 @@ await adminSupabase
 - **Row delete, not a flag**: `user_devices` has no `is_active`/`revoked_at` column and `fetchUserDevices` reads every row for the user, so removing the row is the deactivation. The `logs_api_access` / `logs_api_errors` / `logs_security_events` FKs are `ON DELETE SET NULL`, so audit rows survive the delete.
 - **Scoped by `user_id`**: `installation_id` is `UNIQUE`, so an unscoped delete could drop a row another account has already re-registered on this device.
 - Idempotent — a missing row answers `200 { success: true }`; a DB failure raises `500 DB-WRITE-001`.
-- Client side: `AuthRepository.revokeInstallationId()` → `ApiService.revokeInstallationId()`, called by `AuthState._revokeInstallationId()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`.
+- Client side: `AuthRepository.revokeInstallationId()` → `ApiService.revokeInstallationId()`, called by `AuthState._revokeInstallationId()` as step 0 of `logout()`, while the JWT/binding secret still exist. It is best-effort (5 s cap, errors swallowed) and its `401` path deliberately does not fire `ApiService.onSessionExpired`, which would re-enter `logout()`. `logout()` first lets any registration already in flight settle (bounded by the same timeout) and drops `onRegistered` events while `_isLoggingOut`, so the FCM `register()` that resolves the FID for the revoke cannot re-upsert the row it is about to delete.
 - Unrevoked stale rows (e.g. offline logout, session expiration, or a password-change revoke-all that could not land) converge through the periodic retention job (`sweepStaleUserDevices` in `retentionJob.js`). Every registration records the session that created it (`user_devices.session_id`, from `req.auth.claims.session_id`), so the sweep first runs the `device_purge_dead_sessions()` RPC to delete rows whose session is gone from `auth.sessions` or past its `not_after` — those cases die at the next sweep run instead of waiting out the window — then the age purge (`updated_at` older than `USER_DEVICE_RETENTION_DAYS = 30`) as the fallback for sessionless registrations and for app kills before `signOut()`.
 - The local FCM registration is **not** deleted (`FirebaseMessaging.deleteToken()` is never called): with no row the backend has nothing to target, and the next login re-registers the same FID via the upsert.
 
@@ -522,7 +522,7 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 
 ### Flutter
 
-`Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not; it also asserts the posted locale is the app locale when it differs from the system locale.
+`Flutter/test/logout_installation_id_revoke_test.dart` covers the client half of the revocation: `logout()` issues the revoke **before** `signOut()`, skips it when no session or no installation id exists, and still completes the teardown when the revoke fails or never answers (bounded by the injected timeout). It also pins the logout/registration race: an `onRegistered` event delivered during the revoke produces no upsert, and a registration already in flight is awaited before the revoke. `Flutter/test/api_service_test.dart` asserts the revoke's `401` does not re-enter the `onSessionExpired` logout callback. `Flutter/test/login_installation_id_guard_test.dart` pins the registration guard: a successful login registers the installation id when FCM is supported and makes no `updateInstallationId` call on a platform where it is not; it also asserts the posted locale is the app locale when it differs from the system locale. The FID-rotation path (an `onRegistered` event during an active session) is covered in the same logout test file.
 
 `Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
 

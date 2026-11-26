@@ -363,7 +363,7 @@ Feature actions call `BaseRepository.notifyPartnerOnce(notificationKey, params)`
    - Session present + username missing -> `fetchProfileByAuthId` + `setLoginData`.
 5. `_syncBackendSession()`: POST `/auth/session-bind` with the device fingerprint; stores the returned binding secret. Failures logged only. Also wired as `ApiService.onMissingBindingSecret`, so a signed request whose secret is missing - or was rejected as stale (`SEC-AUTH-002`) - re-runs it on demand.
 6. If logged in + FCM: `updateInstallationId(installationId, locale = app locale)` (backed by `AuthRepository.updateInstallationId`, which is signed). Failures logged only.
-7. Subscribes to `auth.onAuthStateChange` (`passwordRecovery` -> reset-password route; `signedOut` -> `logout()` when logged in; token refreshes are left to the SDK) and `InstallationIdService.onRegistered` (re-register installation id).
+7. Subscribes to `auth.onAuthStateChange` (`passwordRecovery` -> reset-password route; `signedOut` -> `logout()` when logged in; token refreshes are left to the SDK) and `InstallationIdService.onRegistered` (re-register installation id, except while `_isLoggingOut`).
 8. Registers `this` as `WidgetsBindingObserver` -> resumed -> debounced locale sync; `didChangeLocales` -> locale sync.
 9. Calls `notifyListeners()`.
 
