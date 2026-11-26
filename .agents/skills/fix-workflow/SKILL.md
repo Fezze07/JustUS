@@ -26,7 +26,7 @@ The rules that govern every change in this repo. `todo.md` (repo root) is the ta
 7. **Write the status line** in `todo.md` (§4) and tick the box — always both, never one alone.
 8. **Commit the code, the updated docs and `todo.md`, then push to `origin/dev`** (short message, ≤ 15 words, existing `type(scope): …` style).
 9. **Schema changes also go to the remote database.** This repo has no tracked `supabase/migrations/`; `supabase/schemas/**` is the source of truth. After editing any schema SQL (tables, functions, views, policies), apply it to the linked remote project so it matches the commit:
-   `npx supabase@3.0.0 db query --remote --yes --file <script>.sql`
+   `npx supabase@3.4.0 db query --remote --yes --file <script>.sql`
    (CLI 3 targets the local stack by default, so `--remote` is required; `--yes` covers the hosted-write confirmation. Needs `supabase login`, so if not working ask user for it). A SQL-only edit is not a finished item.
 
 ---

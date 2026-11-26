@@ -35,6 +35,7 @@
 | 21 | Schema, RLS & DB invariants | 21.1–21.12 | All fixed. `users.auth_id` cascade FK, cancellation trigger cooldown/expiry and single-partnership guards, signup username metadata, pgdelta manifest generator, retention and cancellation-FK indexes, dead catalog tables dropped, auth redirect allowlist and iOS scheme, seed disabled, and Supabase docs fixed |
 | 22 | Docs & dead-code hygiene | 22.1–22.4 | All fixed. Feature, backend and Supabase docs aligned with code; dead `getReceiverInstallationId` and `LanguageHelper` statics deleted |
 | 23 | Regression tests | 23.1–23.4 | All fixed. 23.1–23.3 closed as *already clean* (existing Flutter and Jest suites already covered them). Added `M1` auth-user delete cascade SQL assertion |
+| 24 | First-use correctness & security | 24.1–24.4 | All fixed. Atomic `game_get_or_create_question` RPC + partial unique index, fail-closed Android release signing, canonical `AuthState.syncPartnership` post-auth routing, and logout-guarded FID registration |
 
 ---
 
@@ -256,6 +257,10 @@
 | 23.2 | Retention pagination + five-table prune tests | **Clean** — 1001-row pagination and five-table prune tests already present | 2026-11-25 |
 | 23.3 | Cross-account logout state test | **Clean** — logout cache, invitation and profile reset tests already present | 2026-11-25 |
 | 23.4 | SQL trigger invariant tests | Fixed (`M1` auth-user delete cascade assertion added) | 2026-11-25 |
+| 24.1 | Make active game-question creation atomic | Fixed (`game_get_or_create_question` `FOR UPDATE` + partial unique index) | 2026-11-25 |
+| 24.2 | Fail closed when Android release signing is missing | Fixed (`gradle.taskGraph.whenReady` check; debug fallback removed) | 2026-11-25 |
+| 24.3 | Keep partnership routing state consistent | Fixed (`AuthState.syncPartnership` + `_resolvePostAuthRoute`) | 2026-11-25 |
+| 24.4 | Stop installation-id registration racing the logout revoke | Fixed (`_isLoggingOut` guard + `_waitForPendingRegistrations`) | 2026-11-26 |
 
 ---
 
