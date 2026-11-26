@@ -100,6 +100,7 @@ void main() {
       ChangeNotifierProvider<AuthState>.value(
         value: auth,
         child: MaterialApp(
+          navigatorKey: ErrorHandler.navigatorKey,
           initialRoute: '/main',
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             settings: settings,

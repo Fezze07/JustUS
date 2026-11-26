@@ -37,9 +37,9 @@ class LogoutUtils {
   static Future<void> performLogout(BuildContext context) async {
     final authState = context.read<AuthState>();
     await authState.logout();
-    if (!context.mounted) return;
-    unawaited(Navigator.pushNamedAndRemoveUntil(
-      context,
+    final navigator = ErrorHandler.navigatorKey.currentState;
+    if (navigator == null || !navigator.mounted) return;
+    unawaited(navigator.pushNamedAndRemoveUntil(
       AppRoutes.login,
       (route) => false,
     ));

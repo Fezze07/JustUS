@@ -223,7 +223,7 @@ Two mechanisms:
 
 ## Logout navigation
 
-- Single official path: `ProfileScreen._logout()` (profile_screen.dart:59-62) -> `LogoutUtils.showLogoutDialog` -> `LogoutUtils.performLogout` (logout_utils.dart:39-48): `await AuthState.logout()` then `pushNamedAndRemoveUntil(AppRoutes.login, (r)=>false)` - clears the whole stack.
+- Single official path: `ProfileScreen._logout()` (profile_screen.dart:59-62) -> `LogoutUtils.showLogoutDialog` -> `LogoutUtils.performLogout` (logout_utils.dart:37-47): `await AuthState.logout()` then `ErrorHandler.navigatorKey.currentState?.pushNamedAndRemoveUntil(AppRoutes.login, (r)=>false)` - clears the whole stack. Navigation does not depend on the initiating screen's `BuildContext`, so it still runs if that screen is disposed during the teardown.
 - Mandatory-force-update may indirectly send the user to the store via `launchUrl`, but does not log out.
 - Session-expiry "logout" (see Authentication-driven navigation) also navigates: the 401 maps to the reauth dialog, which redirects to `LoginScreen`.
 
@@ -306,7 +306,7 @@ There is no `NavigationService` and no router. The decision reads `AuthState.has
 ## Notes
 
 - All main destination screens are pushed by name; the only `MaterialPageRoute` in `lib/` is the one `generateAppRoute` returns.
-- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog`, the cancellation reverse teleport in `PartnerState`, and the password-recovery push in `AuthState` (all use `ErrorHandler.navigatorKey`). Feature state classes otherwise do not navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
+- The **only** navigation that originates outside widgets is `ErrorHandler._showReauthDialog`, the cancellation reverse teleport in `PartnerState`, the password-recovery push in `AuthState`, and logout (`LogoutUtils.performLogout`, through `ErrorHandler.navigatorKey` so it survives the caller's disposal) — all use `ErrorHandler.navigatorKey`. Feature state classes otherwise do not navigate - which is correct. The session-expiry path funnels into that same dialog: the synthetic `"401"` code is classified as `requiresReauth`, so `logout()` (state) is followed by the reauth dialog + redirect to `LoginScreen`.
 - `CaptchaService.getCaptchaToken()` uses `ErrorHandler.navigatorKey.currentContext` to host the Turnstile (Managed-mode) dialog - a second core-layer consumer of the global navigator.
 - `Flutter/test/app_routes_test.dart` covers the route table: a known name builds its real screen, an unknown name returns `null`, and `/drive/item` requires an integer argument.
 - Recommendation if navigation is ever refactored: introduce a single `go_router` (or a `navigator` service) with auth/partner redirect rules as the single source of truth for "MainShell vs PartnerScreen vs LoginScreen", use `MainShellScope.of(context)` for tab switching, and keep the existing `onNotificationTap` subscription as the content-navigation entry point.

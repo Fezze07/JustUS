@@ -61,11 +61,11 @@ The utilities covered include:
 * **API**:
   - `static void showLogoutDialog(BuildContext context, VoidCallback onConfirm)`
   - `static Future<void> performLogout(BuildContext context)`
-* **Dependencies**: `flutter/material.dart`, `provider`, `AuthState`, `LoginScreen`, `VPDialog`, `context.loc`.
+* **Dependencies**: `flutter/material.dart`, `provider`, `AuthState`, `ErrorHandler`, `LoginScreen`, `VPDialog`, `context.loc`.
 * **Callers**: `ProfileScreen` ([`profile_screen.dart:60`](file:///f:/JustUS/Flutter/lib/features/settings/screens/profile_screen.dart#L60)) and `PartnerScreen` ([`partner_screen.dart:168`](file:///f:/JustUS/Flutter/lib/features/partnership/screens/partner_screen.dart#L168)).
 * **Expected Usage**: Call `showLogoutDialog` on UI logout tap, passing `() => LogoutUtils.performLogout(context)` as `onConfirm`.
 * **Error Behavior**: Assumes `authState.logout()` succeeds gracefully.
-* **Lifecycle Assumptions**: Checks `if (!context.mounted) return;` after `await authState.logout()` before performing `Navigator.pushAndRemoveUntil`.
+* **Lifecycle Assumptions**: After `await authState.logout()` the stack is replaced through `ErrorHandler.navigatorKey.currentState`, not the caller's `BuildContext`; logout navigation therefore still happens if the initiating screen is disposed during the teardown.
 
 ---
 

@@ -156,7 +156,7 @@ The logout protocol performs a multi-layer tear-down of local credentials, stora
 
 ### Execution Sequence
 
-Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:39-48](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L39-L48)), which delegates to `AuthState.logout()` ([auth_state.dart:777-801](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L777-L801)):
+Logout is initiated by `LogoutUtils.performLogout(context)` ([logout_utils.dart:37-47](file:///f:/JustUS/Flutter/lib/shared/utils/auth/logout_utils.dart#L37-L47)), which delegates to `AuthState.logout()` ([auth_state.dart:824-853](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L824-L853)):
 
 ```
 Logout Initiated (Profile / Partner Screen)
@@ -185,7 +185,7 @@ Logout Initiated (Profile / Partner Screen)
    │        └── Triggers RealtimeSyncScope -> RealtimeSyncService.configure(userId: null)
    │               └── RealtimeSyncConnection.unsubscribe() closes WebSocket channel
    │
-   └── 8. UI Stack Replacement (Navigator.pushAndRemoveUntil -> LoginScreen)
+   └── 8. UI Stack Replacement (ErrorHandler.navigatorKey -> pushNamedAndRemoveUntil -> LoginScreen)
 ```
 
 #### Why the revoke runs first
