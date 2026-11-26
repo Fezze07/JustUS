@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:justus/all_imports.dart';
@@ -582,19 +584,21 @@ class VPAuthLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final headerHeight = math.max(screenHeight * 0.35, 240.0);
     return Scaffold(
       backgroundColor: palette.canvas,
       body: SingleChildScrollView(
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height,
+            minHeight: screenHeight,
           ),
           child: IntrinsicHeight(
             child: Column(
               children: [
                 // Header Section with Gradient
                 Container(
-                  height: MediaQuery.of(context).size.height * 0.35,
+                  height: headerHeight,
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -633,39 +637,42 @@ class VPAuthLayout extends StatelessWidget {
 
                       // Content
                       SafeArea(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(AppSpacing.md),
-                                decoration: BoxDecoration(
-                                  color: AppPalette.brandHeroGlass,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    color: AppPalette.brandHeroGlass,
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.lg),
+                                  ),
+                                  child: const Icon(Icons.favorite,
+                                      color: Colors.white, size: 48),
                                 ),
-                                child: const Icon(Icons.favorite,
-                                    color: Colors.white, size: 48),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                context.loc.appTitle,
-                                style: VpWidgets.googleFont(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  context.loc.appTitle,
+                                  style: VpWidgets.googleFont(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                context.loc.appTagline,
-                                style: VpWidgets.googleFont(
-                                  fontSize: 14,
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w500,
+                                Text(
+                                  context.loc.appTagline,
+                                  style: VpWidgets.googleFont(
+                                    fontSize: 14,
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -676,7 +683,7 @@ class VPAuthLayout extends StatelessWidget {
                         left: 0,
                         right: 0,
                         child: Container(
-                          height: 32,
+                          height: AppSpacing.xl,
                           decoration: BoxDecoration(
                             color: palette.canvas,
                             borderRadius: const BorderRadius.vertical(
@@ -696,7 +703,7 @@ class VPAuthLayout extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.xl),
                         Text(
                           title,
                           style: VpWidgets.googleFont(

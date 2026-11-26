@@ -216,22 +216,22 @@ Legend: AUTH = requires logged-in session; NET = performs network/image fetch; e
 - **A11y**: inherits the dialog route's modal semantics; the forced-brightness contrast caveat is gone.
 - **Usage**: the only place `AlertDialog` is constructed — register confirm-email, update dialog, logout, captcha, bucket add, drive delete, profile wipe/edit, reauth, `ErrorDialog`, and others (12 call sites). Screens pass localized `title` + `content` + `actions`, so copy and button order are decided once by the theme rather than per screen.
 
-### VPAuthLayout - `vp_widgets.dart:653-818`
+### VPAuthLayout - `vp_widgets.dart:570-740`
 
 - **Purpose**: login/register screen shell.
 - **API**: `{required String title, required String subtitle, required List<Widget> children, Widget? footer}`.
-- **Behavior**: full-height `SingleChildScrollView`/`ConstrainedBox`/`IntrinsicHeight`/`Column`; **hero header** = 35% viewport gradient (`AppPalette.brandGradientStart→brandNeonPurple`), decorative `brandHeroOverlay` circles, heart icon in `brandHeroGlass` rounded square, **`context.loc.appTitle`** at 40px + `context.loc.appTagline`; a 32px curved `canvas` overlap; form area with title/subtitle (28px/14px), children, `Spacer`, footer.
+- **Behavior**: full-height `SingleChildScrollView`/`ConstrainedBox`/`IntrinsicHeight`/`Column`; **hero header** = `max(35% viewport, 240px)` gradient (`AppPalette.brandGradientStart→brandNeonPurple`), decorative `brandHeroOverlay` circles, heart icon in `brandHeroGlass` rounded square, **`context.loc.appTitle`** at 40px + `context.loc.appTagline`; a 32px curved `canvas` overlap (the header content reserves that height so the tagline stays clear of it); form area with a 32px gap before the title, then title/subtitle (28px/14px), children, `Spacer`, footer.
 - **Loc**: reads `appTitle`/`appTagline` internally (the only DS component using `context.loc` directly); title/subtitle passed by caller.
 - **Theme**: theme-aware for the form/canvas; the hero gradient is brand-fixed in both themes.
-- **Usage**: login_screen:26, register_screen:27.
+- **Usage**: login_screen:33, register_screen:38.
 
-### VPAuthLink - `vp_widgets.dart:820-857`
+### VPAuthLink - `vp_widgets.dart:742-779`
 
 - **Purpose**: auth footer tappable link ("No account? Sign up").
 - **API**: `{required String text, required String actionText, required VoidCallback onTap}`.
 - **Behavior**: centered `Row`; neutral 14px text (`contentTertiary`) + `TextButton` with `accentPurple` bold action.
 - **A11y**: text separate from button (screen readers read both); no location hint.
-- **Usage**: login:29, register:30.
+- **Usage**: login:36, register:41.
 
 ### VPFilterChip - `vp_filter_chip.dart`
 
