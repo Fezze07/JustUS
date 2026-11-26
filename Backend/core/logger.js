@@ -1,5 +1,5 @@
 // =============================================================================
-// logger.js — Centralized structured logger for JustUs backend
+// logger.js — Centralized structured logger for JustUS backend
 // Routes log entries to the correct Supabase table based on type.
 // Automatically sanitizes sensitive fields in production.
 // =============================================================================

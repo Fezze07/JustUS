@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.fezze" "\0"
-            VALUE "FileDescription", "justus" "\0"
+            VALUE "FileDescription", "JustUS" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "justus" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.fezze. All rights reserved." "\0"
             VALUE "OriginalFilename", "justus.exe" "\0"
-            VALUE "ProductName", "justus" "\0"
+            VALUE "ProductName", "JustUS" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

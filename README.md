@@ -1,8 +1,8 @@
-# JustUs 💖
+# JustUS 💖
 
-![JustUs](JustUs.png)
+![JustUS](JustUs.png)
 
-**JustUs** is a premium digital ecosystem designed specifically for couples. Built with a modern **Flutter** frontend and a robust **Hybrid Backend** (Supabase + Node.js), it provides a secure and intimate space to share emotions, preserve memories, and engage in meaningful daily interactions.
+**JustUS** is a premium digital ecosystem designed specifically for couples. Built with a modern **Flutter** frontend and a robust **Hybrid Backend** (Supabase + Node.js), it provides a secure and intimate space to share emotions, preserve memories, and engage in meaningful daily interactions.
 
 ---
 

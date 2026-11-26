@@ -1,5 +1,5 @@
 // =============================================================================
-// JustUs App - Version Control Models
+// JustUS App - Version Control Models
 // =============================================================================
 
 class AppVersionResponse {

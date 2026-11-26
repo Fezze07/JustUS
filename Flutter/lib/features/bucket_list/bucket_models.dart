@@ -1,5 +1,5 @@
 // =============================================================================
-// JustUs App - Bucket List Models
+// JustUS App - Bucket List Models
 // =============================================================================
 
 import 'package:justus/all_imports.dart';

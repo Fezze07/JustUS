@@ -8,7 +8,7 @@
 //   const { buildCallbackPage } = require('../templates/callbackPage');
 //   res.status(200).send(buildCallbackPage({
 //     title: 'Email Confermata!',
-//     body:  'Puoi chiudere questa pagina e tornare all\'app JustUs.',
+//     body:  'Puoi chiudere questa pagina e tornare all\'app JustUS.',
 //     icon:  '✅',
 //   }));
 // =============================================================================

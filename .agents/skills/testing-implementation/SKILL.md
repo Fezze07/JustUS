@@ -7,9 +7,9 @@ version: "1.0"
 tags: [testing, infrastructure, backend, flutter, docker, mock-ai, jest, supertest]
 ---
 
-# JustUs Testing Environment
+# JustUS Testing Environment
 
-This document describes the structure, configuration, and usage of the JustUs testing environment. The environment is designed to be reproducible, isolated from production services, and easy to run locally or in CI.
+This document describes the structure, configuration, and usage of the JustUS testing environment. The environment is designed to be reproducible, isolated from production services, and easy to run locally or in CI.
 
 ## 📁 Testing Structure
 

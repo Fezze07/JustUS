@@ -1,5 +1,5 @@
 // =============================================================================
-// JustUs App - Game Models
+// JustUS App - Game Models
 // =============================================================================
 
 /// Resolves a display name for [userId] given the current user's names.

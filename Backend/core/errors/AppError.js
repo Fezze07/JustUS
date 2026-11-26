@@ -1,5 +1,5 @@
 // =============================================================================
-// AppError — Centralized error class for JustUs backend
+// AppError — Centralized error class for JustUS backend
 // Error code format: <AREA>-<TYPE>-<ID>
 //   Areas: AUTH, DB, API, SEC, SYS
 //   Types: FAIL, VALIDATION, TIMEOUT, NOT_FOUND, PERMISSION

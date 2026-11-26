@@ -1,5 +1,5 @@
 // =============================================================================
-// JustUs App - Violet Punk Design System
+// JustUS App - Violet Punk Design System
 // Barrel file — import this to access all VP design system components.
 // =============================================================================
 

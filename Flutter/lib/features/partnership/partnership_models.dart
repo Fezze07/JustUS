@@ -1,5 +1,5 @@
 // =============================================================================
-// JustUs App - Partnership Models
+// JustUS App - Partnership Models
 // =============================================================================
 
 import 'package:justus/all_imports.dart';

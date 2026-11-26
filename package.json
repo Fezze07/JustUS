@@ -1,7 +1,7 @@
 {
   "name": "justus",
   "version": "1.0.0",
-  "description": "![JustUs](JustUs.png)",
+  "description": "![JustUS](JustUs.png)",
   "scripts": {
     "test": "npm run validate",
     "scan:duplicates": "npm run scan:duplicates:global",

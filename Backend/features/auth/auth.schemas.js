@@ -34,7 +34,7 @@ const inviteSchema = z.object({
   partnershipCode: z.string().length(6, "Il codice deve essere di 6 caratteri"),
 });
 
-// Account-only invite: the email address of a partner who has no JustUs
+// Account-only invite: the email address of a partner who has no JustUS
 // account yet.
 const inviteUserSchema = z.object({
   email: z.string().email(),
