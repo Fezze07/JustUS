@@ -127,9 +127,13 @@ class MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final hasPartner = context.select<AuthState, bool>((a) => a.hasPartner);
-    if (!hasPartner) {
+    final needsPartner = context.select<AuthState, bool>(
+        (a) => a.isLoggedIn && !a.hasPartner);
+    if (needsPartner) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final auth = context.read<AuthState>();
+        if (!auth.isLoggedIn || auth.hasPartner) return;
         final nav = ErrorHandler.navigatorKey.currentState;
         if (nav != null && nav.mounted) {
           final current = ModalRoute.of(nav.context)?.settings.name;

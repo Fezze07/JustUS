@@ -90,7 +90,7 @@ The destination decision ("MainShell vs PartnerScreen vs LoginScreen") is centra
 
 Conditions map to the getters `AuthState.isLoggedIn => _accessToken != null && _accessToken!.isNotEmpty` (auth_state.dart:82) and `AuthState.hasPartner => _partnerId != null` (auth_state.dart:83). Requirement: **an authenticated user without partnership goes to `PartnerScreen`; with partnership goes to `MainShell`.** This holds on every site only if the underlying data succeeded.
 
-**Covered at runtime**: a partnership that stops being active (cancellation requested, accepted and deleted, or otherwise removed) makes `AuthState.hasPartner` false. `MainShell` watches that getter and replaces the stack with `PartnerScreen` through `ErrorHandler.navigatorKey`; `PartnerState` also teleports when a known cancellation resolves to no partner, which covers pushed routes where the shell is offstage. Forward one-shot decisions remain as described above.
+**Covered at runtime**: a partnership that stops being active (cancellation requested, accepted and deleted, or otherwise removed) makes `AuthState.hasPartner` false. `MainShell` redirects only while the user is still authenticated (`isLoggedIn && !hasPartner`) and revalidates both flags inside its post-frame callback, so a redirect scheduled before logout cannot fire; it replaces the stack with `PartnerScreen` through `ErrorHandler.navigatorKey`. `PartnerState` also teleports when a known cancellation resolves to no partner, which covers pushed routes where the shell is offstage. Forward one-shot decisions remain as described above.
 
 ---
 
@@ -216,7 +216,7 @@ Two mechanisms:
 ## Partnership-driven navigation
 
 - Forward: accept invitation or tap existing-partner card on `PartnerScreen` -> `pushReplacementNamed(AppRoutes.mainShell)` (partner_screen.dart). The cancellation request from Profile is also forward: `pushReplacementNamed(AppRoutes.partner)` after `partnership_request_cancel` succeeds; restore/decline later replaces it with `AppRoutes.mainShell`.
-- Reverse: a `partnerships` realtime event refreshes `PartnerState` + `AuthState`; once the pair stops being active (cancellation requested or row deleted) `AuthState.hasPartner` turns false. `MainShell.build` schedules a `pushNamedAndRemoveUntil(AppRoutes.partner)` through `ErrorHandler.navigatorKey`; `PartnerState` performs the same redirect (`_teleportIfEnded`, after both reads) when a known cancellation resolves to no partner, so it also works above pushed routes such as `ProfileScreen`. No dialog is shown. `PartnerScreen` then renders the cancellation card from `PartnerState.cancellation` (requester sees the waiting card; the partner can accept or decline). Revert, decline and lazy expiry restore the accepted pair and no redirect fires.
+- Reverse: a `partnerships` realtime event refreshes `PartnerState` + `AuthState`; once the pair stops being active (cancellation requested or row deleted) `AuthState.hasPartner` turns false. `MainShell.build` schedules a `pushNamedAndRemoveUntil(AppRoutes.partner)` through `ErrorHandler.navigatorKey` only when `AuthState.isLoggedIn` is still true, and the callback rechecks `isLoggedIn`/`hasPartner` before navigating so a stale callback cannot redirect a logged-out user; `PartnerState` performs the same redirect (`_teleportIfEnded`, after both reads) when a known cancellation resolves to no partner, so it also works above pushed routes such as `ProfileScreen`. No dialog is shown. `PartnerScreen` then renders the cancellation card from `PartnerState.cancellation` (requester sees the waiting card; the partner can accept or decline). Revert, decline and lazy expiry restore the accepted pair and no redirect fires.
 - Homepage cross-tab jumps use `MainShell.of(context)?.switchToTab(2|3|5)` (homepage_screen.dart) through `MainShellScope`.
 
 ---
@@ -269,7 +269,7 @@ Two mechanisms:
 
 ## Centralized navigation
 
-**Centralized forward decision, imperative call sites.** `AuthNavigationUtils.determinePostAuthRouteName` is the single source of truth for the post-auth destination and is used by `SplashScreen`, `LoginScreen` and `ResetPasswordScreen`. `PartnerScreen` navigates directly to `AppRoutes.mainShell` on accept / existing-partner because the partnership is already known there. The reverse redirect lives in `MainShell` (`hasPartner == false`) and `PartnerState._teleportIfEnded` (cancellation teleport through the global navigator).
+**Centralized forward decision, imperative call sites.** `AuthNavigationUtils.determinePostAuthRouteName` is the single source of truth for the post-auth destination and is used by `SplashScreen`, `LoginScreen` and `ResetPasswordScreen`. `PartnerScreen` navigates directly to `AppRoutes.mainShell` on accept / existing-partner because the partnership is already known there. The reverse redirect lives in `MainShell` (`isLoggedIn && !hasPartner`) and `PartnerState._teleportIfEnded` (cancellation teleport through the global navigator).
 
 There is no `NavigationService` and no router. The decision reads `AuthState.hasPartner` and `PartnerState.partner` after `fetchPartnership`, so a failed fetch can still strand a legitimately paired user on `PartnerScreen`; the existing-partner card is the self-heal path.
 
