@@ -40,6 +40,7 @@ class AuthState extends BaseState
   bool _isSyncingNotificationPreference = false;
   bool _notificationPreferenceChangedWhileSyncing = false;
   final Set<Future<void>> _registrationsInFlight = {};
+  final Set<Future<String>> _installationIdLookupsInFlight = {};
 
   /// Trailing-edge window coalescing lifecycle-driven locale syncs.
   @override
@@ -285,7 +286,12 @@ class AuthState extends BaseState
       return null;
     }
 
-    final installationId = await InstallationIdService.getInstallationId();
+    final installationIdLookup =
+        Future<String>.microtask(InstallationIdService.getInstallationId);
+    _installationIdLookupsInFlight.add(installationIdLookup);
+    final installationId = await installationIdLookup.whenComplete(() {
+      _installationIdLookupsInFlight.remove(installationIdLookup);
+    });
     if (installationId.isEmpty || _isLoggingOut) return null;
 
     return _upsertInstallationId(installationId, locale: locale);
@@ -297,6 +303,12 @@ class AuthState extends BaseState
   @visibleForTesting
   Future<void> handleInstallationIdRegistered(String installationId) async {
     if (installationId.isEmpty || !isLoggedIn || _isLoggingOut) return;
+    final pendingLookups = _installationIdLookupsInFlight.toList();
+    if (pendingLookups.isNotEmpty) {
+      final resolvedIds = await Future.wait(pendingLookups);
+      if (resolvedIds.contains(installationId)) return;
+    }
+    if (!isLoggedIn || _isLoggingOut) return;
     await _upsertInstallationId(installationId);
   }
 
@@ -330,12 +342,10 @@ class AuthState extends BaseState
   /// Pushes the device-local notification toggle to the backend by
   /// re-registering this installation, so disabled devices stop receiving push.
   ///
-  /// The registration is an absolute-value upsert, so repeating one request is
-  /// harmless; the race is a double tap sending two values that land out of
-  /// order. A call made while a registration is in flight only marks the
-  /// preference dirty, and one final registration sends the latest stored value
-  /// after the current one settles — the server's last write then matches the
-  /// switch's last position.
+  /// A call made while a registration is in flight only marks the preference
+  /// dirty, and one final registration sends the latest stored value after the
+  /// current one settles — the server's last write then matches the switch's
+  /// last position.
   Future<void> syncNotificationPreference() async {
     if (_isSyncingNotificationPreference) {
       _notificationPreferenceChangedWhileSyncing = true;

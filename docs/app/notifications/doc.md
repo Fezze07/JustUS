@@ -128,7 +128,7 @@ NotificationService().showRemoteMessage(message, isBackground: true)
 | Successful login | `auth_state.dart` | `_registerInstallationId()` | Same guard as startup; skips desktop |
 | FID change | `auth_state.dart` | `installationId.isNotEmpty && isLoggedIn && !_isLoggingOut` | Re-registers the new FID; events emitted during logout are dropped |
 | App resume / locale change | `auth_state.dart` | `_registerInstallationId(locale:)` | Debounced 500 ms; sends the app locale, not the system locale |
-| Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it. Calls are single-flight: a second tap while one registration is pending re-sends the latest stored value after it settles, so the final server write matches the final switch position |
+| Notification toggle | `profile_screen.dart` | `syncNotificationPreference()` | Stores the pref locally, then re-registers so the backend mirrors it. The `onRegistered` event produced by that explicit FID lookup is deduplicated; calls are single-flight, and a second tap while one registration is pending re-sends the latest stored value after it settles |
 | **Logout** | `auth_state.dart` (`_revokeInstallationId()`) | `isLoggedIn && installationId.isNotEmpty` | Waits for an in-flight registration, then deletes the row; `onRegistered` events are dropped while `_isLoggingOut` |
 
 ### Backend upsert — `POST /api/v1/auth/installation-id`
@@ -526,9 +526,9 @@ The `sendNotificationController` is fully mocked in the route suite — FCM mult
 
 `Flutter/test/notification_service_test.dart` covers `resolveNotificationContent`: an unknown `notificationKey` uses the server `title`/`body`, and falls back to `(title: 'JustUS', body: '')` only when the server text is absent.
 
-`Flutter/test/notification_preference_sync_test.dart` covers the toggle sync: a second `syncNotificationPreference()` while the first registration is in flight does not start a concurrent request, and once it settles one final registration is sent with the latest stored value (`[false, true]`, max one request in flight).
+`Flutter/test/notification_preference_sync_test.dart` covers the toggle sync: a second `syncNotificationPreference()` while the first registration is in flight does not start a concurrent request, and once it settles one final registration is sent with the latest stored value (`[false, true]`, max one request in flight). It also verifies that the `onRegistered` event emitted during explicit FID lookup produces no duplicate request, while a later independent FID change still registers.
 
-**Not covered**: FID acquisition and rotation, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS foreground presentation (code-reviewed, not device-verified), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
+**Not covered**: real-platform FID acquisition, permission flows, foreground/background rendering, stable-ID hashing, tap/launch detection, iOS foreground presentation (code-reviewed, not device-verified), and web behavior (F-PN2). `onNotificationTap`, `showRemoteMessage` rendering and `_notificationId` have no test.
 
 ---
 
