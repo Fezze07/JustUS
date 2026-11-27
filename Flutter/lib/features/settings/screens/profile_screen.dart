@@ -530,13 +530,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                             Icon(Icons.heart_broken_outlined,
                                 color: context.palette.danger),
                             const SizedBox(width: 12),
-                            Text(
-                              context.loc.profile_cancelRequest,
-                              style: VpWidgets.googleFont(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2,
-                                color: context.palette.danger,
-                                fontSize: 12,
+                            Flexible(
+                              child: Text(
+                                context.loc.profile_cancelRequest,
+                                textAlign: TextAlign.center,
+                                style: VpWidgets.googleFont(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                  color: context.palette.danger,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],

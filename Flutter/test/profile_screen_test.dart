@@ -192,6 +192,34 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets(
+      'the cancellation button wraps and remains tappable on narrow screens',
+      (tester) async {
+    tester.view.physicalSize = const Size(420, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpProfile(tester, hasPartner: true);
+
+    final button = find.text('RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP');
+    await tester.scrollUntilVisible(
+      button,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(button).left, greaterThanOrEqualTo(0));
+    expect(tester.getRect(button).right, lessThanOrEqualTo(420));
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Richiedi la cancellazione della partnership'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a confirmed request lands on PartnerScreen', (tester) async {
     final (repository, _) = await pumpProfile(tester, hasPartner: true);
 

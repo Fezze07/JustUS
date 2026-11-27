@@ -417,7 +417,7 @@ CORREZIONI DOPO FULL TEST MANUALE:
 - **Acceptance**: an existing account's email is rejected without calling Resend and returns `API-VALIDATION-002`; the Flutter dialog displays the localized message. An email not registered in JustUS still receives exactly one invitation. A database lookup failure prevents sending and returns `DB-READ-001`. The existing email + 6-character code invitation flow continues working.
 
 ### 29.3 Fix partnership cancellation button overflow (🟡 MEDIUM)
-- [ ] **Status**: 🔴 OPEN — Confirmed in the current code: `ProfileScreen` builds the cancellation button with a `Row` containing an icon, fixed spacing, and an unconstrained `Text` widget. The Italian label `RICHIEDI LA CANCELLAZIONE DELLA PARTNERSHIP`, combined with `letterSpacing: 2`, exceeds the available width on narrow screens. The reported runtime error confirms a 99-pixel horizontal overflow.
+- [x] **Status: ✅ FIXED (2026-11-27, on `dev`)** — constrained the localized label with `Flexible` and centered its wrapped text, preserving the existing icon, styling, and tappable confirmation flow (`Flutter/lib/features/settings/screens/profile_screen.dart:533-546`). · **Verification**: `Set-Location Flutter; flutter analyze` — no issues; `Set-Location Flutter; flutter test test/profile_screen_test.dart` — 9 passed, including a 420px viewport regression test; `git diff --check` clean. · **Residual**: testing at 320px exposed a separate overflow in the logout button; tracked as 29.5 and left unchanged.
 - **Sources**: User-reported runtime error; current-code review.
 - **Files**: `Flutter/lib/features/settings/screens/profile_screen.dart`, `Flutter/test/profile_screen_test.dart`.
 - **Defect**: The cancellation button does not constrain or wrap its label, causing the `Row` to overflow horizontally on smaller screens.
@@ -431,6 +431,14 @@ CORREZIONI DOPO FULL TEST MANUALE:
 - **Defect**: Explicit FID registration and the persistent `onRegistered` listener both persist the same installation ID, causing duplicate backend requests.
 - **Fix**: Ensure that an FID obtained during an explicit registration flow is persisted only once. Keep the `onRegistered` listener for independent FID changes, without allowing it to duplicate an update already handled by `_registerInstallationId()`. Preserve the existing serialization of rapid notification-toggle changes and the latest-preference behavior.
 - **Acceptance**: A single notification toggle produces exactly one `POST /api/v1/auth/installation-id`. Independent FID changes still trigger registration, rapid consecutive toggles remain serialized, and the final `notifications_enabled` value matches the last switch position. Add regression tests covering both explicit registration events and independent FID changes.
+
+### 29.5 Prevent logout button overflow on narrow ProfileScreen widths (🟡 MEDIUM)
+- [ ] **Status**: 🔴 OPEN — During a 320px viewport reproduction, the logout button's `Row` also overflowed horizontally after the cancellation-button overflow was isolated.
+- **Sources**: Current-code review during verification of item 29.3.
+- **Files**: `Flutter/lib/features/settings/screens/profile_screen.dart`, `Flutter/test/profile_screen_test.dart`.
+- **Defect**: The logout button combines an icon, fixed spacing, and an unconstrained localized label. On narrow screens, its label exceeds the available width and overflows horizontally.
+- **Fix**: Constrain and wrap the logout label while preserving the existing button styling and interaction.
+- **Acceptance**: The logout button renders without layout exceptions and remains fully visible and tappable at a 320px viewport. Add a focused widget regression test.
 
 ## Phase 30 — Games
 
