@@ -155,13 +155,18 @@ class RealtimeSyncService {
   }) {
     if (_disposed) return;
 
-    final changed = _session.userId != userId ||
+    final wasSignedOut = _connection.signedOut;
+    final changed = (wasSignedOut && userId != null) ||
+        _session.userId != userId ||
         _session.partnerId != partnerId ||
         _session.partnershipId != partnershipId;
     _connection.resetRetryCounters();
     _session.userId = userId;
     _session.partnerId = partnerId;
     _session.partnershipId = partnershipId;
+    if (userId != null) {
+      _connection.handleSignedIn();
+    }
 
     if (!changed) return;
 
@@ -175,7 +180,13 @@ class RealtimeSyncService {
       _connection.deactivatePollingFallback();
     }
 
-    if (userId == null || partnershipId == null) {
+    if (userId == null) {
+      AnsiLogger.realtime('configure() - no user, disconnecting');
+      _connection.handleSignedOut();
+      return;
+    }
+
+    if (partnershipId == null) {
       AnsiLogger.realtime(
           'configure() - userId=$userId partnershipId=$partnershipId, deferring subscribe');
       unawaited(_connection.unsubscribe());

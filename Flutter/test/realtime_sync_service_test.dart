@@ -109,6 +109,15 @@ void main() {
     await pumpEventQueue();
   }
 
+  /// Same as [connect], for `testWidgets` where the fake clock only advances
+  /// through `tester.pump()` (so `pumpEventQueue()` would never return).
+  Future<void> connectWith(WidgetTester tester) async {
+    service.configure(userId: 42, partnerId: 77, partnershipId: 9001);
+    await service.refreshChannel();
+    statusCallback?.call(sb.RealtimeSubscribeStatus.subscribed, null);
+    await tester.pump();
+  }
+
   void emit(
     String table,
     sb.PostgresChangeEvent eventType, {
@@ -351,6 +360,81 @@ void main() {
       verifyNever(() => realtimeClient.setAuth(any()));
       verify(() => client.channel(any())).called(1);
       verifyNever(() => client.removeChannel(any()));
+    });
+
+    testWidgets(
+        'signedOut disconnects immediately and stops reconnects and polling',
+        (tester) async {
+      service.start();
+      await connectWith(tester);
+
+      // Three failures activate the 15 s polling fallback before sign-out.
+      statusCallback?.call(sb.RealtimeSubscribeStatus.closed, null);
+      statusCallback?.call(sb.RealtimeSubscribeStatus.closed, null);
+      await tester.pump();
+
+      clearInteractions(partnerState);
+      clearInteractions(client);
+
+      authChanges.add(const sb.AuthState(
+        sb.AuthChangeEvent.signedOut,
+        null,
+      ));
+      await tester.pump();
+
+      verify(() => client.removeChannel(channel)).called(1);
+
+      await tester.pump(const Duration(seconds: 30));
+
+      verifyNever(() => client.channel(any()));
+      verifyNever(() => partnerState.refreshFromRealtime());
+    });
+
+    testWidgets(
+        'an in-flight subscription cannot create a channel after signedOut',
+        (tester) async {
+      service.start();
+      await connectWith(tester);
+
+      final gate = Completer<String>();
+      when(() => client.removeChannel(any())).thenAnswer((_) => gate.future);
+
+      service.configure(userId: 42, partnerId: 77, partnershipId: 4242);
+      await tester.pump(const Duration(seconds: 2));
+
+      authChanges.add(const sb.AuthState(
+        sb.AuthChangeEvent.signedOut,
+        null,
+      ));
+      await tester.pump();
+
+      gate.complete('removed');
+      await tester.pump();
+
+      verify(() => client.channel('justus-sync-42-1')).called(1);
+      verifyNever(() => client.channel('justus-sync-42-2'));
+    });
+
+    testWidgets('an authenticated configure reconnects after signedOut',
+        (tester) async {
+      service.start();
+      await connectWith(tester);
+
+      authChanges.add(const sb.AuthState(
+        sb.AuthChangeEvent.signedOut,
+        null,
+      ));
+      await tester.pump();
+
+      service.configure(userId: null, partnerId: null, partnershipId: null);
+      await tester.pump();
+
+      service.configure(userId: 42, partnerId: 77, partnershipId: 9001);
+      await service.refreshChannel();
+      statusCallback?.call(sb.RealtimeSubscribeStatus.subscribed, null);
+      await tester.pump();
+
+      verify(() => client.channel(any())).called(2);
     });
 
     test('dispose removes the channel and stops the auth listener', () async {

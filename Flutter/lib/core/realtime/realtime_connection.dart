@@ -33,6 +33,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
 
   bool _disposed = false;
   bool _foreground = true;
+  bool _signedOut = false;
   bool _subscribing = false;
   bool _usePollingFallback = false;
   int _generation = 0;
@@ -40,6 +41,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
   int _consecutiveFailures = 0;
 
   bool get foreground => _foreground;
+  bool get signedOut => _signedOut;
   bool get usePollingFallback => _usePollingFallback;
 
   /// Trailing-edge window before a resume triggers one reconnect attempt.
@@ -61,10 +63,33 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
         return;
       }
 
+      if (authState.event == sb.AuthChangeEvent.signedOut) {
+        handleSignedOut();
+        return;
+      }
+
       if (_foreground && _session.userId != null) {
         scheduleReconnect();
       }
     });
+  }
+
+  /// Stops every Realtime activity as soon as the user signs out. The session
+  /// still holds the old user id until `configure(userId: null)` runs, so the
+  /// flag and the generation bump keep timers, subscriptions and polling from
+  /// acting on that stale identity.
+  void handleSignedOut() {
+    if (_disposed || _signedOut) return;
+    _signedOut = true;
+    _generation++;
+    cancelPending();
+    deactivatePollingFallback();
+    unawaited(unsubscribe());
+  }
+
+  /// Re-enables Realtime work once an authenticated identity is configured.
+  void handleSignedIn() {
+    _signedOut = false;
   }
 
   /// Resets backoff/failure counters (called by `configure()` even when
@@ -106,7 +131,9 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
 
   void scheduleReconnect(
       {bool refreshAfterSubscribe = false, sb.RealtimeCloseEvent? closeEvent}) {
-    if (_disposed || !_foreground || _session.userId == null) return;
+    if (_disposed || !_foreground || _signedOut || _session.userId == null) {
+      return;
+    }
 
     _reconnectAttempt++;
     _consecutiveFailures++;
@@ -162,7 +189,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
   }
 
   void activatePollingFallback() {
-    if (_usePollingFallback || _disposed) return;
+    if (_usePollingFallback || _disposed || _signedOut) return;
     _usePollingFallback = true;
     AnsiLogger.realtime(
         '_activatePollingFallback() - Realtime unstable, switching to polling');
@@ -170,7 +197,7 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
     _pollingFallbackTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) {
-        if (_disposed || !_foreground) {
+        if (_disposed || !_foreground || _signedOut) {
           _pollingFallbackTimer?.cancel();
           return;
         }
@@ -191,9 +218,13 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
   }
 
   Future<void> subscribe({required bool refreshAfterSubscribe}) async {
-    if (_disposed || _subscribing || !_foreground || _session.userId == null) {
+    if (_disposed ||
+        _subscribing ||
+        !_foreground ||
+        _signedOut ||
+        _session.userId == null) {
       AnsiLogger.realtime(
-          '_subscribe() - SKIP: disposed=$_disposed subscribing=$_subscribing foreground=$_foreground userId=${_session.userId}');
+          '_subscribe() - SKIP: disposed=$_disposed subscribing=$_subscribing foreground=$_foreground signedOut=$_signedOut userId=${_session.userId}');
       return;
     }
 
@@ -206,7 +237,12 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
       AnsiLogger.realtime(
           '_subscribe() - subscribing generation=$_generation userId=${_session.userId} refreshAfterSubscribe=$refreshAfterSubscribe');
       await unsubscribe();
-      if (_disposed || !_foreground || _session.userId == null) return;
+      if (_disposed ||
+          !_foreground ||
+          _signedOut ||
+          _session.userId == null) {
+        return;
+      }
 
       var channel =
           _client.channel('justus-sync-${_session.userId}-$_generation');

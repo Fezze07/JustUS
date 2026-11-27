@@ -201,6 +201,7 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 
 - `RealtimeSyncService.start()` → `RealtimeSyncConnection.start()` adds a `WidgetsBindingObserver` and subscribes to `_client.auth.onAuthStateChange`.
 - `tokenRefreshed` → ignored by the connection: the Supabase client already forwards the rotated JWT to Realtime on the existing channel. No reconnect is triggered.
+- `signedOut` → `handleSignedOut()`: sets the connection's signed-out flag, bumps `_generation`, cancels the lifecycle debounce and reconnect timer, deactivates polling and removes the channel. The session still holds the old user id until `configure(userId: null)` runs, so subscribe, reconnect and polling paths all check the flag and stay idle.
 - Any other auth event with `_foreground && userId != null` → `scheduleReconnect()`.
 
 ### configure (`RealtimeSyncService.configure`)
@@ -208,12 +209,13 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 - Called post-frame by `RealtimeSyncScope` after every `AuthState`/`PartnerState` change (login, logout, partnership accepted/rejected).
 - **No-op when IDs are unchanged**: retry/failure counters are reset and fields re-assigned (`RealtimeSyncSession` ids mutated), but if nothing changed the method returns before any log, reconnect, or unsubscribe — so the routine rebuilds of the `Consumer2` (e.g. after a profile edit's refresh batch) log **nothing**.
 - On a real change: logs `configure() - CHANGE: ...`, resets `_reconnectAttempt` and `_consecutiveFailures`, clears the game-event FIFO buffer + mood batch, deactivates polling fallback.
-- **Defers subscription** when `userId == null || partnershipId == null` → `unsubscribe()` and wait.
+- `userId == null` → `handleSignedOut()` (immediate disconnect; no work while signed out); `userId != null && partnershipId == null` → `unsubscribe()` and wait.
+- A non-null `userId` clears the signed-out flag (`handleSignedIn()`); a previously signed-out connection counts as changed, so the next authenticated `configure()` reconnects.
 - On id change in foreground → `scheduleReconnect()`.
 
 ### subscribe (`RealtimeSyncConnection.subscribe`)
 
-- Guarded by `_disposed || _subscribing || !_foreground || userId == null`.
+- Guarded by `_disposed || _subscribing || !_foreground || _signedOut || userId == null`.
 - Increments `_generation`, calls `unsubscribe()`, then builds the 9-binding channel (from the facade's `RealtimeTableBinding` list) and `subscribe` with a status callback.
 - Status handling:
   - `subscribed` → reset attempt/failure counters, deactivate polling, optionally `_refreshAll()` (when `refreshAfterSubscribe`).
@@ -265,7 +267,7 @@ finalDelay  = delayMs + jitter,  jitter = ±25%
 
 - Activated when `_consecutiveFailures >= 3` — i.e. after three failed subscribe/reconnect cycles.
 - `Timer.periodic(15 s)` calling `_refreshAll()` (full refresh of all seven feature states) plus an immediate `_refreshAll()` on activation.
-- Stops when `_disposed || !_foreground`; deactivated on `subscribed` or on `configure()`.
+- Stops when `_disposed || !_foreground || _signedOut`; deactivated on `subscribed` or on `configure()`.
 - **Result**: even with Realtime completely down, data converges within 15 s. This is the eventual-synchronization guarantee.
 
 ---
