@@ -67,25 +67,32 @@ class PartnershipRepository extends BaseRepository {
 
   Future<ResultWrapper<User>> fetchPartnerProfile() async {
     final result = await getPartnership();
-    if (result is! Success<PartnershipResponse>) {
-      return const GenericError(
-        details: AppError(
-          code: ErrorCodes.dbNotFound001,
-          message: 'No partner',
-        ),
-      );
-    }
-    final partner = result.value.partner;
-    if (partner == null) {
-      return const GenericError(
-        details: AppError(
-          code: ErrorCodes.dbNotFound001,
-          message: 'No partner',
-        ),
-      );
-    }
+    switch (result) {
+      case Success<PartnershipResponse>(:final value):
+        final partner = value.partner;
+        if (partner == null) {
+          return const GenericError(
+            details: AppError(
+              code: ErrorCodes.localPartnerNotFound,
+              message: 'No partner',
+            ),
+          );
+        }
 
-    return Success(partner);
+        return Success(partner);
+      case GenericError<PartnershipResponse>(
+          :final code,
+          :final message,
+          :final details
+        ):
+        return GenericError<User>(
+          code: code,
+          message: message,
+          details: details,
+        );
+      case NetworkError<PartnershipResponse>(:final message):
+        return NetworkError<User>(message: message);
+    }
   }
 
   Future<ResultWrapper<void>> inviteUnregisteredPartner(String email) async {

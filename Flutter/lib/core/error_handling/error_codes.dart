@@ -73,6 +73,8 @@ class ErrorCodes {
       'LOCAL-BINDING-001'; // Secret di firma non disponibile
   static const String localMoodDuplicate =
       'LOCAL-MOOD-001'; // Emoji già impostata
+  static const String localPartnerNotFound =
+      'LOCAL-PARTNER-001'; // Partnership attiva senza partner collegato
   static const String localUnknown = 'LOCAL-UNKNOWN'; // Errore sconosciuto
 
   // ---------------------------------------------------------------------------
@@ -187,6 +189,8 @@ class ErrorCodes {
         return loc.error_localBindingSecretMissing;
       case localMoodDuplicate:
         return loc.error_localMoodDuplicate;
+      case localPartnerNotFound:
+        return loc.error_localPartnerNotFound;
       default:
         return loc.error_unknown;
     }

@@ -343,6 +343,7 @@
   "error_localConfigError": "Errore di configurazione dell'app.",
   "error_localBindingSecretMissing": "Preparazione sicura non riuscita. Controlla la connessione e riprova.",
   "error_localMoodDuplicate": "Hai già impostato questa emoji come mood attuale.",
+  "error_localPartnerNotFound": "Partner non trovato.",
   "error_unknown": "Si è verificato un errore imprevisto.",
   "auth_confirmEmailMessage": "Abbiamo inviato un link di conferma a {email}.\n\nClicca sul link per attivare il tuo account, poi torna qui per accedere.",
   "@auth_confirmEmailMessage": {

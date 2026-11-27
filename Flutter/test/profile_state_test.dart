@@ -52,9 +52,11 @@ class FakeUserRepository extends UserRepository {
 }
 
 class FakePartnerRepository extends PartnershipRepository {
+  ResultWrapper<PartnershipResponse>? partnershipResult;
+
   @override
   Future<ResultWrapper<PartnershipResponse>> getPartnership() async {
-    return Success(PartnershipResponse(success: true));
+    return partnershipResult ?? Success(PartnershipResponse(success: true));
   }
 }
 
@@ -308,5 +310,44 @@ void main() {
 
     expect(repo.profileFetches, 0);
     expect(state.userProfile, isNull);
+  });
+
+  test('fetchPartnerProfile uses a dedicated code when no partner is linked',
+      () async {
+    final repo = FakePartnerRepository();
+
+    final result = await repo.fetchPartnerProfile();
+
+    expect(result, isA<GenericError<User>>());
+    final error = ErrorHandler.toAppError(result);
+    expect(error.code, ErrorCodes.localPartnerNotFound);
+    expect(error.userMessage(AppLocalizationsIt()), 'Partner non trovato.');
+    expect(error.userMessage(AppLocalizationsEn()), 'Partner not found.');
+  });
+
+  test('fetchPartnerProfile preserves a failed partnership lookup', () async {
+    final repo = FakePartnerRepository()
+      ..partnershipResult = const GenericError<PartnershipResponse>(
+        message: 'boom',
+        details: AppError(code: ErrorCodes.dbRead001, message: 'boom'),
+      );
+
+    final result = await repo.fetchPartnerProfile();
+
+    expect(result, isA<GenericError<User>>());
+    expect(ErrorHandler.toAppError(result).code, ErrorCodes.dbRead001);
+  });
+
+  test('loadProfile without a linked partner still loads the user profile',
+      () async {
+    final state = ProfileState(
+      userRepo: FakeUserRepository(),
+      partnershipRepo: FakePartnerRepository(),
+    );
+
+    await state.loadProfile(force: true);
+
+    expect(state.userProfile?.username, 'Alex');
+    expect(state.partnerProfile, isNull);
   });
 }

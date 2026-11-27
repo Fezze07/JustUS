@@ -313,6 +313,7 @@
   "error_localConfigError": "App configuration error.",
   "error_localBindingSecretMissing": "Secure setup failed. Check your connection and try again.",
   "error_localMoodDuplicate": "You already set this emoji as your current mood.",
+  "error_localPartnerNotFound": "Partner not found.",
   "error_unknown": "An unexpected error occurred.",
   "auth_confirmEmailMessage": "We sent a confirmation link to {email}.\n\nClick the link to activate your account, then come back here to sign in.",
   "@auth_confirmEmailMessage": {

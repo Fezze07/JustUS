@@ -929,6 +929,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'You already set this emoji as your current mood.';
 
   @override
+  String get error_localPartnerNotFound => 'Partner not found.';
+
+  @override
   String get error_unknown => 'An unexpected error occurred.';
 
   @override

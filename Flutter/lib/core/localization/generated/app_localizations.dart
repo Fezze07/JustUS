@@ -1850,6 +1850,12 @@ abstract class AppLocalizations {
   /// **'Hai già impostato questa emoji come mood attuale.'**
   String get error_localMoodDuplicate;
 
+  /// No description provided for @error_localPartnerNotFound.
+  ///
+  /// In it, this message translates to:
+  /// **'Partner non trovato.'**
+  String get error_localPartnerNotFound;
+
   /// No description provided for @error_unknown.
   ///
   /// In it, this message translates to:
