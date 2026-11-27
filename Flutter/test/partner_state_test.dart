@@ -292,6 +292,63 @@ void main() {
     expect(repository.cancellationFetches, 0);
   });
 
+  test('a failed partnership lookup skips the cancellation request', () async {
+    final repository = _FailingPartnerRepository();
+    final state = PartnerState(repository: repository);
+
+    await state.fetchPartnership();
+
+    expect(repository.cancellationFetches, 0);
+  });
+
+  test('clear() discards a pending partnership response', () async {
+    final repository = _GatedPartnerRepository();
+    final state = PartnerState(repository: repository);
+
+    final load = state.fetchPartnership();
+    while (!repository.started) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    state.clear();
+    repository.gate.complete(Success(PartnershipResponse(
+      success: true,
+      status: 'accepted',
+      partnershipId: 5,
+      partner: User(id: 7, displayName: 'Alex'),
+    )));
+    await load;
+
+    expect(state.partnershipInfo, isNull);
+    expect(state.cancellation, isNull);
+    expect(repository.cancellationFetches, 0);
+    expect(await StorageService.getPartnerId(), isNull);
+    expect(await StorageService.getPartnershipId(), isNull);
+  });
+
+  test('clear() discards a pending realtime refresh', () async {
+    final repository = _GatedPartnerRepository();
+    final state = PartnerState(repository: repository);
+
+    final refresh = state.refreshFromRealtime();
+    while (!repository.started) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    state.clear();
+    repository.gate.complete(Success(PartnershipResponse(
+      success: true,
+      status: 'accepted',
+      partnershipId: 5,
+      partner: User(id: 7, displayName: 'Alex'),
+    )));
+    await refresh;
+
+    expect(state.partnershipInfo, isNull);
+    expect(repository.cancellationFetches, 0);
+    expect(await StorageService.getPartnerId(), isNull);
+  });
+
   test('a session lost while loading stops the fetch and drops the result',
       () async {
     final repository = _GatedPartnerRepository();
@@ -321,6 +378,8 @@ void main() {
 /// Repository whose partnership fetch always fails, to prove a network error
 /// does not wipe an already-cached partner.
 class _FailingPartnerRepository extends PartnershipRepository {
+  int cancellationFetches = 0;
+
   @override
   Future<ResultWrapper<PartnershipResponse>> getPartnership() async {
     return const NetworkError();
@@ -328,6 +387,7 @@ class _FailingPartnerRepository extends PartnershipRepository {
 
   @override
   Future<ResultWrapper<PartnershipCancellation?>> getCancellation() async {
+    cancellationFetches += 1;
     return const Success<PartnershipCancellation?>(null);
   }
 }

@@ -12,6 +12,7 @@ class PartnerState extends BaseState {
 
   PartnershipResponse? _partnershipInfo;
   PartnershipCancellation? _cancellation;
+  int _generation = 0;
 
   PartnershipResponse? get partnershipInfo => _partnershipInfo;
   PartnershipCancellation? get cancellation => _cancellation;
@@ -19,6 +20,7 @@ class PartnerState extends BaseState {
   User? get partner => _partnershipInfo?.partner;
 
   void clear() {
+    _generation++;
     _partnershipInfo = null;
     _cancellation = null;
     notifyListeners();
@@ -26,35 +28,40 @@ class PartnerState extends BaseState {
 
   Future<void> fetchPartnership() async {
     if (!await hasActiveSession()) return;
+    final generation = _generation;
     await runSafe(() async {
       final hadCancellation = _cancellation != null;
       final result = await _repo.getPartnership();
-      if (!await hasActiveSession()) return;
+      if (generation != _generation || !await hasActiveSession()) return;
       await handleResult(result, onSuccess: _applyPartnership);
+      if (result is! Success<PartnershipResponse>) return;
       await fetchCancellation();
-      if (!await hasActiveSession()) return;
+      if (generation != _generation || !await hasActiveSession()) return;
       _teleportIfEnded(hadCancellation);
     });
   }
 
   Future<void> refreshFromRealtime() async {
     if (!await hasActiveSession()) return;
+    final generation = _generation;
     await runSafe(() async {
       final hadCancellation = _cancellation != null;
       final result = await _repo.getPartnership();
-      if (!await hasActiveSession()) return;
+      if (generation != _generation || !await hasActiveSession()) return;
       await handleResult(result, onSuccess: _applyPartnership);
+      if (result is! Success<PartnershipResponse>) return;
       await fetchCancellation(showLoading: false);
-      if (!await hasActiveSession()) return;
+      if (generation != _generation || !await hasActiveSession()) return;
       _teleportIfEnded(hadCancellation);
     }, showLoading: false);
   }
 
   Future<void> fetchCancellation({bool showLoading = true}) async {
     if (!await hasActiveSession()) return;
+    final generation = _generation;
     await runSafe(() async {
       final result = await _repo.getCancellation();
-      if (!await hasActiveSession()) return;
+      if (generation != _generation || !await hasActiveSession()) return;
       await handleResult(result, onSuccess: (value) async {
         _cancellation = value;
       });
