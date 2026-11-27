@@ -433,7 +433,7 @@ CORREZIONI DOPO FULL TEST MANUALE:
 - **Acceptance**: A single notification toggle produces exactly one `POST /api/v1/auth/installation-id`. Independent FID changes still trigger registration, rapid consecutive toggles remain serialized, and the final `notifications_enabled` value matches the last switch position. Add regression tests covering both explicit registration events and independent FID changes.
 
 ### 29.5 Prevent logout button overflow on narrow ProfileScreen widths (🟡 MEDIUM)
-- [ ] **Status**: 🔴 OPEN — During a 320px viewport reproduction, the logout button's `Row` also overflowed horizontally after the cancellation-button overflow was isolated.
+- [x] **Status: ✅ FIXED (2026-11-27, on `dev`)** — constrained the logout label with `Flexible` and centered its wrapped text, preserving the existing button styling and logout confirmation (`Flutter/lib/features/settings/screens/profile_screen.dart:586-599`). · **Verification**: `Set-Location Flutter; flutter analyze` — no issues; `Set-Location Flutter; flutter test test/profile_screen_test.dart` — 10 passed, including the 320px regression test; `git diff --check` clean. · **Residual**: none known; tapping the button still opens the existing logout confirmation.
 - **Sources**: Current-code review during verification of item 29.3.
 - **Files**: `Flutter/lib/features/settings/screens/profile_screen.dart`, `Flutter/test/profile_screen_test.dart`.
 - **Defect**: The logout button combines an icon, fixed spacing, and an unconstrained localized label. On narrow screens, its label exceeds the available width and overflows horizontally.

@@ -220,6 +220,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the logout button wraps and remains tappable at 320px',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpProfile(tester, hasPartner: true);
+
+    final label = find.text('DISCONNETTI SESSIONE');
+    final button = find.ancestor(
+      of: label,
+      matching: find.byType(InkWell),
+    ).first;
+    await tester.scrollUntilVisible(
+      label,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(button).left, greaterThanOrEqualTo(0));
+    expect(tester.getRect(button).right, lessThanOrEqualTo(320));
+
+    await tester.tap(label);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VPDialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a confirmed request lands on PartnerScreen', (tester) async {
     final (repository, _) = await pumpProfile(tester, hasPartner: true);
 

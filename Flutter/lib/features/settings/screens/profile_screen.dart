@@ -586,13 +586,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Icon(Icons.power_settings_new,
                               color: context.palette.danger),
                           const SizedBox(width: 12),
-                          Text(
-                            context.loc.profile_disconnectSession,
-                            style: VpWidgets.googleFont(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                              color: context.palette.danger,
-                              fontSize: 12,
+                          Flexible(
+                            child: Text(
+                              context.loc.profile_disconnectSession,
+                              textAlign: TextAlign.center,
+                              style: VpWidgets.googleFont(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                                color: context.palette.danger,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
