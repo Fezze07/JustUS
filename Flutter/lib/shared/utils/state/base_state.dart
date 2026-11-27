@@ -43,6 +43,12 @@ abstract class BaseState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether a signed-in identity is still stored. Feature loads check it
+  /// before starting and again after each await, so a session that ends
+  /// mid-request neither starts nor applies private reads.
+  Future<bool> hasActiveSession() async =>
+      (await StorageService.getUserId()) != null;
+
   Future<void> loadWithChangeDetection({
     required Future<void> Function() loadFromCache,
     required Future<bool> Function() hasChanges,

@@ -153,11 +153,12 @@ class _FakePartnershipRepository extends PartnershipRepository {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
+  setUp(() async {
     installMockSecureStorage();
     installMockPathProvider();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    await StorageService.saveUserId(1);
   });
 
   test(

@@ -616,9 +616,10 @@ class AuthState extends BaseState
 
   Future<void> _fetchInvitations() async {
     try {
-      if (_userId == null) return;
+      if (!isLoggedIn || _isLoggingOut) return;
 
       final result = await _partnershipRepo.getPendingInvitations();
+      if (!isLoggedIn || _isLoggingOut) return;
       final invitations = result.valueOrNull;
       if (invitations != null) {
         final sent = <PartnershipInvitation>[];

@@ -96,6 +96,14 @@ class _FakePartnerRepository extends PartnershipRepository {
 // Fakes for sibling providers
 // ---------------------------------------------------------------------------
 class _FakeAuthState extends AuthState {
+  _FakeAuthState({this.loggedIn = true});
+
+  final bool loggedIn;
+  int invitationFetches = 0;
+
+  @override
+  bool get isLoggedIn => loggedIn;
+
   @override
   bool get hasPartner => true;
 
@@ -103,7 +111,9 @@ class _FakeAuthState extends AuthState {
   int? get partnershipId => 5;
 
   @override
-  Future<void> fetchInvitations() async {}
+  Future<void> fetchInvitations() async {
+    invitationFetches += 1;
+  }
 
   @override
   Future<void> fetchSentInvitations() async {}
@@ -113,12 +123,16 @@ class _FakeAuthState extends AuthState {
 }
 
 class _FakeProfileState extends ProfileState {
+  int loads = 0;
+
   @override
   User? get userProfile =>
       User(id: 1, displayName: 'Me', partnershipCode: 'CODE12');
 
   @override
-  Future<void> loadProfile({bool force = false}) async {}
+  Future<void> loadProfile({bool force = false}) async {
+    loads += 1;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -153,23 +167,27 @@ PartnershipCancellation _cancellationByPartner() => PartnershipCancellation(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
+  setUp(() async {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    await StorageService.saveUserId(1);
   });
 
   Future<void> pumpPartnerScreen(
     WidgetTester tester, {
     required _FakePartnerRepository repository,
     required PartnerState state,
+    _FakeAuthState? authState,
+    _FakeProfileState? profileState,
   }) async {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<ProfileState>.value(
-              value: _FakeProfileState()),
-          ChangeNotifierProvider<AuthState>.value(value: _FakeAuthState()),
+              value: profileState ?? _FakeProfileState()),
+          ChangeNotifierProvider<AuthState>.value(
+              value: authState ?? _FakeAuthState()),
           ChangeNotifierProvider<PartnerState>.value(value: state),
           ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
         ],
@@ -191,6 +209,27 @@ void main() {
     // any subsequent state notifications to completion.
     await tester.pumpAndSettle();
   }
+
+  testWidgets('a signed-out screen starts no private request', (tester) async {
+    final repository = _FakePartnerRepository(
+      partnershipResponses: const [],
+      cancellationResponses: const [],
+    );
+    final authState = _FakeAuthState(loggedIn: false);
+    final profileState = _FakeProfileState();
+
+    await pumpPartnerScreen(
+      tester,
+      repository: repository,
+      state: PartnerState(repository: repository),
+      authState: authState,
+      profileState: profileState,
+    );
+
+    expect(profileState.loads, 0);
+    expect(authState.invitationFetches, 0);
+    repository.verifyAllCallsConsumed();
+  });
 
   // -------------------------------------------------------------------------
   // T1 — I requested cancellation; I tap Restore.

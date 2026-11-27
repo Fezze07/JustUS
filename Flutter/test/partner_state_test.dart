@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,10 +45,11 @@ class FakePartnerRepository extends PartnershipRepository {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
+  setUp(() async {
     installMockSecureStorage();
     SharedPreferences.setMockInitialValues({});
     StorageService.resetForTest();
+    await StorageService.saveUserId(1);
   });
 
   test('fetchPartnership stores the active partner in local cache', () async {
@@ -236,8 +239,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('a still-pending cancellation does not teleport', (tester) async {
-    final repository = FakePartnerRepository(
+  testWidgets('a still-pending cancellation does not teleport', (tester) async {    final repository = FakePartnerRepository(
       partnershipResponse: PartnershipResponse(
         success: true,
         status: 'accepted',
@@ -275,6 +277,45 @@ void main() {
     expect(find.text('/media'), findsOneWidget);
     expect(find.text(AppRoutes.partner), findsNothing);
   });
+
+  test('fetchPartnership sends no request without a session', () async {
+    await StorageService.clearAll();
+    final repository = FakePartnerRepository(
+      partnershipResponse: PartnershipResponse(success: true),
+    );
+    final state = PartnerState(repository: repository);
+
+    await state.fetchPartnership();
+    await state.fetchCancellation();
+
+    expect(repository.partnershipFetches, 0);
+    expect(repository.cancellationFetches, 0);
+  });
+
+  test('a session lost while loading stops the fetch and drops the result',
+      () async {
+    final repository = _GatedPartnerRepository();
+    final state = PartnerState(repository: repository);
+
+    final load = state.fetchPartnership();
+    while (!repository.started) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    await StorageService.clearAll();
+    state.clear();
+    repository.gate.complete(Success(PartnershipResponse(
+      success: true,
+      status: 'accepted',
+      partnershipId: 5,
+      partner: User(id: 7, displayName: 'Alex'),
+    )));
+    await load;
+
+    expect(repository.cancellationFetches, 0);
+    expect(state.partner, isNull);
+    expect(await StorageService.getPartnerId(), isNull);
+  });
 }
 
 /// Repository whose partnership fetch always fails, to prove a network error
@@ -287,6 +328,27 @@ class _FailingPartnerRepository extends PartnershipRepository {
 
   @override
   Future<ResultWrapper<PartnershipCancellation?>> getCancellation() async {
+    return const Success<PartnershipCancellation?>(null);
+  }
+}
+
+/// Repository whose partnership lookup stays pending until the test releases
+/// it, so a session can be lost while the request is in flight.
+class _GatedPartnerRepository extends PartnershipRepository {
+  final Completer<ResultWrapper<PartnershipResponse>> gate =
+      Completer<ResultWrapper<PartnershipResponse>>();
+  bool started = false;
+  int cancellationFetches = 0;
+
+  @override
+  Future<ResultWrapper<PartnershipResponse>> getPartnership() {
+    started = true;
+    return gate.future;
+  }
+
+  @override
+  Future<ResultWrapper<PartnershipCancellation?>> getCancellation() async {
+    cancellationFetches += 1;
     return const Success<PartnershipCancellation?>(null);
   }
 }

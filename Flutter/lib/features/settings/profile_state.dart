@@ -59,6 +59,8 @@ class ProfileState extends BaseState {
   }
 
   Future<void> _loadProfile(bool force, int generation) async {
+    if (!await hasActiveSession()) return;
+
     // Throttling: if not forced and fetched recently, skip server call
     final now = DateTime.now();
     final shouldSkipServer = !force &&
@@ -70,7 +72,7 @@ class ProfileState extends BaseState {
       final cachedUser = await StorageService.getUserProfile();
       final cachedPartner = await StorageService.getPartnerProfile();
       final cachedVersion = await StorageService.getProfilePicVersion();
-      if (generation != _generation) return;
+      if (generation != _generation || !await hasActiveSession()) return;
 
       _profilePicVersion = cachedVersion;
 
@@ -88,7 +90,7 @@ class ProfileState extends BaseState {
           _partnershipRepo.fetchPartnerProfile(),
           _partnershipRepo.getPartnership(),
         ]);
-        if (generation != _generation) return;
+        if (generation != _generation || !await hasActiveSession()) return;
 
         final userResult = results[0] as ResultWrapper<User>;
         await handleResult(userResult, onSuccess: (value) async {

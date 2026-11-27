@@ -13,6 +13,7 @@ class FakeUserRepository extends UserRepository {
   ResultWrapper<void> nameResult = const Success<void>(null);
   String? lastName;
   int nameCalls = 0;
+  int profileFetches = 0;
   String uploadedPicUrl = 'profile/1/new-pic.jpg';
   int uploadCalls = 0;
   String? profilePicUrl;
@@ -27,6 +28,8 @@ class FakeUserRepository extends UserRepository {
 
   @override
   Future<ResultWrapper<User>> fetchProfile() async {
+    profileFetches += 1;
+
     return Success(User(
       id: 1,
       email: 'user@example.com',
@@ -74,9 +77,10 @@ void main() {
     installMockSecureStorage();
   });
 
-  setUp(() {
+  setUp(() async {
     StorageService.resetForTest();
     SharedPreferences.setMockInitialValues({});
+    await StorageService.saveUserId(1);
   });
 
   test('two concurrent loadProfile calls share one load and both end populated',
@@ -290,5 +294,19 @@ void main() {
 
     expect(state.profilePicVersion, isNull);
     expect(state.versionedProfilePicUrl, isNull);
+  });
+
+  test('loadProfile sends no request without a session', () async {
+    await StorageService.clearAll();
+    final repo = FakeUserRepository();
+    final state = ProfileState(
+      userRepo: repo,
+      partnershipRepo: FakePartnerRepository(),
+    );
+
+    await state.loadProfile(force: true);
+
+    expect(repo.profileFetches, 0);
+    expect(state.userProfile, isNull);
   });
 }

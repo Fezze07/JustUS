@@ -25,28 +25,36 @@ class PartnerState extends BaseState {
   }
 
   Future<void> fetchPartnership() async {
+    if (!await hasActiveSession()) return;
     await runSafe(() async {
       final hadCancellation = _cancellation != null;
       final result = await _repo.getPartnership();
+      if (!await hasActiveSession()) return;
       await handleResult(result, onSuccess: _applyPartnership);
       await fetchCancellation();
+      if (!await hasActiveSession()) return;
       _teleportIfEnded(hadCancellation);
     });
   }
 
   Future<void> refreshFromRealtime() async {
+    if (!await hasActiveSession()) return;
     await runSafe(() async {
       final hadCancellation = _cancellation != null;
       final result = await _repo.getPartnership();
+      if (!await hasActiveSession()) return;
       await handleResult(result, onSuccess: _applyPartnership);
       await fetchCancellation(showLoading: false);
+      if (!await hasActiveSession()) return;
       _teleportIfEnded(hadCancellation);
     }, showLoading: false);
   }
 
   Future<void> fetchCancellation({bool showLoading = true}) async {
+    if (!await hasActiveSession()) return;
     await runSafe(() async {
       final result = await _repo.getCancellation();
+      if (!await hasActiveSession()) return;
       await handleResult(result, onSuccess: (value) async {
         _cancellation = value;
       });
