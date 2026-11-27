@@ -46,6 +46,7 @@ class StorageService {
   static const String _keyRequestBindingSecret = 'request_binding_secret';
   static const String _keyTimeline = 'mood_timeline';
   static const String _keyNotificationsEnabled = 'notifications_enabled';
+  static const String _keyPendingSignupEmail = 'pending_signup_email';
 
   static SharedPreferences? _prefs;
   static const _secureStorage = FlutterSecureStorage();
@@ -376,6 +377,26 @@ class StorageService {
 
   static Future<List<MoodEntry>> getTimeline() async {
     return _getJsonList(_feat(_keyTimeline), MoodEntry.fromJson);
+  }
+
+  static Future<void> savePendingSignupEmail(String email) async {
+    final p = await prefs;
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) {
+      await p.remove(_keyPendingSignupEmail);
+      return;
+    }
+    await p.setString(_keyPendingSignupEmail, trimmed);
+  }
+
+  static Future<String?> getPendingSignupEmail() async {
+    final p = await prefs;
+    return p.getString(_keyPendingSignupEmail);
+  }
+
+  static Future<void> clearPendingSignupEmail() async {
+    final p = await prefs;
+    await p.remove(_keyPendingSignupEmail);
   }
 
   // -------------------- Clear Cache --------------------

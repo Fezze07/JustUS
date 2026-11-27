@@ -151,6 +151,7 @@ mixin StateMessageListener<T extends BaseState, W extends StatefulWidget>
       if (!mounted) return;
       _messageSource = messageSource;
       _messageSource!.addListener(_handleStateMessage);
+      _handleStateMessage();
     });
   }
 

@@ -65,12 +65,22 @@ class AuthState extends BaseState
   int? _partnerId;
   int? _partnershipId;
   String? _partnerDisplayName;
+  String? _pendingLoginEmail;
+  bool _isSigningIn = false;
   List<PartnershipInvitation> _sentInvitations = [];
   List<PartnershipInvitation> _receivedInvitations = [];
 
   /// Invoked at the end of [logout] once auth data, storage and checkpoints are
   /// cleared, so the app root can reset the feature states (F-SM7).
   void Function()? onClearFeatureStates;
+
+  /// Returns and clears the confirmed signup email waiting to prefill
+  /// [LoginScreen].
+  String? consumePendingLoginEmail() {
+    final email = _pendingLoginEmail;
+    _pendingLoginEmail = null;
+    return email;
+  }
 
   String? get username => _username;
   int? get userId => _userId;
@@ -145,32 +155,43 @@ class AuthState extends BaseState
         await logout();
       }
     } else {
-      if (_username == null || _username!.isEmpty) {
-        final profileResult =
-            await _userRepo.fetchProfileByAuthId(session.user.id);
+      final pendingSignupEmail = await StorageService.getPendingSignupEmail();
+      if (_userId == null && pendingSignupEmail != null) {
+        await _completeSignupConfirmation(
+          session,
+          fallbackEmail: pendingSignupEmail,
+        );
+      } else {
+        if (_username == null || _username!.isEmpty) {
+          final profileResult =
+              await _userRepo.fetchProfileByAuthId(session.user.id);
 
-        final user = profileResult.valueOrNull;
-        if (user != null) {
-          await setLoginData(
-            accessToken: session.accessToken,
-            user: user,
-          );
+          final user = profileResult.valueOrNull;
+          if (user != null) {
+            await setLoginData(
+              accessToken: session.accessToken,
+              user: user,
+            );
+          }
         }
-      }
-      await _syncBackendSession();
+        await _syncBackendSession();
 
-      // Register (or refresh) this installation's FID on every app start
-      final installationResult = await _registerInstallationId();
-      if (installationResult != null) {
-        AnsiLogger.auth('updateInstallationId (init): $installationResult',
-            tag: 'AuthState');
+        // Register (or refresh) this installation's FID on every app start
+        final installationResult = await _registerInstallationId();
+        if (installationResult != null) {
+          AnsiLogger.auth('updateInstallationId (init): $installationResult',
+              tag: 'AuthState');
+        }
       }
     }
 
-    // Gestisci il passwordRecovery da link email e il signedOut remoto
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
+    // Gestisci passwordRecovery, conferma signup da link email e signedOut remoto
+    _authSubscription = _authRepo.onAuthStateChange.listen((rawData) async {
+      // The stream is Stream<dynamic> at repo level; each event is AuthState
+      // from supabase_flutter (imported as `sb` via the hide User alias).
+      final event = (rawData as dynamic).event as AuthChangeEvent;
+      final session = (rawData as dynamic).session as Session?;
+      if (event == AuthChangeEvent.passwordRecovery) {
         AnsiLogger.auth('Password recovery event received from deep link',
             tag: 'AuthState');
         final navContext = ErrorHandler.navigatorKey.currentContext;
@@ -180,7 +201,21 @@ class AuthState extends BaseState
             AppRoutes.resetPassword,
           ));
         }
-      } else if (data.event == AuthChangeEvent.signedOut) {
+      } else if (event == AuthChangeEvent.signedIn) {
+        if (!isLoggedIn && !_isSigningIn) {
+          final pendingEmail = await StorageService.getPendingSignupEmail();
+          final sessionEmail = session?.user.email?.trim();
+          if (pendingEmail != null ||
+              (sessionEmail != null && sessionEmail.isNotEmpty)) {
+            await _completeSignupConfirmation(
+              session,
+              fallbackEmail: pendingEmail,
+            );
+            ErrorHandler.navigatorKey.currentState
+                ?.popUntil((route) => route.isFirst);
+          }
+        }
+      } else if (event == AuthChangeEvent.signedOut) {
         if (isLoggedIn && !_isLoggingOut) {
           AnsiLogger.auth(
               'Remote signedOut event received. Forcing logout.',
@@ -319,72 +354,79 @@ class AuthState extends BaseState
 
   Future<bool> login(String email, String password) async {
     return runSafe(() async {
-      await _checkLoginRisk(email);
-
-      // Step 0: CAPTCHA Verification
-      final captchaToken = await _getCaptchaToken();
-
-      if (captchaToken == null) {
-        throw const AppError(
-            code: ErrorCodes.localUnknown, message: 'Captcha failed');
-      }
-
-      // Step 1: Login to Supabase Auth
-      final AuthResponse res;
+      _isSigningIn = true;
       try {
-        res = await _authRepo.signInWithPassword(
-          email: email,
-          password: password,
-          captchaToken: captchaToken,
+        await StorageService.clearPendingSignupEmail();
+        _pendingLoginEmail = null;
+        await _checkLoginRisk(email);
+
+        // Step 0: CAPTCHA Verification
+        final captchaToken = await _getCaptchaToken();
+
+        if (captchaToken == null) {
+          throw const AppError(
+              code: ErrorCodes.localUnknown, message: 'Captcha failed');
+        }
+
+        // Step 1: Login to Supabase Auth
+        final AuthResponse res;
+        try {
+          res = await _authRepo.signInWithPassword(
+            email: email,
+            password: password,
+            captchaToken: captchaToken,
+          );
+        } on AuthRetryableFetchException {
+          // Offline / GoTrue 5xx / 429: a transient outage must not be counted
+          // as a wrong password or feed the backend lockout.
+          throw AppError.network();
+        } on AuthException catch (e) {
+          await _reportFailedLogin(email, 'invalid_credentials');
+          throw AppError(
+              code: ErrorCodes.authFailCred,
+              message: e.message,
+              severity: ErrorSeverity.high);
+        }
+
+        if (res.user == null || res.session == null) {
+          await _reportFailedLogin(email, 'no_user_data');
+          throw const AppError(
+              code: ErrorCodes.authFailCred,
+              message: 'Login failed: no user data');
+        }
+
+        // Step 2: Fetch public.users + user_profiles by auth_id (UUID)
+        final profileResult = await _userRepo.fetchProfileByAuthId(res.user!.id);
+
+        final user = profileResult.valueOrNull;
+        if (user == null) {
+          throw const AppError(
+              code: ErrorCodes.dbNotFound001,
+              message: 'Profilo utente non trovato nel database');
+        }
+
+        // Step 3: Set local data
+        await setLoginData(
+          accessToken: res.session!.accessToken,
+          user: user,
         );
-      } on AuthRetryableFetchException {
-        // Offline / GoTrue 5xx / 429: a transient outage must not be counted
-        // as a wrong password or feed the backend lockout.
-        throw AppError.network();
-      } on AuthException catch (e) {
-        await _reportFailedLogin(email, 'invalid_credentials');
-        throw AppError(
-            code: ErrorCodes.authFailCred,
-            message: e.message,
-            severity: ErrorSeverity.high);
+
+        // Step 4: Sync session and register the installation id through the backend
+        await _syncBackendSession();
+        final installationResult = await _registerInstallationId();
+        if (installationResult != null) {
+          AnsiLogger.auth('updateInstallationId (login): $installationResult',
+              tag: 'AuthState');
+        }
+
+        // Step 5: Fetch partner info via v_active_partnership (single source of truth)
+        try {
+          final partnershipResult = await _partnershipRepo.getPartnership();
+          await syncPartnership(partnershipResult.valueOrNull);
+        } catch (_) {}
+      } finally {
+        _isSigningIn = false;
       }
-
-      if (res.user == null || res.session == null) {
-        await _reportFailedLogin(email, 'no_user_data');
-        throw const AppError(
-            code: ErrorCodes.authFailCred,
-            message: 'Login failed: no user data');
-      }
-
-      // Step 2: Fetch public.users + user_profiles by auth_id (UUID)
-      final profileResult = await _userRepo.fetchProfileByAuthId(res.user!.id);
-
-      final user = profileResult.valueOrNull;
-      if (user == null) {
-        throw const AppError(
-            code: ErrorCodes.dbNotFound001,
-            message: 'Profilo utente non trovato nel database');
-      }
-
-      // Step 3: Set local data
-      await setLoginData(
-        accessToken: res.session!.accessToken,
-        user: user,
-      );
-
-      // Step 4: Sync session and register the installation id through the backend
-      await _syncBackendSession();
-      final installationResult = await _registerInstallationId();
-      if (installationResult != null) {
-        AnsiLogger.auth('updateInstallationId (login): $installationResult',
-            tag: 'AuthState');
-      }
-
-      // Step 5: Fetch partner info via v_active_partnership (single source of truth)
-      try {
-        final partnershipResult = await _partnershipRepo.getPartnership();
-        await syncPartnership(partnershipResult.valueOrNull);
-      } catch (_) {}
     });
   }
 
@@ -450,6 +492,7 @@ class AuthState extends BaseState
         }
       }
 
+      await StorageService.savePendingSignupEmail(email);
       AnsiLogger.auth('Email di conferma inviata a $email', tag: 'Register');
       return true;
     } catch (e, st) {
@@ -844,6 +887,7 @@ class AuthState extends BaseState
       _partnerId = null;
       _partnershipId = null;
       _partnerDisplayName = null;
+      _pendingLoginEmail = null;
       _sentInvitations = [];
       _receivedInvitations = [];
       onClearFeatureStates?.call();
@@ -862,6 +906,35 @@ class AuthState extends BaseState
       await Future.wait(_registrationsInFlight.toList())
           .timeout(_deviceRevokeTimeout);
     } catch (_) {}
+  }
+
+  Future<void> _completeSignupConfirmation(
+    Session? session, {
+    String? fallbackEmail,
+  }) async {
+    final storedEmail =
+        fallbackEmail ?? await StorageService.getPendingSignupEmail();
+    await StorageService.clearPendingSignupEmail();
+
+    final rawEmail = session?.user.email ?? storedEmail;
+    final confirmedEmail = rawEmail?.trim();
+    if (confirmedEmail == null || confirmedEmail.isEmpty) {
+      return;
+    }
+
+    if (session != null) {
+      try {
+        await _authRepo.signOut();
+      } catch (e) {
+        AnsiLogger.error(
+            'SignOut after signup confirmation failed: $e',
+            tag: 'AuthState');
+      }
+    }
+
+    _accessToken = null;
+    _pendingLoginEmail = confirmedEmail;
+    setMessage(LanguageHelper.appLoc.auth_emailConfirmed);
   }
 
   /// Strictly best-effort: it runs before `signOut()`, so the JWT, the binding

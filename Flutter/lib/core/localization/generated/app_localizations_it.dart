@@ -173,6 +173,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get auth_confirmEmailTitle => 'Controlla la tua email';
 
   @override
+  String get auth_emailConfirmed => 'Email confermata! Ora puoi accedere.';
+
+  @override
   String get auth_goToLogin => 'Vai al login';
 
   @override

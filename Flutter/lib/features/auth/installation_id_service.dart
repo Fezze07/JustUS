@@ -8,6 +8,11 @@ class InstallationIdService {
   @visibleForTesting
   static Future<String> Function()? installationIdOverride;
 
+  /// Overrides the [onRegistered] stream in unit tests to avoid initializing
+  /// Firebase.
+  @visibleForTesting
+  static Stream<String>? onRegisteredOverride;
+
   static bool get supportsFcm =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
@@ -17,6 +22,8 @@ class InstallationIdService {
   /// registered with FCM: on every manual `register()` and whenever the FID
   /// changes (reinstall, restore, cleared app data).
   static Stream<String> get onRegistered {
+    final override = onRegisteredOverride;
+    if (override != null) return override;
     if (!supportsFcm) return const Stream.empty();
     return FirebaseMessaging.instance.onRegistered;
   }

@@ -88,9 +88,17 @@ Flutter UI (RegisterScreen)
 6. **Frontend State & Navigation Post-Registration**
    - File: [auth_state.dart](file:///f:/JustUS/Flutter/lib/features/auth/auth_state.dart#L344-L401)
    - `AuthState.register` receives `AuthResponse`. If `res.user == null`, throws `AppError(authFailCred)`. Supabase `AuthException`s (e.g. user already registered) are caught and rethrown as `AppError(authFailCred)`, a client-only code that is not `requiresReauth`.
-   - **Email verification is mandatory**: `AuthState.register` never auto-logs-in. If Supabase returns a session anyway (project with email confirmations disabled), the session is **immediately revoked** via `signOut()`, so the verify-email -> login path can never be bypassed.
+   - **Email verification is mandatory**: `AuthState.register` never auto-logs-in. If Supabase returns a session anyway (project with email confirmations disabled), the session is **immediately revoked** via `signOut()`, so the verify-email → login path can never be bypassed.
+   - `AuthState.register` persists the registered email to `StorageService.savePendingSignupEmail()` before returning. This email survives an app restart and is used to prefill `LoginScreen` after the confirmation deep link reopens the app.
    - In `RegisterScreen` ([register_screen.dart:105](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L105)), a successful `register(...)` always shows a non-dismissible `VPDialog` informing the user that a confirmation email has been sent to their email address.
    - Upon tapping "Go to Login", the dialog pops and the navigator pops back to `LoginScreen`.
+
+7. **Signup Confirmation Callback & Email Prefill** (25.6)
+   - When the user taps the confirmation link, Supabase emits a `signedIn` auth-state event (warm start: app still running) or restores a temporary session at startup (cold start: app relaunched by the deep link).
+   - `AuthState.init()` checks for a temporary Supabase session together with a pending signup email in storage. If found and the user is not yet locally logged in, `_completeSignupConfirmation()` runs: it revokes the temporary session via `signOut()`, clears the pending email from storage, stores the confirmed email in `_pendingLoginEmail`, and calls `setMessage(auth_emailConfirmed)` to queue a success toast.
+   - The `onAuthStateChange` stream listener also handles the warm-start path: a `signedIn` event while `!isLoggedIn && !_isSigningIn` triggers the same `_completeSignupConfirmation()` and then pops the navigator to root so `LoginScreen` is shown.
+   - `LoginScreen._LoginScreenState.initState` calls `consumePendingLoginEmail()`, which reads and clears `_pendingLoginEmail` in one shot. The email is set into `_emailController.text`; the password field remains empty. A subsequent `LoginScreen` mount finds no pending email and starts empty (one-shot guarantee).
+   - The `auth_emailConfirmed` toast is delivered through the existing `AuthState.setMessage()` → `AuthMessageHost` → `ErrorHandler.showSnackBar()` pipeline.
 
 ---
 

@@ -84,6 +84,7 @@
   "auth_createAccount": "Crea account",
   "auth_nameFieldName": "Nome",
   "auth_confirmEmailTitle": "Controlla la tua email",
+  "auth_emailConfirmed": "Email confermata! Ora puoi accedere.",
   "auth_goToLogin": "Vai al login",
   "auth_changePasswordTitle": "Cambia password",
   "auth_changePasswordSubtitle": "Crea una nuova password unica e sicura.",

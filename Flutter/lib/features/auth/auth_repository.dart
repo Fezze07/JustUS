@@ -35,6 +35,8 @@ class AuthRepository extends BaseRepository {
 
   Session? get currentSession => sbClient.auth.currentSession;
 
+  Stream<dynamic> get onAuthStateChange => sbClient.auth.onAuthStateChange;
+
   Future<AuthResponse> signInWithPassword(
       {required String email,
       required String password,

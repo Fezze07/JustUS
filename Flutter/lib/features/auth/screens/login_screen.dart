@@ -20,9 +20,26 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  AuthState? _authState;
+
+  @override
+  void initState() {
+    super.initState();
+    _authState = context.read<AuthState>();
+    _authState!.addListener(_syncPendingEmail);
+    _syncPendingEmail();
+  }
+
+  void _syncPendingEmail() {
+    final pendingEmail = _authState?.consumePendingLoginEmail();
+    if (pendingEmail != null && pendingEmail.isNotEmpty) {
+      _emailController.text = pendingEmail;
+    }
+  }
 
   @override
   void dispose() {
+    _authState?.removeListener(_syncPendingEmail);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

@@ -422,6 +422,12 @@ abstract class AppLocalizations {
   /// **'Controlla la tua email'**
   String get auth_confirmEmailTitle;
 
+  /// No description provided for @auth_emailConfirmed.
+  ///
+  /// In it, this message translates to:
+  /// **'Email confermata! Ora puoi accedere.'**
+  String get auth_emailConfirmed;
+
   /// No description provided for @auth_goToLogin.
   ///
   /// In it, this message translates to:
