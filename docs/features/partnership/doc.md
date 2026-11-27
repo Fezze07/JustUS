@@ -53,7 +53,7 @@ The partnership architecture spans three main layers:
    - [refetch_realtime_handler.dart](file:///f:/JustUS/Flutter/lib/core/realtime/refetch_realtime_handler.dart): `RefetchRealtimeHandler` (unified debounced-refetch strategy) subscribes to Postgres change events on `public.partnerships`, debounces 150 ms, invalidates `BaseRepository` cache, and updates `PartnerState` / `AuthState`. Wired by `RealtimeSyncService` (`lib/core/realtime/realtime_sync_service.dart`) with an `isRelevant` predicate + `refetch` closure.
 
 2. **Backend API (Node.js / Express)**:
-   - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): `invitePartnerController` resolves recipient email + partnership code via `resolveRequestedPartnerOrNull`, checks self-invitation, and calls `adminSupabase.rpc('partnership_request')`. `inviteUserController` sends a plain invite email via `sendPartnerInviteEmail()` (Resend HTTP API, informational `/auth/invite` link) and never touches Supabase Auth.
+   - [auth.controller.js](file:///f:/JustUS/Backend/features/auth/auth.controller.js): `invitePartnerController` resolves recipient email + partnership code via `resolveRequestedPartnerOrNull`, checks self-invitation, and calls `adminSupabase.rpc('partnership_request')`. `inviteUserController` rejects case-insensitive matches in `public.users` with `API-VALIDATION-002` before sending a plain invite email via `sendPartnerInviteEmail()` (Resend HTTP API, informational `/auth/invite` link); lookup failures return `DB-READ-001`, and the handler never touches Supabase Auth.
    - [auth.schemas.js](file:///f:/JustUS/Backend/features/auth/auth.schemas.js): Zod schemas `inviteSchema` (email format + 6-character partnership code) and `inviteUserSchema` (`email` only).
    - [partnershipUtils.js](file:///f:/JustUS/Backend/utils/misc/partnershipUtils.js): Single source of truth for backend partnership lookups — `getPartnerId()`, `getCancellationPartnerId()`, `getPartnershipId()`, `getPartnershipById()`, `isPartnershipParticipant()` and `isPartnershipMember()`. Database read errors surface as `DB-READ-001` (`assertDbSuccess`) instead of being returned as "no partner"/"not found"; only a genuinely missing row returns `null`. No other backend module queries `public.partnerships` directly; `partnership.service.js` validates cancellation acceptance through these helpers.
 
@@ -165,7 +165,7 @@ The partnership feature uses two distinct channels, by design:
 | **Flutter Frontend** | `PartnershipRepository.inviteUser()` / `PartnerInviteDialog` | Ask an existing account to connect | HTTP POST to `/api/v1/auth/invite` (email + 6-char code), signed |
 | **Flutter Frontend** | `PartnershipRepository.inviteUnregisteredPartner()` / `PartnerInviteEmailDialog` | Invite a partner who has no account yet | HTTP POST to `/api/v1/auth/invite-user` (email only), signed |
 | **Backend API** | `POST /api/v1/auth/invite` | Create the pending pairing request | Validates input, resolves user in DB, invokes RPC `partnership_request`; **no email** |
-| **Backend API** | `POST /api/v1/auth/invite-user` | Send the download/registration invite | `sendPartnerInviteEmail()` → Resend HTTP API; no Auth account is created |
+| **Backend API** | `POST /api/v1/auth/invite-user` | Send the download/registration invite | Rejects existing `public.users` emails (`API-VALIDATION-002`); otherwise calls Resend; no Auth account is created |
 | **Supabase** | `partnership_request` RPC | Database request creation | Inserts row into `public.partnerships` with `status = 'pending'` |
 
 > [!IMPORTANT]
@@ -175,11 +175,11 @@ The partnership feature uses two distinct channels, by design:
 
 - **Middleware chain**: `authenticated()` → `limited(inviteUserRateLimit)` (10/IP, 5/user per window) → `signed("auth-invite-user")` → `validated({ body: inviteUserSchema })`.
 - **Request body**: `{ email }` only. No `redirectTo`: there is no GoTrue link, so no redirect allow-list entry is involved.
+- **Account check**: before dispatch, the backend looks up an exact case-insensitive email match in `public.users`. An existing account returns `409 API-VALIDATION-002` so the sender can use the email + 6-character partnership code flow; a database error returns `500 DB-READ-001` and prevents dispatch.
 - **Dispatch**: `sendPartnerInviteEmail()` POSTs to the Resend API (`https://api.resend.com/emails`) from `JustUS <team@mail.justus.serverfede.eu>`, with a link to `${APP_URL}/auth/invite`.
 - **Success**: `200 { success: true }` after Resend accepted the email.
 - **Failure**: a missing `RESEND_API_KEY` becomes `500 SYS-FAIL-001`; a non-2xx Resend response becomes `500 API-FAIL-001`.
 - **No Auth side effects**: no `auth.users` row is created or confirmed, no session is issued, and opening the email on any device does nothing. The account is created only by the invitee's own `signUp` in the app.
-- **Existing accounts**: the endpoint no longer probes GoTrue for `email_exists`; a redundant invite is harmless because registration (and the `identities: []` guard) still routes an already-registered address to login/password reset.
 - **Template**: `Backend/templates/inviteEmail.js` (plain transactional HTML, Italian copy). Auth templates remain hosted by the Supabase project (see `docs/audits/email.md`).
 
 ---
@@ -214,9 +214,9 @@ The partnership feature uses two distinct channels, by design:
 ### 5. Inviting a Partner Who Has No Account
 - **Entry Point**: `PartnerScreen` shows "Il tuo partner non ha ancora JustUS? Invia un invito." (`partner_inviteEmailPrompt`) whenever the caller has no partner.
 - **User Action**: Opens `PartnerInviteEmailDialog`, enters the partner's email, taps "Send".
-- **Execution**: `AuthState.inviteUnregisteredPartner(email)` -> `PartnershipRepository.inviteUnregisteredPartner(email)` -> `POST /api/v1/auth/invite-user` -> `sendPartnerInviteEmail()` (Resend HTTP API).
+- **Execution**: `AuthState.inviteUnregisteredPartner(email)` -> `PartnershipRepository.inviteUnregisteredPartner(email)` -> `POST /api/v1/auth/invite-user` -> case-insensitive account lookup in `public.users` -> `sendPartnerInviteEmail()` (Resend HTTP API) only when no account exists.
 - **Side Effects**: the partner receives a plain email asking them to download JustUS and register autonomously; **no** Auth account is created or confirmed, and no `partnerships` row is written.
-- **Error**: config failures return `500 SYS-FAIL-001` and a failed Resend dispatch returns `500 API-FAIL-001`; the dialog shows the generic error message. An already-registered address gets a redundant but harmless email (registration routes it to login/password reset).
+- **Error**: an existing account returns `409 API-VALIDATION-002`, which the dialog displays in the current locale with instructions to use the 6-character partnership code. Lookup failures return `500 DB-READ-001` without dispatch; config failures return `500 SYS-FAIL-001`, and a failed Resend dispatch returns `500 API-FAIL-001`.
 
 ### 6. Partnership Cancellation (Flutter)
 - **Model**: `PartnershipCancellation` (`partnership_repository.dart` / `partnership_models.dart`) carries `partnershipId`, `partnerId`, `partnerDisplayName`, `partnerProfilePicUrl` and `requestedByMe`, mapped from `partnership_get_cancellation()`.
@@ -391,6 +391,6 @@ Result: **no rows**. No manual repair was needed, so the guard applies to a clea
 | Cancellation Request UI | **IMPLEMENTED** | `ProfileScreen` danger tile (visible only with a partner) -> simple `VPDialog` -> `requestCancellation` -> PartnerScreen; cooldown/errors stay on Profile |
 | Cancellation Result UI | **IMPLEMENTED** | Reusable `InvitationTile` for the partner branch (accept with final-deletion dialog, decline), waiting card + restore for the requester, ended copy on deletion/lost response |
 | Cancellation Realtime / Reverse Redirect | **IMPLEMENTED** | PK-only DELETE relevance, `ErrorHandler.navigatorKey` redirect from pushed routes once a known request resolves, lost accept response resolved against the accepted-partnership read |
-| Invite Partner With No Account | **IMPLEMENTED** | `POST /auth/invite-user` → `sendPartnerInviteEmail()` (Resend HTTP); plain download/registration email; no Auth account, no `partnerships` row |
+| Invite Partner With No Account | **IMPLEMENTED** | `POST /auth/invite-user` rejects existing accounts (`API-VALIDATION-002`) and lookup failures (`DB-READ-001`) before Resend; otherwise sends a plain download/registration email; no Auth account or `partnerships` row |
 | Realtime State Sync | **IMPLEMENTED** | `RealtimeSyncService` listens to `partnerships` table |
 | Automatic Redirection on Login | **IMPLEMENTED** | `SplashScreen` routes based on `partnerState.partner` |

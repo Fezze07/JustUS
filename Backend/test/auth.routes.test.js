@@ -650,25 +650,79 @@ describe("auth routes", () => {
       status: 200,
       text: jest.fn().mockResolvedValue(""),
     });
+    const usersQuery = createQueryBuilder();
+    adminSupabase.from.mockImplementation((table) => {
+      expect(table).toBe("users");
+      return usersQuery;
+    });
 
     const app = createApp();
     const response = await request(app)
       .post("/api/v1/auth/invite-user")
-      .send({ email: "new-partner@example.com" });
+      .send({ email: "new_partner@example.com" });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(adminSupabase.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+    expect(usersQuery.ilike).toHaveBeenCalledWith(
+      "email",
+      "new\\_partner@example.com"
+    );
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, options] = global.fetch.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
 
     const payload = JSON.parse(options.body);
-    expect(payload.to).toEqual(["new-partner@example.com"]);
-    expect(payload.html).toContain("new-partner@example.com");
+    expect(payload.to).toEqual(["new_partner@example.com"]);
+    expect(payload.html).toContain("new_partner@example.com");
     expect(payload.html).toContain("https://app.test.local/auth/invite");
     expect(payload.html).not.toContain("{{ .ConfirmationURL }}");
+  });
+
+  test("rejects an invite for an email that already has a JustUS account", async () => {
+    global.fetch = jest.fn();
+    const usersQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: 7 },
+        error: null,
+      }),
+    });
+    adminSupabase.from.mockImplementation((table) => {
+      expect(table).toBe("users");
+      return usersQuery;
+    });
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/invite-user")
+      .send({ email: "Existing@Example.com" });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe("API-VALIDATION-002");
+    expect(usersQuery.ilike).toHaveBeenCalledWith("email", "Existing@Example.com");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(adminSupabase.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  test("does not send the invite when the account lookup fails", async () => {
+    global.fetch = jest.fn();
+    const usersQuery = createQueryBuilder({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: "connection reset" },
+      }),
+    });
+    adminSupabase.from.mockImplementation(() => usersQuery);
+
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/v1/auth/invite-user")
+      .send({ email: "new-partner@example.com" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("DB-READ-001");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   test("reports an invite email dispatch failure as a server error", async () => {
@@ -677,6 +731,8 @@ describe("auth routes", () => {
       status: 500,
       text: jest.fn().mockResolvedValue("smtp refused"),
     });
+    const usersQuery = createQueryBuilder();
+    adminSupabase.from.mockImplementation(() => usersQuery);
 
     const app = createApp();
     const response = await request(app)

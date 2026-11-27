@@ -11,7 +11,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 * The project uses **Supabase Auth SMTP** (configured with Resend in the online Supabase project) for Auth emails (confirm sign-up, reset password, password changed, etc.). The custom SMTP sender is `team@mail.justus.serverfede.eu` via `smtp.resend.com:465`.
 * No additional mailer SDK (Nodemailer, Resend SDK, SendGrid, Mailgun) is installed or used by the Node.js backend (`Backend/`): the partner invite calls the Resend REST API with the runtime's global `fetch`.
 * Partner **pairing requests** (`POST /api/v1/auth/invite`) store rows in Postgres via the Supabase RPC `partnership_request` and deliberately do **not** dispatch an email: the recipient must already have a JustUS account, so delivery is in-app (PartnerScreen + push notification) and the 6-char `partnershipCode` is shared out-of-band.
-* Partner **account invites** (`POST /api/v1/auth/invite-user`, reworked 2026-11-04) send a plain transactional email (`Backend/services/emailService.js` → Resend) that only asks the partner to install JustUS and register autonomously. The email links to the informational `/auth/invite` page, **not** to a Supabase Auth verify URL: no Auth account is created, confirmed or signed in, so opening the email on any device has no side effects. No `partnerships` row is written.
+* Partner **account invites** (`POST /api/v1/auth/invite-user`) first check `public.users` for an exact case-insensitive email match. Existing accounts are rejected with `409 API-VALIDATION-002`; database read failures return `500 DB-READ-001` and prevent dispatch. Only an unregistered address receives a plain transactional email (`Backend/services/emailService.js` → Resend) asking the partner to install JustUS and register autonomously. The email links to the informational `/auth/invite` page, **not** to a Supabase Auth verify URL: no Auth account is created, confirmed or signed in, so opening the email on any device has no side effects. No `partnerships` row is written.
 * Email verification for Supabase Auth is handled by Supabase's configured SMTP (or local Supabase Inbucket in development).
 
 ---
@@ -41,9 +41,10 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 * **Middleware Chain**: `authenticated()` → `limited(inviteUserRateLimit)` → `signed("auth-invite-user")` → `validated({ body: inviteUserSchema })`
 * **Incoming Payload**: `{ email: "partner@example.com" }`
 * **Flow Trace**:
-  1. `sendPartnerInviteEmail(email)` POSTs to `https://api.resend.com/emails` (sender `JustUS <team@mail.justus.serverfede.eu>`).
-  2. The email links to `${APP_URL}/auth/invite`, an informational page telling the partner to install JustUS, register with that email + password, confirm the email, then exchange the 6-char code.
-  3. Supabase Auth is never called: no `auth.users` row is created or confirmed and no session is issued.
+  1. The backend performs an exact case-insensitive lookup for the address in `public.users`.
+  2. If a match exists, it returns `409 API-VALIDATION-002` and does not send an email; if the lookup fails, it returns `500 DB-READ-001` and does not send an email.
+  3. For an unregistered address, `sendPartnerInviteEmail(email)` POSTs to `https://api.resend.com/emails` (sender `JustUS <team@mail.justus.serverfede.eu>`).
+  4. The email links to `${APP_URL}/auth/invite`, an informational page telling the partner to install JustUS, register with that email + password, confirm the email, then exchange the 6-char code. Supabase Auth is never called: no `auth.users` row is created or confirmed and no session is issued.
 * **Mail Dispatch Verification**:
   - Dispatched by the backend through Resend's HTTP API. No SDK, only the runtime's global `fetch`.
   - **Account-only**: no `partnerships` row is inserted; pairing still needs the invitee's 6-char code after autonomous registration.
@@ -86,7 +87,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 | Component / Flow | File Path | Direct Callers | Mailer Implementation | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **Partner Pairing Request Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite` | Inserts DB record via Supabase RPC; no email by design | **IMPLEMENTED (no email, in-app + push)** |
-| **Partner Account Invite Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite-user` | `sendPartnerInviteEmail()` → Resend HTTP API, informational `/auth/invite` link | **IMPLEMENTED (Resend HTTP, no Auth account)** |
+| **Partner Account Invite Endpoint** | `Backend/features/auth/auth.controller.js` | `POST /api/v1/auth/invite-user` | Case-insensitive `public.users` check; existing accounts and lookup errors are rejected before `sendPartnerInviteEmail()` → Resend HTTP API | **IMPLEMENTED (Resend HTTP, no Auth account)** |
 | **Email Signup & Verification** | `Flutter/lib/features/auth/auth_state.dart` | `RegisterScreen` | Offloaded to Supabase Auth SMTP (Resend) | **IMPLEMENTED (Supabase)** |
 | **Web Callback HTML Templates** | `Backend/templates/callbackPage.js` | `Backend/routes/authCallbacks.js` | Serves HTML page for browser redirects and the invite landing | **IMPLEMENTED (Static HTML)** |
 | **Backend Mailer Service / SDK** | `Backend/services/emailService.js` | `inviteUserController` | Resend REST API through global `fetch`; no Nodemailer/Resend/SendGrid SDK | **IMPLEMENTED (HTTP only)** |
@@ -98,7 +99,7 @@ This audit evaluates all email-related declarations, capabilities, endpoints, te
 1. **Two Channels, One Policy (2026-10-12, invite reworked 2026-11-04)**:
    - Supabase Auth SMTP (Resend) handles Auth transactional emails (confirm sign-up, reset password, password changed, etc.). Two partner-related endpoints exist:
      - `POST /api/v1/auth/invite` (pairing request, email + 6-char code) only creates a pending `partnerships` row; the recipient already has an account and is reached in-app / by push.
-     - `POST /api/v1/auth/invite-user` (account invite, email only) sends a plain Resend email and creates **no** Auth account: the invitee registers autonomously with password + confirmation email.
+     - `POST /api/v1/auth/invite-user` (account invite, email only) first rejects existing `public.users` addresses with `API-VALIDATION-002` and lookup failures with `DB-READ-001`; otherwise sends a plain Resend email and creates **no** Auth account: the invitee registers autonomously with password + confirmation email.
    - No mailer SDK is present in the Node backend; the invite uses the Resend REST API directly through global `fetch`.
    - Supabase `signUp` on an already-confirmed email returns a fake success (`identities: []`) and sends nothing; `AuthState.register` now detects it and points the user to login/password reset instead of showing a false confirmation dialog.
    - Residual: the invite email requires `RESEND_API_KEY` in the backend environment (`APP_URL` defaults to `https://justus.serverfede.eu`); Resend's own rate limits apply on top of `inviteUserRateLimit`.

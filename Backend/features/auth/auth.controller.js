@@ -231,8 +231,26 @@ const invitePartnerController = asyncHandler(async (req, res) => {
 // invitePartnerController with email + 6-char code once the invitee has signed up.
 const inviteUserController = asyncHandler(async (req, res) => {
   const { email } = req.body;
+  const normalizedEmail = email.trim();
+  const emailPattern = normalizedEmail.replace(/[\\%_]/g, "\\$&");
 
-  await sendPartnerInviteEmail(email.trim());
+  const existingUser = assertDbSuccess(
+    await adminSupabase
+      .from("users")
+      .select("id")
+      .ilike("email", emailPattern)
+      .maybeSingle(),
+    "DB_READ_001"
+  );
+
+  if (existingUser) {
+    throw new AppError({
+      errorKey: "API_VALIDATION_002",
+      message: "Email already registered",
+    });
+  }
+
+  await sendPartnerInviteEmail(normalizedEmail);
 
   res.json({ success: true });
 });

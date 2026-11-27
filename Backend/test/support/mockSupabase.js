@@ -7,6 +7,7 @@ function createQueryBuilder(overrides = {}) {
     upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
     eq: jest.fn(() => builder),
     neq: jest.fn(() => builder),
+    ilike: jest.fn(() => builder),
     or: jest.fn(() => builder),
     order: jest.fn(() => builder),
     limit: jest.fn(() => builder),
