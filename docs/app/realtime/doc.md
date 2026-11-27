@@ -2,7 +2,7 @@
 
 ## Overview
 
-JustUS uses a single Supabase Realtime channel per user (`justus-sync-$userId-$generation`) with **nine** Postgres Change subscriptions (all event types, no server-side logical filters). Events are pushed to the client, filtered against the local user/partner/partnership identity, deduplicated via a bounded LRU, optionally debounced, and dispatched through a shared `RealtimeHandler` template to per-feature strategies that mutate in-memory state and persist caches.
+JustUS uses a single Supabase Realtime channel per user (`justus-sync-$userId-$generation`) whose bindings depend on `RealtimeSyncSession.mode` (`unauthenticated` -> no channel, `unpaired` -> `public.partnerships` only, `paired` -> **nine** Postgres Change subscriptions, all event types, no server-side logical filters). Events are pushed to the client, filtered against the local user/partner/partnership identity, deduplicated via a bounded LRU, optionally debounced, and dispatched through a shared `RealtimeHandler` template to per-feature strategies that mutate in-memory state and persist caches.
 
 A **polling fallback** (15 s interval) and **exponential-backoff resubscription** (max 20 attempts) guarantee eventual synchronization when the WebSocket is unstable. Realtime is the fast path; the checkpoint-based `loadWithChangeDetection` cold-start path is the slow path.
 
@@ -96,7 +96,7 @@ Channel name: `justus-sync-$userId-$generation` — the generation counter (`Rea
 | # | Table | Event types | Callback | Debounce | Dispatches to |
 |---|---|---|---|---|---|
 | 1 | `moods` | all | `MoodRealtimeHandler.handle` | 120 ms | `MoodState.refreshFromRealtime(changedUserId)` per **distinct** changed user (`mood_change_batch.dart`) |
-| 2 | `partnerships` | all (UPDATE and DELETE, including PK-only DELETE) | `RefetchRealtimeHandler.handle` | 150 ms | `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
+| 2 | `partnerships` | all (INSERT, UPDATE, and DELETE, including PK-only DELETE) | `RefetchRealtimeHandler.handle` | 150 ms | In `unpaired` mode: `AuthState.fetchInvitations()` + `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache`. In `paired` mode: `PartnerState.refreshFromRealtime` + `AuthState.refreshPartnershipFromRealtime` + `BaseRepository.clearPartnershipCache` |
 | 3 | `missyou` | all | `MissYouRealtimeHandler.handle` | **none** (immediate) | `HomepageState.addMissYou` (insert) / `refreshFromRealtime` (delete) |
 | 4 | `bucket_items` | all | `BucketRealtimeHandler.handle` | **none** (immediate) | `BucketState.applyRealtimeEvent` (granular insert/update/delete) |
 | 5 | `game_questions` | all | `GameRealtimeHandler.handle` | **none** for insert/delete (immediate); 150 ms FIFO flush for update | `GameState.handleQuestionInsert/Delete` (immediate), `handleQuestionUpdate` (via `game_event_buffer.dart`) |
@@ -191,7 +191,7 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 
 ### Note on the strict fallback
 
-`isPartnershipRecord` returns `false` when the session `partnershipId == null` — incoming records are rejected, not "filtered everything in" (F-RT9 resolved). `configure()` defers subscription whenever `partnershipId == null`, so no channel exists without a partnership; the strict fallback is defense-in-depth for the pathological window where a channel outlives a partnership reset. The only accepted null-payload case is a DELETE event, whose `oldRecord` carries just the PK under the default `REPLICA IDENTITY` — feature-level `_knownIds` dedup and RLS still govern those events.
+`isPartnershipRecord` returns `false` when the session `partnershipId == null` — incoming records are rejected, not "filtered everything in" (F-RT9 resolved). In `unpaired` mode (`userId != null && partnershipId == null`), the channel binds exclusively to `public.partnerships`; the strict fallback is defense-in-depth for the pathological window where a paired channel outlives a partnership reset. The only accepted null-payload case is a DELETE event, whose `oldRecord` carries just the PK under the default `REPLICA IDENTITY` — feature-level `_knownIds` dedup and RLS still govern those events.
 
 ---
 
@@ -209,7 +209,8 @@ All filters gate on the session ids (`RealtimeSyncSession.userId/partnerId/partn
 - Called post-frame by `RealtimeSyncScope` after every `AuthState`/`PartnerState` change (login, logout, partnership accepted/rejected).
 - **No-op when IDs are unchanged**: retry/failure counters are reset and fields re-assigned (`RealtimeSyncSession` ids mutated), but if nothing changed the method returns before any log, reconnect, or unsubscribe — so the routine rebuilds of the `Consumer2` (e.g. after a profile edit's refresh batch) log **nothing**.
 - On a real change: logs `configure() - CHANGE: ...`, resets `_reconnectAttempt` and `_consecutiveFailures`, clears the game-event FIFO buffer + mood batch, deactivates polling fallback.
-- `userId == null` → `handleSignedOut()` (immediate disconnect; no work while signed out); `userId != null && partnershipId == null` → `unsubscribe()` and wait.
+- `userId == null` → `handleSignedOut()` (immediate disconnect; no work while signed out); `userId != null` (`unpaired` with `partnershipId == null`, or `paired` with `partnershipId != null`) → `scheduleReconnect()` when in foreground.
+- `_refreshAll()` is also mode-scoped: `unauthenticated` is a no-op; `unpaired` refreshes only `AuthState.fetchInvitations()`, `PartnerState.refreshFromRealtime()`, and `AuthState.refreshPartnershipFromRealtime()` (never couple-specific data); `paired` refreshes all 7 states.
 - A non-null `userId` clears the signed-out flag (`handleSignedIn()`); a previously signed-out connection counts as changed, so the next authenticated `configure()` reconnects.
 - On id change in foreground → `scheduleReconnect()`.
 

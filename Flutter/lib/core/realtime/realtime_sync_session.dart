@@ -3,6 +3,13 @@ import 'dart:collection';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import 'package:justus/all_imports.dart';
 
+/// Subscription scope for [RealtimeSyncService] and [RealtimeSyncConnection].
+enum RealtimeSyncMode {
+  unauthenticated,
+  unpaired,
+  paired,
+}
+
 /// Shared identity, dedup, and row-decoding context for the Realtime layer.
 ///
 /// Owns the user/partner/partnership ids (mutated by
@@ -15,6 +22,12 @@ class RealtimeSyncSession {
   int? partnerId;
   int? partnershipId;
   bool suppressProcessing = false;
+
+  RealtimeSyncMode get mode {
+    if (userId == null) return RealtimeSyncMode.unauthenticated;
+    if (partnershipId == null) return RealtimeSyncMode.unpaired;
+    return RealtimeSyncMode.paired;
+  }
 
   final Queue<String> _recentEventKeys = Queue<String>();
   final Set<String> _recentEventKeySet = <String>{};

@@ -272,7 +272,8 @@ Clear local cache (BaseRepository.clearPartnershipCache())
                            │
                            ▼
 Trigger UI state refreshes:
-  ├── PartnerState.refreshFromRealtime()  (partnership + cancellation read)
+  ├── AuthState.fetchInvitations()          (unpaired mode: pending sent/received lists, generation-guarded)
+  ├── PartnerState.refreshFromRealtime()    (partnership + cancellation read)
   └── AuthState.refreshPartnershipFromRealtime()
 ```
 

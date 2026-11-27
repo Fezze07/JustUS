@@ -39,6 +39,9 @@ class RealtimeSyncService {
       isRelevant: _session.isRelevantPartnership,
       refetch: () async {
         BaseRepository.clearPartnershipCache();
+        if (_session.mode == RealtimeSyncMode.unpaired) {
+          await _authState.fetchInvitations();
+        }
         await _partnerState.refreshFromRealtime();
         await _authState.refreshPartnershipFromRealtime();
       },
@@ -66,29 +69,31 @@ class RealtimeSyncService {
         await _authState.refreshPartnershipFromRealtime();
       },
     );
+    final partnershipBinding = RealtimeTableBinding(
+        table: 'partnerships', callback: _partnershipHandler.handle);
+    _unpairedBindings = List.unmodifiable([partnershipBinding]);
+    _pairedBindings = List.unmodifiable([
+      RealtimeTableBinding(table: 'moods', callback: _moodHandler.handle),
+      partnershipBinding,
+      RealtimeTableBinding(table: 'missyou', callback: _missYouHandler.handle),
+      RealtimeTableBinding(
+          table: 'bucket_items', callback: _bucketHandler.handle),
+      RealtimeTableBinding(
+          table: 'game_questions', callback: _gameHandler.handle),
+      RealtimeTableBinding(
+          table: 'game_answers', callback: _gameHandler.handle),
+      RealtimeTableBinding(
+          table: 'drive_items', callback: _driveHandler.handle),
+      RealtimeTableBinding(
+          table: 'drive_item_reactions', callback: _driveHandler.handle),
+      RealtimeTableBinding(
+          table: 'user_profiles', callback: _userProfileHandler.handle),
+    ]);
     _connection = RealtimeSyncConnection(
       client: _client,
       session: _session,
       refreshAll: _refreshAll,
-      bindings: [
-        RealtimeTableBinding(table: 'moods', callback: _moodHandler.handle),
-        RealtimeTableBinding(
-            table: 'partnerships', callback: _partnershipHandler.handle),
-        RealtimeTableBinding(
-            table: 'missyou', callback: _missYouHandler.handle),
-        RealtimeTableBinding(
-            table: 'bucket_items', callback: _bucketHandler.handle),
-        RealtimeTableBinding(
-            table: 'game_questions', callback: _gameHandler.handle),
-        RealtimeTableBinding(
-            table: 'game_answers', callback: _gameHandler.handle),
-        RealtimeTableBinding(
-            table: 'drive_items', callback: _driveHandler.handle),
-        RealtimeTableBinding(
-            table: 'drive_item_reactions', callback: _driveHandler.handle),
-        RealtimeTableBinding(
-            table: 'user_profiles', callback: _userProfileHandler.handle),
-      ],
+      bindingsForMode: _bindingsForCurrentMode,
     );
   }
 
@@ -110,7 +115,20 @@ class RealtimeSyncService {
   late final GameRealtimeHandler _gameHandler;
   late final RefetchRealtimeHandler _driveHandler;
   late final RefetchRealtimeHandler _userProfileHandler;
+  late final List<RealtimeTableBinding> _unpairedBindings;
+  late final List<RealtimeTableBinding> _pairedBindings;
   late final RealtimeSyncConnection _connection;
+
+  List<RealtimeTableBinding> _bindingsForCurrentMode() {
+    switch (_session.mode) {
+      case RealtimeSyncMode.unauthenticated:
+        return const [];
+      case RealtimeSyncMode.unpaired:
+        return _unpairedBindings;
+      case RealtimeSyncMode.paired:
+        return _pairedBindings;
+    }
+  }
 
   bool _started = false;
   bool _disposed = false;
@@ -186,19 +204,26 @@ class RealtimeSyncService {
       return;
     }
 
-    if (partnershipId == null) {
-      AnsiLogger.realtime(
-          'configure() - userId=$userId partnershipId=$partnershipId, deferring subscribe');
-      unawaited(_connection.unsubscribe());
-      return;
-    }
-
     if (_connection.foreground) {
       _connection.scheduleReconnect();
     }
   }
 
   Future<void> _refreshAll() async {
+    final mode = _session.mode;
+    if (mode == RealtimeSyncMode.unauthenticated) return;
+
+    if (mode == RealtimeSyncMode.unpaired) {
+      AnsiLogger.realtime('_refreshAll() - refreshing unpaired states');
+      await Future.wait([
+        _authState.fetchInvitations(),
+        _partnerState.refreshFromRealtime(),
+        _authState.refreshPartnershipFromRealtime(),
+      ]);
+      AnsiLogger.realtime('_refreshAll() - done (unpaired)');
+      return;
+    }
+
     AnsiLogger.realtime('_refreshAll() - refreshing all states');
     await Future.wait([
       _moodState.refreshFromRealtime(),

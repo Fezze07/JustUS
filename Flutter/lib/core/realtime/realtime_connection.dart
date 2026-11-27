@@ -14,16 +14,16 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
   RealtimeSyncConnection({
     required sb.SupabaseClient client,
     required RealtimeSyncSession session,
-    required List<RealtimeTableBinding> bindings,
+    required List<RealtimeTableBinding> Function() bindingsForMode,
     required Future<void> Function() refreshAll,
   })  : _client = client,
         _session = session,
-        _bindings = List.unmodifiable(bindings),
+        _bindingsForMode = bindingsForMode,
         _refreshAll = refreshAll;
 
   final sb.SupabaseClient _client;
   final RealtimeSyncSession _session;
-  final List<RealtimeTableBinding> _bindings;
+  final List<RealtimeTableBinding> Function() _bindingsForMode;
   final Future<void> Function() _refreshAll;
 
   sb.RealtimeChannel? _channel;
@@ -244,9 +244,16 @@ class RealtimeSyncConnection with WidgetsBindingObserver, TrailingEdgeDebounce {
         return;
       }
 
+      final bindings = _bindingsForMode();
+      if (bindings.isEmpty) {
+        AnsiLogger.realtime(
+            '_subscribe() - SKIP: no bindings for mode=${_session.mode}');
+        return;
+      }
+
       var channel =
           _client.channel('justus-sync-${_session.userId}-$_generation');
-      for (final binding in _bindings) {
+      for (final binding in bindings) {
         channel = channel.onPostgresChanges(
           event: sb.PostgresChangeEvent.all,
           schema: 'public',

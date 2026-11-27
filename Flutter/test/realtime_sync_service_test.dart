@@ -99,6 +99,8 @@ void main() {
   late _MockBucketState bucket;
   late _MockHomepageState home;
   late _MockPartnerState partnerState;
+  late _MockAuthState authState;
+  late _MockDriveState driveState;
 
   /// Configure the identity, then subscribe without waiting for the reconnect
   /// backoff timer (`refreshChannel` cancels it and subscribes right away).
@@ -201,11 +203,12 @@ void main() {
     // reports `subscribed`) must answer, otherwise the refresh throws.
     partnerState = _MockPartnerState();
     when(partnerState.refreshFromRealtime).thenAnswer((_) async {});
-    final authState = _MockAuthState();
+    authState = _MockAuthState();
     when(authState.refreshPartnershipFromRealtime).thenAnswer((_) async {});
+    when(authState.fetchInvitations).thenAnswer((_) async {});
     when(() => bucket.refreshFromRealtime()).thenAnswer((_) async {});
     when(() => game.refreshFromRealtime()).thenAnswer((_) async {});
-    final driveState = _MockDriveState();
+    driveState = _MockDriveState();
     when(driveState.refreshFromRealtime).thenAnswer((_) async {});
     final profileState = _MockProfileState();
     when(() => profileState.loadProfile(force: any(named: 'force')))
@@ -447,4 +450,138 @@ void main() {
       verifyNever(() => realtimeClient.setAuth(any()));
     });
   });
+
+  group('RealtimeSyncService unpaired mode', () {
+    Future<void> connectUnpaired() async {
+      service.configure(userId: 42, partnerId: null, partnershipId: null);
+      await service.refreshChannel();
+      statusCallback?.call(sb.RealtimeSubscribeStatus.subscribed, null);
+      await pumpEventQueue();
+    }
+
+    test('unauthenticated user never creates a Realtime channel', () async {
+      service.configure(userId: null, partnerId: null, partnershipId: null);
+      await service.refreshChannel();
+      await pumpEventQueue();
+
+      verifyNever(() => client.channel(any()));
+      expect(callbacks, isEmpty);
+    });
+
+    test('unpaired user subscribes exclusively to partnerships', () async {
+      await connectUnpaired();
+
+      expect(callbacks.keys.toSet(), {'partnerships'});
+      verify(() => client.channel('justus-sync-42-1')).called(1);
+    });
+
+    test('unpaired refreshChannel does not fetch couple-specific data',
+        () async {
+      await connectUnpaired();
+
+      verify(authState.fetchInvitations).called(1);
+      verify(partnerState.refreshFromRealtime).called(1);
+      verify(authState.refreshPartnershipFromRealtime).called(1);
+
+      expect(moodRepository.fetchPartnerMoodCalls, 0);
+      expect(moodRepository.fetchMyMoodCalls, 0);
+      verifyNever(() => home.refreshFromRealtime());
+      verifyNever(() => bucket.refreshFromRealtime());
+      verifyNever(() => game.refreshFromRealtime());
+      verifyNever(driveState.refreshFromRealtime);
+    });
+
+    test('unpaired partnership INSERT, UPDATE, and PK-only DELETE refresh invitations and coalesce bursts',
+        () async {
+      await connectUnpaired();
+      clearInteractions(authState);
+      clearInteractions(partnerState);
+      when(authState.fetchInvitations).thenAnswer((_) async {});
+      when(authState.refreshPartnershipFromRealtime).thenAnswer((_) async {});
+      when(partnerState.refreshFromRealtime).thenAnswer((_) async {});
+
+      emit(
+        'partnerships',
+        sb.PostgresChangeEvent.insert,
+        newRecord: {'id': 501, 'user_id_1': 42, 'user_id_2': 77},
+        at: DateTime.utc(2026, 1, 1, 0, 0, 1),
+      );
+      emit(
+        'partnerships',
+        sb.PostgresChangeEvent.update,
+        newRecord: {'id': 501, 'user_id_1': 42, 'user_id_2': 77},
+        at: DateTime.utc(2026, 1, 1, 0, 0, 2),
+      );
+      emit(
+        'partnerships',
+        sb.PostgresChangeEvent.delete,
+        oldRecord: {'id': 501},
+        at: DateTime.utc(2026, 1, 1, 0, 0, 3),
+      );
+
+      await Future<void>.delayed(_afterDebounce);
+
+      verify(authState.fetchInvitations).called(1);
+      verify(partnerState.refreshFromRealtime).called(1);
+      verify(authState.refreshPartnershipFromRealtime).called(1);
+    });
+
+    test('AuthState.fetchInvitations ignores stale overlapping responses',
+        () async {
+      final firstCompleter =
+          Completer<ResultWrapper<List<PartnershipInvitation>>>();
+      final secondCompleter =
+          Completer<ResultWrapper<List<PartnershipInvitation>>>();
+      var callCount = 0;
+
+      final repo = _OverlappingInvitationsRepo(() {
+        callCount++;
+        return callCount == 1 ? firstCompleter.future : secondCompleter.future;
+      });
+      final realAuth = AuthState(partnershipRepo: repo);
+      await realAuth.setLoginData(
+        accessToken: 'token',
+        user: User(id: 42, displayName: 'me', partnershipCode: 'CODE'),
+      );
+
+      final firstFuture = realAuth.fetchInvitations();
+      final secondFuture = realAuth.fetchInvitations();
+
+      secondCompleter.complete(Success([
+        PartnershipInvitation(
+          id: 2,
+          status: 'pending',
+          createdAt: DateTime.utc(2026),
+          partnerId: 88,
+          partnerDisplayName: 'newer',
+          isReceived: true,
+        ),
+      ]));
+      await secondFuture;
+
+      firstCompleter.complete(Success([
+        PartnershipInvitation(
+          id: 1,
+          status: 'pending',
+          createdAt: DateTime.utc(2026),
+          partnerId: 77,
+          partnerDisplayName: 'older',
+          isReceived: true,
+        ),
+      ]));
+      await firstFuture;
+
+      expect(realAuth.receivedInvitations.map((i) => i.id).toList(), [2]);
+    });
+  });
+}
+
+class _OverlappingInvitationsRepo extends PartnershipRepository {
+  _OverlappingInvitationsRepo(this._next);
+
+  final Future<ResultWrapper<List<PartnershipInvitation>>> Function() _next;
+
+  @override
+  Future<ResultWrapper<List<PartnershipInvitation>>> getPendingInvitations() =>
+      _next();
 }

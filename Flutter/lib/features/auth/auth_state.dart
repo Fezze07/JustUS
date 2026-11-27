@@ -69,6 +69,7 @@ class AuthState extends BaseState
   bool _isSigningIn = false;
   List<PartnershipInvitation> _sentInvitations = [];
   List<PartnershipInvitation> _receivedInvitations = [];
+  int _invitationsGeneration = 0;
 
   /// Invoked at the end of [logout] once auth data, storage and checkpoints are
   /// cleared, so the app root can reset the feature states (F-SM7).
@@ -658,11 +659,16 @@ class AuthState extends BaseState
   }
 
   Future<void> _fetchInvitations() async {
+    final generation = ++_invitationsGeneration;
     try {
       if (!isLoggedIn || _isLoggingOut) return;
 
       final result = await _partnershipRepo.getPendingInvitations();
-      if (!isLoggedIn || _isLoggingOut) return;
+      if (generation != _invitationsGeneration ||
+          !isLoggedIn ||
+          _isLoggingOut) {
+        return;
+      }
       final invitations = result.valueOrNull;
       if (invitations != null) {
         final sent = <PartnershipInvitation>[];
@@ -888,6 +894,7 @@ class AuthState extends BaseState
       _partnershipId = null;
       _partnerDisplayName = null;
       _pendingLoginEmail = null;
+      _invitationsGeneration++;
       _sentInvitations = [];
       _receivedInvitations = [];
       onClearFeatureStates?.call();
