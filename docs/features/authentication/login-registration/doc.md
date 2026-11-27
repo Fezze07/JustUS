@@ -93,7 +93,7 @@ Flutter UI (RegisterScreen)
    - In `RegisterScreen` ([register_screen.dart:105](file:///f:/JustUS/Flutter/lib/features/auth/screens/register_screen.dart#L105)), a successful `register(...)` always shows a non-dismissible `VPDialog` informing the user that a confirmation email has been sent to their email address.
    - Upon tapping "Go to Login", the dialog pops and the navigator pops back to `LoginScreen`.
 
-7. **Signup Confirmation Callback & Email Prefill** (25.6)
+7. **Signup Confirmation Callback & Email Prefill** (25.6, see `docs/fixing-phase-log.md` § Item index)
    - When the user taps the confirmation link, Supabase emits a `signedIn` auth-state event (warm start: app still running) or restores a temporary session at startup (cold start: app relaunched by the deep link).
    - `AuthState.init()` checks for a temporary Supabase session together with a pending signup email in storage. If found and the user is not yet locally logged in, `_completeSignupConfirmation()` runs: it revokes the temporary session via `signOut()`, clears the pending email from storage, stores the confirmed email in `_pendingLoginEmail`, and calls `setMessage(auth_emailConfirmed)` to queue a success toast.
    - The `onAuthStateChange` stream listener also handles the warm-start path: a `signedIn` event while `!isLoggedIn && !_isSigningIn` triggers the same `_completeSignupConfirmation()` and then pops the navigator to root so `LoginScreen` is shown.

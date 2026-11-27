@@ -36,6 +36,7 @@
 | 22 | Docs & dead-code hygiene | 22.1–22.4 | All fixed. Feature, backend and Supabase docs aligned with code; dead `getReceiverInstallationId` and `LanguageHelper` statics deleted |
 | 23 | Regression tests | 23.1–23.4 | All fixed. 23.1–23.3 closed as *already clean* (existing Flutter and Jest suites already covered them). Added `M1` auth-user delete cascade SQL assertion |
 | 24 | First-use correctness & security | 24.1–24.4 | All fixed. Atomic `game_get_or_create_question` RPC + partial unique index, fail-closed Android release signing, canonical `AuthState.syncPartnership` post-auth routing, and logout-guarded FID registration |
+| 25 | Auth, logout & session lifecycle | 25.1–25.6 | All fixed. Logout and stale-navigation guards, session-guarded partner loading and generation invalidation, signed-out realtime disconnection, and signup-confirmation email prefill |
 
 ---
 
@@ -261,6 +262,12 @@
 | 24.2 | Fail closed when Android release signing is missing | Fixed (`gradle.taskGraph.whenReady` check; debug fallback removed) | 2026-11-25 |
 | 24.3 | Keep partnership routing state consistent | Fixed (`AuthState.syncPartnership` + `_resolvePostAuthRoute`) | 2026-11-25 |
 | 24.4 | Stop installation-id registration racing the logout revoke | Fixed (`_isLoggingOut` guard + `_waitForPendingRegistrations`) | 2026-11-26 |
+| 25.1 | MainShell redirects to PartnerScreen after logout | Fixed (authentication-gated redirect + stale-callback recheck) | 2026-11-26 |
+| 25.2 | Logout navigation depends on the caller lifecycle | Fixed (global navigator key replaces the caller context) | 2026-11-26 |
+| 25.3 | PartnerScreen loads private data without an active session | Fixed (screen and state session guards) | 2026-11-27 |
+| 25.4 | Stale PartnerState requests restore cleared data | Fixed (failed-lookup short-circuit + generation invalidation) | 2026-11-27 |
+| 25.5 | RealtimeSync reconnects or polls after signedOut | Fixed (immediate signed-out disconnect and lifecycle guards) | 2026-11-27 |
+| 25.6 | Signup confirmation does not prefill the login email | Fixed (pending signup email + one-shot login prefill) | 2026-11-27 |
 
 ---
 
